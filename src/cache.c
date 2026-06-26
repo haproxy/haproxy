@@ -255,11 +255,11 @@ static inline void release_entry_locked(struct cache_tree *cache, struct cache_e
 static inline void release_entry_unlocked(struct cache_tree *cache, struct cache_entry *entry);
 
 /*
- * Find a cache_entry in the <cache>'s tree that has the hash <hash>.
- * If <delete_expired> is 0 then the entry is left untouched if it is found but
- * is already expired, and NULL is returned. Otherwise, the expired entry is
- * removed from the tree and NULL is returned.
- * Returns a valid (not expired) cache_tree pointer.
+ * Find a cache_entry in <cache_tree> that has the hash <hash>. If
+ * <delete_expired> is non-zero and the entry is expired, it is removed from
+ * the tree and NULL is returned. Otherwise the entry is returned as-is,
+ * including expired entries when <delete_expired> is 0 - the caller is then
+ * responsible for inspecting entry->expire.
  * The returned entry is not retained, it should be explicitly retained only
  * when necessary.
  *
@@ -281,12 +281,11 @@ struct cache_entry *get_entry(struct cache_tree *cache_tree, char *hash, int del
 	if (memcmp(entry->hash, hash, sizeof(entry->hash)))
 		return NULL;
 
-	if (entry->expire > date.tv_sec) {
-		return entry;
-	} else if (delete_expired) {
+	if (delete_expired && entry->expire <= date.tv_sec) {
 		release_entry_locked(cache_tree, entry);
+		return NULL;
 	}
-	return NULL;
+	return entry;
 }
 
 /*
@@ -2438,6 +2437,46 @@ static int should_send_notmodified_response(struct cache *cache, struct htx *htx
 	return retval;
 }
 
+/*
+ * Emit an HTTP 103 Early Hints response built from the cached <hint_data> of
+ * length <hint_data_len>. The format matches what http_action_store_cache
+ * writes: concatenated records of {uint16_t length, char value[length]}, each
+ * value being a Link header value. Skipped for HTTP/1.0 clients.
+ */
+static void cache_emit_early_hints(struct stream *s, const char *hint_data,
+                                   unsigned int hint_data_len)
+{
+	struct htx *htx;
+	const char *p = hint_data;
+	const char *end = hint_data + hint_data_len;
+
+	if (!(s->txn.http->req.flags & HTTP_MSGF_VER_11))
+		return;
+
+	htx = http_early_hint_start(s);
+	if (!htx)
+		goto error;
+
+	while (p + sizeof(uint16_t) <= end) {
+		uint16_t vlen = read_u16(p);
+
+		p += sizeof(vlen);
+		if (p + vlen > end)
+			break;
+		if (!htx_add_header(htx, ist("link"), ist2(p, vlen)))
+			goto error;
+		p += vlen;
+	}
+
+	if (!http_early_hint_end(s))
+		goto error;
+	return;
+
+  error:
+	channel_htx_truncate(&s->res, htxbuf(&s->res.buf));
+	s->txn.http->status = 0;
+}
+
 enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *px,
                                          struct session *sess, struct stream *s, int flags)
 {
@@ -2448,6 +2487,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	struct cache *cache = cconf->c.cache;
 	struct shared_context *shctx = shctx_ptr(cache);
 	struct shared_block *entry_block;
+	struct buffer *hint_buf = NULL;
 
 	struct cache_tree *cache_tree = NULL;
 
@@ -2497,15 +2537,57 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 		entry_block = block_ptr(res);
 		shctx_wrlock(shctx);
-		if ((res->flags & CACHE_EF_COMPLETE) && !(res->flags & CACHE_EF_STRIPPED)) {
+		if (res->expire > date.tv_sec &&
+		    (res->flags & CACHE_EF_COMPLETE) && !(res->flags & CACHE_EF_STRIPPED)) {
 			shctx_row_detach(shctx, entry_block);
 			detached = 1;
 		} else {
+			if ((cache->flags & CACHE_CF_EARLY_HINTS) &&
+			    (res->flags & (CACHE_EF_STRIPPED | CACHE_EF_COMPLETE))) {
+				/* The emitted hints are best-effort and may not exactly
+				 * match the response finally served: with Vary they may
+				 * come from a different variant (resolved below), and a
+				 * stripped entry keeps emitting after expiry until it is
+				 * re-cached or evicted. This only affects which resources
+				 * are preloaded, never the response itself, so it is
+				 * accepted here.
+				 *
+				 * The trash chunk in hint_buf is consumed only after the
+				 * unlocks below. As get_trash_chunk() rotates between two
+				 * buffers, reusing it more than once before then would
+				 * cycle back onto hint_buf and clobber it.
+				 */
+				hint_buf = get_trash_chunk();
+				if (res->flags & CACHE_EF_STRIPPED) {
+					unsigned int len =
+						entry_block->len - sizeof(struct cache_entry);
+
+					if (len > 0 && len <= b_size(hint_buf) &&
+					    shctx_row_data_get(shctx, entry_block,
+					                       (unsigned char *)b_orig(hint_buf),
+					                       sizeof(struct cache_entry),
+					                       len) == 0)
+						hint_buf->data = len;
+
+					/* Refresh this entry's position in the hints LRU. */
+					LIST_DELETE(&res->lru);
+					LIST_APPEND(&cache->hints_lru, &res->lru);
+				} else {
+					/* CACHE_EF_COMPLETE */
+					cache_extract_hints(shctx, entry_block, hint_buf);
+					if (b_data(hint_buf) > 0 && entry_block->refcount == 0 &&
+					    cache->hints_blocks < CACHE_HINTS_CAP(cache))
+						cache_strip_entry(shctx, res, hint_buf);
+				}
+			}
 			release_entry(cache_tree, res, 0);
 			res = NULL;
 		}
 		shctx_wrunlock(shctx);
 		cache_rdunlock(cache_tree);
+
+		if (hint_buf && b_data(hint_buf) > 0)
+			cache_emit_early_hints(s, b_orig(hint_buf), b_data(hint_buf));
 
 		/* In case of Vary, we could have multiple entries with the same
 		 * primary hash. We need to calculate the secondary hash in order
