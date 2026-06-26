@@ -4765,6 +4765,47 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	return 1;
 }
 
+/*
+ * Start a 103 Early Hints response in the response buffer if not already in
+ * progress (txn->status != 103). The caller is responsible for skipping this
+ * call for HTTP/1.0 clients. Returns the htx to which the caller can add Link
+ * headers, or NULL on error.
+ */
+struct htx *http_early_hint_start(struct stream *s)
+{
+	struct htx *htx = htx_from_buf(&s->res.buf);
+
+	if (s->txn.http->status != 103) {
+		struct htx_sl *sl;
+		unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
+		                      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
+
+		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
+		                    ist("HTTP/1.1"), ist("103"), ist("Early Hints"));
+		if (!sl)
+			return NULL;
+		sl->info.res.status = 103;
+		s->txn.http->status = 103;
+	}
+	return htx;
+}
+
+/*
+ * Finalize a 103 Early Hints response. Returns 1 on success, 0 on error
+ * (caller is responsible for truncating the response buffer on failure).
+ */
+int http_early_hint_end(struct stream *s)
+{
+	struct htx *htx = htxbuf(&s->res.buf);
+
+	if (!htx_add_endof(htx, HTX_BLK_EOH))
+		return 0;
+	if (!http_forward_proxy_resp(s, 0))
+		return 0;
+	s->txn.http->status = 0;
+	return 1;
+}
+
 void http_server_error(struct stream *s, struct stconn *sc, int err,
 		       int finst, struct http_reply *msg)
 {

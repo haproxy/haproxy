@@ -1370,21 +1370,8 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 		goto error;
 	}
 
-	/* if there is no pending 103 response, start a new response. Otherwise,
-	 * continue to add link to a previously started response
-         */
-	if (s->txn.http->status != 103) {
-		struct htx_sl *sl;
-		unsigned int flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11|
-				      HTX_SL_F_XFER_LEN|HTX_SL_F_BODYLESS);
-
-		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
-				    ist("HTTP/1.1"), ist("103"), ist("Early Hints"));
-		if (!sl)
-			goto error;
-		sl->info.res.status = 103;
-		s->txn.http->status = 103;
-	}
+	if (!http_early_hint_start(s))
+		goto error;
 
 	/* Add the HTTP Early Hint HTTP 103 response header */
 	value->data = build_logline(s, b_tail(value), b_room(value), &rule->arg.http.fmt);
@@ -1396,11 +1383,8 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	 */
 	next_rule = LIST_NEXT(&rule->list, typeof(rule), list);
 	if (&next_rule->list == s->current_rule_list || next_rule->action_ptr != http_action_early_hint || next_rule->cond) {
-		if (!htx_add_endof(htx, HTX_BLK_EOH))
+		if (!http_early_hint_end(s))
 			goto error;
-		if (!http_forward_proxy_resp(s, 0))
-			goto error;
-		s->txn.http->status = 0;
 	}
 
   leave:

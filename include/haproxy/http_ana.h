@@ -58,6 +58,8 @@ struct http_reply *http_error_message(struct stream *s);
 int http_reply_to_htx(struct stream *s, struct htx *htx, struct http_reply *reply);
 int http_reply_message(struct stream *s, struct http_reply *reply);
 int http_forward_proxy_resp(struct stream *s, int final);
+struct htx *http_early_hint_start(struct stream *s);
+int http_early_hint_end(struct stream *s);
 
 struct http_txn *http_create_txn(struct stream *s);
 void http_destroy_txn(struct stream *s);
