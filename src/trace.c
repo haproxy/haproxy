@@ -181,9 +181,6 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 	if (ctx.srv && !ctx.be)
 		ctx.be = ctx.srv->proxy;
 
-	if (!ctx.be && ctx.conn)
-		ctx.be = objt_proxy(ctx.conn->target);
-
 	/* TODO: add handling of filters here, return if no match (not even update states) */
 
 	/* check if we need to start the trace now */
