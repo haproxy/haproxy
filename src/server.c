@@ -2888,7 +2888,7 @@ void srv_settings_init(struct server *srv)
 	srv->agent.inter = DEF_CHKINTR;
 	srv->agent.fastinter = 0;
 	srv->agent.downinter = 0;
-	srv->agent.rise = DEF_AGENT_RISETIME;
+	srv->agent.rise = srv->agent.health = DEF_AGENT_RISETIME;
 	srv->agent.fall = DEF_AGENT_FALLTIME;
 	srv->agent.port = 0;
 
