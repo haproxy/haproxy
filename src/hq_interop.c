@@ -202,6 +202,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	struct htx *htx = NULL;
 	struct htx_blk *blk;
 	struct htx_sl *sl = NULL;
+	struct http_uri_parser uri_parser;
 	int32_t idx;
 	uint32_t bsize, fsize;
 	struct buffer *res = NULL;
@@ -234,7 +235,8 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 
 			/* Only GET supported for HTTP/0.9. */
 			b_putist(res, ist("GET "));
-			b_putist(res, htx_sl_req_uri(sl));
+			uri_parser = http_uri_parser_init(htx_sl_req_uri(sl));
+			b_putist(res, http_parse_path(&uri_parser));
 			b_putist(res, ist("\r\n"));
 			htx_remove_blk(htx, blk);
 			total += fsize;
