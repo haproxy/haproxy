@@ -116,7 +116,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 	struct htx_sl *sl;
 	struct buffer *htx_buf;
 	const unsigned int flags = HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN;
-	size_t to_copy = b_contig_data(b, 0);
+	size_t to_copy = b_data(b);
 	size_t htx_sent = 0;
 	uint32_t htx_space;
 	char *head;
@@ -158,7 +158,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 			fin = 0;
 		}
 
-		if (b_head(b) + to_copy > b_wrap(b)) {
+		if (head + to_copy > b_wrap(b)) {
 			size_t contig = b_wrap(b) - head;
 			htx_sent = htx_add_data(htx, ist2(b_head(b), contig));
 			if (htx_sent < contig) {
