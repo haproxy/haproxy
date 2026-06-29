@@ -2700,6 +2700,46 @@ set server <backend>/<server> ssl [ on | off ]  (deprecated)
   This command is deprecated, create a new server dynamically with or without
   SSL instead, using the "add server" command.
 
+set server <backend>/<server> name <newname>
+  Change the name of a server at runtime.
+
+  Two preconditions are enforced:
+    - the server must be administratively in maintenance mode (set first
+      via "set server <b>/<s> state maint" or "disable server <b>/<s>");
+    - the server's name must not be statically referenced by a
+      "use-server" rule, a "track" directive, or a sample-fetch argument
+      of type ARGT_SRV. Such references are recorded at configuration
+      load time and renaming the target would leave the running state
+      inconsistent with the configuration text.
+
+  Like "add server" and "del server", this command is not gated by a
+  per-backend opt-in directive: availability is determined entirely by
+  the server's runtime properties.
+
+  The new name must be syntactically valid (non-empty, must pass
+  invalid_char(), i.e. only [A-Za-z0-9_:.-]) and must be unique among
+  all servers in the backend. The change is effective immediately for
+  all runtime operations, stats, and logs, but is not persisted to the
+  configuration file and will be lost on reload. Some features that
+  rely on static server names (such as stick-tables or external
+  monitoring) may not recognize the new name until restart.
+
+  A successful rename publishes an EVENT_HDL_SUB_SERVER_NAME event
+  carrying the old and new names, which Lua scripts and other event
+  consumers can subscribe to.
+
+  There is no strict requirement that no sessions are active before
+  renaming. However, if there are active sessions, log entries for
+  those sessions may use either the old or new name, depending on when
+  the rename occurs relative to logging. This may result in split or
+  inconsistent logs for in-flight requests. If strict log consistency
+  is required, it is the user's responsibility to ensure all sessions
+  have finished before renaming (e.g. by draining via maintenance mode
+  and waiting for all connections to close).
+
+  Example:
+      set server myapp/s1 name blue
+
 set severity-output [ none | number | string ]
   Change the severity output format of the stats socket connected to for the
   duration of the current session.
