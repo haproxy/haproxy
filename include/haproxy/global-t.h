@@ -87,6 +87,7 @@
 #define GTUNE_LISTENER_MQ_ANY    (GTUNE_LISTENER_MQ_FAIR | GTUNE_LISTENER_MQ_OPT)
 #define GTUNE_NO_KTLS            (1<<29)
 #define GTUNE_NO_MAX_COUNTER     (1<<30)
+#define GTUNE_NO_TG_FD_SHARING   (1U<<31)
 
 /* subsystem-specific debugging options for tune.debug */
 #define GDBG_CPU_AFFINITY           (1U<< 0)

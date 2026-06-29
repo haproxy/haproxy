@@ -3121,6 +3121,7 @@ void *run_thread_poll_loop(void *data)
 	__decl_thread(static pthread_cond_t  init_cond  = PTHREAD_COND_INITIALIZER);
 
 	ha_set_thread(data);
+	fdtab = tg_ctx->fdtab;
 	set_thread_cpu_affinity();
 	clock_set_local_source();
 	ha_random_seed_thread();

@@ -138,6 +138,7 @@ struct tgroup_ctx {
 
 	uint niced_tasks;                 /* number of niced tasks in this group's run queues */
 	uint committed_extra_streams;     /* sum of extra front streams committed by muxes in this group */
+	struct fdtab *fdtab;              /* fdtab to be used by that thread group */
 
 	/* pad to cache line (64B) */
 	char __pad[0];                    /* unused except to check remaining room */

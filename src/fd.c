@@ -98,7 +98,8 @@
 #include <haproxy/tools.h>
 
 
-struct fdtab *fdtab             __read_mostly = NULL;  /* array of all the file descriptors */
+THREAD_LOCAL struct fdtab *fdtab = NULL;  /* array of all the file descriptors */
+static struct fdtab *_fdtab;
 struct polled_mask *polled_mask __read_mostly = NULL;  /* Array for the polled_mask of each fd */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
@@ -1191,13 +1192,30 @@ int init_pollers()
 {
 	int p;
 	struct poller *bp;
+	int nbfdtab;
 
+
+	if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
+		nbfdtab = global.nbtgroups;
+	} else
+		nbfdtab = 1;
 	/* always provide an aligned fdtab */
-	if ((fdtab = ha_aligned_zalloc(64, array_size_or_fail(global.maxsock, sizeof(*fdtab)))) == NULL) {
+	if ((_fdtab = ha_aligned_zalloc(64, array_size_or_fail(global.maxsock, nbfdtab * sizeof(*fdtab)))) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for fdtab!\n", global.maxsock);
 		goto fail_tab;
 	}
-	vma_set_name(fdtab, global.maxsock * sizeof(*fdtab), "fd", "fdtab");
+
+	for (p = 0; p < global.nbtgroups; p++) {
+		if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
+			ha_tgroup_ctx[p].fdtab = (void *)((char *)(void *)_fdtab + p * global.maxsock * sizeof(*fdtab));
+		} else
+			ha_tgroup_ctx[p].fdtab = _fdtab;
+	}
+	/*
+	 * Immediately set the fdtab for our thread, as we'll need it soon
+	 */
+	fdtab = ha_tgroup_ctx[0].fdtab;
+	vma_set_name(_fdtab, global.maxsock * sizeof(*fdtab) * nbfdtab, "fd", "fdtab");
 
 	if ((polled_mask = calloc(global.maxsock, sizeof(*polled_mask))) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for polled_mask!\n", global.maxsock);
