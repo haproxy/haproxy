@@ -4730,6 +4730,10 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 		          err && *err ? *err : "", curproxy->id, conf_ciphersuites, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr |= ssl_fips_check_ciphersuites(conf_ciphersuites,
+	                                      &LIST_ELEM(bind_conf->listeners.n, struct listener *, by_bind)->obj_type, err);
+#endif
 #endif
 
 #if defined(OPENSSL_IS_AWSLC)
@@ -5282,6 +5286,13 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 			 srv->ssl_ctx.ciphersuites);
 		cfgerr++;
 	}
+#if defined(OPENSSL_IS_AWSLC)
+	if (ssl_fips_check_ciphersuites(srv->ssl_ctx.ciphersuites, &srv->obj_type, &err)) {
+		ha_alert("%s", err);
+		ha_free(&err);
+		cfgerr++;
+	}
+#endif
 #endif
 
 #if defined(OPENSSL_IS_AWSLC)
