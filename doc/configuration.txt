@@ -970,9 +970,9 @@ HAProxy is launched in master-worker mode.
     and it may as well condition some worker process parameters (see examples
     from section 2.4 "Conditional blocks").
 
-In standalone mode (without "-W" option nor the "master-worker" keyword) the
-process behaves like a worker, except for variables "HAPROXY_MASTER_CLI" and
-"HAPROXY_MWORKER" which are not defined.
+In standalone mode (without "-W" option) the process behaves like a worker,
+except for variables "HAPROXY_MASTER_CLI" and "HAPROXY_MWORKER" which are not
+defined.
 
 Some variables are marked as not usable and not modifiable:
 
@@ -1255,8 +1255,6 @@ Example:
    # 2.3. Environment variables). Its presence enables an additional listener.
 
    global
-     master-worker
-
    .if defined(HAPROXY_MWORKER)
        listen mwcli_px
           bind :1111
@@ -1269,8 +1267,6 @@ Example:
    # mworker-max-reloads parameter.
 
    global
-     master-worker
-
    .if streq("$HAPROXY_BRANCH",3.1)
         mworker-max-reloads 5
    .endif
@@ -3036,32 +3032,6 @@ lua-prepend-path <string> [<type>]
   See https://www.lua.org/pil/8.1.html for the details within the Lua
   documentation.
 
-master-worker (deprecated)
-  Master-worker mode. It is equivalent to the command line "-W" argument.
-
-  This keyword is deprecated, please start in master-worker mode using "-W" or
-  "-Ws".
-
-  This mode will launch a "master" which will fork a "worker" after reading the
-  configuration to process the traffic. The master is used as a process manager
-  which will monitor the "workers".
-
-  Using this mode, you can reload HAProxy directly by sending a SIGUSR2 signal
-  to the master. Reloading will ask the master to read the configuration again
-  and fork a new worker. The previous worker will be kept until the end of its
-  jobs.
-
-  The master-worker mode is compatible either with the foreground or daemon
-  mode.
-
-  By default, if a worker exits with a bad return code, in the case of a
-  segfault for example, all workers will be killed, and the master will leave.
-  It is convenient to combine this behavior with Restart=on-failure in a
-  systemd unit file in order to relaunch the whole process. If you don't want
-  this behavior, you must use the keyword "no-exit-on-failure".
-
-  See also "-W" in the management guide.
-
 master-worker no-exit-on-failure
   In master-worker mode, by default, if a worker exits with a bad return code,
   in the case of a segfault for example, all workers will be killed, and the
@@ -3157,7 +3127,7 @@ pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile> when daemon mode or writes PID
   of master process into file <pidfile> when master-worker mode. This option is
   equivalent to the "-p" command line argument. The file must be accessible to
-  the user starting the process. See also "daemon" and "master-worker".
+  the user starting the process. See also "daemon".
 
 pp2-never-send-local
   A bug in the PROXY protocol v2 implementation was present in HAProxy up to

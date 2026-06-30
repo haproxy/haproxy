@@ -970,10 +970,13 @@ static int cfg_parse_global_master_worker(char **args, int section_type,
 		return -1;
 
 	if (!*args[1]) {
-		if (global.mode & MODE_MWORKER) {
-			ha_warning("master-worker mode is already configured.\n");
-		}
-		ha_warning("The '%s' keyword is deprecated in 3.3 and will be removed in 3.5. Use -W or -Ws in the startup script instead.\n", args[0]);
+		memprintf(err, "support for '%s' was removed in version 3.5. Use -W or -Ws in the startup script instead.\n", args[0]);
+		return -1;
+	}
+
+	if (!(global.mode & (MODE_MWORKER | MODE_CHECK))) {
+		memprintf(err, "'%s %s' is only supported in master-worker mode. Use -W or -Ws in the startup script.\n", args[0], args[1]);
+		return -1;
 	}
 
 	if (*args[1]) {
@@ -985,7 +988,6 @@ static int cfg_parse_global_master_worker(char **args, int section_type,
 			return -1;
 		}
 	}
-	global.mode |= MODE_MWORKER;
 
 	return 0;
 }
