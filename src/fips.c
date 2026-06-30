@@ -17,6 +17,13 @@ static const int fips_approved_cipher_nids[] = {
 	NID_undef
 };
 
+/* FIPS-approved TLS 1.3 ciphersuite names.  NULL terminates the list. */
+static const char *fips_approved_ciphersuites[] = {
+	"TLS_AES_128_GCM_SHA256",
+	"TLS_AES_256_GCM_SHA384",
+	NULL
+};
+
 /* Fill display fields from <obj> for use in error messages. */
 static void fips_obj_info(const enum obj_type *obj,
                           const char **proxy_name, const char **type_str,
@@ -47,6 +54,48 @@ static void fips_obj_info(const enum obj_type *obj,
 		*line = 0;
 		break;
 	}
+}
+
+/* Check that the TLS 1.3 ciphersuite list <ciphersuites> is FIPS-compliant. */
+int ssl_fips_check_ciphersuites(const char *ciphersuites, const enum obj_type *obj)
+{
+	const char *proxy_name, *type_str, *obj_name, *file;
+	const char *p, *end;
+	char *list = NULL;
+	int i, line;
+	size_t len;
+
+	if (!FIPS_mode() || !ciphersuites)
+		return 0;
+
+	p = ciphersuites;
+	while (p && *p) {
+		end = strchr(p, ':');
+		len = end ? (size_t)(end - p) : strlen(p);
+
+		for (i = 0; fips_approved_ciphersuites[i]; i++) {
+			if (strlen(fips_approved_ciphersuites[i]) == len &&
+			    strncmp(p, fips_approved_ciphersuites[i], len) == 0)
+				goto next;
+		}
+		memprintf(&list, "%s%s'%.*s'", list ? list : "",
+		          list ? ", " : "", (int)len, p);
+	next:
+		p = end ? end + 1 : NULL;
+	}
+
+	if (list) {
+		fips_obj_info(obj, &proxy_name, &type_str, &obj_name, &file, &line);
+		if (file)
+			ha_alert("[%s:%d] %s '%s/%s': FIPS mode active but non-FIPS ciphersuite(s) configured: %s.\n",
+			         file, line, type_str, proxy_name, obj_name, list);
+		else
+			ha_alert("%s '%s/%s': FIPS mode active but non-FIPS ciphersuite(s) configured: %s.\n",
+			         type_str, proxy_name, obj_name, list);
+		free(list);
+		return ERR_ALERT | ERR_ABORT | ERR_FATAL;
+	}
+	return 0;
 }
 
 /* Check that the TLS 1.2 cipher list configured on <ctx> is FIPS-compliant. */
