@@ -460,6 +460,15 @@
 #define LISTEN_DEFAULT_FIPS_CIPHERSUITES "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
 #endif
 
+/* FIPS-approved elliptic curves for AWS-LC FIPS builds (NIST P-curves only) */
+#ifndef CONNECT_DEFAULT_FIPS_CURVES
+#define CONNECT_DEFAULT_FIPS_CURVES "P-256:P-384:P-521"
+#endif
+
+#ifndef LISTEN_DEFAULT_FIPS_CURVES
+#define LISTEN_DEFAULT_FIPS_CURVES "P-256:P-384:P-521"
+#endif
+
 /* named curve used as defaults for ECDHE ciphers */
 #ifndef ECDHE_DEFAULT_CURVE
 #define ECDHE_DEFAULT_CURVE "prime256v1"

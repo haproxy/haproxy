@@ -8545,6 +8545,10 @@ static void __ssl_sock_init(void)
 		global_ssl.listen_default_ciphersuites = strdup(LISTEN_DEFAULT_FIPS_CIPHERSUITES);
 		free(global_ssl.connect_default_ciphersuites);
 		global_ssl.connect_default_ciphersuites = strdup(CONNECT_DEFAULT_FIPS_CIPHERSUITES);
+		free(global_ssl.listen_default_curves);
+		global_ssl.listen_default_curves = strdup(LISTEN_DEFAULT_FIPS_CURVES);
+		free(global_ssl.connect_default_curves);
+		global_ssl.connect_default_curves = strdup(CONNECT_DEFAULT_FIPS_CURVES);
 	}
 #endif /* OPENSSL_IS_AWSLC */
 
