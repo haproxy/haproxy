@@ -469,6 +469,35 @@
 #define LISTEN_DEFAULT_FIPS_CURVES "P-256:P-384:P-521"
 #endif
 
+/* FIPS-approved signature algorithms for AWS-LC FIPS builds */
+#ifndef CONNECT_DEFAULT_FIPS_SIGALGS
+#define CONNECT_DEFAULT_FIPS_SIGALGS \
+	"ecdsa_secp256r1_sha256:ecdsa_secp384r1_sha384:ecdsa_secp521r1_sha512:" \
+	"rsa_pss_rsae_sha256:rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:" \
+	"rsa_pkcs1_sha256:rsa_pkcs1_sha384:rsa_pkcs1_sha512"
+#endif
+
+#ifndef LISTEN_DEFAULT_FIPS_SIGALGS
+#define LISTEN_DEFAULT_FIPS_SIGALGS \
+	"ecdsa_secp256r1_sha256:ecdsa_secp384r1_sha384:ecdsa_secp521r1_sha512:" \
+	"rsa_pss_rsae_sha256:rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:" \
+	"rsa_pkcs1_sha256:rsa_pkcs1_sha384:rsa_pkcs1_sha512"
+#endif
+
+#ifndef CONNECT_DEFAULT_FIPS_CLIENT_SIGALGS
+#define CONNECT_DEFAULT_FIPS_CLIENT_SIGALGS \
+	"ecdsa_secp256r1_sha256:ecdsa_secp384r1_sha384:ecdsa_secp521r1_sha512:" \
+	"rsa_pss_rsae_sha256:rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:" \
+	"rsa_pkcs1_sha256:rsa_pkcs1_sha384:rsa_pkcs1_sha512"
+#endif
+
+#ifndef LISTEN_DEFAULT_FIPS_CLIENT_SIGALGS
+#define LISTEN_DEFAULT_FIPS_CLIENT_SIGALGS \
+	"ecdsa_secp256r1_sha256:ecdsa_secp384r1_sha384:ecdsa_secp521r1_sha512:" \
+	"rsa_pss_rsae_sha256:rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:" \
+	"rsa_pkcs1_sha256:rsa_pkcs1_sha384:rsa_pkcs1_sha512"
+#endif
+
 /* named curve used as defaults for ECDHE ciphers */
 #ifndef ECDHE_DEFAULT_CURVE
 #define ECDHE_DEFAULT_CURVE "prime256v1"
