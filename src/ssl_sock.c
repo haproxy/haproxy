@@ -8520,6 +8520,23 @@ static void __ssl_sock_init(void)
 		global_ssl.connect_default_ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
 #endif
 
+#if defined(OPENSSL_IS_AWSLC)
+	/* When AWS-LC is built in FIPS mode, override any compile-time cipher
+	 * defaults with the FIPS-approved sets. This runs before the config
+	 * parser so that explicit ssl-default-{bind,server}-ciphers{suites}
+	 * keywords in the global section still take precedence. */
+	if (FIPS_mode()) {
+		free(global_ssl.listen_default_ciphers);
+		global_ssl.listen_default_ciphers = strdup(LISTEN_DEFAULT_FIPS_CIPHERS);
+		free(global_ssl.connect_default_ciphers);
+		global_ssl.connect_default_ciphers = strdup(CONNECT_DEFAULT_FIPS_CIPHERS);
+		free(global_ssl.listen_default_ciphersuites);
+		global_ssl.listen_default_ciphersuites = strdup(LISTEN_DEFAULT_FIPS_CIPHERSUITES);
+		free(global_ssl.connect_default_ciphersuites);
+		global_ssl.connect_default_ciphersuites = strdup(CONNECT_DEFAULT_FIPS_CIPHERSUITES);
+	}
+#endif /* OPENSSL_IS_AWSLC */
+
 	xprt_register(XPRT_SSL, &ssl_sock);
 #if HA_OPENSSL_VERSION_NUMBER < 0x10100000L
 	SSL_library_init();
