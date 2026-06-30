@@ -4704,6 +4704,7 @@ static void qcm_strm_shut(struct stconn *sc, unsigned int mode, struct se_abort_
 {
 	struct qcs *qcs = __sc_mux_strm(sc);
 	struct qcc *qcc = qcs->qcc;
+	enum qcc_app_ops_lclose_mode lclo_mode;
 
 	if (!(mode & (SE_SHW_SILENT|SE_SHW_NORMAL)))
 		return;
@@ -4713,12 +4714,15 @@ static void qcm_strm_shut(struct stconn *sc, unsigned int mode, struct se_abort_
 	/* Early closure reported if QC_SF_FIN_STREAM not yet set. */
 	if (!qcs_is_close_local(qcs) &&
 	    !(qcs->flags & (QC_SF_FIN_STREAM|QC_SF_TO_RESET))) {
+
 		if (qcs->flags & QC_SF_UNKNOWN_PL_LENGTH)
-			qcc->app_ops->lclose(qcs, QCC_APP_OPS_LCLO_MODE_NORMAL);
+			lclo_mode = QCC_APP_OPS_LCLO_MODE_NORMAL;
 		else if (se_fl_test(qcs->sd, SE_FL_KILL_CONN))
-			qcc->app_ops->lclose(qcs, QCC_APP_OPS_LCLO_MODE_KILL_CONN);
+			lclo_mode = QCC_APP_OPS_LCLO_MODE_KILL_CONN;
 		else
-			qcc->app_ops->lclose(qcs, QCC_APP_OPS_LCLO_MODE_ABORT);
+			lclo_mode = QCC_APP_OPS_LCLO_MODE_ABORT;
+
+		qcc->app_ops->lclose(qcs, lclo_mode);
 		tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 

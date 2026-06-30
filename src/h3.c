@@ -3289,19 +3289,23 @@ static void h3_lclose(struct qcs *qcs, enum qcc_app_ops_lclose_mode mode)
 		 * the connection with H3_FRAME_UNEXPECTED.
 		 */
 		if (qcs->tx.fc.off_soft) {
+			TRACE_STATE("close stream with empty fin", H3_EV_H3S_END, qcs->qcc->conn, qcs);
 			qcs->flags |= QC_SF_FIN_STREAM;
 			qcc_send_stream(qcs, 0, 0);
 		}
 		else {
-			qcc_reset_stream(qcs, 0, se_tevt_type_shutw);
+			TRACE_STATE("reset stream as no content emitted yet", H3_EV_H3S_END, qcs->qcc->conn, qcs);
+			qcc_reset_stream(qcs, H3_ERR_REQUEST_CANCELLED, se_tevt_type_shutw);
 		}
 		break;
 
 	case QCC_APP_OPS_LCLO_MODE_ABORT:
+		TRACE_STATE("cancel stream", H3_EV_H3S_END, qcs->qcc->conn, qcs);
 		qcc_reset_stream(qcs, H3_ERR_REQUEST_CANCELLED, se_tevt_type_cancelled);
 		break;
 
 	case QCC_APP_OPS_LCLO_MODE_KILL_CONN:
+		TRACE_STATE("kill stream", H3_EV_H3S_END, qcs->qcc->conn, qcs);
 		qcc_reset_stream(qcs, H3_ERR_EXCESSIVE_LOAD, se_tevt_type_cancelled);
 		if (!(qcs->qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))) {
 			qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1,
