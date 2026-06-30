@@ -74,6 +74,7 @@
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
+#include <haproxy/fips.h>
 #include <haproxy/ssl_gencert.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
@@ -4042,6 +4043,11 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	min = conf_ssl_methods->min;
 	max = conf_ssl_methods->max;
 
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr += !!ssl_fips_check_version(min,
+	                                   &LIST_ELEM(bind_conf->listeners.n, struct listener *, by_bind)->obj_type);
+#endif
+
 	/* default minimum is TLSV12,  */
 	if (!min) {
 		if (!max || (max >= default_min_ver)) {
@@ -5116,6 +5122,10 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 			   "Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n");
 	else
 		flags = conf_ssl_methods->flags;
+
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr += !!ssl_fips_check_version(conf_ssl_methods->min, &srv->obj_type);
+#endif
 
 	/* Real min and max should be determinate with configuration and openssl's capabilities */
 	if (conf_ssl_methods->min)

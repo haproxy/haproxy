@@ -629,6 +629,7 @@ endif
 ifneq ($(USE_OPENSSL_AWSLC:0=),)
   # always automatically set USE_OPENSSL
   USE_OPENSSL     := $(if $(USE_OPENSSL:0=),$(USE_OPENSSL:0=),implicit)
+  OPTIONS_OBJS   += src/fips.o
 endif
 
 # This is for any variant of the OpenSSL API. By default it uses OpenSSL.
