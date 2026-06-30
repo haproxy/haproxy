@@ -4788,6 +4788,10 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 		}
 		(void)SSL_CTX_set_ecdh_auto(ctx, 1);
 	}
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr |= ssl_fips_check_curves(conf_curves,
+	                                &LIST_ELEM(bind_conf->listeners.n, struct listener *, by_bind)->obj_type);
+#endif
 #endif /* defined(SSL_CTX_set1_curves_list) */
 
 	if (!conf_curves) {
@@ -5330,6 +5334,9 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 			cfgerr++;
 		}
 	}
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr += !!ssl_fips_check_curves(conf_curves, &srv->obj_type);
+#endif
 #endif /* defined(SSL_CTX_set1_curves_list) */
 
 	return cfgerr;
