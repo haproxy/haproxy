@@ -9,6 +9,7 @@
 
 #if defined(OPENSSL_IS_AWSLC)
 int ssl_fips_check_ciphers(SSL_CTX *ctx, const enum obj_type *obj);
+int ssl_fips_check_ciphersuites(const char *ciphersuites, const enum obj_type *obj);
 int ssl_fips_check_version(int min_ver, const enum obj_type *obj);
 #endif
 
