@@ -11,6 +11,7 @@
 int ssl_fips_check_ciphers(SSL_CTX *ctx, const enum obj_type *obj, char **err);
 int ssl_fips_check_ciphersuites(const char *ciphersuites, const enum obj_type *obj, char **err);
 int ssl_fips_check_curves(const char *curves, const enum obj_type *obj, char **err);
+int ssl_fips_check_sigalgs(const char *sigalgs, const enum obj_type *obj, char **err);
 int ssl_fips_check_version(int min_ver, const enum obj_type *obj);
 #endif
 
