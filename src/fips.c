@@ -4,6 +4,8 @@
 
 #include <stdlib.h>
 
+#include <openssl/ec.h>
+
 #include <haproxy/errors.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/openssl-compat.h>
@@ -17,6 +19,14 @@ static const int fips_approved_cipher_nids[] = {
 	NID_aes_256_gcm,
 	NID_aes_128_ccm,
 	NID_aes_256_ccm,
+	NID_undef
+};
+
+/* FIPS-approved elliptic curve NIDs (NIST P-curves).  NID_undef terminates the list. */
+static const int fips_approved_curve_nids[] = {
+	NID_X9_62_prime256v1,  /* P-256 */
+	NID_secp384r1,          /* P-384 */
+	NID_secp521r1,          /* P-521 */
 	NID_undef
 };
 
@@ -96,6 +106,55 @@ int ssl_fips_check_ciphersuites(const char *ciphersuites, const enum obj_type *o
 			          (err && *err) ? *err : "", file, line, type_str, proxy_name, obj_name, list);
 		else
 			memprintf(err, "%s%s '%s/%s': FIPS mode active but non-FIPS ciphersuite(s) configured: %s.\n",
+			          (err && *err) ? *err : "", type_str, proxy_name, obj_name, list);
+		free(list);
+		return ERR_ALERT | ERR_ABORT | ERR_FATAL;
+	}
+	return 0;
+}
+
+/* Check that the elliptic curve list <curves> is FIPS-compliant. */
+int ssl_fips_check_curves(const char *curves, const enum obj_type *obj, char **err)
+{
+	const char *proxy_name, *type_str, *obj_name, *file;
+	const char *p, *end;
+	char *list = NULL;
+	char name[64];
+	int i, nid, line;
+	size_t len;
+
+	if (!FIPS_mode() || !curves)
+		return 0;
+
+	p = curves;
+	while (p && *p) {
+		end = strchr(p, ':');
+		len = end ? (size_t)(end - p) : strlen(p);
+
+		if (len < sizeof(name)) {
+			memcpy(name, p, len);
+			name[len] = '\0';
+			nid = OBJ_txt2nid(name);
+			if (nid == NID_undef)
+				nid = EC_curve_nist2nid(name);
+			for (i = 0; fips_approved_curve_nids[i] != NID_undef; i++) {
+				if (nid == fips_approved_curve_nids[i])
+					goto next;
+			}
+		}
+		memprintf(&list, "%s%s'%.*s'", list ? list : "",
+		          list ? ", " : "", (int)len, p);
+	next:
+		p = end ? end + 1 : NULL;
+	}
+
+	if (list) {
+		fips_obj_info(obj, &proxy_name, &type_str, &obj_name, &file, &line);
+		if (file)
+			memprintf(err, "%s[%s:%d] %s '%s/%s': FIPS mode active but non-FIPS curve(s) configured: %s.\n",
+			          (err && *err) ? *err : "", file, line, type_str, proxy_name, obj_name, list);
+		else
+			memprintf(err, "%s%s '%s/%s': FIPS mode active but non-FIPS curve(s) configured: %s.\n",
 			          (err && *err) ? *err : "", type_str, proxy_name, obj_name, list);
 		free(list);
 		return ERR_ALERT | ERR_ABORT | ERR_FATAL;
