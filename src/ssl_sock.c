@@ -4732,6 +4732,11 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 	}
 #endif
 
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr |= ssl_fips_check_ciphers(ctx,
+	                                 &LIST_ELEM(bind_conf->listeners.n, struct listener *, by_bind)->obj_type);
+#endif
+
 #ifndef OPENSSL_NO_DH
 	if (!local_dh_1024)
 		local_dh_1024 = ssl_get_dh_1024();
@@ -5274,6 +5279,10 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 			 srv->ssl_ctx.ciphersuites);
 		cfgerr++;
 	}
+#endif
+
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr += !!ssl_fips_check_ciphers(ctx, &srv->obj_type);
 #endif
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
 	if (srv->ssl_ctx.npn_str)
