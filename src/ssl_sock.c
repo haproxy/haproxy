@@ -8560,6 +8560,16 @@ static void __ssl_sock_init(void)
 		global_ssl.listen_default_curves = strdup(LISTEN_DEFAULT_FIPS_CURVES);
 		free(global_ssl.connect_default_curves);
 		global_ssl.connect_default_curves = strdup(CONNECT_DEFAULT_FIPS_CURVES);
+#if defined(SSL_CTX_set1_sigalgs_list)
+		free(global_ssl.listen_default_sigalgs);
+		global_ssl.listen_default_sigalgs = strdup(LISTEN_DEFAULT_FIPS_SIGALGS);
+		free(global_ssl.connect_default_sigalgs);
+		global_ssl.connect_default_sigalgs = strdup(CONNECT_DEFAULT_FIPS_SIGALGS);
+		free(global_ssl.listen_default_client_sigalgs);
+		global_ssl.listen_default_client_sigalgs = strdup(LISTEN_DEFAULT_FIPS_CLIENT_SIGALGS);
+		free(global_ssl.connect_default_client_sigalgs);
+		global_ssl.connect_default_client_sigalgs = strdup(CONNECT_DEFAULT_FIPS_CLIENT_SIGALGS);
+#endif
 	}
 #endif /* OPENSSL_IS_AWSLC */
 
