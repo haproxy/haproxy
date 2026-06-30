@@ -198,7 +198,8 @@ struct qcs {
 	struct wait_event wait_event;
 	struct wait_event *subs;
 
-	uint64_t err; /* error code to transmit via RESET_STREAM */
+	uint64_t rs_err; /* error code to transmit via RESET_STREAM */
+	uint64_t ss_err; /* error code to transmit via STOP_SENDING */
 
 	int start; /* base timestamp for http-request timeout */
 
