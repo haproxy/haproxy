@@ -17,6 +17,10 @@ static void hq_trace_req(struct ist meth, struct ist path, uint64_t mask,
                          const struct ist trc_loc, const char *func,
                          struct qcs *qcs, struct qcc *qcc);
 
+static void hq_trace_resp(struct ist status, uint64_t mask,
+                          const struct ist trc_loc, const char *func,
+                          struct qcs *qcs, struct qcc *qcc);
+
 /* HTTP/0.9 request -> HTX. */
 static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin)
 {
@@ -126,6 +130,8 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 	size_t to_copy = b_data(b);
 	size_t htx_sent = 0;
 	uint32_t htx_space;
+	struct ist status;
+	char h, t, u;
 	char *head;
 
 	htx_buf = qcc_get_stream_rxbuf(qcs);
@@ -133,14 +139,21 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 	htx = htx_from_buf(htx_buf);
 
 	if (htx_is_empty(htx) && !qcs->rx.offset) {
+		status = ist("200");
+		h = status.ptr[0] - '0';
+		t = status.ptr[1] - '0';
+		u = status.ptr[2] - '0';
+
 		/* First data transfer, add HTX response start-line first. */
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags,
-		                    ist("HTTP/1.0"), ist("200"), ist(""));
+		                    ist("HTTP/1.0"), status, ist(""));
 		BUG_ON(!sl);
-		sl->info.res.status = 200;
+		sl->info.res.status = h * 100 + t * 10 + u;
 		if (fin && !to_copy)
 			sl->flags |= HTX_SL_F_BODYLESS;
 		htx_add_endof(htx, HTX_BLK_EOH);
+
+		hq_trace_resp(status, QMUX_EV_QCC_RECV, ist(TRC_LOC), __FUNCTION__, qcs, qcs->qcc);
 	}
 
 	if (!to_copy) {
@@ -215,6 +228,8 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	struct buffer *res = NULL;
 	struct ist meth, path;
 	size_t total = 0;
+	struct ist status;
+	char sts[4];
 	char eom;
 	int err;
 
@@ -312,6 +327,10 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 			if (!(sl->flags & HTX_SL_F_XFER_LEN))
 				qcs->flags |= QC_SF_UNKNOWN_PL_LENGTH;
 			htx_remove_blk(htx, blk);
+
+			status = ist(ultoa_r(sl->info.res.status, sts, sizeof(sts)));
+			hq_trace_resp(status, QMUX_EV_STRM_SEND, ist(TRC_LOC), __FUNCTION__, qcs, qcs->qcc);
+
 			total += bsize;
 			count -= bsize;
 			break;
@@ -432,6 +451,22 @@ static void hq_trace_req(struct ist meth, struct ist path, uint64_t mask,
 		chunk_appendf(&trash, "HTTP/0.9 req: %.*s %.*s",
 		              (uint)istlen(meth), istptr(meth),
 		              (uint)istlen(path), istptr(path));
+
+		_hq_trace_http(line, mask, trc_loc, func, qcs, qcc);
+	}
+}
+
+static void hq_trace_resp(struct ist status, uint64_t mask,
+                          const struct ist trc_loc, const char *func,
+                          struct qcs *qcs, struct qcc *qcc)
+{
+	const char *line __maybe_unused;
+
+	if (TRACE_ENABLED(TRACE_LEVEL_USER, mask, qcs->qcc->conn, qcs, 0, 0)) {
+		chunk_reset(&trash);
+		line = chunk_newstr(&trash);
+		chunk_appendf(&trash, "HTTP/0.9 resp (%.*s)",
+		              (uint)istlen(status), istptr(status));
 
 		_hq_trace_http(line, mask, trc_loc, func, qcs, qcc);
 	}
