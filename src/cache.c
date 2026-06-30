@@ -49,6 +49,9 @@
 #define CACHE_CF_VARY_PROCESSING   0x00000001 /* manage Vary header (disabled by default) */
 #define CACHE_CF_EARLY_HINTS       0x00000002 /* enable HTTP 103 Early Hints (disabled by default) */
 
+/* Soft cap on the number of cache blocks that may be held by hints entries. */
+#define CACHE_HINTS_CAP(cache)     ((cache)->maxblocks / 4)
+
 static uint64_t cache_hash_seed = 0;
 
 const char *cache_store_flt_id = "cache store filter";
@@ -236,6 +239,9 @@ struct cache_entry {
 
 #define CACHE_BLOCKSIZE 1024
 #define CACHE_ENTRY_MAX_AGE 2147483648U
+
+/* Maximum size of a single Link header value for hint extraction. */
+#define CACHE_MAX_HINT_LINK_VAL 1024
 
 static struct list caches = LIST_HEAD_INIT(caches);
 static struct list caches_config = LIST_HEAD_INIT(caches_config); /* cache config to init */
@@ -1079,7 +1085,7 @@ static int rel_is_hint(const struct ist rel)
  * Returns true if the value of the Link header contains at least one rel attribute
  * worth sending in a 103 Early Hint response.
  */
-static int __maybe_unused link_is_hint(struct ist val)
+static int link_is_hint(struct ist val)
 {
 	const char *p = istptr(val), *end = istend(val);
 	struct ist params, pname, pval;
@@ -1156,6 +1162,204 @@ static void cache_free_blocks(struct shared_block *first, void *data)
 		LIST_INSERT(&cache_tree->cleanup_list, &object->cleanup_list);
 		HA_SPIN_UNLOCK(CACHE_LOCK, &cache_tree->cleanup_lock);
 	}
+}
+
+/*
+ * Walk the HTX header blocks and accumulate Link values relevant for early
+ * hints into <hint_buf>. Returns the number of bytes written to <hint_buf>.
+ */
+static int cache_extract_hints(struct shared_context *shctx,
+                               struct shared_block *first,
+                               struct buffer *hint_buf)
+{
+	unsigned int offset = sizeof(struct cache_entry);
+	char value_buf[CACHE_MAX_HINT_LINK_VAL];
+
+	while (offset + sizeof(uint32_t) <= first->len) {
+		uint32_t info;
+		enum htx_blk_type type;
+		size_t name_len, value_len;
+
+		if (shctx_row_data_get(shctx, first, (unsigned char *)&info,
+		                       offset, sizeof(info)) != 0)
+			break;
+		type = __htx_blkinfo_type(info);
+		if (type == HTX_BLK_EOH)
+			break;
+		if (type != HTX_BLK_HDR) {
+			offset += sizeof(info) + (info & 0xfffffff);
+			continue;
+		}
+
+		name_len  = info & 0xff;
+		value_len = (info >> 8) & 0xfffff;
+		if (offset + sizeof(info) + name_len + value_len > first->len)
+			break;
+		/* value_buf linearizes the value out of the row; the HTX
+		 * extractor reads it in place and needs no such cap.
+		 */
+		if (value_len <= sizeof(value_buf) && name_len == 4) {
+			char name[4];
+
+			shctx_row_data_get(shctx, first, (unsigned char *)name,
+			                   offset + sizeof(info), 4);
+			if (memcmp(name, "link", 4) == 0) {
+				struct ist iter, lv;
+				size_t hdr_start = b_data(hint_buf);
+				uint16_t hdr_len = 0;
+
+				shctx_row_data_get(shctx, first,
+				                   (unsigned char *)value_buf,
+				                   offset + sizeof(info) + name_len,
+				                   value_len);
+				iter = ist2(value_buf, value_len);
+
+				if (b_data(hint_buf) + sizeof(hdr_len) > b_size(hint_buf))
+					break;
+				hint_buf->data += sizeof(hdr_len);
+
+				while (http_next_hdr_value(&iter, &lv)) {
+					size_t needed = lv.len;
+
+					if (!link_is_hint(lv))
+						continue;
+					if (hdr_len > 0)
+						needed += 2;
+					if (hdr_len + needed > UINT16_MAX)
+						continue;
+					if (b_data(hint_buf) + needed > b_size(hint_buf))
+						continue;
+
+					if (hdr_len > 0) {
+						chunk_memcat(hint_buf, ", ", 2);
+						hdr_len += 2;
+					}
+					chunk_memcat(hint_buf, lv.ptr, lv.len);
+					hdr_len += lv.len;
+				}
+
+				if (hdr_len == 0)
+					hint_buf->data -= sizeof(hdr_len);
+				else
+					memcpy(b_orig(hint_buf) + hdr_start,
+					       &hdr_len, sizeof(hdr_len));
+			}
+		}
+		offset += sizeof(info) + name_len + value_len;
+	}
+
+	return b_data(hint_buf);
+}
+
+/*
+ * Strip a full cache entry in place: persist <hint_buf>'s content past
+ * sizeof(cache_entry), truncate the row to match, mark the entry as
+ * CACHE_EF_STRIPPED, and move it to the hints LRU. Must be called under
+ * the shctx wrlock and with the row's refcount at 0.
+ *
+ * The extracted hint records may end up larger than the original entry
+ * (each value is re-joined with ", " and carries a length prefix), so the
+ * stripped layout is not guaranteed to be smaller. Only strip when it frees
+ * at least one block: this makes room, keeps the copy below within the row,
+ * and guarantees forward progress for the make_room() caller. Returns 1 if
+ * the entry was stripped, 0 if it was left untouched.
+ */
+static int cache_strip_entry(struct shared_context *shctx,
+                             struct cache_entry *entry,
+                             const struct buffer *hint_buf)
+{
+	struct cache *cache = (struct cache *)shctx->data;
+	struct shared_block *first = block_ptr(entry);
+	struct shared_block *block = first;
+	const char *src = b_head(hint_buf);
+	unsigned int new_len = sizeof(struct cache_entry) + b_data(hint_buf);
+	unsigned int off = sizeof(struct cache_entry);
+	unsigned int left = b_data(hint_buf);
+
+	if ((new_len + shctx->block_size - 1) / shctx->block_size >= first->block_count)
+		return 0;
+
+	while (off >= shctx->block_size) {
+		block = LIST_NEXT(&block->list, struct shared_block *, list);
+		off -= shctx->block_size;
+	}
+
+	while (left > 0) {
+		unsigned int chunk = shctx->block_size - off;
+
+		if (chunk > left)
+			chunk = left;
+		memcpy(block->data + off, src, chunk);
+		src += chunk;
+		left -= chunk;
+		off = 0;
+		block = LIST_NEXT(&block->list, struct shared_block *, list);
+	}
+
+	shctx_row_truncate(shctx, first, new_len);
+	entry->flags |= CACHE_EF_STRIPPED;
+	LIST_DELETE(&entry->lru);
+	LIST_APPEND(&cache->hints_lru, &entry->lru);
+	cache->hints_blocks += first->block_count;
+	return 1;
+}
+
+/*
+ * Free one entry's blocks. If the hints pool is at or above the limit
+ * (set to 25%), first try to evict the oldest hint entry. Otherwise,
+ * pop the oldest full entry and try to strip it. If the entry doesn't
+ * contain the relevant Link headers, or if we are past the limit for
+ * hints blocks, evict it entirely.
+ * Returns 1 on success, 0 if nothing could be freed.
+ */
+static int cache_make_room(struct shared_context *shctx)
+{
+	struct cache *cache = (struct cache *)shctx->data;
+	struct cache_entry *entry, *back;
+	int can_strip = (cache->hints_blocks < CACHE_HINTS_CAP(cache));
+
+	if (!can_strip) {
+		list_for_each_entry_safe(entry, back, &cache->hints_lru, lru) {
+			struct shared_block *first = block_ptr(entry);
+
+			if (first->refcount == 0) {
+				shctx_row_truncate(shctx, first, 0);
+				return 1;
+			}
+		}
+	}
+
+	list_for_each_entry_safe(entry, back, &cache->full_lru, lru) {
+		struct shared_block *first = block_ptr(entry);
+		struct buffer *hint_buf = NULL;
+		int hint_len = 0;
+
+		if (first->refcount > 0)
+			continue;
+
+		/* A key of 0 means the entry is no longer in the tree; its
+		 * blocks are dead and can be reclaimed right away.
+		 */
+		if (!entry->eb.key) {
+			shctx_row_truncate(shctx, first, 0);
+			return 1;
+		}
+
+		if (can_strip) {
+			hint_buf = get_trash_chunk();
+			hint_len = cache_extract_hints(shctx, first, hint_buf);
+		}
+
+		/* Strip the entry to keep its hints; fall back to evicting it
+		 * whole if it has no hints or stripping would free no block.
+		 */
+		if (hint_len <= 0 || !cache_strip_entry(shctx, entry, hint_buf))
+			shctx_row_truncate(shctx, first, 0);
+
+		return 1;
+	}
+
+	return 0;
 }
 
 static void cache_reserve_finish(struct shared_context *shctx)
@@ -2661,6 +2865,7 @@ int post_check_cache()
 		}
 		shctx->free_block = cache_free_blocks;
 		shctx->reserve_finish = cache_reserve_finish;
+		shctx->make_room = cache_make_room;
 		shctx->cb_data = (void*)shctx->data;
 		/* the cache structure is stored in the shctx and added to the
 		 * caches list, we can remove the entry from the caches_config
