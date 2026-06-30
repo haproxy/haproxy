@@ -4732,6 +4732,11 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 	}
 #endif
 
+#if defined(OPENSSL_IS_AWSLC)
+	cfgerr |= ssl_fips_check_ciphers(ctx,
+	                                 &LIST_ELEM(bind_conf->listeners.n, struct listener *, by_bind)->obj_type, err);
+#endif
+
 #ifndef OPENSSL_NO_DH
 	if (!local_dh_1024)
 		local_dh_1024 = ssl_get_dh_1024();
@@ -5111,6 +5116,9 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 #if defined(SSL_CTX_set1_curves_list)
 	const char *conf_curves = NULL;
 #endif
+#if defined(OPENSSL_IS_AWSLC)
+	char *err = NULL;
+#endif
 	X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
 	/* QUIC supports only TLS 1.3. Skip these TLS versions settings. */
@@ -5272,6 +5280,14 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		!SSL_CTX_set_ciphersuites(ctx, srv->ssl_ctx.ciphersuites)) {
 		ha_alert("unable to set TLS 1.3 cipher suites to '%s'.\n",
 			 srv->ssl_ctx.ciphersuites);
+		cfgerr++;
+	}
+#endif
+
+#if defined(OPENSSL_IS_AWSLC)
+	if (ssl_fips_check_ciphers(ctx, &srv->obj_type, &err)) {
+		ha_alert("%s", err);
+		ha_free(&err);
 		cfgerr++;
 	}
 #endif
