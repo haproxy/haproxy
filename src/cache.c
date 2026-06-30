@@ -43,6 +43,7 @@
 
 /* Flags for cached entries. */
 #define CACHE_EF_COMPLETE          0x00000001 /* fully written and valid */
+#define CACHE_EF_STRIPPED          0x00000002 /* entry stripped, only early hints data remains */
 
 /* Flags for configuration. */
 #define CACHE_CF_VARY_PROCESSING   0x00000001 /* manage Vary header (disabled by default) */
@@ -67,6 +68,9 @@ struct cache_tree {
 struct cache {
 	struct cache_tree trees[CACHE_TREE_NUM];
 	struct list list;        /* cache linked list */
+	struct list full_lru;    /* LRU list of full entries */
+	struct list hints_lru;   /* LRU list of hints entries */
+	unsigned int hints_blocks;  /* sum of block counts of hints entries */
 	unsigned int maxage;     /* max-age */
 	unsigned int maxblocks;
 	unsigned int maxobjsz;   /* max-object-size (in bytes) */
@@ -209,6 +213,7 @@ struct cache_entry {
 	char hash[20];
 
 	struct list cleanup_list;/* List used between the cache_free_blocks and cache_reserve_finish calls */
+	struct list lru;         /* Link in the cache's full_lru or hints_lru */
 
 	char secondary_key[HTTP_CACHE_SEC_KEY_LEN];  /* Optional secondary key. */
 	unsigned int secondary_key_signature;  /* Bitfield of the HTTP headers that should be used
@@ -581,7 +586,32 @@ static inline struct shared_block *block_ptr(struct cache_entry *entry)
 	return (struct shared_block *)((unsigned char *)entry - offsetof(struct shared_block, data));
 }
 
+/*
+ * Reattach a row that the cache had detached for reading or writing, and
+ * ensure the corresponding entry is at the tail of its appropriate LRU. If
+ * the entry is not yet in any LRU and is complete, it is inserted; otherwise
+ * it is moved to the tail. LRU bookkeeping is skipped when the cache has
+ * early-hints disabled. Must be called under shctx wrlock.
+ */
+static inline void cache_row_reattach(struct cache *cache, struct shared_block *first)
+{
+	struct cache_entry *entry = (struct cache_entry *)first->data;
 
+	if ((cache->flags & CACHE_CF_EARLY_HINTS) &&
+	    (LIST_INLIST(&entry->lru) || (entry->flags & CACHE_EF_COMPLETE))) {
+		struct list *lru;
+
+		if (entry->flags & CACHE_EF_STRIPPED)
+			lru = &cache->hints_lru;
+		else
+			lru = &cache->full_lru;
+
+		if (LIST_INLIST(&entry->lru))
+			LIST_DELETE(&entry->lru);
+		LIST_APPEND(lru, &entry->lru);
+	}
+	shctx_row_reattach(shctx_ptr(cache), first);
+}
 
 static int
 cache_store_init(struct proxy *px, struct flt_conf *fconf)
@@ -696,7 +726,7 @@ cache_store_strm_deinit(struct stream *s, struct filter *filter)
 			release_entry_unlocked(&cache->trees[object->eb.key % CACHE_TREE_NUM], object);
 		}
 		shctx_wrlock(shctx);
-		shctx_row_reattach(shctx, st->first_block);
+		cache_row_reattach(cache, st->first_block);
 		shctx_wrunlock(shctx);
 	}
 	if (st) {
@@ -754,7 +784,7 @@ static inline void disable_cache_entry(struct cache_st *st,
 	filter->ctx = NULL; /* disable cache  */
 	release_entry_unlocked(&cache->trees[object->eb.key % CACHE_TREE_NUM], object);
 	shctx_wrlock(shctx);
-	shctx_row_reattach(shctx, st->first_block);
+	cache_row_reattach(cache, st->first_block);
 	shctx_wrunlock(shctx);
 	pool_free(pool_head_cache_st, st);
 }
@@ -871,7 +901,7 @@ cache_store_http_end(struct stream *s, struct filter *filter,
 		/* The whole payload was cached, the entry can now be used. */
 		object->flags |= CACHE_EF_COMPLETE;
 		/* remove from the hotlist */
-		shctx_row_reattach(shctx, st->first_block);
+		cache_row_reattach(cache, st->first_block);
 		shctx_wrunlock(shctx);
 
 	}
@@ -1112,8 +1142,14 @@ static void cache_free_blocks(struct shared_block *first, void *data)
 	struct cache *cache = (struct cache *)data;
 	struct cache_tree *cache_tree;
 
+	if (LIST_INLIST(&object->lru)) {
+		LIST_DEL_INIT(&object->lru);
+		if (object->flags & CACHE_EF_STRIPPED)
+			cache->hints_blocks -= first->block_count;
+	}
+
 	if (object->eb.key) {
-		object->flags &= ~CACHE_EF_COMPLETE;
+		object->flags &= ~(CACHE_EF_COMPLETE | CACHE_EF_STRIPPED);
 		cache_tree = &cache->trees[object->eb.key % CACHE_TREE_NUM];
 		retain_entry(object);
 		HA_SPIN_LOCK(CACHE_LOCK, &cache_tree->cleanup_lock);
@@ -1422,6 +1458,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 */
 	object = (struct cache_entry *)first->data;
 	memset(object, 0, sizeof(*object));
+	LIST_INIT(&object->lru);
 	object->eb.key = key;
 	object->secondary_key_signature = vary_signature;
 	/* We need to temporarily set a valid expiring time until the actual one
@@ -1544,7 +1581,7 @@ out:
 			release_entry_unlocked(cache_tree, object);
 		}
 		shctx_wrlock(shctx);
-		shctx_row_reattach(shctx, first);
+		cache_row_reattach(cache, first);
 		shctx_wrunlock(shctx);
 	}
 
@@ -1567,7 +1604,7 @@ static void http_cache_applet_release(struct appctx *appctx)
 	release_entry(ctx->cache_tree, cache_ptr, 1);
 
 	shctx_wrlock(shctx);
-	shctx_row_reattach(shctx, first);
+	cache_row_reattach(ctx->cache, first);
 	shctx_wrunlock(shctx);
 }
 
@@ -2256,7 +2293,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 		entry_block = block_ptr(res);
 		shctx_wrlock(shctx);
-		if (res->flags & CACHE_EF_COMPLETE) {
+		if ((res->flags & CACHE_EF_COMPLETE) && !(res->flags & CACHE_EF_STRIPPED)) {
 			shctx_row_detach(shctx, entry_block);
 			detached = 1;
 		} else {
@@ -2283,7 +2320,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 					release_entry(cache_tree, res, 0);
 					shctx_wrlock(shctx);
 					if (detached)
-						shctx_row_reattach(shctx, entry_block);
+						cache_row_reattach(cache, entry_block);
 					shctx_wrunlock(shctx);
 				}
 				else if (sec_entry != res) {
@@ -2292,7 +2329,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 					retain_entry(sec_entry);
 					shctx_wrlock(shctx);
 					if (detached)
-						shctx_row_reattach(shctx, entry_block);
+						cache_row_reattach(cache, entry_block);
 					entry_block = block_ptr(sec_entry);
 					shctx_row_detach(shctx, entry_block);
 					shctx_wrunlock(shctx);
@@ -2305,7 +2342,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 				res = NULL;
 				shctx_wrlock(shctx);
-				shctx_row_reattach(shctx, entry_block);
+				cache_row_reattach(cache, entry_block);
 				shctx_wrunlock(shctx);
 			}
 		}
@@ -2316,10 +2353,10 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		 * the server. */
 		if (!res) {
 			return ACT_RET_CONT;
-		} else if (!(res->flags & CACHE_EF_COMPLETE)) {
+		} else if (!(res->flags & CACHE_EF_COMPLETE) || (res->flags & CACHE_EF_STRIPPED)) {
 			release_entry(cache_tree, res, 1);
 			shctx_wrlock(shctx);
-			shctx_row_reattach(shctx, entry_block);
+			cache_row_reattach(cache, entry_block);
 			shctx_wrunlock(shctx);
 			return ACT_RET_CONT;
 		}
@@ -2350,7 +2387,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			s->target = NULL;
 			release_entry(cache_tree, res, 1);
 			shctx_wrlock(shctx);
-			shctx_row_reattach(shctx, entry_block);
+			cache_row_reattach(cache, entry_block);
 			shctx_wrunlock(shctx);
 			return ACT_RET_CONT;
 		}
@@ -2633,6 +2670,9 @@ int post_check_cache()
 		LIST_APPEND(&caches, &cache->list);
 		LIST_DELETE(&cache_config->list);
 		free(cache_config);
+		LIST_INIT(&cache->full_lru);
+		LIST_INIT(&cache->hints_lru);
+		cache->hints_blocks = 0;
 		for (i = 0; i < CACHE_TREE_NUM; ++i) {
 			cache->trees[i].entries = EB_ROOT;
 			HA_RWLOCK_INIT(&cache->trees[i].lock);
