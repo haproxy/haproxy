@@ -1,0 +1,161 @@
+varnishtest "Cache HTTP 103 Early Hints: 'only' mode"
+# Verify the "early-hints only" cache option. In this mode:
+#  - The cache never stores response bodies. Every request reaches the
+#    backend, even if a hints entry already exists for the URL.
+#  - Hint-worthy Link headers seen on the first response are extracted
+#    and stored as a CACHE_EF_STRIPPED hints entry, ready to be emitted
+#    as a 103 Early Hints response on subsequent requests for that URL.
+#  - Responses with no hint-worthy Link header are not cached at all,
+#    so subsequent requests for those URLs also hit the backend and
+#    emit no 103.
+#  - The "max-object-size" check is bypassed (the actual stored entry
+#    is just the hint records, regardless of the announced body size).
+
+feature ignore_unknown_macro
+feature cmd "command -v socat"
+
+server s1 {
+    # /hints-url is requested twice: once to populate the hints entry,
+    # once to confirm the body still comes from the backend on replay.
+    rxreq
+    expect req.url == "/hints-url"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -bodylen 1000
+
+    # /no-hints-url uses a non-hint-worthy rel. Both requests must
+    # reach the backend because nothing gets cached for this URL.
+    rxreq
+    expect req.url == "/no-hints-url"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </terms>; rel=author" \
+        -bodylen 1000
+
+    rxreq
+    expect req.url == "/hints-url"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </style.css>; rel=preload; as=style" \
+        -bodylen 1000
+
+    rxreq
+    expect req.url == "/no-hints-url"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </terms>; rel=author" \
+        -bodylen 1000
+
+    # /big-body has a body larger than max-object-size below. In
+    # full-storage mode this would be rejected; in "only" mode it
+    # must still produce a hints entry.
+    rxreq
+    expect req.url == "/big-body"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </hero.jpg>; rel=preload; as=image" \
+        -bodylen 200000
+
+    rxreq
+    expect req.url == "/big-body"
+    txresp \
+        -hdr "Cache-Control: public, max-age=300" \
+        -hdr "Link: </hero.jpg>; rel=preload; as=image" \
+        -bodylen 200000
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        default_backend test
+
+    backend test
+        http-request cache-use my_cache
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store my_cache
+
+    cache my_cache
+        total-max-size 1
+        max-age 300
+        max-object-size 100000
+        early-hints only
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+    # First request: nothing cached yet, backend hit, no 103. The
+    # hints entry is created as a side effect of the response.
+    txreq -url "/hints-url"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 1000
+
+    # /no-hints-url: same backend hit, no 103. link_is_hint() returns
+    # 0 for "rel=author", so cache_extract_hints_from_htx() yields no
+    # records and nothing is stored.
+    txreq -url "/no-hints-url"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 1000
+
+    # Replay /hints-url. The hints entry now exists, so a 103 fires
+    # first carrying the stored Link header. The request still goes
+    # to the backend (the body is not cached) and we receive the 200
+    # from there.
+    txreq -url "/hints-url"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "</style.css>; rel=preload; as=style"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 1000
+
+    # Replay /no-hints-url. Nothing was cached, so no 103. The
+    # backend is hit again.
+    txreq -url "/no-hints-url"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 1000
+
+    # First request to /big-body: body (200KB) exceeds max-object-size
+    # (100KB), which in "only" mode is not a barrier since we never
+    # store the body. A hints entry must be created.
+    txreq -url "/big-body"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 200000
+
+    # Replay /big-body: 103 with the cached Link header, then the full
+    # 200 from the backend (body still not cached).
+    txreq -url "/big-body"
+    rxresphdrs
+    expect resp.status == 103
+    expect resp.http.link == "</hero.jpg>; rel=preload; as=image"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 200000
+} -run
+
+# Two 103s were emitted: the /hints-url and /big-body replays.
+shell {
+    hits=$(echo "show stat" | socat -t 5 "${tmpdir}/h1/stats" - | \
+           awk -F, 'NR==1 { for (i=1; i<=NF; i++) if ($i=="cache_hint_hits") c=i }
+                    $1=="test" && $2=="BACKEND" { print $c }')
+    if [ "$hits" != "2" ]; then
+        echo "expected 2 cache hint hits, got '$hits'"
+        exit 1
+    fi
+}

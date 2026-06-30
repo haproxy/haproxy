@@ -48,6 +48,7 @@
 /* Flags for configuration. */
 #define CACHE_CF_VARY_PROCESSING   0x00000001 /* manage Vary header (disabled by default) */
 #define CACHE_CF_EARLY_HINTS       0x00000002 /* enable HTTP 103 Early Hints (disabled by default) */
+#define CACHE_CF_EARLY_HINTS_ONLY  0x00000004 /* skip body storage; implies CACHE_CF_EARLY_HINTS */
 
 /* Soft cap on the number of cache blocks that may be held by hints entries. */
 #define CACHE_HINTS_CAP(cache)     ((cache)->maxblocks * (cache)->early_hints_ratio / 100)
@@ -1263,6 +1264,34 @@ static int cache_extract_hints(struct shared_context *shctx,
 }
 
 /*
+ * Walk a live HTX response's headers and accumulate Link values relevant
+ * for early hints into <hint_buf>. Returns the number of bytes written
+ * to <hint_buf>. Used by the hints-only storage path, where hints have
+ * to be extracted before the response is committed to the cache.
+ */
+static int cache_extract_hints_from_htx(struct htx *htx, struct buffer *hint_buf)
+{
+	int32_t pos;
+
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		struct htx_blk *blk = htx_get_blk(htx, pos);
+		enum htx_blk_type type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_EOH)
+			break;
+		if (type == HTX_BLK_HDR) {
+			struct ist name = htx_get_blk_name(htx, blk);
+			if (isteq(name, ist("link"))) {
+				struct ist value = htx_get_blk_value(htx, blk);
+				cache_extract_link_hints(value, hint_buf);
+			}
+		}
+	}
+
+	return b_data(hint_buf);
+}
+
+/*
  * Strip a full cache entry in place: persist <hint_buf>'s content past
  * sizeof(cache_entry), truncate the row to match, mark the entry as
  * CACHE_EF_STRIPPED, and move it to the hints LRU. Must be called under
@@ -1615,8 +1644,9 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	htx = htxbuf(&s->res.buf);
 
 	/* Do not cache too big objects. */
-	if ((msg->flags & HTTP_MSGF_CNT_LEN) && shctx->max_obj_size > 0 &&
-	    s->scb->sedesc->kip > shctx->max_obj_size)
+	if ((msg->flags & HTTP_MSGF_CNT_LEN) &&
+	    !(cache->flags & CACHE_CF_EARLY_HINTS_ONLY) &&
+	    shctx->max_obj_size > 0 && s->scb->sedesc->kip > shctx->max_obj_size)
 		goto out;
 
 	/* Only a subset of headers are supported in our Vary implementation. If
@@ -1718,7 +1748,12 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		}
 		else
 			goto out;
-		http_remove_header(htx, &ctx);
+		/* The cache serves its copies with a freshly computed Age, so
+		 * the stored response's Age is stripped. In hints-only mode the
+		 * response is only passed through, never served, so leave it.
+		 */
+		if (!(cache->flags & CACHE_CF_EARLY_HINTS_ONLY))
+			http_remove_header(htx, &ctx);
 	}
 
 	/* Build a last-modified time that will be stored in the cache_entry and
@@ -1726,33 +1761,41 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	object->last_modified = get_last_modified_time(htx);
 
 	chunk_reset(&trash);
-	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
-		struct htx_blk *blk = htx_get_blk(htx, pos);
-		enum htx_blk_type type = htx_get_blk_type(blk);
-		uint32_t sz = htx_get_blksz(blk);
+	if (cache->flags & CACHE_CF_EARLY_HINTS_ONLY) {
+		cache_extract_hints_from_htx(htx, &trash);
+		if (b_data(&trash) == 0)
+			goto out;
+	} else {
+		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+			struct htx_blk *blk = htx_get_blk(htx, pos);
+			enum htx_blk_type type = htx_get_blk_type(blk);
+			uint32_t sz = htx_get_blksz(blk);
 
-		hdrs_len += sizeof(*blk) + sz;
-		chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
-		chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
+			hdrs_len += sizeof(*blk) + sz;
+			chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
+			chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
 
-		/* Look for optional ETag header.
-		 * We need to store the offset of the ETag value in order for
-		 * future conditional requests to be able to perform ETag
-		 * comparisons. */
-		if (type == HTX_BLK_HDR) {
-			struct ist header_name = htx_get_blk_name(htx, blk);
-			if (isteq(header_name, ist("etag"))) {
-				object->etag_length = sz - istlen(header_name);
-				object->etag_offset = sizeof(struct cache_entry) + b_data(&trash) - sz + istlen(header_name);
+			/* Look for optional ETag header.
+			 * We need to store the offset of the ETag value in order for
+			 * future conditional requests to be able to perform ETag
+			 * comparisons. */
+			if (type == HTX_BLK_HDR) {
+				struct ist header_name = htx_get_blk_name(htx, blk);
+				if (isteq(header_name, ist("etag"))) {
+					object->etag_length = sz - istlen(header_name);
+					object->etag_offset = sizeof(struct cache_entry) +
+					                      b_data(&trash) - sz +
+					                      istlen(header_name);
+				}
 			}
+			if (type == HTX_BLK_EOH)
+				break;
 		}
-		if (type == HTX_BLK_EOH)
-			break;
-	}
 
-	/* Do not cache objects if the headers are too big. */
-	if (hdrs_len > htx->size - global.tune.maxrewrite)
-		goto out;
+		/* Do not cache objects if the headers are too big. */
+		if (hdrs_len > htx->size - global.tune.maxrewrite)
+			goto out;
+	}
 
 	/* If the response has a secondary_key, fill its key part related to
 	 * encodings with the actual encoding of the response. This way any
@@ -1778,13 +1821,24 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (shctx_row_data_append(shctx, first, (unsigned char *)trash.area, trash.data) < 0)
 		goto out;
 
+	/* store latest value and expiration time */
+	object->latest_validation = date.tv_sec;
+	object->expire = date.tv_sec + effective_maxage;
+
+	if (cache->flags & CACHE_CF_EARLY_HINTS_ONLY) {
+		/* Finalize hints-only entry. */
+		shctx_wrlock(shctx);
+		object->flags |= CACHE_EF_COMPLETE | CACHE_EF_STRIPPED;
+		cache->hints_blocks += first->block_count;
+		cache_row_reattach(cache, first);
+		shctx_wrunlock(shctx);
+		return ACT_RET_CONT;
+	}
+
 	/* register the buffer in the filter ctx for filling it with data*/
 	if (cache_ctx) {
 		cache_ctx->first_block = first;
 		LIST_INIT(&cache_ctx->detached_head);
-		/* store latest value and expiration time */
-		object->latest_validation = date.tv_sec;
-		object->expire = date.tv_sec + effective_maxage;
 		return ACT_RET_CONT;
 	}
 
@@ -2880,10 +2934,13 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 
 		if (strcmp(args[1], "on") == 0) {
 			tmp_cache_config->flags |= CACHE_CF_EARLY_HINTS;
+			tmp_cache_config->flags &= ~CACHE_CF_EARLY_HINTS_ONLY;
 		} else if (strcmp(args[1], "off") == 0) {
-			tmp_cache_config->flags &= ~CACHE_CF_EARLY_HINTS;
+			tmp_cache_config->flags &= ~(CACHE_CF_EARLY_HINTS | CACHE_CF_EARLY_HINTS_ONLY);
+		} else if (strcmp(args[1], "only") == 0) {
+			tmp_cache_config->flags |= CACHE_CF_EARLY_HINTS | CACHE_CF_EARLY_HINTS_ONLY;
 		} else {
-			ha_warning("parsing [%s:%d]: '%s' expects \"on\" or \"off\" (enable or disable HTTP 103 Early Hints support).\n",
+			ha_warning("parsing [%s:%d]: '%s' expects \"on\", \"off\" or \"only\" (enable or disable HTTP 103 Early Hints support, or store only hints).\n",
 				   file, linenum, args[0]);
 			err_code |= ERR_WARN;
 		}
