@@ -21,6 +21,10 @@ static void hq_trace_resp(struct ist status, uint64_t mask,
                           const struct ist trc_loc, const char *func,
                           struct qcs *qcs, struct qcc *qcc);
 
+static void hq_trace_hdr(struct ist name, struct ist value, uint64_t mask,
+                         const struct ist trc_loc, const char *func,
+                         struct qcs *qcs, struct qcc *qcc);
+
 /* HTTP/0.9 request -> HTX. */
 static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin)
 {
@@ -335,6 +339,11 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 			count -= bsize;
 			break;
 
+		case HTX_BLK_HDR:
+			hq_trace_hdr(htx_get_blk_name(htx, blk),
+			             htx_get_blk_value(htx, blk),
+			             QMUX_EV_STRM_SEND, ist(TRC_LOC), __FUNCTION__, qcs, qcs->qcc);
+			__fallthrough;
 		case HTX_BLK_TLR:
 		case HTX_BLK_EOT:
 		default:
@@ -467,6 +476,23 @@ static void hq_trace_resp(struct ist status, uint64_t mask,
 		line = chunk_newstr(&trash);
 		chunk_appendf(&trash, "HTTP/0.9 resp (%.*s)",
 		              (uint)istlen(status), istptr(status));
+
+		_hq_trace_http(line, mask, trc_loc, func, qcs, qcc);
+	}
+}
+
+static void hq_trace_hdr(struct ist name, struct ist value, uint64_t mask,
+                         const struct ist trc_loc, const char *func,
+                         struct qcs *qcs, struct qcc *qcc)
+{
+	const char *line __maybe_unused;
+
+	if (TRACE_ENABLED(TRACE_LEVEL_USER, mask, qcs->qcc->conn, qcs, 0, 0)) {
+		chunk_reset(&trash);
+		line = chunk_newstr(&trash);
+		chunk_appendf(&trash, "HTTP/0.9 (%.*s: %.*s)",
+		              (uint)istlen(name), istptr(name),
+		              (uint)istlen(value), istptr(value));
 
 		_hq_trace_http(line, mask, trc_loc, func, qcs, qcc);
 	}
