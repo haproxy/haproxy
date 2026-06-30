@@ -1164,6 +1164,47 @@ static void cache_free_blocks(struct shared_block *first, void *data)
 	}
 }
 
+static void cache_extract_link_hints(struct ist link, struct buffer *hint_buf)
+{
+	struct ist lv;
+	size_t hdr_start = b_data(hint_buf);
+	uint16_t hdr_len = 0;
+
+	if (b_data(hint_buf) + sizeof(hdr_len) > b_size(hint_buf))
+		return;
+
+	hint_buf->data += sizeof(hdr_len);
+
+	while (http_next_hdr_value(&link, &lv)) {
+		size_t needed = lv.len;
+
+		if (!link_is_hint(lv))
+			continue;
+		if (hdr_len > 0)
+			needed += 2;
+		if (hdr_len + needed > UINT16_MAX)
+			continue;
+		if (b_data(hint_buf) + needed > b_size(hint_buf))
+			continue;
+
+		if (hdr_len > 0) {
+			chunk_memcat(hint_buf, ", ", 2);
+			hdr_len += 2;
+		}
+		chunk_memcat(hint_buf, lv.ptr, lv.len);
+		hdr_len += lv.len;
+	}
+
+	/* If we wrote anything in the hint buffer, encode the length of the
+	 * data at the beginning, and if we didn't, reset the buffer pointer to
+	 * its previous state (before the 2 bytes we initially reserved).
+	 */
+	if (hdr_len == 0)
+		hint_buf->data -= sizeof(hdr_len);
+	else
+		memcpy(b_orig(hint_buf) + hdr_start, &hdr_len, sizeof(hdr_len));
+}
+
 /*
  * Walk the HTX header blocks and accumulate Link values relevant for early
  * hints into <hint_buf>. Returns the number of bytes written to <hint_buf>.
@@ -1204,45 +1245,15 @@ static int cache_extract_hints(struct shared_context *shctx,
 			shctx_row_data_get(shctx, first, (unsigned char *)name,
 			                   offset + sizeof(info), 4);
 			if (memcmp(name, "link", 4) == 0) {
-				struct ist iter, lv;
-				size_t hdr_start = b_data(hint_buf);
-				uint16_t hdr_len = 0;
+				struct ist value;
 
 				shctx_row_data_get(shctx, first,
 				                   (unsigned char *)value_buf,
 				                   offset + sizeof(info) + name_len,
 				                   value_len);
-				iter = ist2(value_buf, value_len);
 
-				if (b_data(hint_buf) + sizeof(hdr_len) > b_size(hint_buf))
-					break;
-				hint_buf->data += sizeof(hdr_len);
-
-				while (http_next_hdr_value(&iter, &lv)) {
-					size_t needed = lv.len;
-
-					if (!link_is_hint(lv))
-						continue;
-					if (hdr_len > 0)
-						needed += 2;
-					if (hdr_len + needed > UINT16_MAX)
-						continue;
-					if (b_data(hint_buf) + needed > b_size(hint_buf))
-						continue;
-
-					if (hdr_len > 0) {
-						chunk_memcat(hint_buf, ", ", 2);
-						hdr_len += 2;
-					}
-					chunk_memcat(hint_buf, lv.ptr, lv.len);
-					hdr_len += lv.len;
-				}
-
-				if (hdr_len == 0)
-					hint_buf->data -= sizeof(hdr_len);
-				else
-					memcpy(b_orig(hint_buf) + hdr_start,
-					       &hdr_len, sizeof(hdr_len));
+				value = ist2(value_buf, value_len);
+				cache_extract_link_hints(value, hint_buf);
 			}
 		}
 		offset += sizeof(info) + name_len + value_len;
