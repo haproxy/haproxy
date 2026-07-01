@@ -142,15 +142,6 @@ struct h2_fh {
 	uint8_t ff;         /* frame flags */
 };
 
-/* trace source and events */
-static void h2_trace(enum trace_level level, uint64_t mask, \
-                     const struct trace_source *src,
-                     const struct ist where, const struct ist func,
-                     const void *a1, const void *a2, const void *a3, const void *a4);
-
-static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
-                              const void *a1, const void *a2, const void *a3, const void *a4);
-
 /* The event representation is split like this :
  *   strm  - application layer
  *   h2s   - internal H2 stream
@@ -158,7 +149,7 @@ static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *
  *   conn  - external connection
  *
  */
-static const struct trace_event h2_trace_events[] = {
+static const struct trace_event h2_trace_events[] __maybe_unused = {
 #define           H2_EV_H2C_NEW       (1ULL <<  0)
 	{ .mask = H2_EV_H2C_NEW,      .name = "h2c_new",     .desc = "new H2 connection" },
 #define           H2_EV_H2C_RECV      (1ULL <<  1)
@@ -266,6 +257,8 @@ static const struct trace_event h2_trace_events[] = {
 	{ }
 };
 
+#if defined(USE_TRACE)
+
 static const struct name_desc h2_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the connection */ },
 	/* arg2 */ { .name="h2s", .desc="H2 stream" },
@@ -287,6 +280,15 @@ static const struct name_desc h2_trace_decoding[] = {
 	{ /* end */ }
 };
 
+/* trace source and events */
+static void h2_trace(enum trace_level level, uint64_t mask, \
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
+
+static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                              const void *a1, const void *a2, const void *a3, const void *a4);
+
 static struct trace_source trace_h2 __read_mostly = {
 	.name = IST("h2"),
 	.desc = "HTTP/2 multiplexer",
@@ -301,6 +303,8 @@ static struct trace_source trace_h2 __read_mostly = {
 
 #define TRACE_SOURCE &trace_h2
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+#endif
 
 /* h2 stats module */
 enum {
@@ -574,6 +578,8 @@ static forceinline struct stconn *h2s_sc(const struct h2s *h2s)
 	return h2s->sd->sc;
 }
 
+#if defined(USE_TRACE)
+
 /* the H2 traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive h2c), that arg2, if non-null, is of type h2s, and
  * that arg3, if non-null, is either of type htx for tx headers, or of type
@@ -714,6 +720,109 @@ static void h2_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *
 			ctx->strm = sc_strm(h2s_sc(h2s));
 	}
 }
+
+/* Unconditionally produce a trace of the header. Please do not call this one
+ * and use h2_trace_header() instead which first checks if traces are enabled.
+ */
+void _h2_trace_header(const struct ist hn, const struct ist hv,
+		      uint64_t mask, const struct ist trc_loc, const char *func,
+		      const struct h2c *h2c, const struct h2s *h2s)
+{
+	struct ist n_ist, v_ist;
+	const char __maybe_unused *c_str, *s_str;
+
+	chunk_reset(&trash);
+	c_str = chunk_newstr(&trash);
+	if (h2c) {
+		chunk_appendf(&trash, "h2c=%p(%c,%s) ",
+			      h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
+	}
+
+	s_str = chunk_newstr(&trash);
+	if (h2s) {
+		if (h2s->id <= 0)
+			chunk_appendf(&trash, "dsi=%d ", h2s->h2c->dsi);
+		chunk_appendf(&trash, "h2s=%p(%d,%s) ", h2s, h2s->id, h2s_st_to_str(h2s->st));
+	}
+	else if (h2c)
+		chunk_appendf(&trash, "dsi=%d ", h2c->dsi);
+
+	n_ist = ist2(chunk_newstr(&trash), 0);
+	istscpy(&n_ist, hn, 256);
+	trash.data += n_ist.len;
+	if (n_ist.len != hn.len)
+		chunk_appendf(&trash, " (... +%ld)", (long)(hn.len - n_ist.len));
+
+	v_ist = ist2(chunk_newstr(&trash), 0);
+	istscpy(&v_ist, hv, 1024);
+	trash.data += v_ist.len;
+	if (v_ist.len != hv.len)
+		chunk_appendf(&trash, " (... +%ld)", (long)(hv.len - v_ist.len));
+
+	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
+	                 (h2c ? h2c->conn : 0), 0, 0, 0,
+	                 "%s%s%s %s: %s", c_str, s_str,
+	                 (mask & H2_EV_TX_HDR) ? "sndh" : "rcvh",
+	                 n_ist.ptr, v_ist.ptr);
+}
+
+/* produce a trace of the header after checking that tracing is enabled */
+static inline void h2_trace_header(const struct ist hn, const struct ist hv,
+				   uint64_t mask, const struct ist trc_loc, const char *func,
+				   const struct h2c *h2c, const struct h2s *h2s)
+{
+	if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, mask, h2c ? h2c->conn : 0, h2s, 0, 0))
+		_h2_trace_header(hn, hv, mask, trc_loc, func, h2c, h2s);
+}
+
+/* hpack-encode header name <hn> and value <hv>, possibly emitting a trace if
+ * currently enabled. This is done on behalf of function <func> at <trc_loc>
+ * passed as ist(TRC_LOC), h2c <h2c>, and h2s <h2s>, all of which may be NULL.
+ * The trace is only emitted if the header is emitted (in which case non-zero
+ * is returned). The trash is modified. In the traces, the header's name will
+ * be truncated to 256 chars and the header's value to 1024 chars.
+ */
+static inline int h2_encode_header(struct buffer *buf, const struct ist hn, const struct ist hv,
+				   uint64_t mask, const struct ist trc_loc, const char *func,
+				   const struct h2c *h2c, const struct h2s *h2s)
+{
+	struct ist v;
+	int ret;
+
+	/* trim leading/trailing LWS as per RC9113#8.2.1 */
+	for (v = hv; v.len; v.len--) {
+		if (unlikely(HTTP_IS_LWS(*v.ptr)))
+			v.ptr++;
+		else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
+			break;
+	}
+
+	ret = hpack_encode_header(buf, hn, v);
+	if (ret)
+		h2_trace_header(hn, v, mask, trc_loc, func, h2c, h2s);
+
+	return ret;
+}
+
+#else /* USE_TRACE not defined */
+
+/* dummy trace functions */
+
+static inline void h2_trace_header(const struct ist hn, const struct ist hv,
+				   uint64_t mask, const struct ist trc_loc, const char *func,
+				   const struct h2c *h2c, const struct h2s *h2s)
+{
+}
+
+static inline int h2_encode_header(struct buffer *buf, const struct ist hn, const struct ist hv,
+				   uint64_t mask, const struct ist trc_loc, const char *func,
+				   const struct h2c *h2c, const struct h2s *h2s)
+{
+	return 0;
+}
+
+#endif /* USE_TRACE */
 
 static inline void h2c_report_term_evt(struct h2c *h2c, enum muxc_term_event_type type)
 {
@@ -1271,90 +1380,6 @@ static int h2_avail_streams(struct connection *conn)
 		ret1 = MIN(ret1, ret2);
 	}
 	return ret1;
-}
-
-/* Unconditionally produce a trace of the header. Please do not call this one
- * and use h2_trace_header() instead which first checks if traces are enabled.
- */
-void _h2_trace_header(const struct ist hn, const struct ist hv,
-		      uint64_t mask, const struct ist trc_loc, const char *func,
-		      const struct h2c *h2c, const struct h2s *h2s)
-{
-	struct ist n_ist, v_ist;
-	const char __maybe_unused *c_str, *s_str;
-
-	chunk_reset(&trash);
-	c_str = chunk_newstr(&trash);
-	if (h2c) {
-		chunk_appendf(&trash, "h2c=%p(%c,%s) ",
-			      h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
-	}
-
-	s_str = chunk_newstr(&trash);
-	if (h2s) {
-		if (h2s->id <= 0)
-			chunk_appendf(&trash, "dsi=%d ", h2s->h2c->dsi);
-		chunk_appendf(&trash, "h2s=%p(%d,%s) ", h2s, h2s->id, h2s_st_to_str(h2s->st));
-	}
-	else if (h2c)
-		chunk_appendf(&trash, "dsi=%d ", h2c->dsi);
-
-	n_ist = ist2(chunk_newstr(&trash), 0);
-	istscpy(&n_ist, hn, 256);
-	trash.data += n_ist.len;
-	if (n_ist.len != hn.len)
-		chunk_appendf(&trash, " (... +%ld)", (long)(hn.len - n_ist.len));
-
-	v_ist = ist2(chunk_newstr(&trash), 0);
-	istscpy(&v_ist, hv, 1024);
-	trash.data += v_ist.len;
-	if (v_ist.len != hv.len)
-		chunk_appendf(&trash, " (... +%ld)", (long)(hv.len - v_ist.len));
-
-	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
-	                 (h2c ? h2c->conn : 0), 0, 0, 0,
-	                 "%s%s%s %s: %s", c_str, s_str,
-	                 (mask & H2_EV_TX_HDR) ? "sndh" : "rcvh",
-	                 n_ist.ptr, v_ist.ptr);
-}
-
-/* produce a trace of the header after checking that tracing is enabled */
-static inline void h2_trace_header(const struct ist hn, const struct ist hv,
-				   uint64_t mask, const struct ist trc_loc, const char *func,
-				   const struct h2c *h2c, const struct h2s *h2s)
-{
-	if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
-	    TRACE_ENABLED(TRACE_LEVEL_USER, mask, h2c ? h2c->conn : 0, h2s, 0, 0))
-		_h2_trace_header(hn, hv, mask, trc_loc, func, h2c, h2s);
-}
-
-/* hpack-encode header name <hn> and value <hv>, possibly emitting a trace if
- * currently enabled. This is done on behalf of function <func> at <trc_loc>
- * passed as ist(TRC_LOC), h2c <h2c>, and h2s <h2s>, all of which may be NULL.
- * The trace is only emitted if the header is emitted (in which case non-zero
- * is returned). The trash is modified. In the traces, the header's name will
- * be truncated to 256 chars and the header's value to 1024 chars.
- */
-static inline int h2_encode_header(struct buffer *buf, const struct ist hn, const struct ist hv,
-				   uint64_t mask, const struct ist trc_loc, const char *func,
-				   const struct h2c *h2c, const struct h2s *h2s)
-{
-	struct ist v;
-	int ret;
-
-	/* trim leading/trailing LWS as per RC9113#8.2.1 */
-	for (v = hv; v.len; v.len--) {
-		if (unlikely(HTTP_IS_LWS(*v.ptr)))
-			v.ptr++;
-		else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
-			break;
-	}
-
-	ret = hpack_encode_header(buf, hn, v);
-	if (ret)
-		h2_trace_header(hn, v, mask, trc_loc, func, h2c, h2s);
-
-	return ret;
 }
 
 /*****************************************************************/
@@ -6278,6 +6303,7 @@ next_frame:
 	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
 	                            sizeof(list)/sizeof(list[0]), tmp);
 
+#if defined(USE_TRACE)
 	if (outlen > 0 &&
 	    (TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
 	    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, 0, 0)) {
@@ -6296,6 +6322,7 @@ next_frame:
 			                ist(TRC_LOC), __FUNCTION__, h2c, NULL);
 		}
 	}
+#endif
 
 	if (outlen < 0) {
 		h2c_report_glitch(h2c, 1, "failed to decompress HPACK");
@@ -6745,6 +6772,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 		goto full;
 	}
 
+#if defined(USE_TRACE)
 	if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED) {
 		char sts[4];
 
@@ -6752,6 +6780,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 				    H2_EV_TX_FRAME|H2_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__,
 				    h2c, h2s);
 	}
+#endif
 
 	/* encode all headers, stop at empty name */
 	for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
