@@ -1813,7 +1813,7 @@ void qcc_abort_stream_read(struct qcs *qcs)
 
 	TRACE_ENTER(QMUX_EV_QCC_NEW, qcc->conn, qcs);
 
-	if ((qcs->flags & QC_SF_TO_STOP_SENDING) || qcs_is_close_remote(qcs))
+	if ((qcs->flags & QC_SF_READ_ABORTED) || qcs_is_close_remote(qcs))
 		goto end;
 
 	TRACE_STATE("abort stream read", QMUX_EV_QCS_END, qcc->conn, qcs);
