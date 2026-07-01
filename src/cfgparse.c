@@ -3184,7 +3184,9 @@ REGISTER_CONFIG_SECTION("global",         cfg_parse_global,    NULL);
 REGISTER_CONFIG_SECTION("userlist",       cfg_parse_users,     NULL);
 REGISTER_CONFIG_SECTION("mailers",        cfg_parse_mailers,   NULL);
 REGISTER_CONFIG_SECTION("namespace_list", cfg_parse_netns,     NULL);
+#if defined(USE_TRACE)
 REGISTER_CONFIG_SECTION("traces",         cfg_parse_traces,    NULL);
+#endif
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "default-path",     cfg_parse_global_def_path },
