@@ -2113,12 +2113,12 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		  (h3s->err == H3_ERR_REQUEST_REJECTED) ? 0 : se_tevt_type_proto_err;
 		qcc_abort_stream_read(qcs);
 		qcc_reset_stream(qcs, h3s->err, tevt);
-		total = b_data(b);
+		total += b_data(b);
 		goto done;
 	}
 	else if (h3c->err) {
 		qcc_set_error(qcs->qcc, h3c->err, 1, muxc_tevt_type_proto_err);
-		total = b_data(b);
+		total += b_data(b);
 		goto done;
 	}
 	else if (unlikely(ret < 0)) {
