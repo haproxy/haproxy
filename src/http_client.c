@@ -621,11 +621,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 							applet_have_more_data(appctx);
 							goto out;
 						}
-
-						/* we must copy the EOM if we empty the buffer */
-						if (htx_is_empty(hc_htx)) {
-							htx->flags |= (hc_htx->flags & HTX_FL_EOM);
-						}
 						htx_to_buf(htx, outbuf);
 						htx_to_buf(hc_htx, &hc->req.buf);
 					}
