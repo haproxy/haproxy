@@ -937,6 +937,11 @@ void qc_early_transport_params_reuse(struct quic_conn *qc,
 	TRACE_PROTO("\nTX(remote) transp. params.", QUIC_EV_TRANSP_PARAMS, qc, p);
 }
 
+// noinline: workaround a gcc 4-13 bug reporting "maybe used uninitialized" on
+// some fields of *e when called from quic_transport_params_store() despite
+// being set early via qc_early_transport_params_cpy(). Reproducible with
+// USE_TRACE=0. gcc<13 has many warnings. 13 has a single one, 14 is OK.
+__attribute__((noinline))
 static int qc_early_tranport_params_validate(struct quic_conn *qc,
                                              struct quic_transport_params *p,
                                              struct quic_early_transport_params *e)
