@@ -1861,7 +1861,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 	return cli_err(appctx, "Not enough memory");
 }
 
-#if defined(DEBUG_DEV)
+#if defined(DEBUG_DEV) && defined(USE_TRACE)
 /* All of this is for "trace dbg" */
 
 static struct trace_source trace_dbg __read_mostly = {
@@ -3090,7 +3090,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "sym",   NULL },    "debug dev sym    <addr>                 : resolve symbol address",                  debug_parse_cli_sym,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "task",  NULL },    "debug dev task <ptr> [wake|expire|kill] : show/wake/expire/kill task/tasklet",      debug_parse_cli_task,  NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL },    "debug dev tkill  [thr] [sig]            : send signal to thread",                   debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
-#if defined(DEBUG_DEV)
+#if defined(DEBUG_DEV) && defined(USE_TRACE)
 	{{ "debug", "dev", "trace", NULL },    "debug dev trace [nbthr]                 : flood traces from that many threads",     debug_parse_cli_trace,  NULL, NULL, NULL, ACCESS_EXPERT },
 #endif
 	{{ "debug", "dev", "warn",  NULL },    "debug dev warn                          : call WARN_ON() and possibly crash",       debug_parse_cli_warn,  NULL, NULL, NULL, ACCESS_EXPERT },
