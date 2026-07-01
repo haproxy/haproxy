@@ -45,12 +45,8 @@
 #include <haproxy/trace.h>
 
 /* trace source and events */
-static void h3_trace(enum trace_level level, uint64_t mask,
-                     const struct trace_source *src,
-                     const struct ist where, const struct ist func,
-                     const void *a1, const void *a2, const void *a3, const void *a4);
 
-static const struct trace_event h3_trace_events[] = {
+static const struct trace_event h3_trace_events[] __maybe_unused = {
 #define           H3_EV_RX_FRAME      (1ULL <<  0)
 	{ .mask = H3_EV_RX_FRAME,     .name = "rx_frame",    .desc = "receipt of any H3 frame" },
 #define           H3_EV_RX_DATA       (1ULL <<  1)
@@ -79,6 +75,13 @@ static const struct trace_event h3_trace_events[] = {
 	{ .mask = H3_EV_STRM_SEND,    .name = "strm_send",   .desc = "sending data for stream" },
 	{ }
 };
+
+#if defined(USE_TRACE)
+
+static void h3_trace(enum trace_level level, uint64_t mask,
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
 
 static const struct name_desc h3_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the connection */ },
@@ -112,6 +115,8 @@ struct trace_source trace_h3 = {
 
 #define TRACE_SOURCE    &trace_h3
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+#endif /* USE_TRACE */
 
 #if defined(DEBUG_H3)
 #define h3_debug_printf fprintf
@@ -634,6 +639,8 @@ static struct ist _h3_trim_header(struct ist value)
 	return v;
 }
 
+#if defined(USE_TRACE)
+
 static void _h3_trace_header(const struct ist n, const struct ist v,
                              uint64_t mask, const struct ist trc_loc, const char *func,
                              const struct qcc *qcc, const struct qcs *qcs)
@@ -678,6 +685,17 @@ static void h3_trace_header(const struct ist n, const struct ist v,
 	    TRACE_ENABLED(TRACE_LEVEL_USER, mask, qcc ? qcc->conn : 0, qcs, 0, 0))
 		_h3_trace_header(n, v, mask, trc_loc, func, qcc, qcs);
 }
+
+#else /* USE_TRACE not defined */
+
+/* dummy function */
+static inline void h3_trace_header(const struct ist n, const struct ist v,
+                                   uint64_t mask, const struct ist trc_loc, const char *func,
+                                   const struct qcc *qcc, const struct qcs *qcs)
+{
+}
+
+#endif /* USE_TRACE */
 
 /* Parse from buffer <buf> a H3 HEADERS frame of length <len>. Data are copied
  * in a local HTX buffer and transfer to the stream connector layer. <fin> must be
@@ -744,11 +762,13 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+#if defined(USE_TRACE)
 	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
 	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, 0, 0, 0)) {
 		for (i = 0; list[i].n.len; ++i)
 			h3_trace_header(list[i].n, list[i].v, H3_EV_RX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 	}
+#endif
 
 	if (!b_alloc(&htx_buf, DB_SE_RX)) {
 		TRACE_ERROR("HTX buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
@@ -1238,12 +1258,14 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+#if defined(USE_TRACE)
 	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
 	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, 0, 0, 0)) {
 		int i;
 		for (i = 0; list[i].n.len; ++i)
 			h3_trace_header(list[i].n, list[i].v, H3_EV_RX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 	}
+#endif
 
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
 		TRACE_ERROR("buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
@@ -2366,12 +2388,14 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 		h3_trace_header(ist(":authority"), auth, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 	}
 
+#if defined(USE_TRACE)
 	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
 	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, 0, 0, 0)) {
 		int i;
 		for (i = 0; list[i].n.len; ++i)
 			h3_trace_header(list[i].n, list[i].v, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 	}
+#endif
 
 	if (!(sl->flags & HTX_SL_F_XFER_LEN)) {
 		/* Extra care required for HTTP/1 responses without Content-Length nor
@@ -2508,12 +2532,14 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 				h3s->flags &= ~H3_SF_SENT_INTERIM;
 			}
 
+#if defined(USE_TRACE)
 			if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED) {
 				char sts[4];
 				h3_trace_header(ist(":status"), ist(ultoa_r(status, sts, sizeof(sts))),
 				                H3_EV_TX_FRAME|H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__,
 				                qcs->qcc, qcs);
 			}
+#endif
 		}
 		else if (type == HTX_BLK_HDR) {
 			if (unlikely(hdr >= sizeof(list) / sizeof(list[0]) - 1)) {
@@ -2538,12 +2564,14 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 
 	list[hdr].n = ist("");
 
+#if defined(USE_TRACE)
 	if ((TRACE_SOURCE)->verbosity >= H3_VERB_ADVANCED &&
 	    TRACE_ENABLED(TRACE_LEVEL_USER, H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, 0, 0, 0)) {
 		int i;
 		for (i = 0; list[i].n.len; ++i)
 			h3_trace_header(list[i].n, list[i].v, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 	}
+#endif
 
  retry:
 	res = smallbuf ? qcc_get_stream_txbuf(qcs, &err, 1) :
@@ -3599,6 +3627,8 @@ static inline const char *h3_ft_str(uint64_t type)
 	}
 }
 
+#if defined(USE_TRACE)
+
 /* h3 trace handler */
 static void h3_trace(enum trace_level level, uint64_t mask,
                      const struct trace_source *src,
@@ -3627,6 +3657,8 @@ static void h3_trace(enum trace_level level, uint64_t mask,
 		}
 	}
 }
+
+#endif
 
 /* Cancel a request on stream id <id>. This is useful when the client opens a
  * new stream but the MUX has already been released. A STOP_SENDING +
