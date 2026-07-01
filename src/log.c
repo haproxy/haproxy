@@ -3209,6 +3209,23 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 }
 
 /*
+ * Same as send_log() but emits the pre-built message <msg> of <len> bytes
+ * as-is (no vsnprintf), so embedded NUL bytes are preserved, which makes
+ * it usable for binary payloads. The send path still strips trailing '\n'
+ * / NUL bytes, so <msg> must be self-terminating by its own encoding and
+ * not carry a meaningful trailing '\n' or NUL.
+ */
+void send_log_raw(struct proxy *p, int level, char *msg, size_t len)
+{
+	if (level < 0 || msg == NULL)
+		return;
+
+	__send_log(NULL, (p ? &p->loggers : NULL),
+	           (p ? &p->log_tag : NULL), level,
+		   msg, len, default_rfc5424_sd_log_format, 2);
+}
+
+/*
  * This function builds a log header according to <hdr> settings.
  *
  * If hdr.format is set to LOG_FORMAT_UNSPEC, it tries to determine
@@ -5454,6 +5471,21 @@ void app_log(struct list *loggers, struct buffer *tag, int level, const char *fo
 	va_end(argp);
 
 	__send_log(NULL, loggers, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
+}
+
+/*
+ * Same as app_log() but emits the pre-built message <msg> of <len> bytes
+ * as-is (no vsnprintf), so embedded NUL bytes are preserved, which makes
+ * it usable for binary payloads. The send path still strips trailing '\n'
+ * / NUL bytes, so <msg> must be self-terminating by its own encoding and
+ * not carry a meaningful trailing '\n' or NUL.
+ */
+void app_log_raw(struct list *loggers, struct buffer *tag, int level, char *msg, size_t len)
+{
+	if (level < 0 || msg == NULL)
+		return;
+
+	__send_log(NULL, loggers, tag, level, msg, len, default_rfc5424_sd_log_format, 2);
 }
 
 /*

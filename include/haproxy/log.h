@@ -142,6 +142,8 @@ static inline void sess_log_embryonic(struct session *sess)
 void app_log(struct list *loggers, struct buffer *tag, int level, const char *format, ...)
 	__attribute__ ((format(printf, 4, 5)));
 
+void app_log_raw(struct list *loggers, struct buffer *tag, int level, char *msg, size_t len);
+
 /*
  * add to the logformat linked list
  */
@@ -172,6 +174,8 @@ int parse_logger(char **args, struct list *loggers, int do_del, const char *file
  */
 void send_log(struct proxy *p, int level, const char *format, ...)
 	__attribute__ ((format(printf, 3, 4)));
+
+void send_log_raw(struct proxy *p, int level, char *msg, size_t len);
 
 /*
  * returns log format for <fmt> or LOG_FORMAT_UNSPEC if not found.
