@@ -28,6 +28,17 @@
 
 #define GET_NEXT_OFF(range, off) ((off) == (range)->size - 1 ? 0 : (off) + 1)
 
+static inline void port_range_release(struct port_range *range)
+{
+	if (range) {
+		int refcount = _HA_ATOMIC_SUB_FETCH(&range->refcount, 1);
+
+		BUG_ON(refcount < 0);
+		if (refcount == 0)
+			free(range);
+	}
+}
+
 /* return an available port from range <range>, or zero if none is left */
 static inline int port_range_alloc_port(struct port_range *range)
 {
@@ -44,6 +55,7 @@ static inline int port_range_alloc_port(struct port_range *range)
 			return 0;
 		ret = range->ports[get];
 	} while (!(_HA_ATOMIC_CAS(&range->get, &get, GET_NEXT_OFF(range, get))));
+	_HA_ATOMIC_INC(&range->refcount);
 	return ret;
 }
 
@@ -77,6 +89,7 @@ static inline void port_range_release_port(struct port_range *range, int port)
 	 * can use that port.
 	 */
 	_HA_ATOMIC_STORE(&range->put_t, GET_NEXT_OFF(range, put));
+	port_range_release(range);
 }
 
 /* return a new initialized port range of N ports. The ports are not
@@ -90,6 +103,7 @@ static inline struct port_range *port_range_alloc_range(int n)
 	if (!ret)
 		return NULL;
 	ret->size = n + 1;
+	ret->refcount = 1;
 	/* Start at the first free element */
 	ret->put_h = ret->put_t = n;
 	return ret;

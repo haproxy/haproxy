@@ -3245,6 +3245,7 @@ void srv_free_params(struct server *srv)
 		ha_free(&srv_tlv->fmt_string);
 		ha_free(&srv_tlv);
 	}
+	port_range_release(srv->conn_src.sport_range);
 }
 
 /* Deallocate a server <srv> and its member. <srv> must be allocated. For
