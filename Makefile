@@ -642,7 +642,10 @@ ifneq ($(USE_OPENSSL:0=),)
   OPTIONS_OBJS += src/ssl_sock.o src/ssl_ckch.o src/ssl_ocsp.o src/ssl_crtlist.o       \
                   src/ssl_sample.o src/cfgparse-ssl.o src/ssl_gencert.o                \
                   src/ssl_utils.o src/jwt.o src/ssl_clienthello.o src/jws.o src/acme.o \
-                  src/acme_resolvers.o src/ssl_trace.o src/jwe.o
+                  src/acme_resolvers.o src/jwe.o
+  ifneq ($(USE_TRACE:0=),)
+    OPTIONS_OBJS += src/ssl_trace.o
+  endif
 endif
 
 ifneq ($(USE_ENGINE:0=),)
@@ -920,7 +923,7 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
         src/http_act.o src/http_fetch.o src/cebs_tree.o			\
         src/cebib_tree.o src/http_client.o src/dns.o			\
         src/cebb_tree.o src/vars.o src/event_hdl.o src/tcp_rules.o	\
-        src/trace.o src/stats-proxy.o src/pool.o src/stats.o		\
+        src/stats-proxy.o src/pool.o src/stats.o		\
         src/cfgparse-global.o src/filters.o src/mux_pt.o		\
         src/flt_http_comp.o src/sock.o src/h1.o src/sink.o		\
         src/ceba_tree.o src/session.o src/payload.o src/htx.o		\
@@ -954,6 +957,10 @@ OBJS += src/mux_h2.o src/mux_h1.o src/mux_fcgi.o src/log.o		\
 
 ifneq ($(TRACE),)
   OBJS += src/calltrace.o
+endif
+
+ifneq ($(USE_TRACE:0=),)
+  OBJS += src/trace.o
 endif
 
 HATERM_OBJS += $(OBJS) src/haterm_init.o src/hbuf.o
