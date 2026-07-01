@@ -3560,7 +3560,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* The stream exists/existed, this must be a trailers frame */
 		if (h2s->st != H2_SS_CLOSED) {
 			if (!h2s_rxbuf_tail(h2s) && !h2s_get_rxbuf(h2s)) {
-				TRACE_USER("Not allowed to get an extra buffer for H2 request trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, );
+				TRACE_USER("Not allowed to get an extra buffer for H2 request trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0);
 				h2c->flags |= H2_CF_DEM_RXBUF;
 				goto out;
 			}
@@ -3794,7 +3794,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	}
 
 	if (!h2s_rxbuf_tail(h2s) && !h2s_get_rxbuf(h2s)) {
-		TRACE_USER("Not allowed to get an extra buffer for H2 response HEADERS", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, );
+		TRACE_USER("Not allowed to get an extra buffer for H2 response HEADERS", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0);
 		h2c->flags |= H2_CF_DEM_RXBUF;
 		goto fail;
 	}

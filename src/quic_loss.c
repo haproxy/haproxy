@@ -44,7 +44,7 @@ void quic_loss_srtt_update(struct quic_loss *ql,
 		ql->srtt = (7 * ql->srtt + rtt) / 8;
 	}
 
-	TRACE_PROTO("TX loss srtt update", QUIC_EV_CONN_RTTUPDT, qc,,, ql);
+	TRACE_PROTO("TX loss srtt update", QUIC_EV_CONN_RTTUPDT, qc, 0, 0, ql);
 	TRACE_LEAVE(QUIC_EV_CONN_RTTUPDT, qc);
 }
 

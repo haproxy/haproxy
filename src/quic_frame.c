@@ -292,7 +292,7 @@ static int quic_build_ack_frame(unsigned char **pos, const unsigned char *end,
 	ar = eb64_last(&ack_frm->arngs->root);
 	ar_node = eb64_entry(ar, struct quic_arng_node, first);
 	TRACE_PROTO("TX ack range", QUIC_EV_CONN_PRSAFRM,
-	            qc,, &ar_node->last, &ar_node->first.key);
+	            qc, 0, &ar_node->last, &ar_node->first.key);
 	if (!quic_enc_int(pos, end, ar_node->last) ||
 	    !quic_enc_int(pos, end, ack_frm->ack_delay) ||
 	    !quic_enc_int(pos, end, ack_frm->arngs->sz - 1) ||
@@ -301,7 +301,7 @@ static int quic_build_ack_frame(unsigned char **pos, const unsigned char *end,
 
 	while ((prev_ar = eb64_prev(ar))) {
 		prev_ar_node = eb64_entry(prev_ar, struct quic_arng_node, first);
-		TRACE_PROTO("TX ack range", QUIC_EV_CONN_PRSAFRM, qc,,
+		TRACE_PROTO("TX ack range", QUIC_EV_CONN_PRSAFRM, qc, 0,
 		            &prev_ar_node->last, &prev_ar_node->first.key);
 		if (!quic_enc_int(pos, end, ar_node->first.key - prev_ar_node->last - 2) ||
 		    !quic_enc_int(pos, end, prev_ar_node->last - prev_ar_node->first.key))
