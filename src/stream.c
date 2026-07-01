@@ -71,6 +71,8 @@ unsigned stream_epoch = 0;
 static struct list service_keywords = LIST_HEAD_INIT(service_keywords);
 
 
+#if defined(USE_TRACE)
+
 /* trace source and events */
 static void strm_trace(enum trace_level level, uint64_t mask,
 		       const struct trace_source *src,
@@ -272,6 +274,7 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 		htx_dump(&trace_buf, htx, full);
 	}
 }
+#endif
 
 /* Upgrade an existing stream for stream connector <sc>. Return < 0 on error. This
  * is only valid right after a TCP to H1 upgrade. The stream should be

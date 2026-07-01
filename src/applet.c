@@ -31,16 +31,10 @@ unsigned int nb_applets = 0;
 
 DECLARE_TYPED_POOL(pool_head_appctx,  "appctx",  struct appctx);
 
-/* trace source and events */
-static void applet_trace(enum trace_level level, uint64_t mask,
-			 const struct trace_source *src,
-			 const struct ist where, const struct ist func,
-			 const void *a1, const void *a2, const void *a3, const void *a4);
-
 /* The event representation is split like this :
  *   app  - applet
   */
-static const struct trace_event applet_trace_events[] = {
+static const struct trace_event applet_trace_events[] __maybe_unused = {
 #define           APPLET_EV_NEW       (1ULL <<  0)
 	{ .mask = APPLET_EV_NEW,      .name = "app_new",      .desc = "new appctx" },
 #define           APPLET_EV_FREE      (1ULL <<  1)
@@ -63,6 +57,14 @@ static const struct trace_event applet_trace_events[] = {
 	{ .mask = APPLET_EV_START,    .name = "app_wake",    .desc = "appctx woken up" },
 	{}
 };
+
+#if defined(USE_TRACE)
+
+/* trace source and events */
+static void applet_trace(enum trace_level level, uint64_t mask,
+			 const struct trace_source *src,
+			 const struct ist where, const struct ist func,
+			 const void *a1, const void *a2, const void *a3, const void *a4);
 
 static const struct name_desc applet_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the applet */ },
@@ -215,6 +217,8 @@ static void applet_trace(enum trace_level level, uint64_t mask, const struct tra
 		}
 	}
 }
+
+#endif /* USE_TRACE */
 
 /* Tries to allocate a new appctx and initialize all of its fields. The appctx
  * is returned on success, NULL on failure. The appctx must be released using

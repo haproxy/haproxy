@@ -10,6 +10,8 @@
 #include <haproxy/quic_utils.h>
 #include <haproxy/stconn.h>
 
+#if defined(USE_TRACE)
+
 /* trace source and events */
 static void qcm_trace(enum trace_level level, uint64_t mask,
                        const struct trace_source *src,
@@ -132,6 +134,8 @@ static void qcm_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source 
 
 /* register qcm traces */
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+#endif /* USE_TRACE*/
 
 static char *qcc_app_st_to_str(const enum qcc_app_st st)
 {

@@ -99,15 +99,6 @@ static int accept_payload_with_any_method = 0;
 static int h1_be_glitches_threshold = 0;  /* backend's max glitches: unlimited */
 static int h1_fe_glitches_threshold = 0;  /* frontend's max glitches: unlimited */
 
-/* trace source and events */
-static void h1_trace(enum trace_level level, uint64_t mask,
-                     const struct trace_source *src,
-                     const struct ist where, const struct ist func,
-                     const void *a1, const void *a2, const void *a3, const void *a4);
-
-static void h1_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
-                              const void *a1, const void *a2, const void *a3, const void *a4);
-
 /* The event representation is split like this :
  *   h1c   - internal H1 connection
  *   h1s   - internal H1 stream
@@ -116,7 +107,7 @@ static void h1_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *
  *   tx    - data transmission
  *
  */
-static const struct trace_event h1_trace_events[] = {
+static const struct trace_event h1_trace_events[] __maybe_unused = {
 #define           H1_EV_H1C_NEW       (1ULL <<  0)
 	{ .mask = H1_EV_H1C_NEW,      .name = "h1c_new",      .desc = "new H1 connection" },
 #define           H1_EV_H1C_RECV      (1ULL <<  1)
@@ -181,6 +172,17 @@ static const struct trace_event h1_trace_events[] = {
 	{ }
 };
 
+#if defined(USE_TRACE)
+
+/* trace source and events */
+static void h1_trace(enum trace_level level, uint64_t mask,
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
+
+static void h1_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *src,
+                              const void *a1, const void *a2, const void *a3, const void *a4);
+
 static const struct name_desc h1_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the connection */ },
 	/* arg2 */ { .name="h1s", .desc="H1 stream" },
@@ -217,6 +219,7 @@ static struct trace_source trace_h1 __read_mostly = {
 #define TRACE_SOURCE &trace_h1
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
+#endif /* USE_TRACE */
 
 /* h1 stats module */
 enum {
@@ -368,6 +371,8 @@ static forceinline struct stconn *h1s_sc(const struct h1s *h1s)
 	return h1s->sd->sc;
 }
 
+#if defined(USE_TRACE)
+
 /* the H1 traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive h1c), that arg2, if non-null, is of type h1s, and
  * that arg3, if non-null, is a htx for rx/tx headers.
@@ -514,6 +519,8 @@ static void h1_trace_fill_ctx(struct trace_ctx *ctx, const struct trace_source *
 			ctx->strm = sc_strm(h1s_sc(h1s));
 	}
 }
+
+#endif /* USE_TRACE */
 
 /* report one or more glitches on the connection. That is any unexpected event
  * that may occasionally happen but if repeated a bit too much, might indicate

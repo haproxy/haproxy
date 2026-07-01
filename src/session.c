@@ -34,7 +34,7 @@ DECLARE_TYPED_POOL(pool_head_sess_priv_conns, "sess_priv_conns", struct sess_pri
 
 int conn_complete_session(struct connection *conn);
 
-static const struct trace_event sess_trace_events[] = {
+static const struct trace_event sess_trace_events[] __maybe_unused = {
 #define           SESS_EV_NEW       (1ULL <<  0)
 	{ .mask = SESS_EV_NEW,      .name = "sess_new",     .desc = "new session creation" },
 #define           SESS_EV_END       (1ULL <<  1)
@@ -43,6 +43,8 @@ static const struct trace_event sess_trace_events[] = {
 	{ .mask = SESS_EV_ERR,      .name = "sess_err",     .desc = "session error" },
 	{ }
 };
+
+#if defined(USE_TRACE)
 
 static const struct name_desc sess_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the session */ },
@@ -62,6 +64,8 @@ static struct trace_source trace_sess __read_mostly = {
 
 #define TRACE_SOURCE &trace_sess
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+#endif /* USE_TRACE */
 
 /* Create a a new session and assign it to frontend <fe>, listener <li>,
  * origin <origin>, set the current date and clear the stick counters pointers.

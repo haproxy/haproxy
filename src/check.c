@@ -66,6 +66,11 @@
 #include <haproxy/trace.h>
 #include <haproxy/vars.h>
 
+/* Dummy frontend used to create all checks sessions. */
+struct proxy checks_fe;
+
+#if defined(USE_TRACE)
+
 /* trace source and events */
 static void check_trace(enum trace_level level, uint64_t mask,
 			const struct trace_source *src,
@@ -138,11 +143,6 @@ struct trace_source trace_check = {
 
 #define TRACE_SOURCE &trace_check
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
-
-
-/* Dummy frontend used to create all checks sessions. */
-struct proxy checks_fe;
-
 
 static inline void check_trace_buf(const struct buffer *buf, size_t ofs, size_t len)
 {
@@ -285,6 +285,7 @@ static void check_trace(enum trace_level level, uint64_t mask,
 
 }
 
+#endif /* USE_TRACE */
 
 /**************************************************************************/
 /************************ Handle check results ****************************/

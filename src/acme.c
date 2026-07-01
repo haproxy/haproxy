@@ -52,6 +52,7 @@
 static EVP_PKEY *tmp_pkey = NULL;
 static X509 *tmp_x509 = NULL;
 
+#if defined(USE_TRACE)
 
 static void acme_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
                        const struct ist where, const struct ist func,
@@ -159,6 +160,7 @@ static void acme_trace(enum trace_level level, uint64_t mask, const struct trace
 		}
 	}
 }
+#endif
 
 struct eb_root acme_tasks = EB_ROOT_UNIQUE;
 __decl_thread(HA_RWLOCK_T acme_lock);

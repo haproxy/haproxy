@@ -148,12 +148,6 @@ struct fcgi_strm_params {
 /* Maximum amount of data we're OK with re-aligning for buffer optimizations */
 #define MAX_DATA_REALIGN 1024
 
-/* trace source and events */
-static void fcgi_trace(enum trace_level level, uint64_t mask,
-		       const struct trace_source *src,
-		       const struct ist where, const struct ist func,
-		       const void *a1, const void *a2, const void *a3, const void *a4);
-
 /* The event representation is split like this :
  *   fconn - internal FCGI connection
  *   fstrm - internal FCGI stream
@@ -162,7 +156,7 @@ static void fcgi_trace(enum trace_level level, uint64_t mask,
  *   tx    - data transmission
  *   rsp   - response parsing
  */
-static const struct trace_event fcgi_trace_events[] = {
+static const struct trace_event fcgi_trace_events[] __maybe_unused = {
 #define           FCGI_EV_FCONN_NEW     (1ULL <<  0)
 	{ .mask = FCGI_EV_FCONN_NEW,    .name = "fconn_new",        .desc = "new FCGI connection" },
 #define           FCGI_EV_FCONN_RECV    (1ULL <<  1)
@@ -248,6 +242,14 @@ static const struct trace_event fcgi_trace_events[] = {
 	{ }
 };
 
+#if defined(USE_TRACE)
+
+/* trace source and events */
+static void fcgi_trace(enum trace_level level, uint64_t mask,
+		       const struct trace_source *src,
+		       const struct ist where, const struct ist func,
+		       const void *a1, const void *a2, const void *a3, const void *a4);
+
 static const struct name_desc fcgi_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the connection */ },
 	/* arg2 */ { .name="fstrm", .desc="FCGI stream" },
@@ -283,6 +285,8 @@ static struct trace_source trace_fcgi __read_mostly = {
 
 #define TRACE_SOURCE &trace_fcgi
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+#endif /* USE_TRACE */
 
 /* FCGI connection and stream pools */
 DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_conn, "fcgi_conn", struct fcgi_conn);
@@ -332,6 +336,8 @@ static forceinline struct stconn *fcgi_strm_sc(const struct fcgi_strm *fstrm)
 	return fstrm->sd->sc;
 }
 
+
+#if defined(USE_TRACE)
 
 /* the FCGI traces always expect that arg1, if non-null, is of type connection
  * (from which we can derive fconn), that arg2, if non-null, is of type fstrm,
@@ -433,6 +439,8 @@ static void fcgi_trace(enum trace_level level, uint64_t mask, const struct trace
 		htx_dump(&trace_buf, htx, full);
 	}
 }
+
+#endif /* USE_TRACE */
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */

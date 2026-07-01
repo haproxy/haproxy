@@ -91,12 +91,6 @@ struct spop_frame_header {
         uint8_t  type;      /* frame type */
 };
 
-/* trace source and events */
-static void spop_trace(enum trace_level level, uint64_t mask,
-                     const struct trace_source *src,
-                     const struct ist where, const struct ist func,
-                     const void *a1, const void *a2, const void *a3, const void *a4);
-
 /* The event representation is split like this :
  *   spop_conn - internal SPOP connection
  *   spop_strm - internal SPOP stream
@@ -104,7 +98,7 @@ static void spop_trace(enum trace_level level, uint64_t mask,
  *   rx    - data receipt
  *   tx    - data transmission
  */
-static const struct trace_event spop_trace_events[] = {
+static const struct trace_event spop_trace_events[] __maybe_unused = {
 #define           SPOP_EV_SPOP_CONN_NEW     (1ULL <<  0)
 	{ .mask = SPOP_EV_SPOP_CONN_NEW,    .name = "spop_conn_new",  .desc = "new SPOP connection" },
 #define           SPOP_EV_SPOP_CONN_RECV    (1ULL <<  1)
@@ -173,6 +167,14 @@ static const struct trace_event spop_trace_events[] = {
 	{ }
 };
 
+#if defined(USE_TRACE)
+
+/* trace source and events */
+static void spop_trace(enum trace_level level, uint64_t mask,
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
+
 static const struct name_desc spop_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the connection */ },
 	/* arg2 */ { .name="spop_strm", .desc="SPOP stream" },
@@ -208,6 +210,8 @@ static struct trace_source trace_spop __read_mostly = {
 
 #define TRACE_SOURCE &trace_spop
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+#endif /* USE_TRACE */
 
 /* SPOP connection and stream pools */
 DECLARE_STATIC_TYPED_POOL(pool_head_spop_conn, "spop_conn", struct spop_conn);
@@ -303,6 +307,8 @@ static inline struct sedesc *spop_strm_opposite_sd(struct spop_strm *spop_strm)
 {
 	return se_opposite(spop_strm->sd);
 }
+
+#if defined(USE_TRACE)
 
 static inline void spop_trace_buf(const struct buffer *buf, size_t ofs, size_t len)
 {
@@ -445,6 +451,7 @@ static void spop_trace(enum trace_level level, uint64_t mask, const struct trace
 	}
 }
 
+#endif /* USE_TRACE */
 
 /*****************************************************/
 /* functions below are for dynamic buffer management */

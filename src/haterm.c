@@ -83,23 +83,7 @@ size_t master_pipesize = 0;
 static size_t hstream_add_ff_data(struct hstream *hs, struct sedesc *sd, unsigned long long len);
 static size_t hstream_add_htx_data(struct hstream *hs, struct htx *htx, unsigned long long len);
 
-#define TRACE_SOURCE &trace_haterm
-struct trace_source trace_haterm;
-static void hterm_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
-                        const struct ist where, const struct ist func,
-                        const void *a1, const void *a2, const void *a3, const void *a4);
-
-static const struct  name_desc hterm_trace_logon_args[4] = {
-	/* arg1 */ { /* already used by the haterm stream */ },
-	/* arg2 */ {
-		.name="haterm",
-		.desc="haterm server",
-	},
-	/* arg3 */ { },
-	/* arg4 */ { }
-};
-
-static const struct trace_event hterm_trace_events[] = {
+static const struct trace_event hterm_trace_events[] __maybe_unused = {
 #define HS_EV_HSTRM_NEW      (1ULL << 0)
 	{ .mask = HS_EV_HSTRM_NEW,      .name = "hstrm_new",      .desc = "new haterm stream" },
 #define HS_EV_PROCESS_HSTRM  (1ULL << 1)
@@ -114,6 +98,24 @@ static const struct trace_event hterm_trace_events[] = {
 	{ .mask = HS_EV_HSTRM_RESP,     .name = "hstrm_resp",     .desc = "build a HTTP response" },
 #define HS_EV_HSTRM_ADD_DATA (1ULL << 6)
 	{ .mask = HS_EV_HSTRM_ADD_DATA, .name = "hstrm_add_data", .desc = "add data to HTX haterm stream" },
+};
+
+#if defined(USE_TRACE)
+
+#define TRACE_SOURCE &trace_haterm
+struct trace_source trace_haterm;
+static void hterm_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+                        const struct ist where, const struct ist func,
+                        const void *a1, const void *a2, const void *a3, const void *a4);
+
+static const struct  name_desc hterm_trace_logon_args[4] = {
+	/* arg1 */ { /* already used by the haterm stream */ },
+	/* arg2 */ {
+		.name="haterm",
+		.desc="haterm server",
+	},
+	/* arg3 */ { },
+	/* arg4 */ { }
 };
 
 static const struct name_desc hterm_trace_decoding[] = {
@@ -149,6 +151,8 @@ static void hterm_trace(enum trace_level level, uint64_t mask, const struct trac
 	}
 
 }
+
+#endif /* USE_TRACE */
 
 int hstream_buf_available(void *target)
 {

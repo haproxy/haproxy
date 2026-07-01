@@ -267,18 +267,12 @@ static struct ebpt_node *dcache_tx_insert(struct dcache *dc,
                                           struct dcache_tx_entry *i);
 static inline void flush_dcache(struct peer *peer);
 
-/* trace source and events */
-static void peers_trace(enum trace_level level, uint64_t mask,
-                        const struct trace_source *src,
-                        const struct ist where, const struct ist func,
-                        const void *a1, const void *a2, const void *a3, const void *a4);
-
 static const char *statuscode_str(int statuscode);
 static const char *peer_app_state_str(enum peer_app_state appstate);
 static const char *peer_learn_state_str(enum peer_learn_state learnstate);
 static const char *peer_applet_state_str(int state);
 
-static const struct trace_event peers_trace_events[] = {
+static const struct trace_event peers_trace_events[] __maybe_unused = {
 #define PEERS_EV_SESS_NEW      (1ULL << 0)
 	{ .mask = PEERS_EV_SESS_NEW,     .name = "sess_new",       .desc = "create new peer session" },
 #define PEERS_EV_SESS_END      (1ULL << 1)
@@ -327,6 +321,14 @@ static const struct trace_event peers_trace_events[] = {
 	{ .mask = PEERS_EV_PROTO_CTRL,    .name = "proto_ctrl",    .desc = "protocol control message" },
 	{ }
 };
+
+#if defined(USE_TRACE)
+
+/* trace source and events */
+static void peers_trace(enum trace_level level, uint64_t mask,
+                        const struct trace_source *src,
+                        const struct ist where, const struct ist func,
+                        const void *a1, const void *a2, const void *a3, const void *a4);
 
 static const struct name_desc peers_trace_lockon_args[4] = {
 	/* arg1 */ { /* already used by the appctx */ },
@@ -455,6 +457,8 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 		return;
 }
 
+#endif /* USE_TRACE */
+
 static const char *statuscode_str(int statuscode)
 {
 	switch (statuscode) {
@@ -511,7 +515,7 @@ static const char *peer_learn_state_str(enum peer_learn_state learnstate)
 	}
 }
 
-static const char *peer_applet_state_str(int state)
+static inline const char *peer_applet_state_str(int state)
 {
 	switch (state) {
 	case PEER_SESS_ST_ACCEPT:       return "ACCEPT";

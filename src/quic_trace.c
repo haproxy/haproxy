@@ -22,6 +22,8 @@
 #include <haproxy/quic_tp.h>
 #include <haproxy/trace.h>
 
+#if defined(USE_TRACE)
+
 static void quic_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
                        const struct ist where, const struct ist func,
                        const void *a1, const void *a2, const void *a3, const void *a4);
@@ -663,6 +665,8 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 	}
 
 }
+
+#endif /* USE_TRACE */
 
 void quic_dump_qc_info(struct buffer *msg, const struct quic_conn *qc)
 {

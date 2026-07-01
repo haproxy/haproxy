@@ -29,17 +29,17 @@ struct mux_pt_ctx {
 
 DECLARE_STATIC_TYPED_POOL(pool_head_pt_ctx, "mux_pt", struct mux_pt_ctx);
 
-/* trace source and events */
-static void pt_trace(enum trace_level level, uint64_t mask,
-                     const struct trace_source *src,
-                     const struct ist where, const struct ist func,
-                     const void *a1, const void *a2, const void *a3, const void *a4);
+/* returns the stconn associated to the stream */
+static forceinline struct stconn *pt_sc(const struct mux_pt_ctx *pt)
+{
+	return pt->sd->sc;
+}
 
 /* The event representation is split like this :
  *   pt_ctx - internal PT context
  *   strm   - application layer
  */
-static const struct trace_event pt_trace_events[] = {
+static const struct trace_event pt_trace_events[] __maybe_unused = {
 #define           PT_EV_CONN_NEW      (1ULL <<  0)
 	{ .mask = PT_EV_CONN_NEW,     .name = "pt_conn_new",  .desc = "new PT connection" },
 #define           PT_EV_CONN_WAKE     (1ULL <<  1)
@@ -64,6 +64,13 @@ static const struct trace_event pt_trace_events[] = {
 	{}
 };
 
+#if defined(USE_TRACE)
+
+/* trace source and events */
+static void pt_trace(enum trace_level level, uint64_t mask,
+                     const struct trace_source *src,
+                     const struct ist where, const struct ist func,
+                     const void *a1, const void *a2, const void *a3, const void *a4);
 
 static const struct name_desc pt_trace_decoding[] = {
 #define PT_VERB_CLEAN    1
@@ -92,12 +99,6 @@ static struct trace_source trace_pt __read_mostly = {
 
 #define TRACE_SOURCE &trace_pt
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
-
-/* returns the stconn associated to the stream */
-static forceinline struct stconn *pt_sc(const struct mux_pt_ctx *pt)
-{
-	return pt->sd->sc;
-}
 
 static inline void pt_trace_buf(const struct buffer *buf, size_t ofs, size_t len)
 {
@@ -200,6 +201,7 @@ static void pt_trace(enum trace_level level, uint64_t mask, const struct trace_s
 		}
 	}
 }
+#endif
 
 static inline void mux_pt_report_term_evt(struct mux_pt_ctx *ctx, enum muxc_term_event_type type)
 {
