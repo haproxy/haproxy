@@ -128,14 +128,14 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	case QUIC_FT_STOP_SENDING:
 	{
 		const struct qf_stop_sending *ss_frm = &frm->stop_sending;
-		chunk_appendf(&trace_buf, " id=%llu app_error_code=%llu",
+		chunk_appendf(buf, " id=%llu app_error_code=%llu",
 		              (ull)ss_frm->id, (ull)ss_frm->app_error_code);
 		break;
 	}
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
 	{
 		const struct qf_stream *strm_frm = &frm->stream;
-		chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
+		chunk_appendf(buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
 		              !!(strm_frm->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
 		              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
 		              (ull)strm_frm->id, (ull)strm_frm->offset, (ull)strm_frm->len);
@@ -144,80 +144,80 @@ void chunk_frm_appendf(struct buffer *buf, const struct quic_frame *frm)
 	case QUIC_FT_MAX_DATA:
 	{
 		const struct qf_max_data *md_frm = &frm->max_data;
-		chunk_appendf(&trace_buf, " max_data=%llu", (ull)md_frm->max_data);
+		chunk_appendf(buf, " max_data=%llu", (ull)md_frm->max_data);
 		break;
 	}
 	case QUIC_FT_MAX_STREAM_DATA:
 	{
 		const struct qf_max_stream_data *msd_frm = &frm->max_stream_data;
-		chunk_appendf(&trace_buf, " id=%llu max_stream_data=%llu",
+		chunk_appendf(buf, " id=%llu max_stream_data=%llu",
 		              (ull)msd_frm->id, (ull)msd_frm->max_stream_data);
 		break;
 	}
 	case QUIC_FT_MAX_STREAMS_BIDI:
 	{
 		const struct qf_max_streams *ms_frm = &frm->max_streams_bidi;
-		chunk_appendf(&trace_buf, " max_streams=%llu", (ull)ms_frm->max_streams);
+		chunk_appendf(buf, " max_streams=%llu", (ull)ms_frm->max_streams);
 		break;
 	}
 	case QUIC_FT_MAX_STREAMS_UNI:
 	{
 		const struct qf_max_streams *ms_frm = &frm->max_streams_uni;
-		chunk_appendf(&trace_buf, " max_streams=%llu", (ull)ms_frm->max_streams);
+		chunk_appendf(buf, " max_streams=%llu", (ull)ms_frm->max_streams);
 		break;
 	}
 	case QUIC_FT_DATA_BLOCKED:
 	{
 		const struct qf_data_blocked *db_frm = &frm->data_blocked;
-		chunk_appendf(&trace_buf, " limit=%llu", (ull)db_frm->limit);
+		chunk_appendf(buf, " limit=%llu", (ull)db_frm->limit);
 		break;
 	}
 	case QUIC_FT_STREAM_DATA_BLOCKED:
 	{
 		const struct qf_stream_data_blocked *sdb_frm = &frm->stream_data_blocked;
-		chunk_appendf(&trace_buf, " id=%llu limit=%llu",
+		chunk_appendf(buf, " id=%llu limit=%llu",
 		              (ull)sdb_frm->id, (ull)sdb_frm->limit);
 		break;
 	}
 	case QUIC_FT_STREAMS_BLOCKED_BIDI:
 	{
 		const struct qf_streams_blocked *sb_frm = &frm->streams_blocked_bidi;
-		chunk_appendf(&trace_buf, " limit=%llu", (ull)sb_frm->limit);
+		chunk_appendf(buf, " limit=%llu", (ull)sb_frm->limit);
 		break;
 	}
 	case QUIC_FT_STREAMS_BLOCKED_UNI:
 	{
 		const struct qf_streams_blocked *sb_frm = &frm->streams_blocked_uni;
-		chunk_appendf(&trace_buf, " limit=%llu", (ull)sb_frm->limit);
+		chunk_appendf(buf, " limit=%llu", (ull)sb_frm->limit);
 		break;
 	}
 	case QUIC_FT_RETIRE_CONNECTION_ID:
 	{
 		const struct qf_retire_connection_id *rcid_frm = &frm->retire_connection_id;
-		chunk_appendf(&trace_buf, " seq_num=%llu", (ull)rcid_frm->seq_num);
+		chunk_appendf(buf, " seq_num=%llu", (ull)rcid_frm->seq_num);
 		break;
 	}
 	case QUIC_FT_CONNECTION_CLOSE:
 	{
 		const struct qf_connection_close *cc_frm = &frm->connection_close;
 		size_t plen = QUIC_MIN((size_t)cc_frm->reason_phrase_len, sizeof cc_frm->reason_phrase);
-		chunk_appendf(&trace_buf,
+		chunk_appendf(buf,
 		              " error_code=%llu frame_type=%llu reason_phrase_len=%llu",
 		              (ull)cc_frm->error_code, (ull)cc_frm->frame_type,
 		              (ull)cc_frm->reason_phrase_len);
 		if (plen)
-			chunk_cc_phrase_appendf(&trace_buf, cc_frm->reason_phrase, plen);
+			chunk_cc_phrase_appendf(buf, cc_frm->reason_phrase, plen);
 		break;
 	}
 	case QUIC_FT_CONNECTION_CLOSE_APP:
 	{
 		const struct qf_connection_close_app *cc_frm = &frm->connection_close_app;
 		size_t plen = QUIC_MIN((size_t)cc_frm->reason_phrase_len, sizeof cc_frm->reason_phrase);
-		chunk_appendf(&trace_buf,
+		chunk_appendf(buf,
 		              " error_code=%llu reason_phrase_len=%llu",
 		              (ull)cc_frm->error_code, (ull)cc_frm->reason_phrase_len);
 		if (plen)
-			chunk_cc_phrase_appendf(&trace_buf, cc_frm->reason_phrase, plen);
+			chunk_cc_phrase_appendf(buf, cc_frm->reason_phrase, plen);
 		break;
 	}
 	}
