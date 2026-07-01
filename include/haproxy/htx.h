@@ -776,6 +776,14 @@ static inline int htx_is_not_empty(const struct htx *htx)
 	return (htx->head != -1);
 }
 
+/* Return 1 if the message is empty and there is no parsing/internal error flag
+ * set. Otherwise it return 0.
+ */
+static inline int htx_is_empty_noerr(const struct htx *htx)
+{
+	return (htx_is_empty(htx) && !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)));
+}
+
 /* Returns 1 if no more data are expected for the message <htx>. Otherwise it
  * returns 0. Note that it is illegal to call this with htx == NULL. This
  * function relies on the HTX_FL_EOM flags. It means tunneled data are not

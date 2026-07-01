@@ -7960,7 +7960,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		goto end; // may be NULL if empty
 
 	h2s_htx = htx_from_buf(rxbuf);
-	if (htx_is_empty(h2s_htx) && !(h2s_htx->flags & HTX_FL_PARSING_ERROR)) {
+	if (htx_is_empty_noerr(h2s_htx)) {
 		/* Here htx_to_buf() will set buffer data to 0 because
 		 * the HTX is empty.
 		 */
@@ -7972,7 +7972,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 	/* <buf> is empty and the message is small enough, swap the
 	 * buffers. */
-	if (htx_is_empty(buf_htx) && htx_used_space(h2s_htx) <= count) {
+	if (htx_is_empty_noerr(buf_htx) && htx_used_space(h2s_htx) <= count) {
 		count -= h2s_htx->data;
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(h2s_htx, rxbuf);

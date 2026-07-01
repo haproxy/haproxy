@@ -22,7 +22,7 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 
 	*fin = 0;
 	qcs_htx = htx_from_buf(&qcs->rx.app_buf);
-	if (htx_is_empty(qcs_htx)) {
+	if (htx_is_empty_noerr(qcs_htx)) {
 		/* Set buffer data to 0 as HTX is empty. */
 		htx_to_buf(qcs_htx, &qcs->rx.app_buf);
 		goto end;
@@ -31,7 +31,7 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	ret = qcs_htx->data;
 
 	cs_htx = htx_from_buf(buf);
-	if (htx_is_empty(cs_htx) && htx_used_space(qcs_htx) <= count) {
+	if (htx_is_empty_noerr(cs_htx) && htx_used_space(qcs_htx) <= count) {
 		/* EOM will be copied to cs_htx via b_xfer(). */
 		if ((qcs_htx->flags & HTX_FL_EOM) &&
 		    !(qcs->flags & QC_SF_EOI_SUSPENDED)) {

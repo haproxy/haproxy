@@ -497,14 +497,14 @@ size_t appctx_htx_rcv_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 	struct htx *buf_htx = NULL;
 	size_t ret = 0;
 
-	if (htx_is_empty(appctx_htx)) {
+	if (htx_is_empty_noerr(appctx_htx)) {
 		htx_to_buf(appctx_htx, &appctx->outbuf);
 		goto out;
 	}
 
 	ret = appctx_htx->data;
 	buf_htx = htx_from_buf(buf);
-	if (b_size(&appctx->outbuf) == b_size(buf) && htx_is_empty(buf_htx) && htx_used_space(appctx_htx) <= count) {
+	if (b_size(&appctx->outbuf) == b_size(buf) && htx_is_empty_noerr(buf_htx) && htx_used_space(appctx_htx) <= count) {
 		htx_to_buf(buf_htx, buf);
 		htx_to_buf(appctx_htx, &appctx->outbuf);
 		b_xfer(buf, &appctx->outbuf, b_data(&appctx->outbuf));
@@ -599,7 +599,7 @@ size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 	size_t ret = 0;
 
 	ret = buf_htx->data;
-	if (htx_is_empty(appctx_htx) && buf_htx->data == count) {
+	if (htx_is_empty_noerr(appctx_htx) && buf_htx->data == count) {
 		htx_to_buf(appctx_htx, &appctx->inbuf);
 		htx_to_buf(buf_htx, buf);
 		b_xfer(&appctx->inbuf, buf, b_data(buf));
