@@ -5444,9 +5444,11 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	}
 
 	if (errcode & ERR_WARN) {
-		ha_warning("%s", errmsg);
+		if (errmsg)
+			ha_warning("%s", errmsg);
 	} else if (errcode & ERR_CODE) {
-		ha_alert("%s", errmsg);
+		if (errmsg)
+			ha_alert("%s", errmsg);
 		err++;
 	}
 
