@@ -3122,6 +3122,7 @@ void *run_thread_poll_loop(void *data)
 
 	ha_set_thread(data);
 	fdtab = tg_ctx->fdtab;
+	polled_mask = tg_ctx->polled_mask;
 	set_thread_cpu_affinity();
 	clock_set_local_source();
 	ha_random_seed_thread();

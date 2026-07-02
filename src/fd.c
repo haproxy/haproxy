@@ -100,7 +100,8 @@
 
 THREAD_LOCAL struct fdtab *fdtab = NULL;  /* array of all the file descriptors */
 static struct fdtab *_fdtab;
-struct polled_mask *polled_mask __read_mostly = NULL;  /* Array for the polled_mask of each fd */
+THREAD_LOCAL struct polled_mask *polled_mask = NULL;  /* Array for the polled_mask of each fd */
+static struct polled_mask *_polled_mask;
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
 
@@ -1217,11 +1218,23 @@ int init_pollers()
 	fdtab = ha_tgroup_ctx[0].fdtab;
 	vma_set_name(_fdtab, global.maxsock * sizeof(*fdtab) * nbfdtab, "fd", "fdtab");
 
-	if ((polled_mask = calloc(global.maxsock, sizeof(*polled_mask))) == NULL) {
+	if ((_polled_mask = calloc(global.maxsock, nbfdtab * sizeof(*polled_mask))) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for polled_mask!\n", global.maxsock);
 		goto fail_polledmask;
 	}
-	vma_set_name(polled_mask, global.maxsock * sizeof(*polled_mask), "fd", "polled_mask");
+
+	/*
+	 * As for fdtab, get on polled_mask per thread group, if needed.
+	 */
+	for (p = 0; p < global.nbtgroups; p++) {
+		if (global.tune.options & GTUNE_NO_TG_FD_SHARING)
+			ha_tgroup_ctx[p].polled_mask = _polled_mask + p * global.maxsock;
+		else
+			ha_tgroup_ctx[p].polled_mask = _polled_mask;
+	}
+	/* immediately set it for the boot thread as well */
+	polled_mask = ha_tgroup_ctx[0].polled_mask;
+	vma_set_name(_polled_mask, global.maxsock * sizeof(*polled_mask) * nbfdtab, "fd", "polled_mask");
 
 	for (p = 0; p < MAX_TGROUPS; p++)
 		update_list[p].first = update_list[p].last = -1;
@@ -1247,9 +1260,11 @@ int init_pollers()
 	} while (!bp || bp->pref == 0);
 
  fail_info:
-	free(polled_mask);
+	free(_polled_mask);
+	_polled_mask = polled_mask = NULL;
  fail_polledmask:
-	ha_aligned_free(fdtab);
+	ha_aligned_free(_fdtab);
+	_fdtab = fdtab = NULL;
  fail_tab:
 	return 0;
 }
@@ -1269,8 +1284,13 @@ void deinit_pollers() {
 			bp->term(bp);
 	}
 
-	ha_aligned_free(fdtab);
-	ha_free(&polled_mask);
+	/* free the backing areas, not the (possibly per-group) thread-local
+	 * pointers which may not point to the start of the allocations.
+	 */
+	ha_aligned_free(_fdtab);
+	_fdtab = fdtab = NULL;
+	ha_free(&_polled_mask);
+	polled_mask = NULL;
 }
 
 /*

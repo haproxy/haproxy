@@ -43,7 +43,7 @@ extern int totalconn;                   /* total # of terminated sessions */
 extern int actconn;                     /* # of active sessions */
 
 extern volatile struct fdlist update_list[MAX_TGROUPS];
-extern struct polled_mask *polled_mask;
+extern THREAD_LOCAL struct polled_mask *polled_mask; /* Array for the polled_mask of each fd */
 
 extern THREAD_LOCAL int *fd_updt;  // FD updates list
 extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
