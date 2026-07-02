@@ -1956,11 +1956,8 @@ void http_cookie_register(struct http_hdr *list, int idx, int *first, int *last)
  */
 int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
 {
-	uint32_t fs; /* free space */
-	uint32_t bs; /* block size */
-	uint32_t vl; /* value len */
-	uint32_t tl; /* total length */
 	struct htx_blk *blk;
+	struct ist v;
 
 	if (first < 0)
 		return 0;
@@ -1969,28 +1966,16 @@ int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
 	if (!blk)
 		return 1;
 
-	tl = list[first].v.len;
-	fs = htx_free_data_space(htx);
-	bs = htx_get_blksz(blk);
-
-	/* for each extra cookie, we'll extend the cookie's value and insert
-	 * ";" before the new value.
-	 */
-	fs += tl; /* first one is already counted */
-
-	/* Loop over cookies linked list built from http_cookie_register. */
 	while ((first = list[first].n.len) >= 0) {
-		vl = list[first].v.len;
-		tl += vl + 2;
-		if (tl > fs)
+		v = htx_get_blk_value(htx, blk);
+		blk = htx_replace_blk_value(htx, blk, ist2(istend(v), 0), ist("; "));
+		if (!blk)
 			return 1;
 
-		htx_change_blk_value_len(htx, blk, tl);
-		*(char *)(htx_get_blk_ptr(htx, blk) + bs + 0) = ';';
-		*(char *)(htx_get_blk_ptr(htx, blk) + bs + 1) = ' ';
-		memcpy(htx_get_blk_ptr(htx, blk) + bs + 2,
-		       list[first].v.ptr, vl);
-		bs += vl + 2;
+		v = htx_get_blk_value(htx, blk);
+		blk = htx_replace_blk_value(htx, blk, ist2(istend(v), 0), list[first].v);
+		if (!blk)
+			return 1;
 	}
 
 	return 0;
