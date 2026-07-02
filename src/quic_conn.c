@@ -1165,6 +1165,7 @@ struct quic_conn *qc_new_conn(void *target,
 	qc->qcc = NULL;
 	qc->strm_reject = NULL;
 	qc->path = NULL;
+	qc->sport_range = NULL;
 
 	/* Keyupdate: required to safely call quic_tls_ku_free() from
 	 * quic_conn_release().

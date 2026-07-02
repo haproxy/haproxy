@@ -370,6 +370,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	struct proxy *be;
 	struct conn_src *src;
 	int use_fastopen = 0;
+	int local_port = 0;
 	struct sockaddr_storage *addr;
 
 	BUG_ON(!conn->dst);
@@ -462,24 +463,23 @@ int tcp_connect_server(struct connection *conn, int flags)
 			memcpy(&sa, &src->source_addr, sizeof(sa));
 
 			do {
+
 				/* note: in case of retry, we may have to release a previously
 				 * allocated port, hence this loop's construct.
 				 */
-				port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-				fdinfo[fd].port_range = NULL;
-
+				port_range_release_port(src->sport_range, local_port);
+				local_port = 0;
 				if (!attempts)
 					break;
 				attempts--;
 
-				fdinfo[fd].local_port = port_range_alloc_port(src->sport_range);
-				if (!fdinfo[fd].local_port) {
+				local_port = port_range_alloc_port(src->sport_range);
+				if (!local_port) {
 					conn->err_code = CO_ER_PORT_RANGE;
 					break;
 				}
 
-				fdinfo[fd].port_range = src->sport_range;
-				set_host_port(&sa, fdinfo[fd].local_port);
+				set_host_port(&sa, local_port);
 
 				ret = tcp_bind_socket(fd, flags, &sa, conn->src);
 				if (ret != 0)
@@ -497,8 +497,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 		}
 
 		if (unlikely(ret != 0)) {
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
+			port_range_release_port(src->sport_range, local_port);
 			close(fd);
 
 			if (ret == 1) {
@@ -606,16 +605,14 @@ int tcp_connect_server(struct connection *conn, int flags)
 			}
 
 			qfprintf(stderr,"Connect() failed for backend %s: %s.\n", be->id, msg);
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
+			port_range_release_port(src ? src->sport_range : NULL, local_port);
 			close(fd);
 			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s.\n", be->id, msg);
 			conn->flags |= CO_FL_ERROR;
 			return SF_ERR_RESOURCE;
 		} else if (errno == ETIMEDOUT) {
 			//qfprintf(stderr,"Connect(): ETIMEDOUT");
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
+			port_range_release_port(src ? src->sport_range : NULL, local_port);
 			close(fd);
 			conn->err_code = CO_ER_SOCK_ERR;
 			conn->flags |= CO_FL_ERROR;
@@ -623,8 +620,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 		} else {
 			// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
 			//qfprintf(stderr,"Connect(): %d", errno);
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
+			port_range_release_port(src ? src->sport_range : NULL, local_port);
 			close(fd);
 			conn->err_code = CO_ER_SOCK_ERR;
 			conn->flags |= CO_FL_ERROR;
@@ -637,6 +633,8 @@ int tcp_connect_server(struct connection *conn, int flags)
 	}
 
 	conn_ctrl_init(conn);       /* registers the FD */
+	if (local_port != 0)
+		_HA_ATOMIC_OR(&fdtab[fd].state, FD_HAS_PORT);
 	HA_ATOMIC_OR(&fdtab[fd].state, FD_LINGER_RISK);  /* close hard if needed */
 
 	if (conn->flags & CO_FL_WAIT_L4_CONN) {

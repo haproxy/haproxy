@@ -286,6 +286,7 @@ int quic_connect_server(struct connection *conn, int flags)
 	struct sockaddr_storage *addr, saddr;
 	struct quic_conn *qc = conn->handle.qc;
 	socklen_t saddr_len;
+	int local_port = 0;
 
 	BUG_ON(qc->fd != -1);
 	BUG_ON(!conn->dst);
@@ -353,21 +354,22 @@ int quic_connect_server(struct connection *conn, int flags)
 				/* note: in case of retry, we may have to release a previously
 				 * allocated port, hence this loop's construct.
 				 */
-				port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-				fdinfo[fd].port_range = NULL;
+				port_range_release_port(src->sport_range, local_port);
+				local_port = 0;
+				qc->sport_range = NULL;
 
 				if (!attempts)
 					break;
 				attempts--;
 
-				fdinfo[fd].local_port = port_range_alloc_port(src->sport_range);
-				if (!fdinfo[fd].local_port) {
+				local_port = port_range_alloc_port(src->sport_range);
+				if (!local_port) {
 					conn->err_code = CO_ER_PORT_RANGE;
 					break;
 				}
 
-				fdinfo[fd].port_range = src->sport_range;
-				set_host_port(&sa, fdinfo[fd].local_port);
+				set_host_port(&sa, local_port);
+				qc->sport_range = src->sport_range;
 
 				ret = quic_bind_socket(fd, flags, &sa, conn->src);
 				if (ret != 0)
@@ -385,8 +387,7 @@ int quic_connect_server(struct connection *conn, int flags)
 		}
 
 		if (unlikely(ret != 0)) {
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
+			port_range_release_port(src->sport_range, local_port);
 			close(fd);
 
 			if (ret == 1) {
@@ -415,8 +416,7 @@ int quic_connect_server(struct connection *conn, int flags)
 
 	addr = (conn->flags & CO_FL_SOCKS4) ? &srv->socks4_addr : conn->dst;
 	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
-		port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-		fdinfo[fd].port_range = NULL;
+		port_range_release_port(src ? src->sport_range : NULL, local_port);
 		close(fd);
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_SRVCL;
@@ -433,6 +433,8 @@ int quic_connect_server(struct connection *conn, int flags)
 	fd_want_recv(fd);
 
 	conn_ctrl_init(conn);
+	if (local_port != 0)
+		_HA_ATOMIC_OR(&fdtab[fd].state, FD_HAS_PORT);
 	return SF_ERR_NONE;  /* connection is OK */
 }
 

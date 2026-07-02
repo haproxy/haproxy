@@ -100,7 +100,6 @@
 
 struct fdtab *fdtab             __read_mostly = NULL;  /* array of all the file descriptors */
 struct polled_mask *polled_mask __read_mostly = NULL;  /* Array for the polled_mask of each fd */
-struct fdinfo *fdinfo           __read_mostly = NULL;  /* less-often used infos for file descriptors */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
 
@@ -340,7 +339,26 @@ void _fd_delete_orphan(int fd)
 	if (fd_nbupdt > 0 && fd_updt[fd_nbupdt - 1] == fd)
 		fd_nbupdt--;
 
-	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+	if (unlikely(fdtab[fd].state & FD_HAS_PORT)) {
+		struct sockaddr_storage sa;
+		socklen_t addrlen = sizeof(sa);
+		int port;
+
+		BUG_ON(!(fdtab[fd].state & FD_OWNER_PR));
+		/*
+		 * We have to release the port, let's use getsockname()
+		 * to figure out what the port was.
+		 */
+		BUG_ON(getsockname(fd, (struct sockaddr *)&sa, &addrlen) != 0);
+		if (sa.ss_family == AF_INET)
+			port = ((struct sockaddr_in *)&sa)->sin_port;
+		else if (sa.ss_family == AF_INET6)
+			port = ((struct sockaddr_in6 *)&sa)->sin6_port;
+		else
+			ABORT_NOW();
+		port_range_release_port(fdtab[fd].owner, port);
+	}
+
 	polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
 
 	fdtab[fd].state = 0;
@@ -348,7 +366,6 @@ void _fd_delete_orphan(int fd)
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;
 #endif
-	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
 
 	/* perform the close() call last as it's what unlocks the instant reuse
@@ -1188,12 +1205,6 @@ int init_pollers()
 	}
 	vma_set_name(polled_mask, global.maxsock * sizeof(*polled_mask), "fd", "polled_mask");
 
-	if ((fdinfo = calloc(global.maxsock, sizeof(*fdinfo))) == NULL) {
-		ha_alert("Not enough memory to allocate %d entries for fdinfo!\n", global.maxsock);
-		goto fail_info;
-	}
-	vma_set_name(fdinfo, global.maxsock * sizeof(*fdinfo), "fd", "fdinfo");
-
 	for (p = 0; p < MAX_TGROUPS; p++)
 		update_list[p].first = update_list[p].last = -1;
 
@@ -1217,7 +1228,6 @@ int init_pollers()
 		}
 	} while (!bp || bp->pref == 0);
 
-	free(fdinfo);
  fail_info:
 	free(polled_mask);
  fail_polledmask:
@@ -1241,7 +1251,6 @@ void deinit_pollers() {
 			bp->term(bp);
 	}
 
-	ha_free(&fdinfo);
 	ha_aligned_free(fdtab);
 	ha_free(&polled_mask);
 }

@@ -987,6 +987,10 @@ void qc_alloc_fd(struct quic_conn *qc, const struct sockaddr_storage *src,
 void qc_release_fd(struct quic_conn *qc, int reinit)
 {
 	if (qc_test_fd(qc)) {
+		if (unlikely(fdtab[qc->fd].state & FD_HAS_PORT)) {
+			fdtab[qc->fd].owner = qc->sport_range;
+			_HA_ATOMIC_OR(&fdtab[qc->fd].state, FD_OWNER_PR);
+		}
 		fd_delete(qc->fd);
 		qc->fd = DEAD_FD_MAGIC;
 

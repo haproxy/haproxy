@@ -310,6 +310,7 @@ struct qcc_app_ops;
         /* QUIC connection level counters */                                   \
         struct quic_conn_cntrs cntrs;                                          \
         struct connection *conn;                                               \
+        struct port_range *sport_range;                                        \
     }
 
 struct quic_conn {

@@ -901,6 +901,22 @@ void sock_conn_ctrl_init(struct connection *conn)
 void sock_conn_ctrl_close(struct connection *conn)
 {
 	BUG_ON(conn->flags & CO_FL_FDLESS);
+	if (unlikely(fdtab[conn->handle.fd].state & FD_HAS_PORT)) {
+		struct server *srv = objt_server(conn->target);
+		struct proxy *be;
+		struct port_range *port_range;
+
+		BUG_ON(srv == NULL);
+		be = srv->proxy;
+		if (srv->conn_src.opts & CO_SRC_BIND)
+			port_range = srv->conn_src.sport_range;
+		else if (be->conn_src.opts & CO_SRC_BIND)
+			port_range = be->conn_src.sport_range;
+		else
+			ABORT_NOW();
+		_HA_ATOMIC_OR(&fdtab[conn->handle.fd].state, FD_OWNER_PR);
+		fdtab[conn->handle.fd].owner = port_range;
+	}
 	fd_delete(conn->handle.fd);
 	conn->handle.fd = DEAD_FD_MAGIC;
 }
