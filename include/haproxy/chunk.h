@@ -51,6 +51,7 @@ struct buffer *get_trash_chunk(void);
 struct buffer *get_large_trash_chunk(void);
 struct buffer *get_small_trash_chunk(void);
 struct buffer *get_trash_chunk_sz(size_t size);
+struct buffer *get_best_trash_chunk(const struct buffer *buf, size_t size);
 struct buffer *get_larger_trash_chunk(struct buffer *chunk);
 int init_trash_buffers(int first);
 
@@ -169,6 +170,21 @@ static forceinline struct buffer *alloc_trash_chunk_sz(size_t size)
 		return alloc_trash_chunk();
 	else if (pool_head_large_trash && size <= pool_head_large_trash->size)
 		return alloc_large_trash_chunk();
+	else
+		return NULL;
+}
+/* Returns a trash chunk accordingly to the requested size and never larger
+ * that the buffer <buf>. So if <buf> is a large buffer,
+ * alloc_trash_chunk_sz() function is called. Otherwise, if the size is
+ * smaller enough, a regular buffer is allocated. If <size> is too big and
+ * <buf> is not a large buffer, NULL is returned.
+ */
+static forceinline struct buffer *alloc_best_trash_chunk(const struct buffer *buf, size_t size)
+{
+	if (pool_head_large_trash && buf->size == pool_head_large_trash->size)
+		return alloc_trash_chunk_sz(size);
+	else if (size <= pool_head_trash->size)
+		return alloc_trash_chunk();
 	else
 		return NULL;
 }

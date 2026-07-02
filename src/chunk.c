@@ -160,6 +160,22 @@ struct buffer *get_trash_chunk_sz(size_t size)
 		return NULL;
 }
 
+/* Returns a trash chunk accordingly to the requested size and never larger
+ * that the buffer <buf>. So if <buf> is a large buffer,
+ * get_trash_chunk_sz() function is called. Otherwise, if the size is
+ * smaller enough, a regular buffer is returned. If <size> is too big and
+ * <buf> is not a large buffer, NULL is returned.
+ */
+struct buffer *get_best_trash_chunk(const struct buffer *buf, size_t size)
+{
+	if (large_trash_size && buf->size == large_trash_size)
+		return get_trash_chunk_sz(size);
+	else if (size <= trash_size)
+		return get_trash_chunk();
+	else
+		return NULL;
+}
+
 /* Returns a larger buffer than <chk> if possible or NULL otherwise. If a larger
  * buffer is returned, content of <chk> are copied.
  */
