@@ -366,15 +366,17 @@ void haproxy_init_args(int argc, char **argv)
 			ha_alert("failed to allocate a buffer.\n");
 			goto leave;
 		}
+
 		hbuf_appendf(&gbuf, "global\n");
-		hbuf_appendf(&gbuf, "\ttune.memory.hot-size 3145728\n");
-		if (has_ssl)
-			hbuf_appendf(&gbuf, "\texpose-experimental-directives\n");
-#if defined(USE_LINUX_SPLICE) && defined(HA_USE_KTLS)
-		if (has_ssl)
-			hbuf_appendf(&gbuf, "\ttune.pipesize 262144\n");
-#endif
 	}
+
+	hbuf_appendf(&gbuf, "\ttune.memory.hot-size 3145728\n");
+	if (has_ssl)
+		hbuf_appendf(&gbuf, "\texpose-experimental-directives\n");
+#if defined(USE_LINUX_SPLICE) && defined(HA_USE_KTLS)
+	if (has_ssl)
+		hbuf_appendf(&gbuf, "\ttune.pipesize 262144\n");
+#endif
 
 	/* "global" section */
 	if (!hbuf_is_null(&gbuf))
