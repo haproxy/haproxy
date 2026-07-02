@@ -1270,11 +1270,19 @@ void listener_accept(struct listener *l)
 		if (l->rx.shard_info || atleast2(mask)) {
 			struct accept_queue_ring *ring;
 			struct listener *new_li;
+			struct shard_info *shi;
 			uint r1, r2, t, t1, t2;
 			ulong n0, n1;
 			const struct tgroup_info *g1, *g2;
 			ulong m1, m2;
 			ulong *thr_idx_ptr;
+
+			/*
+			 * Don't attempt to rebalance the connection to
+			 * other thread groups if we do not share the
+			 * file descriptor tables across thread groups.
+			 */
+			shi = (global.tune.options & GTUNE_NO_TG_FD_SHARING) ? NULL : l->rx.shard_info;
 
 			/* The principle is that we have two running indexes,
 			 * each visiting in turn all threads bound to this
@@ -1310,7 +1318,7 @@ void listener_accept(struct listener *l)
 			/* keep a copy for the final update. thr_idx is composite
 			 * and made of (n2<<16) + n1.
 			 */
-			thr_idx_ptr = l->rx.shard_info ? &((struct listener *)(l->rx.shard_info->ref->owner))->thr_idx : &l->thr_idx;
+			thr_idx_ptr = shi ? &((struct listener *)(shi->ref->owner))->thr_idx : &l->thr_idx;
 			while (1) {
 				int q0, q1, q2;
 
@@ -1322,13 +1330,13 @@ void listener_accept(struct listener *l)
 				r1 = ((uint)n0 / LONGBITS) & (LONGBITS - 1);
 
 				while (1) {
-					if (l->rx.shard_info) {
+					if (shi) {
 						/* multiple listeners, take the group into account */
-						if (r1 >= l->rx.shard_info->nbgroups)
+						if (r1 >= shi->nbgroups)
 							r1 = 0;
 
-						g1 = &ha_tgroup_info[l->rx.shard_info->members[r1]->bind_tgroup - 1];
-						m1 = l->rx.shard_info->members[r1]->bind_thread;
+						g1 = &ha_tgroup_info[shi->members[r1]->bind_tgroup - 1];
+						m1 = shi->members[r1]->bind_thread;
 					} else {
 						/* single listener */
 						r1 = 0;
@@ -1346,7 +1354,7 @@ void listener_accept(struct listener *l)
 							 * first thread of next group.
 							 */
 							t1 = 0;
-							if (l->rx.shard_info)
+							if (shi)
 								r1++;
 							/* loop again */
 							continue;
@@ -1366,19 +1374,19 @@ void listener_accept(struct listener *l)
 				 */
 				if ((global.tune.options & GTUNE_LISTENER_MQ_ANY) == GTUNE_LISTENER_MQ_FAIR) {
 					t = g1->base + t1;
-					if (l->rx.shard_info && t != tid)
-						new_li = l->rx.shard_info->members[r1]->owner;
+					if (shi && t != tid)
+						new_li = shi->members[r1]->owner;
 					goto updt_t1;
 				}
 
 				while (1) {
-					if (l->rx.shard_info) {
+					if (shi) {
 						/* multiple listeners, take the group into account */
-						if (r2 >= l->rx.shard_info->nbgroups)
-							r2 = l->rx.shard_info->nbgroups - 1;
+						if (r2 >= shi->nbgroups)
+							r2 = shi->nbgroups - 1;
 
-						g2 = &ha_tgroup_info[l->rx.shard_info->members[r2]->bind_tgroup - 1];
-						m2 = l->rx.shard_info->members[r2]->bind_thread;
+						g2 = &ha_tgroup_info[shi->members[r2]->bind_tgroup - 1];
+						m2 = shi->members[r2]->bind_thread;
 					} else {
 						/* single listener */
 						r2 = 0;
@@ -1400,7 +1408,7 @@ void listener_accept(struct listener *l)
 							 * last thread of previous group.
 							 */
 							t2 = global.maxthrpertgroup - 1;
-							if (l->rx.shard_info)
+							if (shi)
 								r2--;
 							/* loop again */
 							continue;
@@ -1429,9 +1437,9 @@ void listener_accept(struct listener *l)
 
 				/* add to this the currently active connections */
 				q0 += _HA_ATOMIC_LOAD(&l->thr_conn[ti->ltid]);
-				if (l->rx.shard_info) {
-					q1 += _HA_ATOMIC_LOAD(&((struct listener *)l->rx.shard_info->members[r1]->owner)->thr_conn[t1]);
-					q2 += _HA_ATOMIC_LOAD(&((struct listener *)l->rx.shard_info->members[r2]->owner)->thr_conn[t2]);
+				if (shi) {
+					q1 += _HA_ATOMIC_LOAD(&((struct listener *)shi->members[r1]->owner)->thr_conn[t1]);
+					q2 += _HA_ATOMIC_LOAD(&((struct listener *)shi->members[r2]->owner)->thr_conn[t2]);
 				} else {
 					q1 += _HA_ATOMIC_LOAD(&l->thr_conn[t1]);
 					q2 += _HA_ATOMIC_LOAD(&l->thr_conn[t2]);
@@ -1457,12 +1465,12 @@ void listener_accept(struct listener *l)
 					if (q0 <= q1)
 						t = tid;
 
-					if (l->rx.shard_info && t != tid)
-						new_li = l->rx.shard_info->members[r1]->owner;
+					if (shi && t != tid)
+						new_li = shi->members[r1]->owner;
 
 					t2--;
 					if (t2 >= global.maxthrpertgroup) {
-						if (l->rx.shard_info)
+						if (shi)
 							r2--;
 						t2 = global.maxthrpertgroup - 1;
 					}
@@ -1472,8 +1480,8 @@ void listener_accept(struct listener *l)
 					if (q0 <= q2)
 						t = tid;
 
-					if (l->rx.shard_info && t != tid)
-						new_li = l->rx.shard_info->members[r2]->owner;
+					if (shi && t != tid)
+						new_li = shi->members[r2]->owner;
 					goto updt_t1;
 				}
 				else { // q1 == q2
@@ -1481,12 +1489,12 @@ void listener_accept(struct listener *l)
 					if (q0 < q1) // local must be strictly better than both
 						t = tid;
 
-					if (l->rx.shard_info && t != tid)
-						new_li = l->rx.shard_info->members[r1]->owner;
+					if (shi && t != tid)
+						new_li = shi->members[r1]->owner;
 				updt_t1:
 					t1++;
 					if (t1 >= global.maxthrpertgroup) {
-						if (l->rx.shard_info)
+						if (shi)
 							r1++;
 						t1 = 0;
 					}
