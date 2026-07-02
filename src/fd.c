@@ -1147,12 +1147,37 @@ static int alloc_pollers_per_thread()
 	return fd_updt != NULL;
 }
 
+static int precreated_poller_pipes[MAX_THREADS][2];
+
+/*
+ * Create the pipes before we create the threads, as they may not share
+ * their file descriptor tables.
+ */
+int fd_precreate_poller_pipes(void)
+{
+	int i;
+
+	for (i = 0; i < global.nbthread; i++) {
+		if (pipe(precreated_poller_pipes[i]) < 0)
+			return 0;
+	}
+	return 1;
+}
+
 /* Initialize the pollers per thread.*/
 static int init_pollers_per_thread()
 {
 	int mypipe[2];
 
-	if (pipe(mypipe) < 0)
+	/*
+	 * The master does not get to pre-create pipes, so do it
+	 * now.
+	 */
+	if (!master) {
+		mypipe[0] = precreated_poller_pipes[tid][0];
+		mypipe[1] = precreated_poller_pipes[tid][1];
+	}
+	else if (pipe(mypipe) < 0)
 		return 0;
 
 	poller_rd_pipe = mypipe[0];

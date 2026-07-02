@@ -96,6 +96,8 @@ void poller_pipe_io_handler(int fd);
  */
 int init_pollers(void);
 
+int fd_precreate_poller_pipes(void);
+
 /*
  * Deinitialize the pollers.
  */
