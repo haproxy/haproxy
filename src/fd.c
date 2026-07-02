@@ -552,6 +552,8 @@ int fd_takeover(int fd, void *expected_owner)
 
 	/* We're taking a connection from a different thread group */
 	if ((fdtab[fd].refc_tgid & 0x7fff) != tgid) {
+		BUG_ON(global.tune.options & GTUNE_NO_TG_FD_SHARING);
+
 		changing_tgid = 1;
 
 		old_tgid = fd_tgid(fd);

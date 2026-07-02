@@ -1406,7 +1406,8 @@ check_tgid:
 
 	if (!found && (global.tune.tg_takeover == FULL_THREADGROUP_TAKEOVER ||
 	    (global.tune.tg_takeover == RESTRICTED_THREADGROUP_TAKEOVER &&
-	    srv->flags & (SRV_F_RHTTP | SRV_F_STRICT_MAXCONN)))) {
+	    srv->flags & (SRV_F_RHTTP | SRV_F_STRICT_MAXCONN))) &&
+	    !(global.tune.options & GTUNE_NO_TG_FD_SHARING)) {
 		curtgid = curtgid + 1;
 		if (curtgid == global.nbtgroups + 1)
 			curtgid = 1;
@@ -1513,14 +1514,26 @@ static int
 kill_random_idle_conn(struct server *srv)
 {
 	struct connection *conn = NULL;
+	uint base = 0, count = global.nbthread, start = tid;
 	int i;
 	int curtid;
 	/* No idle conn, then there is nothing we can do at this point */
 
 	if (srv->curr_idle_conns == 0)
 		return -1;
-	for (i = 0; i < global.nbthread; i++) {
-		curtid = (i + tid) % global.nbthread;
+
+	/*
+	 *  with per-thread-group fd tables, a connection cannot be taken over
+	 * from a thread of another group, as its fd is only valid in the
+	 * owner group's table, so only consider our own group's threads.
+	 */
+	if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
+		base = tg->base;
+		count = tg->count;
+		start = ti->ltid;
+	}
+	for (i = 0; i < count; i++) {
+		curtid = base + (start + i) % count;
 
 		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[curtid].idle_conns_lock) != 0)
 			continue;
