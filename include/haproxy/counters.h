@@ -36,6 +36,15 @@ int counters_be_shared_prepare(struct be_counters_shared *counters, const struct
 void counters_fe_shared_drop(struct fe_counters_shared *counters);
 void counters_be_shared_drop(struct be_counters_shared *counters);
 
+/* Safe counter reset: zero all counter fields while preserving the shared.tg
+ * pointer array and per-tgroup allocations (which the hot path dereferences
+ * without a NULL check). The shared.flags field is also preserved because
+ * COUNTERS_SHARED_F_LOCAL is set once at init and reflects allocation
+ * ownership, not counter state.
+ */
+void counters_fe_reset(struct fe_counters *counters);
+void counters_be_reset(struct be_counters *counters);
+
 /* time oriented helper: get last time (relative to current time) on a given
  * <scounter> array, for <elem> member (one member per thread group) which is
  * assumed to be unsigned long type.

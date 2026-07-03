@@ -1,0 +1,75 @@
+varnishtest "'clear counters all' preserves the shared.tg pointer"
+
+# Regression test for a segfault triggered by 'clear counters all' after the
+# switch to per-thread-group shared counters. A blanket memset on the outer
+# counters struct zeroed sv->counters.shared.tg, a pointer that every hot
+# path dereferences with no NULL check, so the next request after the clear
+# would crash. With counters_be_reset() / counters_fe_reset() the pointer
+# is preserved and only the pointed-at counter contents are cleared.
+#
+# This test drives traffic, clears counters, then drives more traffic. If
+# the fix regresses, the second traffic burst crashes the HAProxy process
+# and vtest reports the connection as failed.
+
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=devel
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+server s1_more {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${feS}"
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# First burst of traffic to accumulate counters on the server.
+client c1 -connect ${h1_feS_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Clear all counters via the CLI. Before the fix, this would null
+# shared.tg and cause the *next* request to crash the process.
+haproxy h1 -cli {
+    send "clear counters all"
+    expect ~ ".*"
+}
+
+# Rebind backend to a fresh varnishtest server since the first one
+# consumed its single rxreq/txresp.
+haproxy h1 -cli {
+    send "set server be/s1 addr ${s1_more_addr} port ${s1_more_port}"
+    expect ~ ".*"
+}
+
+# Second burst of traffic. If the process crashed on the counter clear,
+# the connection is refused and vtest fails.
+client c2 -connect ${h1_feS_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run

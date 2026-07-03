@@ -149,3 +149,68 @@ int counters_be_shared_prepare(struct be_counters_shared *shared, const struct g
 {
 	return _counters_shared_prepare((struct counters_shared *)shared, guid, 1, errmsg);
 }
+
+/* Reset the contents of the per-thread-group shared counters attached to
+ * <shared>, while preserving the shared.tg pointer array and the per-tgroup
+ * allocations themselves. This is the safe way to reset counters at runtime:
+ * the hot path dereferences shared.tg[tgid-1] with no NULL check, so nulling
+ * that pointer (as a blanket memset on the outer struct would do) segfaults on
+ * the next request. The shared.flags field is also preserved because
+ * COUNTERS_SHARED_F_LOCAL is set once at init and reflects allocation
+ * ownership, not counter state.
+ *
+ * In shared-memory (SHM stats file) mode, zeroing the per-tgroup structs
+ * affects every process attached to the same object. This is the intended
+ * "reset everywhere" semantic of clear counters.
+ */
+static void _counters_shared_reset(struct counters_shared *shared, size_t tg_size)
+{
+	int it;
+
+	if (!shared || !shared->tg)
+		return;
+
+	for (it = 0; it < global.nbtgroups; it++) {
+		if (shared->tg[it])
+			memset(shared->tg[it], 0, tg_size);
+	}
+}
+
+/* Reset all counter fields of <counters> while preserving the shared.tg
+ * pointer array and the per-tgroup allocations. See _counters_shared_reset()
+ * for the pointer-lifetime rationale. Both the per-tgroup accumulated
+ * counters (bytes, sessions, requests, errors, response codes, ...) and the
+ * local max/rate counters are cleared.
+ */
+void counters_fe_reset(struct fe_counters *counters)
+{
+	if (!counters)
+		return;
+
+	_counters_shared_reset((struct counters_shared *)&counters->shared,
+	                       sizeof(struct fe_counters_shared_tg));
+
+	/* Zero all local (non-shared) fields. Note this deliberately is NOT a
+	 * plain memset() over the whole struct: shared is the first member and
+	 * holds the shared.tg pointer array that the hot path dereferences
+	 * without a NULL check, so blanket-zeroing it would segfault the next
+	 * request. We skip exactly the shared sub-struct and clear the rest;
+	 * every field after it is numeric, so any field added later is reset
+	 * automatically without touching this code.
+	 */
+	memset((char *)counters + sizeof(counters->shared), 0,
+	       sizeof(*counters) - sizeof(counters->shared));
+}
+
+/* Reset all counter fields of <counters>. See counters_fe_reset(). */
+void counters_be_reset(struct be_counters *counters)
+{
+	if (!counters)
+		return;
+
+	_counters_shared_reset((struct counters_shared *)&counters->shared,
+	                       sizeof(struct be_counters_shared_tg));
+
+	memset((char *)counters + sizeof(counters->shared), 0,
+	       sizeof(*counters) - sizeof(counters->shared));
+}
