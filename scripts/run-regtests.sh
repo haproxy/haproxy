@@ -64,45 +64,6 @@ EOF
   exit 0
 }
 
-add_range_to_test_list()
-{
-    level0="*.vtc"
-    level1="h*.vtc"
-    level2="s*.vtc"
-    level3="l*.vtc"
-    level4="b*.vtc"
-    level5="k*.vtc"
-    level6="e*.vtc"
-
-    new_range=$(echo $1 | tr '-' ' ')
-    non_digit=$(echo $new_range | grep '[^0-9 ]')
-    if [ -n "$non_digit" ] ; then
-        return
-    fi
-    if [ "$new_range" = "$1" ] ; then
-        if [ $1 -gt 6 ] ; then
-            return
-        fi
-        eval echo '$'level$1
-        return
-    fi
-    if [ -z "$new_range" ] ; then
-        return
-    fi
-    list=
-    for l in $(seq $new_range) ; do
-        if [ -n "l" ] ; then
-            if [ -z "$list" ] ; then
-                list="$(eval echo '$'level${l})"
-            else
-                list="$list $(eval echo '$'level${l})"
-            fi
-        fi
-    done
-
-    echo $list
-}
-
 _startswith() {
   _str="$1"
   _sub="$2"
