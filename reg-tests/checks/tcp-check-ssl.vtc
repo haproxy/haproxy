@@ -1,5 +1,5 @@
 varnishtest "Health-checks: tcp-check health-check with ssl options"
-#REQUIRE_OPTION=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 #REGTEST_TYPE=slow
 feature ignore_unknown_macro
 

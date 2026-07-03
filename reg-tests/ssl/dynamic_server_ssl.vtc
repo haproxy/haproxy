@@ -4,7 +4,7 @@
 #
 varnishtest "Delete server via cli and update certificates"
 
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 
 setenv VTC_SOCK_TYPE stream

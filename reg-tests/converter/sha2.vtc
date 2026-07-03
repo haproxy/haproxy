@@ -1,6 +1,6 @@
 varnishtest "sha2 converter Test"
 
-#REQUIRE_OPTION=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 feature ignore_unknown_macro
 

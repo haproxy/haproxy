@@ -4,7 +4,7 @@ feature ignore_unknown_macro
 
 # for "set server <srv> ssl"
 #REGTEST_TYPE=devel
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 # Do nothing. Is there only to create s1_* macros
 server s1 {

@@ -20,7 +20,7 @@
 # the LUA sleep time.
 
 varnishtest "LUA bug"
-#REQUIRE_OPTIONS=LUA
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 #REGTEST_TYPE=bug
 
 feature ignore_unknown_macro

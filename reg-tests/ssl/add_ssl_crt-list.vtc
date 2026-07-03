@@ -11,7 +11,7 @@
 # - Check that you have socat
 
 varnishtest "Test the 'add ssl crt-list' feature of the CLI"
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 
 setenv VTC_SOCK_TYPE stream

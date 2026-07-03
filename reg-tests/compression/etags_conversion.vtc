@@ -1,6 +1,6 @@
 varnishtest "Compression converts strong ETags to weak ETags"
 
-#REQUIRE_OPTION=ZLIB|SLZ
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(ZLIB) || feature(SLZ)'"
 
 feature ignore_unknown_macro
 

@@ -1,7 +1,7 @@
 # Checks that compression doesn't cause corruption..
 
 varnishtest "Compression validation"
-#REQUIRE_OPTIONS=ZLIB|SLZ,LUA,OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc '(feature(ZLIB) || feature(SLZ)) && feature(LUA) && feature(OPENSSL)'"
 #REGTEST_TYPE=slow
 
 feature ignore_unknown_macro

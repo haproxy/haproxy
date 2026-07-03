@@ -15,7 +15,7 @@
 # https://www.haproxy.com/blog/ssl-client-certificate-management-at-application-level/
 
 varnishtest "Test the client auth"
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 setenv VTC_SOCK_TYPE stream
 include ${testdir}/ssl_client_auth.vtci

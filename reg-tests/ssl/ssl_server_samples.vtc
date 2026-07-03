@@ -1,7 +1,7 @@
 #REGTEST_TYPE=devel
 
 varnishtest "Test the ssl_s_* sample fetches"
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 setenv VTC_SOCK_TYPE stream
 include ${testdir}/ssl_server_samples.vtci

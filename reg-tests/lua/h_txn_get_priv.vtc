@@ -1,5 +1,5 @@
 varnishtest "Lua: txn:get_priv() scope"
-#REQUIRE_OPTIONS=LUA
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 
 feature ignore_unknown_macro
 

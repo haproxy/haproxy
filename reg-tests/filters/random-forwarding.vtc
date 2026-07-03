@@ -1,6 +1,6 @@
 varnishtest "Filtering test with several filters and random forwarding (via trace filter)"
 
-#REQUIRE_OPTION=ZLIB|SLZ
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(ZLIB) || feature(SLZ)'"
 #REGTEST_TYPE=slow
 
 feature ignore_unknown_macro

@@ -10,7 +10,7 @@
 # of a frontend that does not have the strict-sni option enabled cannot be deleted.
 
 varnishtest "Test the 'del ssl crt-list' feature of the CLI"
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 setenv VTC_SOCK_TYPE stream
 include ${testdir}/../ssl/del_ssl_crt-list.vtci

@@ -18,7 +18,7 @@
 #REGTEST_TYPE=bug
 
 varnishtest "OpenSSL bug: Random crashes"
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature ignore_unknown_macro
 
 

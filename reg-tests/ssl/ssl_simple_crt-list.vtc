@@ -2,7 +2,7 @@
 varnishtest "Test for the bug #940"
 # Test that the SNI are correctly inserted with the same file multiple times.
 
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 setenv VTC_SOCK_TYPE stream
 include ${testdir}/ssl_simple_crt-list.vtci

@@ -10,7 +10,7 @@ varnishtest "Lua: check httpclient functionality from a lua-task"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev7)'"
 feature ignore_unknown_macro
 
-#REQUIRE_OPTIONS=LUA
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 
 server s1 {
     rxreq

@@ -1,6 +1,6 @@
 varnishtest "Check that the unique ID TLV is properly sent for servers with ALPN option"
 
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 feature ignore_unknown_macro
 

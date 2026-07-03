@@ -1,7 +1,7 @@
 varnishtest "Lua: check socket functionality from a lua-task"
 feature ignore_unknown_macro
 
-#REQUIRE_OPTIONS=LUA
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 
 server s1 {
     rxreq

@@ -1,7 +1,7 @@
 vtest "Basic test for peers protocol over SSL/TLS with stick-table declared in peers sections"
 feature ignore_unknown_macro
 
-#REQUIRE_OPTIONS=OPENSSL
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 #REGTEST_TYPE=slow
 
 haproxy h1 -arg "-L A" -conf {

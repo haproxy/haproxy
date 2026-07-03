@@ -2,7 +2,7 @@ varnishtest "Test filter-sequence feature"
 
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.4-dev0)'"
 feature ignore_unknown_macro
-#REQUIRE_OPTIONS=LUA
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 
 barrier b1 cond 2 -cyclic
 

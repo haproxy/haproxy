@@ -31,7 +31,7 @@
 
 
 varnishtest "Basic LUA test h00000"
-#REQUIRE_OPTIONS=LUA
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 #REGTEST_TYPE=bug
 
 feature ignore_unknown_macro

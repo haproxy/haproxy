@@ -1,5 +1,5 @@
 varnishtest "Check health-check email alerts"
-#REQUIRE_OPTIONS=LUA
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 
 feature ignore_unknown_macro
 
