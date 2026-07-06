@@ -404,7 +404,10 @@ for patch in "${PATCHES[@]}"; do
 
         echo -n "<TD nowrap align=center ${bkp[$cid]:+style='background-color:${BG_B}'}>$seq_num<BR/>"
         echo -n "<input type='radio' name='review' id='rv_$seq_num' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Start review here'/></TD>"
-        echo -n "<TD nowrap ${bkp[$cid]:+style='background-color:${BG_B}'}><tt><a href='${GITURL}${cid}'>$cid</a></tt>${date:+<br/><small style='font-weight:normal'>$date</small>}</TD>"
+        # only the first 8 chars of the commit id are displayed (enough to be
+        # unambiguous on one page); everything keyed (href, name=, cid[])
+        # carries the full id produced by the pipeline, whatever its length.
+        echo -n "<TD nowrap ${bkp[$cid]:+style='background-color:${BG_B}'}><tt><a href='${GITURL}${cid}'>${cid:0:8}</a></tt>${date:+<br/><small style='font-weight:normal'>$date</small>}</TD>"
         echo -n "<TD nowrap><a href='${GITURL}${cid}'>${pnum:+$pnum }$subj</a>${author:+<br/><div align=right><small style='font-weight:normal'>$author</small></div>}</TD>"
         echo -n "<TD nowrap align=center>"
         echo -n "<input type='radio' onclick='updt($seq_num,\"n\");' id='bt_${seq_num}_n' class='n' name='$cid' value='n' title='Drop' $(         [ "$verdict" != no ]     || echo -n checked) />"
