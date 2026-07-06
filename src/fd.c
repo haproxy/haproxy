@@ -363,10 +363,10 @@ void _fd_delete_orphan(int fd)
 
 /* Deletes an FD from the fdsets. The file descriptor is also closed, possibly
  * asynchronously. It is safe to call it from another thread from the same
- * group as the FD's or from a thread from a different group. However if called
- * from a thread from another group, there is an extra cost involved because
- * the operation is performed under thread isolation, so doing so must be
- * reserved for ultra-rare cases (e.g. stopping a listener).
+ * group as the FD's or from a thread from a different group.
+ * Calling from a thread from another group is handled by grabbing the
+ * reference count, adding the FD_MUST_CLOSE and doing the close ourselves
+ * only if there is no other thread currently using the fd.
  */
 void fd_delete(int fd)
 {
@@ -387,23 +387,33 @@ void fd_delete(int fd)
 	 * face the situation where we try to close an fd that was reassigned.
 	 * However there is one corner case where this happens, it's when an
 	 * attempt to pause a listener fails (e.g. abns), leaving the listener
-	 * in fault state and it is forcefully stopped. This needs to be done
-	 * under isolation, and it's quite rare (i.e. once per such FD per
-	 * process). Since we'll be isolated we can clear the thread mask and
-	 * close the FD ourselves.
+	 * in fault state and it is forcefully stopped.
+	 * To make it work when the fd does not belong to our thread group,
+	 * first increase the tgid refcount, so that we're sure nobody will
+	 * close it before we figure out if we should, then set the
+	 * FD_MUST_CLOSE bit, so that any running thread will take care
+	 * of closing it.
+	 * Once we set the thread_mask to 0, we know for sure that if
+	 * nobody is running, nobody ever will, so at this point, if
+	 * there is no running thread, and the FD_MUST_CLOSE bit is still
+	 * set, we know it is safe to actually close the fd.
 	 */
 	if (unlikely(fd_tgid(fd) != ti->tgid)) {
-		int must_isolate = !thread_isolated() && !(global.mode & MODE_STOPPING);
+		uint tgrp;
 
-		if (must_isolate)
-			thread_isolate();
+		tgrp = fd_take_tgid(fd);
 
+		HA_ATOMIC_OR(&fdtab[fd].state, FD_MUST_CLOSE);
 		HA_ATOMIC_STORE(&fdtab[fd].thread_mask, 0);
-		HA_ATOMIC_STORE(&fdtab[fd].running_mask, 0);
-		_fd_delete_orphan(fd);
 
-		if (must_isolate)
-			thread_release();
+		if (!HA_ATOMIC_LOAD(&fdtab[fd].running_mask) &&
+		    HA_ATOMIC_BTR(&fdtab[fd].state, FD_MUST_CLOSE_BIT)) {
+			if (tgrp)
+				fd_drop_tgid(fd);
+			_fd_delete_orphan(fd);
+		}
+		else if (tgrp)
+			fd_drop_tgid(fd);
 		return;
 	}
 
