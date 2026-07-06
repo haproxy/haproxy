@@ -1922,6 +1922,30 @@ clear counters all
   server. This has the same effect as restarting. This command is restricted
   and can only be issued on sockets configured for level "admin".
 
+clear counters server <backend>/<server> [force]
+  Reset the statistics counters of a single server. This command is useful when
+  a server slot is being reused to represent a different logical entity (e.g.
+  a different Kubernetes pod occupying the same slot after a rename via
+  "set server <b>/<s> name") and per-entity counter attribution is required.
+  It behaves like "clear counters all" but scoped to one server rather than the
+  whole process.
+
+  The reset covers both accumulated counters (bytes, sessions, requests,
+  errors, response codes) and max values, as well as the extra counters
+  registered by modules (e.g. mux stats) for that server. As for the plain
+  "clear counters", only clearable modules are reset. It does not affect the
+  server's runtime state (address, weight, admin state) or health checks.
+
+  When the server's counters are stored in a shared-memory stats file (see
+  "shm-stats-file"), clearing them breaks the monotonicity that monitoring
+  tools consuming the shared stats rely on, and the reset is visible to every
+  process attached to the same object. For this reason the command refuses to
+  clear such a server unless the "force" keyword is appended.
+
+  Because it clears accumulated counters, this command is restricted and can
+  only be issued on sockets configured for level "admin", like "clear counters
+  all".
+
 clear acl [@<ver>] <acl>
   Remove all entries from the acl <acl>. <acl> is the #<id> or the <name>
   returned by "show acl". Note that if the reference <acl> is a name and is
