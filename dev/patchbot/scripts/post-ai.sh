@@ -141,10 +141,17 @@ input.y[type="radio"]:checked {
   border: 2px solid black;
   background-color: $BT_Y;
 }
+
+/* shared reviewers' notes, shown below the AI explanation */
+div.notes {
+  font-style: italic;
+  margin-top: 2px;
+}
 </style>
 
 <script type="text/javascript"><!--
 
+var cgi_url = "cgi-bin/update.cgi";
 var nb_patches = 0;
 var cid = [];
 var bkp = [];
@@ -153,6 +160,143 @@ var bkp = [];
 // with the server-side update.cgi; empty when generated without -v, in
 // which case no syncing is possible and the page works standalone.
 var branch = '$VERSION';
+
+// Three states exist per line. The original state (orig[]) is the verdict
+// the bot chose, captured at load time and constant. The reference state
+// (ref_state[]/ref_notes[]) is the last known shared state, i.e. what the
+// server last told us, on top of which the user's edits sit; it starts
+// equal to the original and is only advanced by "Get updates" and by a
+// successful save. The local state is the DOM itself (the checked radios),
+// there is no separate copy. Nothing is fetched automatically: the user
+// explicitly clicks "Get updates" to retrieve the shared state.
+var orig = [];
+var ref_state = [];
+var ref_notes = [];
+var cidmap = {};
+
+// returns the letter of the checked verdict radio of line <i>, or ""
+function cur_state(i) {
+  if (document.getElementById("bt_" + i + "_n").checked) return "n";
+  if (document.getElementById("bt_" + i + "_u").checked) return "u";
+  if (document.getElementById("bt_" + i + "_w").checked) return "w";
+  if (document.getElementById("bt_" + i + "_y").checked) return "y";
+  return "";
+}
+
+// checks the verdict radio <s> of line <i> (authoritative set, idempotent)
+function set_state(i, s) {
+  var el = document.getElementById("bt_" + i + "_" + s);
+  if (el)
+    el.checked = true;
+}
+
+// Returns the verdict letter emitted in the page for line <i>, i.e. the
+// bot's verdict. It relies on defaultChecked, which reflects the "checked"
+// attribute present in the HTML and not the radio's current state: across
+// a reload, the browser restores the radios to the user's last local
+// state, so looking at cur_state() at load time would wrongly capture the
+// user's own edits as being the original state.
+function gen_state(i) {
+  if (document.getElementById("bt_" + i + "_n").defaultChecked) return "n";
+  if (document.getElementById("bt_" + i + "_u").defaultChecked) return "u";
+  if (document.getElementById("bt_" + i + "_w").defaultChecked) return "w";
+  if (document.getElementById("bt_" + i + "_y").defaultChecked) return "y";
+  return "";
+}
+
+// captures the bot's verdicts once the table is fully loaded: they preset
+// both the original and the reference states. After a reload, the radios
+// (and thus the local state) may differ from the bot's verdicts since the
+// browser restores them: this is desired, such differences are unsaved
+// local edits and must remain detected as such.
+function init_ref() {
+  var i;
+
+  for (i = 1; i < nb_patches; i++) {
+    orig[i] = gen_state(i);
+    ref_state[i] = orig[i];
+    ref_notes[i] = "";
+    cidmap[cid[i]] = i;
+  }
+}
+
+function sync_msg(m) {
+  var el = document.getElementById("sync_msg");
+  if (el)
+    el.innerText = m;
+}
+
+// renders the reference notes of line <i> by replacing the whole container
+// (never appending), so that re-applying the same notes is idempotent.
+function show_notes(i) {
+  var el = document.getElementById("notes_" + i);
+  if (el)
+    el.innerText = ref_notes[i] ? "Notes: " + ref_notes[i] : "";
+}
+
+// resolves a commit id received from the server to a line number: exact
+// match first (the normal case), then symmetric-prefix (one id is a prefix
+// of the other, which only happens with mixed-length ids), first line wins.
+// Returns 0 when unknown (eg: a commit which is not on this page).
+function find_line(ocid) {
+  var i;
+
+  if (cidmap[ocid])
+    return cidmap[ocid];
+  for (i = 1; i < nb_patches; i++)
+    if (cid[i].startsWith(ocid) || ocid.startsWith(cid[i]))
+      return i;
+  return 0;
+}
+
+// Applies a freshly fetched overlay (the complete list of shared entries).
+// The new reference of every line is recomputed as "the server's entry if
+// any, otherwise the bot's original verdict", so that an entry removed on
+// the server properly falls back to the original. The reference always
+// advances, but the displayed state only moves where the user had no local
+// edit: local edits win and will overwrite the shared state at save time.
+function apply_ref(list) {
+  var over_state = [], over_notes = [], claimed = [];
+  var i, j, e, newref, newnotes;
+
+  for (j = 0; j < list.length; j++) {
+    e = list[j];
+    i = find_line(String(e.cid));
+    if (!i || claimed[i])
+      continue;
+    claimed[i] = 1;
+    if (e.state)
+      over_state[i] = String(e.state);
+    if (e.notes)
+      over_notes[i] = String(e.notes);
+  }
+
+  for (i = 1; i < nb_patches; i++) {
+    newref = over_state[i] ? over_state[i] : orig[i];
+    if (newref != ref_state[i] && ref_state[i] == cur_state(i))
+      set_state(i, newref);
+    ref_state[i] = newref;
+
+    newnotes = over_notes[i] ? over_notes[i] : "";
+    if (newnotes != ref_notes[i]) {
+      ref_notes[i] = newnotes;
+      show_notes(i);
+    }
+  }
+  updt_table(0);
+  updt_output();
+}
+
+// "Get updates" button: fetches the current shared state from the server
+function fetch_ref() {
+  if (!branch)
+    return;
+  sync_msg("fetching...");
+  fetch(cgi_url + "?branch=" + branch)
+    .then(function(r) { if (!r.ok) throw 0; return r.json(); })
+    .then(function(list) { apply_ref(list); sync_msg("reference updated"); })
+    .catch(function() { sync_msg("fetch failed (server unreachable?)"); });
+}
 
 // first line to review
 var review = 0;
@@ -308,6 +452,15 @@ function init_review() {
 EOF
 
 echo "<BODY>"
+
+# the syncing UI is only emitted when the branch is known; the page reaches
+# update.cgi with a bare relative URL so it must sit in the same directory.
+if [ -n "$VERSION" ]; then
+	echo -n "<div style='float: right; text-align: right;'>"
+	echo -n "<button onclick='fetch_ref();' title='Retrieve the latest shared review state'>Get updates</button>"
+	echo "<br/><small id='sync_msg'></small></div>"
+fi
+
 echo -n "<table cellpadding=3 cellspacing=5 style='font-size: 150%;'><tr><th align=left>Backported</th>"
 echo -n "<td style='background-color:$BG_N'><a href='#' onclick='show_only(1,1,0,0,0);'> N: <span id='cnt_bn'>0</span> </a></td>"
 echo -n "<td style='background-color:$BG_U'><a href='#' onclick='show_only(1,0,1,0,0);'> U: <span id='cnt_bu'>0</span> </a></td>"
@@ -430,7 +583,10 @@ for patch in "${PATCHES[@]}"; do
         echo -n "<input type='radio' onclick='updt($seq_num,\"w\");' id='bt_${seq_num}_w' class='w' name='$cid' value='w' title='wait in -next' $([ "$verdict" != wait ]   || echo -n checked) />"
         echo -n "<input type='radio' onclick='updt($seq_num,\"y\");' id='bt_${seq_num}_y' class='y' name='$cid' value='y' title='Pick' $(         [ "$verdict" != yes ]    || echo -n checked) />"
         echo -n "</TD>"
-        echo -n "<TD>$resp</TD>"
+
+        # the div is the dedicated container for the shared reviewers' notes,
+        # filled by full replacement (never appended to) by the JS
+        echo -n "<TD>$resp<div class='notes' id='notes_$seq_num'></div></TD>"
         echo "</TR>"
         echo
         ((seq_num++))
@@ -451,5 +607,5 @@ echo "<P/>"
 echo "<H3>Output:</H3>"
 echo "<textarea cols=120 rows=10 id='output'></textarea>"
 echo "<P/>"
-echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; init_review(); updt_table(0); updt_output();</script>"
+echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; init_review(); init_ref(); updt_table(0); updt_output();</script>"
 echo "</BODY></HTML>"
