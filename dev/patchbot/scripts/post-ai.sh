@@ -267,6 +267,26 @@ function show_only(b,n,u,w,y) {
     updt(0,"r");
 }
 
+// Resynchronizes the review variable with the checked review radio: across
+// a reload, the browser restores the radios to the user's last selection
+// (e.g. "All") while the variable is regenerated to the default first line
+// to review, and the listing would not match the checked radio anymore.
+function init_review() {
+  var i, el;
+
+  if (document.getElementById("show_all").checked) {
+    review = 0;
+    return;
+  }
+  for (i = 1; i <= nb_patches; i++) {
+    el = document.getElementById("rv_" + i);
+    if (el && el.checked) {
+      review = i;
+      return;
+    }
+  }
+}
+
 // -->
 </script>
 </HEAD>
@@ -383,7 +403,7 @@ for patch in "${PATCHES[@]}"; do
         resp=$(echo "$resp" | sed -e "s|\([0-9a-f]\{7,40\}\)|<a href='${GITURL}\1'>\1</a>|g")
 
         echo -n "<TD nowrap align=center ${bkp[$cid]:+style='background-color:${BG_B}'}>$seq_num<BR/>"
-        echo -n "<input type='radio' name='review' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Start review here'/></TD>"
+        echo -n "<input type='radio' name='review' id='rv_$seq_num' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Start review here'/></TD>"
         echo -n "<TD nowrap ${bkp[$cid]:+style='background-color:${BG_B}'}><tt><a href='${GITURL}${cid}'>$cid</a></tt>${date:+<br/><small style='font-weight:normal'>$date</small>}</TD>"
         echo -n "<TD nowrap><a href='${GITURL}${cid}'>${pnum:+$pnum }$subj</a>${author:+<br/><div align=right><small style='font-weight:normal'>$author</small></div>}</TD>"
         echo -n "<TD nowrap align=center>"
@@ -406,12 +426,12 @@ for patch in "${PATCHES[@]}"; do
         fi
 done
 
-echo "<TR><TH>New<br/><input type='radio' name='review' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Nothing to backport'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
+echo "<TR><TH>New<br/><input type='radio' name='review' id='rv_$seq_num' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Nothing to backport'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
 
 echo "</TABLE>"
 echo "<P/>"
 echo "<H3>Output:</H3>"
 echo "<textarea cols=120 rows=10 id='output'></textarea>"
 echo "<P/>"
-echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; updt_table(0); updt_output();</script>"
+echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; init_review(); updt_table(0); updt_output();</script>"
 echo "</BODY></HTML>"
