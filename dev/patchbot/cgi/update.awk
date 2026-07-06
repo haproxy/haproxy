@@ -32,6 +32,7 @@
 #   - POST update.cgi?branch=3.5 with a line-oriented body:
 #         <cid> state <n|u|w|y|revert>
 #         <cid> notes <text to append>
+#         <cid> setnotes <hash> <replacement text>
 #     "state" overrides the verdict, "revert" (aliases "same", "unchanged")
 #     removes the override so the bot's verdict applies again, "notes"
 #     appends to the commit's notes (capped to 500 chars per push). Broken
@@ -39,14 +40,20 @@
 #     the result is committed to git. Neither directive carries a base/old
 #     value: state is last-write-wins and notes are append-only, which is
 #     what keeps concurrent edits conflict-free.
+#     "setnotes" replaces the whole note blob (or deletes it when the text
+#     is empty) and is the exception: <hash> is the SDBM hash (8 hex
+#     chars) of the blob the client based its edit on, and the directive is
+#     only applied if it still matches the stored blob. Otherwise it is
+#     dropped and reported as a "conflict <cid>" line in the response, so
+#     that a replacement can never silently destroy a concurrent update.
 #   - GET update.cgi?branch=3.5 returns the current overlay as a JSON array
 #     of {"cid": ..., "state": ..., "notes": ...} objects, with absent
 #     fields omitted and notes fully unescaped (an empty overlay yields
 #     "[]"), directly usable with JSON.parse() on the client.
 #
 # Requires GNU awk (PROCINFO, systime); the -b flag in the shebang makes all
-# string operations byte-based regardless of the locale, which the escaping
-# and the caps depend on. A few points deserve attention:
+# string operations byte-based regardless of the locale, which the escaping,
+# the caps and the hash depend on. A few points deserve attention:
 #   - external commands (git, mkdir, mv, kill) go through /bin/sh, so
 #     everything interpolated into a command is shell-quoted with q();
 #   - NUL bytes in inputs are not reliably preserved by awk; they can only
@@ -71,6 +78,7 @@
 BEGIN {
 	MAX_CID_LEN = 40        # bound on a commit id (full SHA-1)
 	MAX_NOTE_LEN = 500      # cap on a single pushed note addition
+	MAX_EDIT_LEN = 4000     # cap on a whole-blob replacement (setnotes)
 	MAX_BRANCH_LEN = 15     # bound on the branch name
 	MAX_BODY_LEN = 1048576  # bound on a POST body
 	NOTE_SEP = "; "         # separator between coalesced notes
@@ -157,6 +165,19 @@ function get_branch(   n, i, p, v)
 	if (v == "" || length(v) > MAX_BRANCH_LEN || v !~ /^[0-9]+\.[0-9]+$/)
 		die("400 Bad Request", "missing or invalid branch")
 	return v
+}
+
+# SDBM hash of <s> (h = c + h * 65599) as 8 hex chars, the concurrency token
+# carried by a note blob replacement; must match the page's JS version. The
+# small multiplier keeps the 32-bit state exactly representable with awk's
+# double-precision numbers (65599 * 2^32 stays well below 2^53).
+function sdbm_hex(s,   h, i, n)
+{
+	h = 0
+	n = length(s)
+	for (i = 1; i <= n; i++)
+		h = (ORD[substr(s, i, 1)] + h * 65599) % 4294967296
+	return sprintf("%08x", h)
 }
 
 # Symmetric-prefix commit id match: two ids designate the same commit iff
@@ -364,6 +385,19 @@ function parse_directives(body,   nb, n, i, line, cid, rest, v, txt, h)
 			nb++
 			d_type[nb] = "notes"; d_cid[nb] = cid; d_note[nb] = txt
 		}
+		else if (match(rest, /^setnotes[ \t]+/)) {
+			v = substr(rest, RLENGTH + 1)
+			if (!match(v, /^[0-9a-fA-F]{8}([ \t]|$)/))
+				continue
+			h = tolower(substr(v, 1, 8))
+			txt = substr(v, 9)
+			sub(/^[ \t]+/, "", txt)
+			# an empty replacement is valid: it deletes the notes
+			nb++
+			d_type[nb] = "setnotes"; d_cid[nb] = cid
+			d_hash[nb] = h
+			d_note[nb] = sanitize_note(txt, MAX_EDIT_LEN)
+		}
 	}
 	return nb
 }
@@ -387,14 +421,18 @@ function load_file(fname,   line)
 # first match wins, scanning the file lines then the new entries; a miss
 # creates a new entry (except for a revert, which then has nothing to
 # remove). A line reduced to neither state nor notes is dropped at write
-# time.
-function apply_directive(di,   i, li, ni)
+# time. Returns 0 on success, or 1 when a setnotes base hash doesn't match
+# the stored blob anymore: the directive is then not applied (a replacement
+# must never silently destroy a concurrent update) and the caller reports
+# the conflict.
+function apply_directive(di,   i, li, ni, was_touched, cur)
 {
-	li = 0; ni = 0
+	li = 0; ni = 0; was_touched = 0
 	for (i = 1; i <= nb_lines; i++) {
 		if (L_cid[i] == "" || !cid_match(L_cid[i], d_cid[di]))
 			continue
 		li = i
+		was_touched = L_touched[i]
 		if (!L_touched[i]) {
 			parse_line(L_raw[i])
 			L_state[i] = P_state
@@ -413,10 +451,27 @@ function apply_directive(di,   i, li, ni)
 		}
 	}
 
+	# The base check happens before any entry creation or modification.
+	# On conflict the line must be left exactly as found, including not
+	# marked as modified if this lookup was what materialised it.
+	if (d_type[di] == "setnotes") {
+		cur = ""
+		if (li && L_has[li])
+			cur = L_notes[li]
+		else if (ni && N_has[ni])
+			cur = N_notes[ni]
+		if (sdbm_hex(cur) != d_hash[di]) {
+			if (li && !was_touched)
+				L_touched[li] = 0
+			return 1
+		}
+	}
 
 	if (!li && !ni) {
 		if (d_type[di] == "revert")
-			return          # nothing stored for this commit anyway
+			return 0        # nothing stored for this commit anyway
+		if (d_type[di] == "setnotes" && d_note[di] == "")
+			return 0        # deleting non-existing notes
 		nb_new++
 		N_cid[nb_new] = d_cid[di]
 		N_state[nb_new] = ""; N_notes[nb_new] = ""; N_has[nb_new] = 0
@@ -439,6 +494,17 @@ function apply_directive(di,   i, li, ni)
 			N_has[ni] = 1
 		}
 	}
+	else if (d_type[di] == "setnotes") {
+		if (li) {
+			L_notes[li] = d_note[di]
+			L_has[li] = (d_note[di] != "")
+		}
+		else {
+			N_notes[ni] = d_note[di]
+			N_has[ni] = (d_note[di] != "")
+		}
+	}
+	return 0
 }
 
 # Serialises all writers around the branch files. The lock is a directory
@@ -601,7 +667,7 @@ function json_str(s,   out, i, n, c)
 
 # the POST handler: parse directives, and if any survives, apply them to the
 # branch file under the lock, atomically replace it and commit it to git.
-function handle_post(   body, i, fname, attempt, renamed)
+function handle_post(   body, i, fname, nb_confl, attempt, renamed)
 {
 	body = read_body()
 	nb_dirs = parse_directives(body)
@@ -634,56 +700,69 @@ function handle_post(   body, i, fname, attempt, renamed)
 		delete L_raw; delete L_cid; delete L_touched
 		delete L_state; delete L_notes; delete L_has
 		delete N_cid; delete N_state; delete N_notes; delete N_has
+		delete CONFL
 		load_file(fname)
 
-		nb_new = 0
-		for (i = 1; i <= nb_dirs; i++)
-			apply_directive(i)
+		nb_new = 0; nb_confl = 0
+		for (i = 1; i <= nb_dirs; i++) {
+			if (apply_directive(i)) {
+				nb_confl++
+				CONFL[nb_confl] = d_cid[i]
+			}
+		}
 
-		# Complete the temp file and atomically rename() it over the
-		# branch file, so that the latter is always a complete valid
-		# file, even across a crash.
-		for (i = 1; i <= nb_lines; i++) {
-			if (!L_touched[i])
-				print L_raw[i] > lock_tmp
-			else if (L_state[i] != "" || L_has[i])
-				print fmt_entry(L_cid[i], L_state[i], L_notes[i], L_has[i]) > lock_tmp
-			# else: line reduced to nothing, dropped
-		}
-		for (i = 1; i <= nb_new; i++) {
-			if (N_state[i] != "" || N_has[i])
-				print fmt_entry(N_cid[i], N_state[i], N_notes[i], N_has[i]) > lock_tmp
-		}
-		close(lock_tmp)
-		system("sync -d " q(lock_tmp) " 2>/dev/null")
-		if (system("mv -T " q(lock_tmp) " " q(fname) " 2>/dev/null") != 0) {
-			# our lock was stolen and the temp file went with it:
-			# what now sits at the lock path belongs to someone
-			# else, leave it alone and redo the whole cycle from a
-			# fresh read
-			lock_held = 0
-			renamed = 0
-			continue
-		}
 		renamed = 1
+		if (nb_confl < nb_dirs) {
+			# Complete the temp file and atomically rename() it over the
+			# branch file, so that the latter is always a complete valid
+			# file, even across a crash.
+			for (i = 1; i <= nb_lines; i++) {
+				if (!L_touched[i])
+					print L_raw[i] > lock_tmp
+				else if (L_state[i] != "" || L_has[i])
+					print fmt_entry(L_cid[i], L_state[i], L_notes[i], L_has[i]) > lock_tmp
+				# else: line reduced to nothing, dropped
+			}
+			for (i = 1; i <= nb_new; i++) {
+				if (N_state[i] != "" || N_has[i])
+					print fmt_entry(N_cid[i], N_state[i], N_notes[i], N_has[i]) > lock_tmp
+			}
+			close(lock_tmp)
+			system("sync -d " q(lock_tmp) " 2>/dev/null")
+			if (system("mv -T " q(lock_tmp) " " q(fname) " 2>/dev/null") != 0) {
+				# our lock was stolen and the temp file went with it:
+				# what now sits at the lock path belongs to someone
+				# else, leave it alone and redo the whole cycle from a
+				# fresh read
+				lock_held = 0
+				renamed = 0
+				continue
+			}
 
-		# Commit failures (e.g. missing committer identity) are logged but
-		# not fatal: the tree stays valid-but-uncommitted and the next writer
-		# folds it into its own commit. Never checkout/reset here, it would
-		# eat an admin's uncommitted hand-edit. Git's output is redirected to
-		# stderr so that it cannot corrupt the CGI response.
-		if (system("git -C " q(repo) " add -- " q(branch) " 1>&2") != 0 || \
-		    system("git -C " q(repo) " commit -q -m " q("update " branch) " 1>&2") != 0)
-			print "update.awk: git commit failed in " repo " (will retry on next write)" > "/dev/stderr"
+			# Commit failures (e.g. missing committer identity) are logged but
+			# not fatal: the tree stays valid-but-uncommitted and the next writer
+			# folds it into its own commit. Never checkout/reset here, it would
+			# eat an admin's uncommitted hand-edit. Git's output is redirected to
+			# stderr so that it cannot corrupt the CGI response.
+			if (system("git -C " q(repo) " add -- " q(branch) " 1>&2") != 0 || \
+			    system("git -C " q(repo) " commit -q -m " q("update " branch) " 1>&2") != 0)
+				print "update.awk: git commit failed in " repo " (will retry on next write)" > "/dev/stderr"
+		}
+		# else: everything conflicted, nothing changed, nothing to write
 
 		lock_release()
 	}
 	if (!renamed)
 		die("500 Internal Server Error", "cannot replace branch file")
 
-	# echo the resulting line(s) after the status, mostly for debugging
+	# echo the conflicts then the resulting line(s) after the status; the
+	# client relies on the "conflict <cid>" lines, the rest is mostly for
+	# debugging.
 	printf "Content-Type: text/plain\r\n\r\n"
-	printf "OK %d directive%s applied\n", nb_dirs, nb_dirs == 1 ? "" : "s"
+	printf "OK %d directive%s applied\n", nb_dirs - nb_confl, \
+	       nb_dirs - nb_confl == 1 ? "" : "s"
+	for (i = 1; i <= nb_confl; i++)
+		print "conflict " CONFL[i]
 	for (i = 1; i <= nb_lines; i++) {
 		if (!L_touched[i])
 			continue
