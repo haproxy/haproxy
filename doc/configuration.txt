@@ -1955,10 +1955,6 @@ The following keywords are supported in the "global" section :
    - tune.quic.be.stream.rxbuf
    - tune.quic.be.tx.pacing
    - tune.quic.be.tx.udp-gso
-   - tune.quic.cc.cubic.min-losses (deprecated)
-   - tune.quic.cc-hystart (deprecated)
-   - tune.quic.disable-tx-pacing (deprecated)
-   - tune.quic.disable-udp-gso (deprecated)
    - tune.quic.fe.cc.cubic-min-losses
    - tune.quic.fe.cc.hystart
    - tune.quic.fe.cc.max-frame-loss
@@ -1974,18 +1970,8 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.stream.rxbuf
    - tune.quic.fe.tx.pacing
    - tune.quic.fe.tx.udp-gso
-   - tune.quic.frontend.max-data-size (deprecated)
-   - tune.quic.frontend.max-idle-timeout (deprecated)
-   - tune.quic.frontend.max-streams-bidi (deprecated)
-   - tune.quic.frontend.max-tx-mem (deprecated)
-   - tune.quic.frontend.stream-data-ratio (deprecated)
-   - tune.quic.frontend.default-max-window-size (deprecated)
    - tune.quic.listen
-   - tune.quic.max-frame-loss (deprecated)
    - tune.quic.mem.tx-max
-   - tune.quic.reorder-ratio (deprecated)
-   - tune.quic.retry-threshold (deprecated)
-   - tune.quic.socket-owner (deprecated)
    - tune.quic.zero-copy-fwd-send
    - tune.renice.runtime
    - tune.renice.startup
@@ -5142,21 +5128,11 @@ tune.quic.fe.cc.cubic-min-losses <number>
   compare some metrics. Never go beyond 2 without an expert's prior analysis of
   the situation. The default and minimum value is 1. Always use 1.
 
-tune.quic.cc.cubic.min-losses <number> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
-
 tune.quic.be.cc.hystart { on | off }
 tune.quic.fe.cc.hystart { on | off }
   Enables ('on') or disabled ('off') the HyStart++ (RFC 9406) algorithm for
   QUIC connections used as a replacement for the slow start phase of congestion
   control algorithms which may cause high packet loss. It is disabled by default.
-
-tune.quic.cc-hystart { on | off } (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.be.cc.max-frame-loss <number>
 tune.quic.fe.cc.max-frame-loss <number>
@@ -5164,11 +5140,6 @@ tune.quic.fe.cc.max-frame-loss <number>
   exceeded, the connection is considered as failing and is closed immediately.
 
   The default value is 10.
-
-tune.quic.max-frame-loss <number> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.be.cc.max-win-size <size>
 tune.quic.fe.cc.max-win-size <size>
@@ -5185,22 +5156,12 @@ tune.quic.fe.cc.max-win-size <size>
 
   See also the "quic-cc-algo" bind and server options.
 
-tune.quic.frontend.default-max-window-size <size> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
-
 tune.quic.be.cc.reorder-ratio <0..100, in percent>
 tune.quic.fe.cc.reorder-ratio <0..100, in percent>
   The ratio applied to the packet reordering threshold calculated. It may
   trigger a high packet loss detection when too small.
 
   The default value is 50.
-
-tune.quic.reorder-ratio <0..100, in percent> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.be.max-idle-timeout <timeout>
 tune.quic.fe.max-idle-timeout <timeout>
@@ -5214,11 +5175,6 @@ tune.quic.fe.max-idle-timeout <timeout>
     - if both parameters are null, this feature is disabled.
 
   The default value is 30s.
-
-tune.quic.frontend.max-idle-timeout <timeout> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.be.sec.glitches-threshold <number>
 tune.quic.fe.sec.glitches-threshold <number>
@@ -5235,11 +5191,6 @@ tune.quic.fe.sec.glitches-threshold <number>
 
   See also: fc_glitches, tune.glitches.kill.cpu-usage
 
-tune.quic.frontend.glitches-threshold <number> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
-
 tune.quic.fe.sec.retry-threshold <number>
   Dynamically enables the Retry feature for all the configured QUIC listeners
   as soon as this number of half open connections is reached. A half open
@@ -5253,11 +5204,6 @@ tune.quic.fe.sec.retry-threshold <number>
 
   See https://www.rfc-editor.org/rfc/rfc9000.html#section-8.1.2 for more
   information about QUIC retry.
-
-tune.quic.retry-threshold <number> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.fe.sock-per-conn { default-on | force-off }
   Specifies globally how QUIC frontend connections will use socket for
@@ -5288,12 +5234,6 @@ tune.quic.fe.sock-per-conn { default-on | force-off }
   "force-off" is used globally, it will be applied on every listener instance,
   regardless of their individual configuration.
 
-tune.quic.socket-owner { connection | listener } (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. The newer
-  option is named "tune.quic.fe.sock-per-conn", with legacy value "connection"
-  corresponding to "default-on" and "listener" to "force-off".
-
 tune.quic.be.stream.data-ratio <0..100, in percent>
 tune.quic.fe.stream.data-ratio <0..100, in percent>
   This setting allows to configure the hard limit of the number of data bytes
@@ -5313,11 +5253,6 @@ tune.quic.fe.stream.data-ratio <0..100, in percent>
   See also: "tune.quic.be.stream.rxbuf", "tune.quic.fe.stream.rxbuf",
             "tune.quic.be.stream.max-concurrent",
             "tune.quic.fe.stream.max-concurrent"
-
-tune.quic.frontend.stream-data-ratio  <0..100, in percent> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.be.stream.max-concurrent <number>
 tune.quic.fe.stream.max-concurrent <number>
@@ -5362,11 +5297,6 @@ tune.quic.fe.stream.max-total <number>
   The default value is 0 which implies no specific limit outside of the QUIC
   protocol encoding limitation (2^60, more than a billion billion).
 
-tune.quic.frontend.max-streams-bidi <number> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
-
 tune.quic.be.stream.rxbuf <size>
 tune.quic.fe.stream.rxbuf <size>
   This setting is the hard limit for the number of data bytes in flight over a
@@ -5384,11 +5314,6 @@ tune.quic.fe.stream.rxbuf <size>
             "tune.quic.fe.stream.max-concurrent",
             "tune.quic.be.stream.data-ratio", "tune.quic.fe.stream.data-ratio"
 
-tune.quic.frontend.max-data-size <size> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
-
 tune.quic.be.tx.pacing { on | off }
 tune.quic.fe.tx.pacing { on | off }
   Enables ('on') or disables ('off') pacing support for QUIC emission. By
@@ -5400,11 +5325,6 @@ tune.quic.fe.tx.pacing { on | off }
 
   See also the "quic-cc-algo" bind and server options.
 
-tune.quic.disable-tx-pacing (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
-
 tune.quic.be.tx.udp-gso { on | off }
 tune.quic.fe.tx.udp-gso { on | off }
   Enables ('on') or disables ('off') UDP GSO support for QUIC emission. By
@@ -5412,11 +5332,6 @@ tune.quic.fe.tx.udp-gso { on | off }
   via a single system call which is more efficient for large transfer. It may
   be useful to disable it on developers suggestion when suspecting an issue on
   emission.
-
-tune.quic.disable-udp-gso (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.listen { on | off }
   Disable QUIC transport protocol on the frontend side. All the QUIC listeners
@@ -5436,11 +5351,6 @@ tune.quic.mem.tx-max <size>
   strictly enforced so it can be exceeded on some occasions. Also, each
   connection will always be able to use a window of at least 2 datagrams, so a
   proper maxconn should be used in conjunction.
-
-tune.quic.frontend.max-tx-mem <size> (deprecated)
-  This keyword has been deprecated in 3.3 and will be removed in 3.5. It is
-  part of the streamlining process apply on QUIC configuration. If used, this
-  setting will only be applied on frontend connections.
 
 tune.quic.zero-copy-fwd-send { on | off }
   Enables ('on') of disabled ('off') the zero-copy sends of data for the QUIC

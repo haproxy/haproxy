@@ -292,33 +292,6 @@ static int cfg_parse_quic_tune_sock_per_conn(char **args, int section_type,
 	return 0;
 }
 
-/* parse "tune.quic.socket-owner", accepts "listener" or "connection" */
-static int cfg_parse_quic_tune_socket_owner(char **args, int section_type,
-                                            struct proxy *curpx,
-                                            const struct proxy *defpx,
-                                            const char *file, int line, char **err)
-{
-	if (too_many_args(1, args, err, NULL))
-		return -1;
-
-	memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-	               "Please use the newer keyword syntax 'tune.quic.fe.sock-per-conn'.", args[0]);
-
-	if (strcmp(args[1], "connection") == 0) {
-		quic_tune.fe.opts |= QUIC_TUNE_FE_SOCK_PER_CONN;
-	}
-	else if (strcmp(args[1], "listener") == 0) {
-		quic_tune.fe.opts &= ~QUIC_TUNE_FE_SOCK_PER_CONN;
-	}
-	else {
-		memprintf(err, "'%s' expects either 'listener' or 'connection' but got '%s'.", args[0], args[1]);
-		return -1;
-	}
-
-	/* Returns 1 to ensure deprecated warning is displayed. */
-	return 1;
-}
-
 /* Must be used to parse tune.quic.* setting which requires a time
  * as value.
  * Return -1 on alert, or 0 if succeeded.
@@ -361,13 +334,6 @@ static int cfg_parse_quic_time(char **args, int section_type,
 		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.max_idle_timeout :
 		                                 &quic_tune.fe.max_idle_timeout;
 		*ptr = time;
-	}
-	/* legacy options */
-	else if (strcmp(name + prefix_len, "frontend.max-idle-timeout") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.max-idle-timeout'.", args[0]);
-		quic_tune.fe.max_idle_timeout = time;
-		ret = 1;
 	}
 	else {
 		memprintf(err, "'%s' keyword not handled (please report this bug).", args[0]);
@@ -489,140 +455,8 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 
 		*ptr = arg;
 	}
-
-	/* legacy options */
-	else if (strcmp(suffix, "cc.cubic.min-losses") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.cc.cubic-min-losses'.", args[0]);
-		quic_tune.fe.cc_cubic_min_losses = arg - 1;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "frontend.default-max-window-size") == 0) {
-		unsigned long cwnd;
-		char *end_opt;
-
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.cc.max-win-size'.", args[0]);
-
-		cwnd = parse_window_size(args[0], args[1], &end_opt, err);
-		if (!cwnd)
-			return -1;
-		if (*end_opt != '\0') {
-			memprintf(err, "'%s' : expects an integer value with an optional suffix 'k', 'm' or 'g'", args[0]);
-			return -1;
-		}
-
-		quic_tune.fe.cc_max_win_size = cwnd;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "frontend.glitches-threshold") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.sec.glitches-threshold'.", args[0]);
-		quic_tune.fe.sec_glitches_threshold = arg;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "frontend.max-data-size") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.stream.rxbuf'.", args[0]);
-		if ((errptr = parse_size_err(args[1], &arg))) {
-			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
-			          args[0], *errptr, args[1]);
-			return -1;
-		}
-
-		quic_tune.fe.stream_rxbuf = arg;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "frontend.max-streams-bidi") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.stream.max-concurrent'.", args[0]);
-		quic_tune.fe.stream_max_concurrent = arg;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "frontend.max-tx-mem") == 0) {
-		ullong max_mem;
-
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.mem.tx-max'.", args[0]);
-
-		if ((errptr = parse_size_err(args[1], &max_mem))) {
-			memprintf(err, "'%s': unexpected character '%c' in size argument '%s'.",
-			          args[0], *errptr, args[1]);
-			return -1;
-		}
-
-		quic_tune.mem_tx_max = max_mem;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "frontend.stream-data-ratio") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.stream.data-ratio'.", args[0]);
-
-		if (arg < 1 || arg > 100) {
-			memprintf(err, "'%s' expects an integer argument between 1 and 100.", args[0]);
-			return -1;
-		}
-		quic_tune.fe.stream_data_ratio = arg;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "max-frame-loss") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.cc.max-frame-loss'.", args[0]);
-		quic_tune.fe.cc_max_frame_loss = arg;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "reorder-ratio") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.cc.reorder-ratio'.", args[0]);
-		if (arg > 100) {
-			memprintf(err, "'%s' expects an integer argument between 0 and 100.", args[0]);
-			return -1;
-		}
-
-		quic_tune.fe.cc_reorder_ratio = arg;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "retry-threshold") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.sec.retry-threshold'.", args[0]);
-		quic_tune.fe.sec_retry_threshold = arg;
-		ret = 1;
-	}
 	else {
 		memprintf(err, "'%s' keyword not handled (please report this bug).", args[0]);
-		return -1;
-	}
-
-	return ret;
-}
-
-static int cfg_parse_quic_tune_setting0(char **args, int section_type,
-                                        struct proxy *curpx,
-                                        const struct proxy *defpx,
-                                        const char *file, int line, char **err)
-{
-	int ret = 0;
-	int prefix_len = strlen("tune.quic.");
-	const char *suffix;
-
-	if (too_many_args(0, args, err, NULL))
-		return -1;
-
-	suffix = args[0] + prefix_len;
-	if (strcmp(suffix, "disable-tx-pacing") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.tx.pacing'.", args[0]);
-		quic_tune.fe.fb_opts &= ~QUIC_TUNE_FB_TX_PACING;
-		ret = 1;
-	}
-	else if (strcmp(suffix, "disable-udp-gso") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.tx.udp-gso'.", args[0]);
-		quic_tune.fe.fb_opts &= ~QUIC_TUNE_FB_TX_UDP_GSO;
-		ret = 1;
-	}
-	else {
-		memprintf(err, "'%s' keyword unhandled (please report this bug).", args[0]);
 		return -1;
 	}
 
@@ -691,15 +525,6 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 		else
 			*ptr &= ~QUIC_TUNE_FB_TX_UDP_GSO;
 	}
-	else if (strcmp(suffix, "cc-hystart") == 0) {
-		memprintf(err, "'%s' is deprecated in 3.3 and will be removed in 3.5. "
-		               "Please use the newer keyword syntax 'tune.quic.fe.cc.hystart'.", args[0]);
-		if (on)
-			quic_tune.fe.fb_opts |= QUIC_TUNE_FB_CC_HYSTART;
-		else
-			quic_tune.fe.fb_opts &= ~QUIC_TUNE_FB_CC_HYSTART;
-		ret = 1;
-	}
 
 	return ret;
 }
@@ -737,23 +562,6 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.be.stream.rxbuf", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.be.tx.pacing", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.be.tx.udp-gso", cfg_parse_quic_tune_on_off },
-
-	/* legacy options */
-	{ CFG_GLOBAL, "tune.quic.cc-hystart", cfg_parse_quic_tune_on_off },
-	{ CFG_GLOBAL, "tune.quic.cc.cubic.min-losses", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.disable-tx-pacing", cfg_parse_quic_tune_setting0 },
-	{ CFG_GLOBAL, "tune.quic.disable-udp-gso", cfg_parse_quic_tune_setting0 },
-	{ CFG_GLOBAL, "tune.quic.frontend.default-max-window-size", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.glitches-threshold", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.max-data-size", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.max-idle-timeout", cfg_parse_quic_time },
-	{ CFG_GLOBAL, "tune.quic.frontend.max-streams-bidi", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.max-tx-mem", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.frontend.stream-data-ratio", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.max-frame-loss", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.reorder-ratio", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.retry-threshold", cfg_parse_quic_tune_setting },
-	{ CFG_GLOBAL, "tune.quic.socket-owner", cfg_parse_quic_tune_socket_owner },
 
 	{ 0, NULL, NULL }
 }};
