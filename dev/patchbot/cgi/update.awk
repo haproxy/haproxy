@@ -667,7 +667,7 @@ function json_str(s,   out, i, n, c)
 
 # the POST handler: parse directives, and if any survives, apply them to the
 # branch file under the lock, atomically replace it and commit it to git.
-function handle_post(   body, i, fname, nb_confl, attempt, renamed)
+function handle_post(   body, i, fname, nb_confl, git_failed, attempt, renamed)
 {
 	body = read_body()
 	nb_dirs = parse_directives(body)
@@ -704,6 +704,7 @@ function handle_post(   body, i, fname, nb_confl, attempt, renamed)
 		load_file(fname)
 
 		nb_new = 0; nb_confl = 0
+		git_failed = 0
 		for (i = 1; i <= nb_dirs; i++) {
 			if (apply_directive(i)) {
 				nb_confl++
@@ -739,13 +740,23 @@ function handle_post(   body, i, fname, nb_confl, attempt, renamed)
 				continue
 			}
 
-			# Commit failures (e.g. missing committer identity) are logged but
-			# not fatal: the tree stays valid-but-uncommitted and the next writer
-			# folds it into its own commit. Never checkout/reset here, it would
-			# eat an admin's uncommitted hand-edit. Git's output is redirected to
-			# stderr so that it cannot corrupt the CGI response.
-			if (system("git -C " q(repo) " add -- " q(branch) " 1>&2") != 0 || \
-			    system("git -C " q(repo) " commit -q -m " q("update " branch) " 1>&2") != 0)
+			# Commit failures (e.g. missing committer identity) are not
+			# fatal: the tree stays valid-but-uncommitted and the next
+			# writer folds it into its own commit. But they must not stay
+			# invisible either or the history silently stops being
+			# recorded, so they are reported as a warning line in the
+			# response on top of the log. A no-op (identical content, e.g.
+			# re-pushed identical states) is not a failure: the commit is
+			# simply skipped when nothing is staged. Never checkout or
+			# reset here, it would eat an admin's uncommitted hand-edit.
+			# Git's output is redirected to stderr so that it cannot
+			# corrupt the CGI response.
+			if (system("git -C " q(repo) " add -- " q(branch) " 1>&2") != 0)
+				git_failed = 1
+			else if (system("git -C " q(repo) " diff --cached --quiet 1>&2") != 0 && \
+			         system("git -C " q(repo) " commit -q -m " q("update " branch) " 1>&2") != 0)
+				git_failed = 1
+			if (git_failed)
 				print "update.awk: git commit failed in " repo " (will retry on next write)" > "/dev/stderr"
 		}
 		# else: everything conflicted, nothing changed, nothing to write
@@ -763,6 +774,8 @@ function handle_post(   body, i, fname, nb_confl, attempt, renamed)
 	       nb_dirs - nb_confl == 1 ? "" : "s"
 	for (i = 1; i <= nb_confl; i++)
 		print "conflict " CONFL[i]
+	if (git_failed)
+		print "warning: git commit failed, history not recorded (check the committer identity and permissions in the storage repository)"
 	for (i = 1; i <= nb_lines; i++) {
 		if (!L_touched[i])
 			continue
