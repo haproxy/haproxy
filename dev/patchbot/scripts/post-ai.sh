@@ -537,8 +537,11 @@ function save_ref() {
     .then(function(t) {
       var confl = {};
       var resp = t.split("\n");
-      var i, j, ok, nbc = 0;
+      var i, j, ok = null, warn = "", nbc = 0;
 
+      // The lines of interest may be surrounded by unrelated output (some
+      // servers leak the CGI's stderr into the response), so scan for them
+      // anywhere: the count ("OK <n> ..."), the conflicts and the warnings.
       for (j = 0; j < resp.length; j++) {
         if (resp[j].indexOf("conflict ") == 0) {
           i = find_line(resp[j].slice(9).trim());
@@ -547,21 +550,25 @@ function save_ref() {
             nbc++;
           }
         }
+        else if (!ok)
+          ok = resp[j].match(/^OK (\d+) /);
+        if (resp[j].indexOf("warning: ") == 0)
+          warn = "; " + resp[j];
       }
 
-      // The server states how many directives it applied ("OK <n> ..."):
-      // anything neither applied nor reported as a conflict was silently
-      // ignored (e.g. an outdated update.bin not knowing a directive). In
-      // that case believe the server, not ourselves: advance nothing, keep
-      // every edit local for a retry, and say what happened.
-      ok = resp[0] ? resp[0].match(/^OK (\d+) /) : null;
+      // The server states how many directives it applied: anything neither
+      // applied nor reported as a conflict was silently ignored (e.g. an
+      // outdated update.bin not knowing a directive). In that case believe
+      // the server, not ourselves: advance nothing, keep every edit local
+      // for a retry, and say what happened.
       if (!ok || parseInt(ok[1], 10) != nsent - nbc) {
         for (i = 1; i < nb_patches; i++) {
           if (confl[i])
             mark_conflict(i, 1);
         }
+        console.log("unexpected update.cgi response: " + t);
         sync_msg("server applied only " + (ok ? ok[1] : "?") + " of " + nsent +
-                 " changes (outdated update.cgi/update.bin?), edits kept");
+                 " changes (outdated update.cgi/update.bin?), edits kept" + warn);
         return;
       }
 
@@ -588,7 +595,7 @@ function save_ref() {
           }
         }
       }
-      sync_msg(nbc ? "saved, but " + nbc + " note conflict(s): use Get updates and revise the red one(s)" : "saved");
+      sync_msg((nbc ? "saved, but " + nbc + " note conflict(s): use Get updates and revise the red one(s)" : "saved") + warn);
       updt_save_btn();
     })
     .catch(function() { sync_msg("save failed (busy?), edits kept"); });
