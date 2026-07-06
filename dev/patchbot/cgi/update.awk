@@ -600,6 +600,28 @@ function lock_acquire(   i, pid, stale, mt, priv, cmd, p2)
 	return -1
 }
 
+# Runs "git -C <repo> <args>". Both its stdout and stderr are captured (into
+# GITMSG, up to 255 bytes, control chars turned into spaces), so that git
+# can neither corrupt the CGI response nor leak into a server which sends
+# the CGI's stderr to the client, and above all so that the exact git error
+# can be reported to the user. Since the command goes through /bin/sh, an
+# unfindable git yields status 127 and the shell's own message, reworded to
+# directly point at the typical PATH issue.
+function run_git(args,   cmd, line, out, st)
+{
+	cmd = "git -C " q(repo) " " args " 2>&1"
+	out = ""
+	while ((cmd | getline line) > 0)
+		out = out (out == "" ? "" : " ") line
+	st = close(cmd)
+	gsub(/[\x01-\x1f\x7f]/, " ", out)
+	if (st == 127)
+		out = "cannot execute git: " out
+	GITMSG = substr(out, 1, 255)
+	sub(/ +$/, "", GITMSG)
+	return st
+}
+
 # Releases the lock, but only after checking that it is still ours: after a
 # takeover interleaving gone wrong, the path may carry someone else's live
 # lock, which must not be dismantled; ours is then a private stale dir that
@@ -705,6 +727,7 @@ function handle_post(   body, i, fname, nb_confl, git_failed, attempt, renamed)
 
 		nb_new = 0; nb_confl = 0
 		git_failed = 0
+		GITMSG = ""
 		for (i = 1; i <= nb_dirs; i++) {
 			if (apply_directive(i)) {
 				nb_confl++
@@ -749,15 +772,13 @@ function handle_post(   body, i, fname, nb_confl, git_failed, attempt, renamed)
 			# re-pushed identical states) is not a failure: the commit is
 			# simply skipped when nothing is staged. Never checkout or
 			# reset here, it would eat an admin's uncommitted hand-edit.
-			# Git's output is redirected to stderr so that it cannot
-			# corrupt the CGI response.
-			if (system("git -C " q(repo) " add -- " q(branch) " 1>&2") != 0)
+			if (run_git("add -- " q(branch)) != 0)
 				git_failed = 1
-			else if (system("git -C " q(repo) " diff --cached --quiet 1>&2") != 0 && \
-			         system("git -C " q(repo) " commit -q -m " q("update " branch) " 1>&2") != 0)
+			else if (run_git("diff --cached --quiet") != 0 && \
+			         run_git("commit -q -m " q("update " branch)) != 0)
 				git_failed = 1
 			if (git_failed)
-				print "update.awk: git commit failed in " repo " (will retry on next write)" > "/dev/stderr"
+				print "update.awk: git commit failed in " repo ": " GITMSG > "/dev/stderr"
 		}
 		# else: everything conflicted, nothing changed, nothing to write
 
@@ -775,7 +796,9 @@ function handle_post(   body, i, fname, nb_confl, git_failed, attempt, renamed)
 	for (i = 1; i <= nb_confl; i++)
 		print "conflict " CONFL[i]
 	if (git_failed)
-		print "warning: git commit failed, history not recorded (check the committer identity and permissions in the storage repository)"
+		print "warning: git commit failed, history not recorded (" \
+		      (GITMSG != "" ? GITMSG : \
+		       "check the committer identity and permissions in the storage repository") ")"
 	for (i = 1; i <= nb_lines; i++) {
 		if (!L_touched[i])
 			continue
