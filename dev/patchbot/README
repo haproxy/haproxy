@@ -140,6 +140,8 @@ proposed deployment layout is the following:
     |  |   +-- patches-3.0  # patches from development branch 3.0
     |  |
     |  +-- out              # report directory (HTML)
+    |  |
+    |  +-- overlay          # shared review state (git repo, optional)
     |
     +- prog
     |  |
@@ -255,6 +257,91 @@ proposed deployment layout is the following:
     2 instances for 8 cores / 16 threads gives optimal results on dual memory
     channel systems.
 
+- optionally, the review page can share the reviewers' edits (adjusted
+  verdicts and short notes) between all users of the same server, thanks to a
+  small CGI script storing them into a dedicated git repository. This part is
+  entirely optional: without it the page keeps working standalone, edits are
+  simply lost on reload as before. Three pieces are needed:
+
+  - the awk script from dev/patchbot/cgi (the server-side program).
+
+  - the storage repository, a plain git working tree which must also stay
+    outside the served directory. The CGI commits every change into it, so a
+    committer identity is required (git is the history: "git log" and "git
+    blame" tell who changed what and when, and the files are plain text, one
+    line per commit id, trivially hand-editable to fix anything):
+
+      mkdir ~/data/overlay
+      cd ~/data/overlay
+      git init
+      git config user.name patchbot
+      git config user.email patchbot@localhost
+      cd ~
+
+    Note that the example above assumes that the web server will be running
+    under the same user as the one owning the whole project, which is not
+    necessarily a great idea. A better approach consists in creating the
+    repository (and only it) under the web server's owner (e.g. "web" or
+    "nobody"). Start with the same actions as above, then:
+
+      sudo chown -R nobody ~/data/overlay
+
+    A group-shared access might also work for server that let the user set a
+    specific group (not tested). It's important to keep in mind that modern Git
+    versions are particularly picky about permissions and will even refuse to
+    read from another user's directory (and the safe.directory trick here
+    cannot work). If required, a trick consists in forcing GIT_DIR to point to
+    the .git dir, and GIT_WORK_TREE to the repo (only partially tested). E.g,
+    for local edition:
+
+       cd ~patchbot/data/overlay/
+       GIT_DIR=$PWD/.git GIT_WORK_TREE=$PWD git commit --amend
+
+    or more simply, when installed as nobody:
+
+       cd ~patchbot/data/overlay/
+       sudo -u git commit --amend
+
+    Also note that the identity really must be set in the repository's local
+    config as shown above and cannot be set globally (git config --global)
+    because CGI processes receive a minimal environment without HOME nor USER,
+    so git will not be able to read ~/.gitconfig and will fail to guess a valid
+    identity ("unable to auto-detect email address"), aborting every commit.
+
+    If only Git stops working, the file will continue to be updated but no
+    change history will be kept (a warning will be reported to the UI however).
+    This might be acceptable in some deployments and might become a deployment
+    option later if deemed useful.
+
+  - the "update.cgi" wrapper, copied from the haproxy tree into a "cgi-bin"
+    sub-directory in the served directory, next to the generated HTML pages
+    (the pages reach it with a relative URL). It's a small shell script holding
+    the local paths, to be adjusted after copying:
+
+      mkdir -p -m 711 ~/data/out/cgi-bin/
+      touch ~/data/out/cgi-bin/index.html
+      cp ~/data/in/haproxy/dev/patchbot/cgi/update.cgi ~/data/out/cgi-bin/
+      vi ~/data/out/cgi-bin/update.cgi   # point it to the backend and the repo
+
+    Note that this wrapper also has a subtle role here: awk can easily die on
+    some errors (failure to write to certain files etc) without producing a
+    response. In this case the wrapper will detect it and report the error to
+    the CGI server so that the browser stays informed of server-side issues.
+
+    The web server must be able to execute CGI scripts for this file (e.g.
+    thttpd needs its "**.cgi" or "*/cgi-bin/*.cgi" pattern for it to be
+    executed and not served as text, which would expose the paths it contains).
+    This is the only web-exposed piece; the script and the repository must
+    never be.
+
+  The update-X.Y.sh script deduces the branch from its own file name and
+  passes it to post-ai.sh (-v) at generation time, which enables the syncing UI
+  on the page; a page generated without -v simply doesn't show it.
+
+  Each save is committed with a subject naming the branch and the first touched
+  commit, optionally followed with "+ N more" if more commits are updated, with
+  the full list in the commit body to ease search via git log --grep.
+
 From this point, executing this update script manually should work and produce
 the result. Count around 0.5-2 mn per patch on a 8-core machine, so it can be
 reasonably fast during the early development stages (before -dev1) but
@@ -320,9 +407,14 @@ Using the HTML output is a bit rustic but efficient. The interface is split in
     immediately, only after it has spent some time in the development branch),
     and "Y" for "Yes" in red (this patch must be backported, let's pick it).
     The choice is preselected by the scripts above, and since these are radio
-    buttons, the user is free to change this selection. Reloading will lose the
-    user's choices. When changing a selection, the line's background changes to
-    match a similar color tone, allowing to visually spot preselected patches.
+    buttons, the user is free to change this selection. A simple reload done
+    by Ctrl-R will usually preserve user changes because only the document
+    defines them (radio buttons, input boxes). But a full reload (Ctrl-Shift-R)
+    will lose the user's choices that were not saved to the server. In any case
+    the shared states are not retrieved by a full reload, the user has to click
+    on "Get Updates" to retrieve them. When changing a selection, the line's
+    background changes to match a similar color tone, allowing to visually
+    spot preselected patches.
 
   - fifth column: reason for the choice. The scripts try to provide an
     explanation for the choice of the preselection, and try to always end with
@@ -336,6 +428,52 @@ Using the HTML output is a bit rustic but efficient. The interface is split in
     message such as risks, dependencies, referenced issues, oldest version to
     backport to, etc. Elements that look like issues numbers and commit IDs are
     turned to links to ease navigation.
+
+When the shared review persistence is deployed, two buttons also appear at the
+top right of the page:
+
+  - "Get updates" retrieves the current shared state from the server. Nothing
+    is ever fetched automatically, not even when the page loads: it's up to
+    the user to click when they want to synchronize. Lines the user has not
+    touched are updated to reflect the shared verdicts; lines the user has
+    already changed locally keep their local value (which will overwrite the
+    shared one on the next save, this is intentional: last opinion wins,
+    ideally with a note explaining why). Shared notes appear in italics below
+    the AI explanation.
+
+  - "Save changes" pushes the local edits to the server: every verdict that
+    differs from the last known shared state, plus the pending notes. It is
+    grayed out whenever there is nothing to save, so a lit button means
+    unsaved local edits (e.g. right after a reload restoring them). After a
+    successful save the page is in sync; if the server is busy or
+    unreachable, the edits simply stay local and a later click retries them.
+
+Notes are edited via the small links below each explanation:
+
+  - "[add note]" opens an input box whose text will be appended to the
+    commit's shared notes (up to 500 characters per addition). Additions
+    accumulate and cannot conflict, so this is the preferred way to comment.
+
+  - "[edit note]" appears once a commit has shared notes: it presents the
+    whole note in the input box for edition, and saving replaces the note
+    (emptying the box deletes it). Clicking it while an addition is being
+    typed merges both so nothing is lost. Since a replacement could destroy
+    a concurrent update, it is only accepted by the server if the note did
+    not change in between: otherwise the box turns red and stays in edition,
+    and "Get updates" rebases it on the current note so it can be revised
+    (against the refreshed note shown above it) and saved again.
+
+  - "[cancel]" closes the box without sending anything.
+
+    An open box only disappears once its content is synchronized with the
+    server: a successful save, an update proving it redundant (e.g. the same
+    text already pushed from another tab), or an explicit cancel. Boxes
+    opened by mistake and left unmodified are silently closed by the next
+    "Get updates".
+
+Note that control characters (0x00-0x1F, 0x7F) are automatically removed from
+notes during updates, except for line feed (0x0A) which is replaced with a
+space (0x20).
 
 In addition, in order to improve readability, the top of the table shows 4
 buttons allowing to show/hide each category. For example, when trying to focus
