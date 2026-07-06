@@ -257,8 +257,13 @@ function init_ref() {
   updt_save_btn();
 }
 
+// the status line and the save button exist twice, at the top and at the
+// bottom of the page, so both instances are always updated together
 function sync_msg(m) {
   var el = document.getElementById("sync_msg");
+  if (el)
+    el.innerText = m;
+  el = document.getElementById("sync_msg2");
   if (el)
     el.innerText = m;
 }
@@ -466,6 +471,7 @@ function cancel_note(i) {
 // change so the common case stays cheap.
 function updt_save_btn() {
   var btn = document.getElementById("save_btn");
+  var btn2 = document.getElementById("save_btn2");
   var pending = false;
   var i, s, el;
 
@@ -482,6 +488,8 @@ function updt_save_btn() {
     }
   }
   btn.disabled = !pending;
+  if (btn2)
+    btn2.disabled = !pending;
 }
 
 // "Save changes" button: pushes the local edits, i.e. the states differing
@@ -916,6 +924,17 @@ done
 echo "<TR><TH>New<br/><input type='radio' name='review' id='rv_$seq_num' onclick='updt($seq_num,\"r\");' ${do_check:+checked} title='Nothing to backport'/></TH><TH>CID</TH><TH>Subject</TH><TH>Verdict<BR>N U W Y</BR></TH><TH>Reason</TH></TR>"
 
 echo "</TABLE>"
+
+# a copy of the syncing buttons at the bottom right: that's where the user
+# ends up after a review, far from the top ones, and forgetting to save the
+# work is too easy when no button remains in sight
+if [ -n "$VERSION" ]; then
+	echo -n "<div style='float: right; text-align: right;'>"
+	echo -n "<button onclick='fetch_ref();' title='Retrieve the latest shared review state'>Get updates</button> "
+	echo -n "<button id='save_btn2' disabled onclick='save_ref();' title='Push your local edits to the shared state'>Save changes</button>"
+	echo "<br/><small id='sync_msg2'></small></div>"
+fi
+
 echo "<P/>"
 echo "<H3>Output:</H3>"
 echo "<textarea cols=120 rows=10 id='output'></textarea>"
