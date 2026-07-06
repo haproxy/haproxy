@@ -24,19 +24,29 @@ quit() {
 
 #### Main
 
-USAGE="Usage: ${0##*/} [ -h ] [ -b 'bkp_list' ] patch..."
+USAGE="Usage: ${0##*/} [ -h ] [ -b 'bkp_list' ] [ -v version ] patch..."
 MYSELF="$0"
 GITURL="http://git.haproxy.org/?p=haproxy.git;a=commitdiff;h="
 ISSUES="https://github.com/haproxy/haproxy/issues/"
 BKP=""
+VERSION=""
 
 while [ -n "$1" -a -z "${1##-*}" ]; do
 	case "$1" in
 		-h|--help) quit "$USAGE" ;;
 		-b)        BKP="$2"; shift 2 ;;
+		-v)        VERSION="$2"; shift 2 ;;
 		*)         die  "$USAGE" ;;
 	esac
 done
+
+# VERSION is the branch this page covers (eg: 3.5). It is only used by the
+# in-page JS to sync the review state with the server-side update.cgi, which
+# strictly validates it, so let's check it here as well. When empty, the
+# syncing UI is not emitted at all and the page keeps working standalone.
+if [ -n "$VERSION" ] && ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+	die "Invalid version '$VERSION', expected <digits>.<digits>"
+fi
 
 PATCHES=( "$@" )
 
@@ -138,6 +148,11 @@ input.y[type="radio"]:checked {
 var nb_patches = 0;
 var cid = [];
 var bkp = [];
+
+// the branch this page covers (eg: "3.5"), used to sync the review state
+// with the server-side update.cgi; empty when generated without -v, in
+// which case no syncing is possible and the page works standalone.
+var branch = '$VERSION';
 
 // first line to review
 var review = 0;

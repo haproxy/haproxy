@@ -16,6 +16,14 @@ if [ -z "$BRANCH" ]; then
 	exit 1
 fi
 
+# The version is deduced from this script's name (update-3.0.sh -> 3.0), so
+# that a symlink with another version continues to work as-is. It's passed
+# to post-ai.sh for the page to know which branch to sync with update.cgi;
+# if the name doesn't match, no version is passed and the page simply won't
+# offer syncing.
+VERSION="${0##*/}"; VERSION="${VERSION#update-}"; VERSION="${VERSION%.sh}"
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]] || VERSION=""
+
 # eg: for v3.0-dev0^ we should get v2.9.0 hence "2.9"
 STABLE=$(cd "$HAPROXY_DIR" && git describe --tags "v${BRANCH}-dev0^" |cut -f1,2 -d.|cut -f2- -dv)
 
@@ -64,4 +72,4 @@ fi
 time EXT=m7bv02.txt MODEL=${MODELS_DIR}/mistral-7b-instruct-v0.2.Q5_K_M.gguf CACHE=${PROMPTS_DIR}/prompt-${BRANCH}-m7bv02.cache PROMPT_PFX=${PROMPTS_DIR}/prompt15-${BRANCH}-mist7bv2-pfx.txt PROMPT_SFX=${PROMPTS_DIR}/prompt15-${BRANCH}-mist7bv2-sfx.txt MAINPROG=$MAINPROG PROGRAM="$SCRIPTS_DIR"/process-patch-v15.sh "$SCRIPTS_DIR"/submit-ai.sh -s ${PARALLEL_RUNS} ${PATCHES_DIR}/*.patch
 
 # generate the output, takes 3-5 seconds
-"$SCRIPTS_DIR"/post-ai.sh -b "${BKP[*]}" ${PATCHES_DIR}/*.m7bv02.txt > ${VERDICT_DIR}/verdict-${BRANCH}-m7bv02.html
+"$SCRIPTS_DIR"/post-ai.sh ${VERSION:+-v "$VERSION"} -b "${BKP[*]}" ${PATCHES_DIR}/*.m7bv02.txt > ${VERDICT_DIR}/verdict-${BRANCH}-m7bv02.html
