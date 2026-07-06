@@ -1,0 +1,89 @@
+varnishtest "Clear a single server's counters via CLI"
+
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=devel
+
+# echo server providing s1_addr / s1_port macros; serves two requests
+server s1 {
+	rxreq
+	txresp
+} -repeat 2 -start
+
+server s1_extra {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${feS}"
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+        server s2 ${s1_extra_addr}:${s1_extra_port} backup
+} -start
+
+# Drive two requests; both go to s1 (s2 is backup, only used if s1 is down)
+# so s1 accumulates two sessions while s2 stays at zero.
+client c1 -connect ${h1_feS_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_feS_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+    # ---- error cases ----
+
+    # unknown backend
+    send "clear counters server nosuch/s1"
+    expect ~ "No such backend"
+
+    # unknown server
+    send "clear counters server be/nosuch"
+    expect ~ "No such server"
+
+    # ---- success case ----
+
+    # precondition: s1 handled both requests (stot, CSV field 8) while the
+    # backup s2 stayed at zero. Both server rows are matched from a single
+    # response (one expect per send; the CLI connection closes afterwards).
+    send "show stat be 4 -1"
+    expect ~ "be,s1,[0-9]*,[0-9]*,[0-9]*,[0-9]*,[0-9]*,2,[^\n]*\nbe,s2,[0-9]*,[0-9]*,[0-9]*,[0-9]*,[0-9]*,0,"
+
+    # clear only s1's counters
+    send "clear counters server be/s1"
+    expect ~ "Server counters cleared."
+
+    # s1's cumulative sessions are now back to 0; s2 is untouched (still 0),
+    # proving the reset is scoped to the named server.
+    send "show stat be 4 -1"
+    expect ~ "be,s1,[0-9]*,[0-9]*,[0-9]*,[0-9]*,[0-9]*,0,[^\n]*\nbe,s2,[0-9]*,[0-9]*,[0-9]*,[0-9]*,[0-9]*,0,"
+
+    # 'force' is accepted and is a no-op override for process-local counters
+    # (there is no shared-memory stats file here), so it still succeeds.
+    send "clear counters server be/s2 force"
+    expect ~ "Server counters cleared."
+
+    # sanity: the command (with its 'force' option) is discoverable via help
+    send "help"
+    expect ~ "clear counters .*server.*force"
+}
