@@ -679,8 +679,8 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 				/* More than one DATA block we must use a trash */
 				if (!chk) {
 					smp->flags &= ~SMP_F_CONST;
-					chk = get_trash_chunk_sz(htx->data);
-					if (!chunk_istcat(chk, body))
+					chk = get_best_trash_chunk(&chn->buf, htx->data);
+					if (!chk || !chunk_istcat(chk, body))
 						return 0;
 				}
 				if (!chunk_istcat(chk, htx_get_blk_value(htx, blk)))
@@ -2122,8 +2122,8 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 				if (isttest(body)) {
 					/* More than one DATA block we must use a trash */
 					if (!chk) {
-						chk = get_trash_chunk_sz(htx->data);
-						if (!chunk_istcat(chk, body))
+						chk = get_best_trash_chunk(&chn->buf, htx->data);
+						if (!chk || !chunk_istcat(chk, body))
 							break;
 					}
 					if (!chunk_istcat(chk, htx_get_blk_value(htx, blk)))
