@@ -105,10 +105,9 @@ BEGIN {
 			repo = ARGV[i]
 			ARGV[i] = ""
 		}
-		else if (ARGV[i] != "") {
-			print "Usage: update.awk -r /path/to/repo" > "/dev/stderr"
-			die("500 Internal Server Error", "server misconfigured")
-		}
+		else if (ARGV[i] != "")
+			die("500 Internal Server Error", \
+			    "server misconfigured (usage: update.awk -r /path/to/repo)")
 	}
 
 	if (repo == "" || system("test -d " q(repo)) != 0)
@@ -137,13 +136,15 @@ function q(s)
 	return "'" s "'"
 }
 
-# prints a complete CGI error response and exits, releasing the lock if it
-# was held. Also logs to stderr (ends up in the web server's error log).
+# Prints a complete CGI error response and exits, releasing the lock if it
+# was held. Nothing is ever written to stderr, here nor anywhere else:
+# thttpd forwards the CGI's stderr to the client *before* its stdout, so
+# anything written there would land ahead of the response headers and
+# corrupt them; every diagnostic must be carried by the response itself.
 function die(status, msg)
 {
 	if (lock_held)
 		lock_release()
-	print "update.awk: " msg " (" status ")" > "/dev/stderr"
 	printf "Status: %s\r\nContent-Type: text/plain\r\n\r\n%s\n", status, msg
 	exit 0
 }
@@ -768,17 +769,15 @@ function handle_post(   body, i, fname, nb_confl, git_failed, attempt, renamed)
 			# writer folds it into its own commit. But they must not stay
 			# invisible either or the history silently stops being
 			# recorded, so they are reported as a warning line in the
-			# response on top of the log. A no-op (identical content, e.g.
-			# re-pushed identical states) is not a failure: the commit is
-			# simply skipped when nothing is staged. Never checkout or
-			# reset here, it would eat an admin's uncommitted hand-edit.
+			# response. A no-op (identical content, e.g. re-pushed
+			# identical states) is not a failure: the commit is simply
+			# skipped when nothing is staged. Never checkout or reset
+			# here, it would eat an admin's uncommitted hand-edit.
 			if (run_git("add -- " q(branch)) != 0)
 				git_failed = 1
 			else if (run_git("diff --cached --quiet") != 0 && \
 			         run_git("commit -q -m " q("update " branch)) != 0)
 				git_failed = 1
-			if (git_failed)
-				print "update.awk: git commit failed in " repo ": " GITMSG > "/dev/stderr"
 		}
 		# else: everything conflicted, nothing changed, nothing to write
 
