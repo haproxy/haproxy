@@ -690,7 +690,7 @@ function json_str(s,   out, i, n, c)
 
 # the POST handler: parse directives, and if any survives, apply them to the
 # branch file under the lock, atomically replace it and commit it to git.
-function handle_post(   body, i, fname, nb_confl, git_failed, attempt, renamed)
+function handle_post(   body, i, j, fname, nb_confl, nb_done, msg, git_failed, attempt, renamed)
 {
 	body = read_body()
 	nb_dirs = parse_directives(body)
@@ -723,65 +723,86 @@ function handle_post(   body, i, fname, nb_confl, git_failed, attempt, renamed)
 		delete L_raw; delete L_cid; delete L_touched
 		delete L_state; delete L_notes; delete L_has
 		delete N_cid; delete N_state; delete N_notes; delete N_has
-		delete CONFL
+		delete CONFL; delete DONE
 		load_file(fname)
 
-		nb_new = 0; nb_confl = 0
-		git_failed = 0
-		GITMSG = ""
+		nb_new = 0; nb_confl = 0; nb_done = 0
 		for (i = 1; i <= nb_dirs; i++) {
 			if (apply_directive(i)) {
 				nb_confl++
 				CONFL[nb_confl] = d_cid[i]
-			}
-		}
-
-		renamed = 1
-		if (nb_confl < nb_dirs) {
-			# Complete the temp file and atomically rename() it over the
-			# branch file, so that the latter is always a complete valid
-			# file, even across a crash.
-			for (i = 1; i <= nb_lines; i++) {
-				if (!L_touched[i])
-					print L_raw[i] > lock_tmp
-				else if (L_state[i] != "" || L_has[i])
-					print fmt_entry(L_cid[i], L_state[i], L_notes[i], L_has[i]) > lock_tmp
-				# else: line reduced to nothing, dropped
-			}
-			for (i = 1; i <= nb_new; i++) {
-				if (N_state[i] != "" || N_has[i])
-					print fmt_entry(N_cid[i], N_state[i], N_notes[i], N_has[i]) > lock_tmp
-			}
-			close(lock_tmp)
-			system("sync -d " q(lock_tmp) " 2>/dev/null")
-			if (system("mv -T " q(lock_tmp) " " q(fname) " 2>/dev/null") != 0) {
-				# our lock was stolen and the temp file went with it:
-				# what now sits at the lock path belongs to someone
-				# else, leave it alone and redo the whole cycle from a
-				# fresh read
-				lock_held = 0
-				renamed = 0
 				continue
 			}
+			# remember the touched commits for the git commit message
+			for (j = 1; j <= nb_done; j++)
+				if (DONE[j] == d_cid[i])
+					break
+			if (j > nb_done)
+				DONE[++nb_done] = d_cid[i]
+	}
 
-			# Commit failures (e.g. missing committer identity) are not
-			# fatal: the tree stays valid-but-uncommitted and the next
-			# writer folds it into its own commit. But they must not stay
-			# invisible either or the history silently stops being
-			# recorded, so they are reported as a warning line in the
-			# response. A no-op (identical content, e.g. re-pushed
-			# identical states) is not a failure: the commit is simply
-			# skipped when nothing is staged. Never checkout or reset
-			# here, it would eat an admin's uncommitted hand-edit.
-			if (run_git("add -- " q(branch)) != 0)
-				git_failed = 1
-			else if (run_git("diff --cached --quiet") != 0 && \
-			         run_git("commit -q -m " q("update " branch)) != 0)
-				git_failed = 1
+	git_failed = 0
+	GITMSG = ""
+	renamed = 1
+	if (nb_confl < nb_dirs) {
+		# Complete the temp file (opened right when the lock was
+		# acquired: the open descriptor is immune to a lock theft, the
+		# writes land in the renamed-away file and the rename below
+		# then fails cleanly) and atomically rename() it over the
+		# branch file, so that the latter is always a complete valid
+		# file, even across a crash.
+		for (i = 1; i <= nb_lines; i++) {
+			if (!L_touched[i])
+				print L_raw[i] > lock_tmp
+			else if (L_state[i] != "" || L_has[i])
+				print fmt_entry(L_cid[i], L_state[i], L_notes[i], L_has[i]) > lock_tmp
+			# else: line reduced to nothing, dropped
 		}
-		# else: everything conflicted, nothing changed, nothing to write
+		for (i = 1; i <= nb_new; i++) {
+			if (N_state[i] != "" || N_has[i])
+				print fmt_entry(N_cid[i], N_state[i], N_notes[i], N_has[i]) > lock_tmp
+		}
+		close(lock_tmp)
+		system("sync -d " q(lock_tmp) " 2>/dev/null")
+		if (system("mv -T " q(lock_tmp) " " q(fname) " 2>/dev/null") != 0) {
+			# our lock was stolen and the temp file went with it:
+			# what now sits at the lock path belongs to someone
+			# else, leave it alone and redo the whole cycle from a
+			# fresh read
+			lock_held = 0
+			renamed = 0
+			continue
+		}
 
-		lock_release()
+		# The commit subject names the branch and the first touched
+		# commit (plus how many others), and the body lists all of
+		# them one per line, which helps a lot when hand-editing the
+		# storage repository (e.g. to locate a change when rebasing).
+		msg = "update " branch ": " DONE[1]
+		if (nb_done > 1)
+			msg = msg " + " (nb_done - 1) " more"
+		msg = msg "\n"
+		for (i = 1; i <= nb_done; i++)
+			msg = msg "\n" DONE[i]
+
+		# Commit failures (e.g. missing committer identity) are not
+		# fatal: the tree stays valid-but-uncommitted and the next
+		# writer folds it into its own commit. But they must not stay
+		# invisible either or the history silently stops being
+		# recorded, so they are reported as a warning line in the
+		# response. A no-op (identical content, e.g. re-pushed
+		# identical states) is not a failure: the commit is simply
+		# skipped when nothing is staged. Never checkout or reset
+		# here, it would eat an admin's uncommitted hand-edit.
+		if (run_git("add -- " q(branch)) != 0)
+			git_failed = 1
+		else if (run_git("diff --cached --quiet") != 0 && \
+		         run_git("commit -q -m " q(msg)) != 0)
+			git_failed = 1
+	}
+	# else: everything conflicted, nothing changed, nothing to write
+
+	lock_release()
 	}
 	if (!renamed)
 		die("500 Internal Server Error", "cannot replace branch file")
