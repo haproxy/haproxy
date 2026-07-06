@@ -39,8 +39,10 @@
 #     the result is committed to git. Neither directive carries a base/old
 #     value: state is last-write-wins and notes are append-only, which is
 #     what keeps concurrent edits conflict-free.
-#   - GET update.cgi?branch=3.5 returns the overlay as a JSON array
-#     (not implemented yet).
+#   - GET update.cgi?branch=3.5 returns the current overlay as a JSON array
+#     of {"cid": ..., "state": ..., "notes": ...} objects, with absent
+#     fields omitted and notes fully unescaped (an empty overlay yields
+#     "[]"), directly usable with JSON.parse() on the client.
 #
 # Requires GNU awk (PROCINFO, systime); the -b flag in the shebang makes all
 # string operations byte-based regardless of the locale, which the escaping
@@ -113,7 +115,7 @@ BEGIN {
 	if (ENVIRON["REQUEST_METHOD"] == "POST")
 		handle_post()
 	else if (ENVIRON["REQUEST_METHOD"] == "GET")
-		die("501 Not Implemented", "GET not implemented yet")
+		handle_get()
 	else
 		die("405 Method Not Allowed", "unsupported method")
 	exit 0
@@ -544,6 +546,57 @@ function lock_release(   p)
 	if (p "" == PROCINFO["pid"] "")
 		system("rm -f " q(lock_pid) " " q(lock_tmp) "; rmdir " q(lock_path) " 2>/dev/null")
 	lock_held = 0
+}
+
+# The GET handler: returns the current overlay for <branch> as a JSON array
+# of {"cid","state","notes"} objects with absent fields omitted; a missing
+# or empty file yields "[]". The raw storage format never travels: notes
+# are unescaped by the parser and JSON-escaped here, so the client can
+# JSON.parse() the result and insert notes via textContent directly.
+# Unparseable content is silently skipped. Reads are lockless: the atomic
+# rename on the write side guarantees the file is always a complete valid
+# version.
+function handle_get(   i, first, out)
+{
+	load_file(repo "/" branch)
+
+	printf "Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n"
+	out = "["
+	first = 1
+	for (i = 1; i <= nb_lines; i++) {
+		if (L_cid[i] == "" || !parse_line(L_raw[i]))
+			continue
+		if (P_state == "" && !P_has_notes)
+			continue        # nothing stored for this commit
+		if (!first)
+			out = out ","
+		first = 0
+		out = out "\n{\"cid\":" json_str(P_cid)
+		if (P_state != "")
+			out = out ",\"state\":\"" P_state "\""
+		if (P_has_notes)
+			out = out ",\"notes\":" json_str(P_notes)
+		out = out "}"
+	}
+	printf "%s%s]\n", out, first ? "" : "\n"
+}
+
+# emits <s> as a JSON string; control chars are defensively encoded and
+# UTF-8 sequences pass through verbatim
+function json_str(s,   out, i, n, c)
+{
+	out = "\""
+	n = length(s)
+	for (i = 1; i <= n; i++) {
+		c = substr(s, i, 1)
+		if (c == "\"" || c == "\\")
+			out = out "\\" c
+		else if (ORD[c] < 32)
+			out = out sprintf("\\u%04x", ORD[c])
+		else
+			out = out c
+	}
+	return out "\""
 }
 
 # the POST handler: parse directives, and if any survives, apply them to the
