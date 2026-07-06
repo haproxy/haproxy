@@ -58,6 +58,10 @@ haproxy h1 -conf {
 	backend be2
 		http-request return status 200 hdr "x-be" %[be_name]
 
+	backend be_unpublished
+		be-unpublished
+		http-request return status 200 hdr "x-be" %[be_name]
+
 	backend be_disabled
 		disabled
 		http-request return status 200 hdr "x-be" %[be_name]
@@ -92,6 +96,12 @@ client c2 -connect ${h1_fe2S_sock} {
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-be == "be_default"
+
+	# Static rule on unpublished backend -> continue to next rule
+	txreq -hdr "x-target: be_unpublished"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-be == "be"
 
 	# Static rule on disabled backend -> continue to next rule
 	txreq -hdr "x-target: be_disabled"

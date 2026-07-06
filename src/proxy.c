@@ -1228,6 +1228,29 @@ static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy
 }
 #endif
 
+/* Parser for "be-unpublished" proxy keyword. */
+static int proxy_parse_be_unpublished(char **args, int section_type, struct proxy *curpx,
+                                      const struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+		goto err;
+	}
+
+	if (!(curpx->cap & PR_CAP_BE)) {
+		memprintf(err, "'%s' only available in backend or listen section.", args[0]);
+		goto err;
+	}
+
+	curpx->flags |= PR_FL_BE_UNPUBLISHED;
+
+	return 0;
+
+ err:
+	return -1;
+}
+
 static int proxy_parse_force_be_switch(char **args, int section_type, struct proxy *curpx,
                                        const struct proxy *defpx, const char *file, int line,
                                        char **err)
@@ -4344,6 +4367,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "clitcpka-intvl", proxy_parse_tcpka_intvl },
 	{ CFG_LISTEN, "srvtcpka-intvl", proxy_parse_tcpka_intvl },
 #endif
+	{ CFG_LISTEN, "be-unpublished", proxy_parse_be_unpublished },
 	{ CFG_LISTEN, "force-be-switch", proxy_parse_force_be_switch },
 	{ CFG_LISTEN, "guid", proxy_parse_guid },
 	{ 0, NULL, NULL },

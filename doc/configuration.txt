@@ -6041,6 +6041,7 @@ Note: Some dangerous and not recommended directives are intentionnaly not
 acl                                       X (!)      X         X         X
 backlog                                   X          X         X         -
 balance                                   X          -         X         X
+be-unpublished                            -          -         X         X
 bind                                      -          X         X         -
 capture cookie                            -          X         X         -
 capture request header                    -          X         X         -
@@ -6640,6 +6641,26 @@ balance url_param <param> [check_post]
       type message bodies.
 
   See also : "cookie", "hash-type".
+
+
+be-unpublished
+  Instructs the backend to start in the unpublished state.
+
+  May be used in the following contexts: tcp, http, log
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                  no   |    no    |   yes  |   yes
+
+  In effect, any use_backend and default_backend rules from another proxy which
+  reference the current proxy are ignored and the next content switching rules
+  are evaluated. This can be bypassed though via a "force-be-switch" rule.
+
+  This state is similar to the disabled one but with some differences. First,
+  an unpublished backend will still be fully initialized, including the server
+  health checks which remain active. Finally, a backend can be publicly exposed
+  via the command "publish backend" on the CLI. See the management manual.
+
+  See also : "force-be-switch"
 
 
 bind [<address>]:<port_range> [, ...] [param*]
@@ -7879,7 +7900,7 @@ force-be-switch { if | unless } <condition>
   May be used in sections:    defaults | frontend | listen | backend
                                  no    |   yes    |   yes  |   no
 
-  See also : "disabled"
+  See also : "be-unpublished", "disabled"
 
 
 filter <name> [param*]
