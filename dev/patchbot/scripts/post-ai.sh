@@ -174,6 +174,30 @@ var ref_state = [];
 var ref_notes = [];
 var cidmap = {};
 
+// Note edition state per line: mode 0 = closed, 1 = appending (the input
+// holds text to add to the shared notes), 2 = editing (the input holds the
+// whole replacement blob, and note_base[] snapshots the reference it was
+// based on; its hash is sent with the replacement so the server can refuse
+// it if the blob changed concurrently). An open input only disappears once
+// its content is synchronized with the reference: a successful save, an
+// update proving an exact match, or an explicit cancel.
+var note_mode = [];
+var note_base = [];
+
+// SDBM hash (h = c + h * 65599) of a string's UTF-8 bytes, as 8 hex chars;
+// the concurrency token sent with a note replacement. Must match the
+// server's C version; the small multiplier keeps the 32-bit state exact
+// with JS doubles (65599 * 2^32 stays well below 2^53).
+function sdbm(s) {
+  var b = new TextEncoder().encode(s);
+  var h = 0;
+  var i;
+
+  for (i = 0; i < b.length; i++)
+    h = (b[i] + h * 65599) % 4294967296;
+  return (h + 0x100000000).toString(16).slice(-8);
+}
+
 // returns the letter of the checked verdict radio of line <i>, or ""
 function cur_state(i) {
   if (document.getElementById("bt_" + i + "_n").checked) return "n";
@@ -220,10 +244,15 @@ function init_ref() {
 
     // the browser may also have restored an unsaved note into the hidden
     // input: reveal it so that it remains visible and editable instead of
-    // being invisible yet silently pushed on the next save
+    // being invisible yet silently pushed on the next save. The edition
+    // mode did not survive the reload, so assume a plain addition, which
+    // never destroys anything.
     el = document.getElementById("in_" + i);
-    if (el && el.value)
+    if (el && el.value) {
+      note_mode[i] = 1;
       el.style.display = "";
+    }
+    upd_note_links(i);
   }
 }
 
@@ -264,7 +293,7 @@ function find_line(ocid) {
 // edit: local edits win and will overwrite the shared state at save time.
 function apply_ref(list) {
   var over_state = [], over_notes = [], claimed = [];
-  var i, j, e, newref, newnotes;
+  var i, j, e, el, newref, newnotes, oldnotes;
 
   for (j = 0; j < list.length; j++) {
     e = list[j];
@@ -284,11 +313,34 @@ function apply_ref(list) {
       set_state(i, newref);
     ref_state[i] = newref;
 
+    oldnotes = ref_notes[i];
     newnotes = over_notes[i] ? over_notes[i] : "";
-    if (newnotes != ref_notes[i]) {
+    if (newnotes != oldnotes) {
       ref_notes[i] = newnotes;
       show_notes(i);
     }
+
+    // Reconcile an open note box with the new reference: a box whose
+    // content is now synchronized disappears (an addition someone already
+    // pushed, or an edition matching the current notes); an edition whose
+    // base moved is re-based on the new reference and marked red so the
+    // user reviews it against the updated notes above before saving.
+    if (note_mode[i]) {
+      el = document.getElementById("in_" + i);
+      if (note_mode[i] == 1 && el.value &&
+          newnotes == (oldnotes ? oldnotes + "; " + el.value : el.value)) {
+        cancel_note(i);
+      }
+      else if (note_mode[i] == 2) {
+        if (el.value == newnotes)
+          cancel_note(i);
+        else if (note_base[i] != newnotes) {
+          note_base[i] = newnotes;
+          mark_conflict(i, 1);
+        }
+      }
+    }
+    upd_note_links(i);
   }
   updt_table(0);
   updt_output();
@@ -296,8 +348,25 @@ function apply_ref(list) {
 
 // "Get updates" button: fetches the current shared state from the server
 function fetch_ref() {
+  var i, el;
+
   if (!branch)
     return;
+
+  // first silently close the no-op note boxes (opened but nothing changed,
+  // e.g. an "edit" clicked by mistake): they hold nothing worth preserving
+  // and would otherwise ambiguously survive while the notes displayed
+  // above them change.
+  for (i = 1; i < nb_patches; i++) {
+    if (!note_mode[i])
+      continue;
+    el = document.getElementById("in_" + i);
+    if (note_mode[i] == 1 && !el.value.trim())
+      cancel_note(i);
+    else if (note_mode[i] == 2 && el.value == note_base[i])
+      cancel_note(i);
+  }
+
   sync_msg("fetching...");
   fetch(cgi_url + "?branch=" + branch)
     .then(function(r) { if (!r.ok) throw 0; return r.json(); })
@@ -305,25 +374,96 @@ function fetch_ref() {
     .catch(function() { sync_msg("fetch failed (server unreachable?)"); });
 }
 
-// "[add note]" link: reveals the extra-notes input of line <i>, which holds
-// the user's local note until it is pushed by "Save changes"
+// shows/hides the per-line note links according to the edition mode and to
+// the presence of reference notes ("edit note" needs something to edit, or
+// a pending addition to merge; "cancel" needs an open input)
+function upd_note_links(i) {
+  var m = note_mode[i] ? note_mode[i] : 0;
+  var el;
+
+  el = document.getElementById("ln_add_" + i);
+  if (el)
+    el.style.display = m == 0 ? "" : "none";
+  el = document.getElementById("ln_edit_" + i);
+  if (el)
+    el.style.display = (m == 0 && ref_notes[i]) || m == 1 ? "" : "none";
+  el = document.getElementById("ln_cancel_" + i);
+  if (el)
+    el.style.display = m != 0 ? "" : "none";
+}
+
+// marks/unmarks the note input of line <i> as conflicting (red): the
+// reference changed under the edit, the user must review the current notes
+// above against the input's content before saving again.
+function mark_conflict(i, on) {
+  var el = document.getElementById("in_" + i);
+
+  if (el)
+    el.style.backgroundColor = on ? "#ffc0c0" : "";
+}
+
+// "[add note]" link: reveals the extra-notes input of line <i> in append
+// mode; the text it holds will be appended to the shared notes on save
 function add_note(i) {
   var el = document.getElementById("in_" + i);
 
+  if (!el)
+    return;
+  note_mode[i] = 1;
+  el.maxLength = 500;
+  el.style.display = "";
+  el.focus();
+  upd_note_links(i);
+}
+
+// "[edit note]" link: switches line <i> to edition of the whole note blob
+// (which a save sends as a replacement); a pending addition is merged in so
+// nothing typed so far is lost. The reference blob is snapshotted as the
+// base of the edit for the conflict detection.
+function edit_note(i) {
+  var el = document.getElementById("in_" + i);
+  var txt;
+
+  if (!el)
+    return;
+  txt = ref_notes[i];
+  if (note_mode[i] == 1 && el.value)
+    txt = txt ? txt + "; " + el.value : el.value;
+  note_mode[i] = 2;
+  note_base[i] = ref_notes[i];
+  el.value = txt;
+  el.maxLength = 4000;
+  el.style.display = "";
+  el.focus();
+  upd_note_links(i);
+}
+
+// "[cancel]" link: closes the note input of line <i> without sending
+// anything; also used internally once an input is known synchronized.
+function cancel_note(i) {
+  var el = document.getElementById("in_" + i);
+
   if (el) {
-    el.style.display = "";
-    el.focus();
+    el.value = "";
+    el.style.display = "none";
   }
+  note_mode[i] = 0;
+  note_base[i] = "";
+  mark_conflict(i, 0);
+  upd_note_links(i);
 }
 
 // "Save changes" button: pushes the local edits, i.e. the states differing
-// from the reference plus the non-empty extra notes, and advances the
-// reference on success (failed saves keep everything local for a retry).
-// No directive carries a base value: states are last-write-wins and notes
-// are append-only server-side, so concurrent reviewers cannot conflict.
+// from the reference, the non-empty note additions, and the note editions
+// differing from their base; the reference advances on success (failed
+// saves keep everything local for a retry). States are last-write-wins and
+// additions are append-only, so they cannot conflict; an edition carries
+// the hash of its base blob and the server refuses it if the blob changed
+// concurrently, reporting "conflict <cid>" lines that turn the concerned
+// inputs red (still in edition; "Get updates" re-bases them for revision).
 // Note that a state moved back to the reference by hand is simply not sent.
 function save_ref() {
-  var st = [], nt = [];
+  var st = [], nt = [], rp = [], rp_on = [];
   var body = "", i, s, el, txt;
 
   if (!branch)
@@ -336,8 +476,17 @@ function save_ref() {
       body += cid[i] + " state " + s + "\n";
     }
     el = document.getElementById("in_" + i);
-    txt = el ? el.value.replace(/[\r\n]+/g, " ").trim() : "";
-    if (txt) {
+    txt = el ? el.value.replace(/\r/g, "").replace(/[\x00-\x1f\x7f]/g, " ").trim() : "";
+    if (note_mode[i] == 2) {
+      // whole-blob replacement, possibly empty (deletion); only sent when
+      // it differs from the base it was computed from
+      if (txt != note_base[i]) {
+        rp[i] = txt;
+        rp_on[i] = 1;
+        body += cid[i] + " setnotes " + sdbm(note_base[i]) + " " + txt + "\n";
+      }
+    }
+    else if (txt) {
       nt[i] = txt;
       body += cid[i] + " notes " + txt + "\n";
     }
@@ -351,8 +500,20 @@ function save_ref() {
   sync_msg("saving...");
   fetch(cgi_url + "?branch=" + branch, { method: "POST", body: body })
     .then(function(r) { if (!r.ok) throw 0; return r.text(); })
-    .then(function() {
-      var i, el;
+    .then(function(t) {
+      var confl = {};
+      var resp = t.split("\n");
+      var i, j, nbc = 0;
+
+      for (j = 0; j < resp.length; j++) {
+        if (resp[j].indexOf("conflict ") == 0) {
+          i = find_line(resp[j].slice(9).trim());
+          if (i && !confl[i]) {
+            confl[i] = 1;
+            nbc++;
+          }
+        }
+      }
 
       for (i = 1; i < nb_patches; i++) {
         if (st[i])
@@ -362,12 +523,22 @@ function save_ref() {
           // without refetching; the next fetch trues it up anyway
           ref_notes[i] = ref_notes[i] ? ref_notes[i] + "; " + nt[i] : nt[i];
           show_notes(i);
-          el = document.getElementById("in_" + i);
-          el.value = "";
-          el.style.display = "none";
+          cancel_note(i);
+        }
+        else if (rp_on[i]) {
+          if (confl[i]) {
+            // replacement refused, the blob changed server-side: stay in
+            // edition and flag it, "Get updates" re-bases it for revision
+            mark_conflict(i, 1);
+          }
+          else {
+            ref_notes[i] = rp[i];
+            show_notes(i);
+            cancel_note(i);
+          }
         }
       }
-      sync_msg("saved");
+      sync_msg(nbc ? "saved, but " + nbc + " note conflict(s): use Get updates and revise the red one(s)" : "saved");
     })
     .catch(function() { sync_msg("save failed (busy?), edits kept"); });
 }
@@ -664,7 +835,9 @@ for patch in "${PATCHES[@]}"; do
         # hidden input receives the user's own note to be pushed on save
         echo -n "<TD>$resp<div class='notes' id='notes_$seq_num'></div>"
         if [ -n "$VERSION" ]; then
-            echo -n "<a href='#' onclick='add_note($seq_num); return false;' title='Add a shared note to this commit'><small>[add note]</small></a>"
+            echo -n "<a href='#' onclick='add_note($seq_num); return false;' id='ln_add_$seq_num' title='Add a shared note to this commit'><small>[add note]</small></a>"
+            echo -n " <a href='#' onclick='edit_note($seq_num); return false;' id='ln_edit_$seq_num' style='display:none' title='Edit or delete the whole note'><small>[edit note]</small></a>"
+            echo -n " <a href='#' onclick='cancel_note($seq_num); return false;' id='ln_cancel_$seq_num' style='display:none' title='Abort this note edition'><small>[cancel]</small></a>"
             echo -n " <input type='text' id='in_$seq_num' maxlength='500' size='80' style='display:none' />"
         fi
         echo -n "</TD>"
