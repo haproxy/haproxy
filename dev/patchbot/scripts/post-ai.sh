@@ -254,6 +254,7 @@ function init_ref() {
     }
     upd_note_links(i);
   }
+  updt_save_btn();
 }
 
 function sync_msg(m) {
@@ -344,6 +345,7 @@ function apply_ref(list) {
   }
   updt_table(0);
   updt_output();
+  updt_save_btn();
 }
 
 // "Get updates" button: fetches the current shared state from the server
@@ -414,6 +416,7 @@ function add_note(i) {
   el.style.display = "";
   el.focus();
   upd_note_links(i);
+  updt_save_btn();
 }
 
 // "[edit note]" link: switches line <i> to edition of the whole note blob
@@ -436,6 +439,7 @@ function edit_note(i) {
   el.style.display = "";
   el.focus();
   upd_note_links(i);
+  updt_save_btn();
 }
 
 // "[cancel]" link: closes the note input of line <i> without sending
@@ -451,6 +455,33 @@ function cancel_note(i) {
   note_base[i] = "";
   mark_conflict(i, 0);
   upd_note_links(i);
+  updt_save_btn();
+}
+
+// Grays the "Save changes" button when nothing differs from the reference
+// (no verdict change, no pending note addition or edition), so it is
+// visible at a glance whether anything remains to be saved. Called after
+// every action which may change that: verdict clicks, note box openings,
+// closings and typing, updates and saves. Bails out at the first pending
+// change so the common case stays cheap.
+function updt_save_btn() {
+  var btn = document.getElementById("save_btn");
+  var pending = false;
+  var i, s, el;
+
+  if (!btn)
+    return;
+  for (i = 1; i < nb_patches && !pending; i++) {
+    s = cur_state(i);
+    if (s && s != ref_state[i])
+      pending = true;
+    else if (note_mode[i]) {
+      el = document.getElementById("in_" + i);
+      if (note_mode[i] == 1 ? el.value.trim() != "" : el.value != note_base[i])
+        pending = true;
+    }
+  }
+  btn.disabled = !pending;
 }
 
 // "Save changes" button: pushes the local edits, i.e. the states differing
@@ -539,6 +570,7 @@ function save_ref() {
         }
       }
       sync_msg(nbc ? "saved, but " + nbc + " note conflict(s): use Get updates and revise the red one(s)" : "saved");
+      updt_save_btn();
     })
     .catch(function() { sync_msg("save failed (busy?), edits kept"); });
 }
@@ -659,6 +691,7 @@ function updt(line,value) {
   }
   updt_table(line);
   updt_output();
+  updt_save_btn();
 }
 
 function show_only(b,n,u,w,y) {
@@ -703,7 +736,7 @@ echo "<BODY>"
 if [ -n "$VERSION" ]; then
 	echo -n "<div style='float: right; text-align: right;'>"
 	echo -n "<button onclick='fetch_ref();' title='Retrieve the latest shared review state'>Get updates</button> "
-	echo -n "<button onclick='save_ref();' title='Push your local edits to the shared state'>Save changes</button>"
+	echo -n "<button id='save_btn' disabled onclick='save_ref();' title='Push your local edits to the shared state'>Save changes</button>"
 	echo "<br/><small id='sync_msg'></small></div>"
 fi
 
@@ -838,7 +871,7 @@ for patch in "${PATCHES[@]}"; do
             echo -n "<a href='#' onclick='add_note($seq_num); return false;' id='ln_add_$seq_num' title='Add a shared note to this commit'><small>[add note]</small></a>"
             echo -n " <a href='#' onclick='edit_note($seq_num); return false;' id='ln_edit_$seq_num' style='display:none' title='Edit or delete the whole note'><small>[edit note]</small></a>"
             echo -n " <a href='#' onclick='cancel_note($seq_num); return false;' id='ln_cancel_$seq_num' style='display:none' title='Abort this note edition'><small>[cancel]</small></a>"
-            echo -n " <input type='text' id='in_$seq_num' maxlength='500' size='80' style='display:none' />"
+            echo -n " <input type='text' id='in_$seq_num' maxlength='500' size='80' style='display:none' oninput='updt_save_btn();' />"
         fi
         echo -n "</TD>"
         echo "</TR>"
