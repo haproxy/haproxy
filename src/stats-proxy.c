@@ -1734,3 +1734,32 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 		}
 	}
 }
+
+/* Reset the module-registered extra counters of a single server <sv>, as done
+ * by "clear counters" for every server. Only modules flagged clearable are
+ * reset, matching the OPER-level "clear counters" semantics (the ADMIN-only
+ * "clear counters all" resets non-clearable modules too, but there is no
+ * per-server equivalent of "all"). The native counters are handled separately
+ * by the caller via counters_be_reset().
+ */
+void srv_stats_clear_extra_counters(struct server *sv)
+{
+	struct list *stat_modules = &stats_module_list[STATS_DOMAIN_PROXY];
+	struct stats_module *mod;
+
+	list_for_each_entry(mod, stat_modules, list) {
+		enum stats_domain_px_cap mod_cap = stats_px_get_cap(mod->domain_flags);
+
+		if (!mod->clearable)
+			continue;
+		if (!(mod_cap & STATS_PX_CAP_SRV))
+			continue;
+		if (!sv->extra_counters)
+			continue;
+
+		EXTRA_COUNTERS_INIT(sv->extra_counters,
+		                    mod,
+		                    mod->counters,
+		                    mod->counters_size);
+	}
+}

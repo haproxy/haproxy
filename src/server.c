@@ -47,6 +47,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/server.h>
+#include <haproxy/stats-proxy.h>
 #include <haproxy/stats.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
@@ -6779,6 +6780,58 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 out:
 	thread_release();
+	return 1;
+}
+
+/* Reset the statistics counters of a single server, invoked from the
+ * "clear counters server <backend>/<server> [force]" CLI command (dispatched
+ * by cli_parse_clear_counters() in stats.c, since "clear counters" is a
+ * two-word keyword that would otherwise shadow a three-word variant).
+ *
+ * The command is not gated by the server's administrative state: like
+ * "clear counters" / "clear counters all", it only zeroes counter values
+ * and does not touch the server object or its runtime state, so it is safe
+ * to issue on a live server (a concurrent counter increment races on a
+ * value exactly as it already does for "clear counters all"). This is
+ * useful when a server slot is being reused to represent a different
+ * logical entity (e.g. a different Kubernetes pod occupying the same slot
+ * after a rename) and per-entity counter attribution is required.
+ *
+ * When the server's counters are registered in a shared-memory stats file
+ * object (COUNTERS_SHARED_F_LOCAL not set), clearing them breaks the
+ * monotonicity that monitoring tools consuming the shared stats rely on,
+ * and affects every process attached to the object. Such a clear is
+ * therefore refused unless <force> is set.
+ *
+ * <arg> is the "<backend>/<server>" argument. Always returns 1 (the CLI
+ * parser convention for "message emitted, stop"); success or error is
+ * reported to <appctx>.
+ */
+int cli_clear_counters_server(struct appctx *appctx, char *arg, int force)
+{
+	struct server *sv;
+
+	sv = cli_find_server(appctx, arg);
+	if (!sv)
+		return 1;
+
+	if (!force && !(sv->counters.shared.flags & COUNTERS_SHARED_F_LOCAL)) {
+		cli_err(appctx,
+		        "Server counters are stored in a shared-memory stats "
+		        "file; clearing them breaks monotonicity for monitoring "
+		        "tools and affects all attached processes. Append 'force' "
+		        "to clear anyway.\n");
+		return 1;
+	}
+
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
+
+	counters_be_reset(&sv->counters);
+	srv_stats_clear_extra_counters(sv);
+
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+
+	cli_msg(appctx, LOG_NOTICE, "Server counters cleared.\n");
 	return 1;
 }
 

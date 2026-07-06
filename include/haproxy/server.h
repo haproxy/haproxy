@@ -77,6 +77,7 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code);
 int srv_postinit(struct server *srv);
 int srv_init_addr(void);
 struct server *cli_find_server(struct appctx *appctx, char *arg);
+int cli_clear_counters_server(struct appctx *appctx, char *arg, int force);
 struct server *new_server(struct proxy *proxy);
 void srv_take(struct server *srv);
 void srv_drop(struct server *srv);
