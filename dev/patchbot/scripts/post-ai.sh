@@ -495,7 +495,7 @@ function updt_save_btn() {
 // Note that a state moved back to the reference by hand is simply not sent.
 function save_ref() {
   var st = [], nt = [], rp = [], rp_on = [];
-  var body = "", i, s, el, txt;
+  var body = "", nsent = 0, i, s, el, txt;
 
   if (!branch)
     return;
@@ -505,6 +505,7 @@ function save_ref() {
     if (s && s != ref_state[i]) {
       st[i] = s;
       body += cid[i] + " state " + s + "\n";
+      nsent++;
     }
     el = document.getElementById("in_" + i);
     txt = el ? el.value.replace(/\r/g, "").replace(/[\x00-\x1f\x7f]/g, " ").trim() : "";
@@ -515,11 +516,13 @@ function save_ref() {
         rp[i] = txt;
         rp_on[i] = 1;
         body += cid[i] + " setnotes " + sdbm(note_base[i]) + " " + txt + "\n";
+        nsent++;
       }
     }
     else if (txt) {
       nt[i] = txt;
       body += cid[i] + " notes " + txt + "\n";
+      nsent++;
     }
   }
 
@@ -534,7 +537,7 @@ function save_ref() {
     .then(function(t) {
       var confl = {};
       var resp = t.split("\n");
-      var i, j, nbc = 0;
+      var i, j, ok, nbc = 0;
 
       for (j = 0; j < resp.length; j++) {
         if (resp[j].indexOf("conflict ") == 0) {
@@ -544,6 +547,22 @@ function save_ref() {
             nbc++;
           }
         }
+      }
+
+      // The server states how many directives it applied ("OK <n> ..."):
+      // anything neither applied nor reported as a conflict was silently
+      // ignored (e.g. an outdated update.bin not knowing a directive). In
+      // that case believe the server, not ourselves: advance nothing, keep
+      // every edit local for a retry, and say what happened.
+      ok = resp[0] ? resp[0].match(/^OK (\d+) /) : null;
+      if (!ok || parseInt(ok[1], 10) != nsent - nbc) {
+        for (i = 1; i < nb_patches; i++) {
+          if (confl[i])
+            mark_conflict(i, 1);
+        }
+        sync_msg("server applied only " + (ok ? ok[1] : "?") + " of " + nsent +
+                 " changes (outdated update.cgi/update.bin?), edits kept");
+        return;
       }
 
       for (i = 1; i < nb_patches; i++) {
