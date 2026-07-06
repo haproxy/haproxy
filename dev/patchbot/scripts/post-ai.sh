@@ -210,13 +210,20 @@ function gen_state(i) {
 // browser restores them: this is desired, such differences are unsaved
 // local edits and must remain detected as such.
 function init_ref() {
-  var i;
+  var i, el;
 
   for (i = 1; i < nb_patches; i++) {
     orig[i] = gen_state(i);
     ref_state[i] = orig[i];
     ref_notes[i] = "";
     cidmap[cid[i]] = i;
+
+    // the browser may also have restored an unsaved note into the hidden
+    // input: reveal it so that it remains visible and editable instead of
+    // being invisible yet silently pushed on the next save
+    el = document.getElementById("in_" + i);
+    if (el && el.value)
+      el.style.display = "";
   }
 }
 
@@ -296,6 +303,73 @@ function fetch_ref() {
     .then(function(r) { if (!r.ok) throw 0; return r.json(); })
     .then(function(list) { apply_ref(list); sync_msg("reference updated"); })
     .catch(function() { sync_msg("fetch failed (server unreachable?)"); });
+}
+
+// "[add note]" link: reveals the extra-notes input of line <i>, which holds
+// the user's local note until it is pushed by "Save changes"
+function add_note(i) {
+  var el = document.getElementById("in_" + i);
+
+  if (el) {
+    el.style.display = "";
+    el.focus();
+  }
+}
+
+// "Save changes" button: pushes the local edits, i.e. the states differing
+// from the reference plus the non-empty extra notes, and advances the
+// reference on success (failed saves keep everything local for a retry).
+// No directive carries a base value: states are last-write-wins and notes
+// are append-only server-side, so concurrent reviewers cannot conflict.
+// Note that a state moved back to the reference by hand is simply not sent.
+function save_ref() {
+  var st = [], nt = [];
+  var body = "", i, s, el, txt;
+
+  if (!branch)
+    return;
+
+  for (i = 1; i < nb_patches; i++) {
+    s = cur_state(i);
+    if (s && s != ref_state[i]) {
+      st[i] = s;
+      body += cid[i] + " state " + s + "\n";
+    }
+    el = document.getElementById("in_" + i);
+    txt = el ? el.value.replace(/[\r\n]+/g, " ").trim() : "";
+    if (txt) {
+      nt[i] = txt;
+      body += cid[i] + " notes " + txt + "\n";
+    }
+  }
+
+  if (!body) {
+    sync_msg("nothing to save");
+    return;
+  }
+
+  sync_msg("saving...");
+  fetch(cgi_url + "?branch=" + branch, { method: "POST", body: body })
+    .then(function(r) { if (!r.ok) throw 0; return r.text(); })
+    .then(function() {
+      var i, el;
+
+      for (i = 1; i < nb_patches; i++) {
+        if (st[i])
+          ref_state[i] = st[i];
+        if (nt[i]) {
+          // mirror the server-side coalescing so the display is right
+          // without refetching; the next fetch trues it up anyway
+          ref_notes[i] = ref_notes[i] ? ref_notes[i] + "; " + nt[i] : nt[i];
+          show_notes(i);
+          el = document.getElementById("in_" + i);
+          el.value = "";
+          el.style.display = "none";
+        }
+      }
+      sync_msg("saved");
+    })
+    .catch(function() { sync_msg("save failed (busy?), edits kept"); });
 }
 
 // first line to review
@@ -457,7 +531,8 @@ echo "<BODY>"
 # update.cgi with a bare relative URL so it must sit in the same directory.
 if [ -n "$VERSION" ]; then
 	echo -n "<div style='float: right; text-align: right;'>"
-	echo -n "<button onclick='fetch_ref();' title='Retrieve the latest shared review state'>Get updates</button>"
+	echo -n "<button onclick='fetch_ref();' title='Retrieve the latest shared review state'>Get updates</button> "
+	echo -n "<button onclick='save_ref();' title='Push your local edits to the shared state'>Save changes</button>"
 	echo "<br/><small id='sync_msg'></small></div>"
 fi
 
@@ -585,8 +660,14 @@ for patch in "${PATCHES[@]}"; do
         echo -n "</TD>"
 
         # the div is the dedicated container for the shared reviewers' notes,
-        # filled by full replacement (never appended to) by the JS
-        echo -n "<TD>$resp<div class='notes' id='notes_$seq_num'></div></TD>"
+        # filled by full replacement (never appended to) by the JS; the
+        # hidden input receives the user's own note to be pushed on save
+        echo -n "<TD>$resp<div class='notes' id='notes_$seq_num'></div>"
+        if [ -n "$VERSION" ]; then
+            echo -n "<a href='#' onclick='add_note($seq_num); return false;' title='Add a shared note to this commit'><small>[add note]</small></a>"
+            echo -n " <input type='text' id='in_$seq_num' maxlength='500' size='80' style='display:none' />"
+        fi
+        echo -n "</TD>"
         echo "</TR>"
         echo
         ((seq_num++))
