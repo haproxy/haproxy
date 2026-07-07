@@ -587,6 +587,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_I_PX_INTERCEPTED:
 				case ST_I_PX_CACHE_LOOKUPS:
 				case ST_I_PX_CACHE_HITS:
+				case ST_I_PX_CACHE_HINT_HITS:
 				case ST_I_PX_COMP_IN:
 				case ST_I_PX_COMP_OUT:
 				case ST_I_PX_COMP_BYP:
@@ -1065,6 +1066,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_I_PX_REQ_TOT:
 				case ST_I_PX_CACHE_LOOKUPS:
 				case ST_I_PX_CACHE_HITS:
+				case ST_I_PX_CACHE_HINT_HITS:
 				case ST_I_PX_COMP_IN:
 				case ST_I_PX_COMP_OUT:
 				case ST_I_PX_COMP_BYP:

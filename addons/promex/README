@@ -259,6 +259,7 @@ listed below. Metrics from extra counters are not listed.
 | haproxy_frontend_failed_header_rewriting_total  |
 | haproxy_frontend_http_cache_lookups_total       |
 | haproxy_frontend_http_cache_hits_total          |
+| haproxy_frontend_http_cache_hint_hits_total     |
 | haproxy_frontend_internal_errors_total          |
 +-------------------------------------------------+
 
@@ -329,6 +330,7 @@ listed below. Metrics from extra counters are not listed.
 | haproxy_backend_connection_reuses_total             |
 | haproxy_backend_http_cache_lookups_total            |
 | haproxy_backend_http_cache_hits_total               |
+| haproxy_backend_http_cache_hint_hits_total          |
 | haproxy_backend_max_queue_time_seconds              |
 | haproxy_backend_max_connect_time_seconds            |
 | haproxy_backend_max_response_time_seconds           |

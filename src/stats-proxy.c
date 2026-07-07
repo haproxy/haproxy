@@ -196,6 +196,7 @@ const struct stat_col stat_cols_px[ST_I_PX_MAX] = {
 	[ST_I_PX_REQ_OUT]       = ME_NEW_PX_SHARED("reqbout",       "req_bytes_out_total",           FN_COUNTER, FF_U64, req_out,              STATS_PX_CAP_LFBS, "Total number of request bytes sent since process started"),
 	[ST_I_PX_RES_IN]        = ME_NEW_PX_SHARED("resbin",        "res_bytes_in_total",            FN_COUNTER, FF_U64, res_in,               STATS_PX_CAP_LFBS, "Total number of response bytes received since process started"),
 	[ST_I_PX_RES_OUT]       = ME_NEW_PX_SHARED("resbout",       "res_bytes_out_total",           FN_COUNTER, FF_U64, res_out,              STATS_PX_CAP_LFBS, "Total number of response bytes sent since process started"),
+	[ST_I_PX_CACHE_HINT_HITS] = ME_NEW_PX_SHARED("cache_hint_hits",    "http_cache_hint_hits_total", FN_COUNTER, FF_U64, p.http.cache_hint_hits, STATS_PX_CAP__FB_, "Total number of HTTP requests for which a 103 Early Hints response was emitted from the cache on this frontend/backend since the worker process started"),
 
 };
 
@@ -236,6 +237,7 @@ static int stcol_hide(enum stat_idx_px idx, enum obj_type *objt)
 	case ST_I_PX_INTERCEPTED:
 	case ST_I_PX_CACHE_LOOKUPS:
 	case ST_I_PX_CACHE_HITS:
+	case ST_I_PX_CACHE_HINT_HITS:
 		return px->mode != PR_MODE_HTTP;
 
 	case ST_I_PX_CHKFAIL:

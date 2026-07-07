@@ -1375,6 +1375,8 @@ Here is the list of static fields using the proxy statistics domain:
       process started
  117. resbout [LFBS]: total number of response bytes sent since the worker
       process started
+ 118. cache_hint_hits [.FB.]: cumulative number of cache hits having served
+      early hints
 
 For all other statistics domains, the presence or the order of the fields are
 not guaranteed. In this case, the header line should always be used to parse

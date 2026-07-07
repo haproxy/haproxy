@@ -611,6 +611,7 @@ int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
 			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
 			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>Cache hint hits:</th><td>%s</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 			              "<tr><th>Internal errors:</th><td>%s</td></tr>"
 			              "",
@@ -619,6 +620,7 @@ int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_I_PX_CACHE_HITS].u.u64),
 			              stats[ST_I_PX_CACHE_LOOKUPS].u.u64 ?
 			              (int)(100 * stats[ST_I_PX_CACHE_HITS].u.u64 / stats[ST_I_PX_CACHE_LOOKUPS].u.u64) : 0,
+			              U2H(stats[ST_I_PX_CACHE_HINT_HITS].u.u64),
 			              U2H(stats[ST_I_PX_WREW].u.u64),
 			              U2H(stats[ST_I_PX_EINT].u.u64));
 		}
@@ -1216,6 +1218,7 @@ int stats_dump_fields_html(struct buffer *out,
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
 			              "<tr><th>Cache lookups:</th><td>%s</td></tr>"
 			              "<tr><th>Cache hits:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>Cache hint hits:</th><td>%s</td></tr>"
 			              "<tr><th>Failed hdr rewrites:</th><td>%s</td></tr>"
 			              "<tr><th>Internal errors:</th><td>%s</td></tr>"
 				      "",
@@ -1237,6 +1240,7 @@ int stats_dump_fields_html(struct buffer *out,
 			              U2H(stats[ST_I_PX_CACHE_HITS].u.u64),
 			              stats[ST_I_PX_CACHE_LOOKUPS].u.u64 ?
 			              (int)(100 * stats[ST_I_PX_CACHE_HITS].u.u64 / stats[ST_I_PX_CACHE_LOOKUPS].u.u64) : 0,
+			              U2H(stats[ST_I_PX_CACHE_HINT_HITS].u.u64),
 			              U2H(stats[ST_I_PX_WREW].u.u64),
 			              U2H(stats[ST_I_PX_EINT].u.u64));
 		}

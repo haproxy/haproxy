@@ -495,6 +495,7 @@ enum stat_idx_px {
 	ST_I_PX_REQ_OUT,
 	ST_I_PX_RES_IN,
 	ST_I_PX_RES_OUT,
+	ST_I_PX_CACHE_HINT_HITS,
 	/* must always be the last one */
 	ST_I_PX_MAX
 };

@@ -91,6 +91,7 @@ struct fe_counters_shared_tg {
 			long long cum_req[4];   /* cumulated number of processed other/h1/h2/h3 requests */
 			long long cache_hits;   /* cache hits */
 			long long cache_lookups;/* cache lookups */
+			long long cache_hint_hits; /* cache hits serving early hints */
 			long long comp_rsp;     /* number of compressed responses */
 			long long rsp[6];       /* http response codes */
 		} http;
@@ -144,6 +145,7 @@ struct be_counters_shared_tg {
 
 			long long cache_hits;   /* cache hits */
 			long long cache_lookups;/* cache lookups */
+			long long cache_hint_hits; /* cache hits serving early hints */
 			long long comp_rsp;     /* number of compressed responses */
 			long long rsp[6];       /* http response codes */
 
