@@ -2162,7 +2162,7 @@ static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *
 	trash->data = 0;
 	if (args[0].data.str.data == 0 && args[2].data.sint == 0)
 		chunk_size = smp->data.u.str.data;
-	if (2 * (size_t)chunk_size > trash->size)
+	if (2 * (size_t)chunk_size + args[0].data.str.data > trash->size)
 		return 0;
 	max_size = trash->size - 2 * (size_t)chunk_size;
 
