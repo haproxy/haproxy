@@ -1265,6 +1265,17 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	hldstream_free(&hs);
 	t = NULL;
 
+	if (LIST_ISEMPTY(&usr->strms))
+		usr->task->expire = TICK_ETERNITY;
+	else {
+		/* Update the user task expiration from the first stream which
+		 * is also the stream with the oldest expiration time.
+		 */
+		first_hs = LIST_ELEM(usr->strms.n, struct hldstream *, list);
+		hs->usr->task->expire = first_hs->expire;
+		task_queue(hs->usr->task);
+	}
+
 	goto leave;
  err:
 	TRACE_DEVEL("leaving on error", HLD_STRM_EV_TASK, hs);
