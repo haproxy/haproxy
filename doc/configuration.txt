@@ -16679,7 +16679,11 @@ set-timeout { client | connect | queue | server | tarpit | tunnel } { <timeout> 
   the backend side and thus this rule is only available for the proxies with
   backend capabilities. Likewise, client timeout is only relevant for frontend
   side. Tarpit timeout is available to both sides. The timeout value must be
-  non-null to obtain the expected results.
+  non-null to obtain the expected results. When the action is used for a
+  listener, it is evaluated in the frontend context. So custom values for
+  backend-side timeouts are conserved only if stream is not routed to a
+  different backend, via a use-backend rule for instance. Otherwise the default
+  values of the selected backend will be preset.
 
   Example:
     http-request set-timeout tunnel 5s

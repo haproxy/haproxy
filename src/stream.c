@@ -1263,17 +1263,25 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 
 	/* Se the max connection retries for the stream. may be overwritten later */
 	s->max_retries = s->be->conn_retries;
-
-	/* Set the queue and connect timeouts. May be overwritten later */
-	s->connect_timeout = s->be->timeout.connect;
-	s->queue_timeout = s->be->timeout.queue;
-
-	/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
 	if (fe == s->be) {
+		/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
 		s->req.analysers &= ~AN_REQ_INSPECT_BE;
 		s->req.analysers &= ~AN_REQ_HTTP_PROCESS_BE;
 		s->req.analysers &= ~AN_REQ_FLT_START_BE;
 	}
+	else {
+		s->scb->ioto = TICK_ETERNITY;
+		s->connect_timeout = TICK_ETERNITY;
+		s->queue_timeout = TICK_ETERNITY;
+		s->tunnel_timeout = TICK_ETERNITY;
+	}
+
+
+	/* Set the queue and connect timeouts if not set. May be overwritten later if backend has changed */
+	if (!tick_isset(s->connect_timeout))
+		s->connect_timeout = s->be->timeout.connect;
+	if (!tick_isset(s->queue_timeout))
+		s->queue_timeout = s->be->timeout.queue;
 
 	/* as soon as we know the backend, we must check if we have a matching forced or ignored
 	 * persistence rule, and report that in the stream.
