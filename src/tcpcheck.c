@@ -5742,6 +5742,8 @@ int cfg_parse_healthchecks(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+			tcpchecks_proxy->next = proxies_list;
+			proxies_list = tcpchecks_proxy;
 		}
 		tcpchecks_proxy->options2 &= ~PR_O2_CHK_ANY;
 		tcpchecks_proxy->tcpcheck.flags = 0;
