@@ -3200,6 +3200,9 @@ void *run_thread_poll_loop(void *data)
 	if (init_left == 0)
 		protocol_enable_all();
 
+	if (tg_agents_enabled && ti->ltid == 0)
+		protocol_localize_rx_fds();
+
 #ifdef USE_THREAD
 	pthread_cond_broadcast(&init_cond);
 	pthread_mutex_unlock(&init_mutex);
@@ -3935,6 +3938,13 @@ int main(int argc, char **argv)
 #endif
 	}
 
+
+	if ((global.tune.options & GTUNE_NO_TG_FD_SHARING) && global.nbtgroups > 1) {
+		if (!rx_agent_init()) {
+			ha_alert("Failed to set up the per-thread-group agents.\n");
+			exit(1);
+		}
+	}
 
 	/* start threads 2 and above */
 	setup_extra_threads(&run_thread_poll_loop);

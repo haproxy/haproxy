@@ -28,11 +28,18 @@
 #include <import/ceb32_tree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/fd.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/tinfo.h>
 
 struct proxy;
 struct task;
+
+static inline uint rx_owner_tgid(const struct receiver *rx)
+{
+	return rx->bind_tgroup ? rx->bind_tgroup : 1;
+}
 
 int li_init_per_thr(struct listener *li);
 
@@ -174,6 +181,10 @@ void default_add_listener(struct protocol *proto, struct listener *listener);
  * still bound. This must be used under the listener's lock.
  */
 void default_unbind_listener(struct listener *listener);
+
+extern int tg_agents_enabled;
+int rx_agent_init(void);
+void rx_agent_close(struct receiver *rx);
 
 /* default function called to suspend a listener: it simply passes the call to
  * the underlying receiver. This is find for most socket-based protocols. This

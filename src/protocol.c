@@ -10,6 +10,8 @@
  *
  */
 
+#include <unistd.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -130,6 +132,54 @@ static inline int protocol_may_bind_quic(struct listener *l)
 	return !(quic_tune.fe.opts & QUIC_TUNE_FE_LISTEN_OFF);
 }
 #endif
+
+void protocol_init_rx_agents(void)
+{
+	struct protocol *proto;
+	struct receiver *rx;
+
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+	list_for_each_entry(proto, &protocols, list) {
+		list_for_each_entry(rx, &proto->receivers, proto_list) {
+			MT_LIST_INIT(&rx->agent.link.list);
+			rx->agent.link.rx = rx;
+			rx->agent.close_fd = -1;
+			rx->agent.xfer_fd = -1;
+		}
+	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+}
+
+/*
+ * With per-thread-group FD tables, gives up the calling thread's group's
+ * inherited copies of the receiver FDs it does not own: a receiver's FD is
+ * only ever used from its owner group, and keeping the other groups' copies
+ * alive would make every release require all groups' cooperation.
+ */
+void protocol_localize_rx_fds(void)
+{
+	struct protocol *proto;
+	struct receiver *rx;
+
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+	list_for_each_entry(proto, &protocols, list) {
+		list_for_each_entry(rx, &proto->receivers, proto_list) {
+			int fd = rx->fd;
+
+			if (fd < 0 || rx_owner_tgid(rx) == tgid)
+				continue;
+
+			fdtab[fd].owner = NULL;
+			fdtab[fd].state = 0;
+			fdtab[fd].thread_mask = 0;
+			fdtab[fd].update_mask = 0;
+			fdtab[fd].running_mask = 0;
+			HA_ATOMIC_STORE(&fdtab[fd].refc_tgid, 0);
+			close(fd);
+		}
+	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+}
 
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.

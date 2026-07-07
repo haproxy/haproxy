@@ -3976,7 +3976,7 @@ int pause_proxy(struct proxy *p)
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
 		suspend_listener(l, 1, 0);
 
-	if (p->li_ready) {
+	if (p->li_ready && !tg_agents_enabled) {
 		ha_warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 		send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);

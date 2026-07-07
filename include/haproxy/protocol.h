@@ -53,6 +53,18 @@ void protocol_setf_all(uint flag);
  */
 int protocol_supports_flag(struct protocol *proto, uint flag);
 
+/*
+ * initializes the per-thread-group agent state of every receiver, at boot,
+ * when FD tables are not shared between thread groups.
+ */
+void protocol_init_rx_agents(void);
+
+/*
+ * gives up the calling thread's group's copies of the other groups' receiver
+ * FDs, once all groups have unshared their FD tables.
+ */
+void protocol_localize_rx_fds(void);
+
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL, ERR_ABORT.
  */

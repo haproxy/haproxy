@@ -68,6 +68,16 @@ struct shard_info {
 	struct receiver **members; /* all members of the shard (one per thread group) */
 };
 
+/* operations pending on a receiver, run by its owner group's agent */
+#define RX_AGENT_OP_SUSPEND     0x00000001  /* suspend_listener() */
+#define RX_AGENT_OP_RESUME      0x00000002  /* resume_listener() (includes rebind) */
+#define RX_AGENT_OP_ENABLE      0x00000004  /* enable_listener() */
+
+struct rx_agent_link {
+	struct mt_list list;             /* position in one group agent's queue */
+	struct receiver *rx;             /* the receiver this link belongs to */
+};
+
 /* This describes a receiver with all its characteristics (address, options, etc) */
 struct receiver {
 	int fd;                          /* handle we receive from (fd only for now) */
@@ -79,6 +89,12 @@ struct receiver {
 	uint bind_tgroup;                /* thread group ID: 0=global IDs, non-zero=local IDs */
 	struct rx_settings *settings;    /* points to the settings used by this receiver */
 	struct shard_info *shard_info;   /* points to info about the owning shard, NULL if single rx */
+	struct {
+		struct rx_agent_link link;   /* position in the owner group agent's queue */
+		int close_fd;                /* FD to release, -1 if none */
+		uint ops;                    /* pending RX_AGENT_OP_* */
+		int xfer_fd;                 /* FD copy received for a rebind, -1 if none */
+	} agent;                         /* only used with per-tgroup FD tables */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
 	enum quic_sock_mode quic_mode;   /* QUIC socket allocation strategy */

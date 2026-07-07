@@ -229,15 +229,21 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 		 * try hard not to reconfigure the socket since it's shared.
 		 */
 		BUG_ON(!rx->shard_info);
-		if (!(rx->shard_info->ref->flags & RX_F_BOUND)) {
-			/* it's assumed that the first one has already reported
-			 * the error, let's not spam with another one, and do
-			 * not set ERR_ALERT.
-			 */
-			err |= ERR_RETRYABLE;
-			goto bind_ret_err;
+		if (tg_agents_enabled && rx->agent.xfer_fd >= 0) {
+			rx->fd = rx->agent.xfer_fd;
+			rx->agent.xfer_fd = -1;
 		}
-		rx->fd = rx->shard_info->ref->fd;
+		else {
+			if (!(rx->shard_info->ref->flags & RX_F_BOUND)) {
+				/* it's assumed that the first one has already reported
+				 * the error, let's not spam with another one, and do
+				 * not set ERR_ALERT.
+				 */
+				err |= ERR_RETRYABLE;
+				goto bind_ret_err;
+			}
+			rx->fd = rx->shard_info->ref->fd;
+		}
 	}
 
 	/* if no FD was assigned yet, we'll have to either find a compatible

@@ -385,8 +385,12 @@ void sock_unbind(struct receiver *rx)
 		return;
 
 	rx->flags &= ~RX_F_BOUND;
-	if (rx->fd != -1)
-		fd_delete(rx->fd);
+	if (rx->fd != -1) {
+		if (tg_agents_enabled)
+			rx_agent_close(rx);
+		else
+			fd_delete(rx->fd);
+	}
 	rx->fd = -1;
 }
 
