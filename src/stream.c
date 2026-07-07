@@ -436,7 +436,7 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	s->task = t;
 	s->pending_events = s->new_events = STRM_EVT_NONE;
 	s->conn_retries = 0;
-	s->max_retries = 0;
+	s->max_retries = ((sess->fe->cap & PR_CAP_BE) ? sess->fe->conn_retries : 0);
 	s->conn_exp = TICK_ETERNITY;
 	s->conn_err_type = STRM_ET_NONE;
 	s->prev_conn_state = SC_ST_INI;
@@ -1261,8 +1261,6 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 			goto sw_failed;
 	}
 
-	/* Se the max connection retries for the stream. may be overwritten later */
-	s->max_retries = s->be->conn_retries;
 	if (fe == s->be) {
 		/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
 		s->req.analysers &= ~AN_REQ_INSPECT_BE;
@@ -1270,6 +1268,8 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		s->req.analysers &= ~AN_REQ_FLT_START_BE;
 	}
 	else {
+		/* Set the max connection retries for the stream. may be overwritten later */
+		s->max_retries = s->be->conn_retries;
 		s->scb->ioto = TICK_ETERNITY;
 		s->connect_timeout = TICK_ETERNITY;
 		s->queue_timeout = TICK_ETERNITY;

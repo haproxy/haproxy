@@ -16591,7 +16591,11 @@ set-retries <int> | <epxr>
 
   Note that this action is only relevant on the backend side and thus this rule
   is only available for the proxies with backend capability. It is also not
-  allowed in "defaults" sections.
+  allowed in "defaults" sections. When the action is used for a listener, it is
+  evaluated in the frontend context. So retries value is conserved only if
+  stream is not routed to a different backend, via a use-backend rule for
+  instance. Otherwise the default retries value of the selected backend will be
+  preset.
 
   Example:
     tcp-request content set-retries 3
