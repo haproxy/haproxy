@@ -273,6 +273,9 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 		smp->flags &= ~SMP_F_CONST;
 	}
 
+	if (smp->data.u.str.size <= smp->data.u.str.data)
+		return 0;
+
 	/* Add final \0 required by url_decode(), and convert the input string. */
 	smp->data.u.str.area[smp->data.u.str.data] = '\0';
 
