@@ -24325,6 +24325,7 @@ bc_srv_queue                                       integer
 be_id                                              integer
 be_name                                            string
 be_connect_timeout                                 integer
+be_max_retries                                     integer
 be_queue_timeout                                   integer
 be_server_timeout                                  integer
 be_tarpit_timeout                                  integer
@@ -24333,6 +24334,7 @@ bytes_in                                           integer
 bytes_out                                          integer
 cur_connect_timeout                                integer
 cur_client_timeout                                 integer
+cur_max_retries                                    integer
 cur_queue_timeout                                  integer
 cur_server_timeout                                 integer
 cur_tarpit_timeout                                 integer
@@ -24669,6 +24671,11 @@ be_connect_timeout : integer
   current backend. This timeout can be overwritten by a "set-timeout" rule. See
   also the "cur_connect_timeout".
 
+be_max_retries : integer
+  Returns the configuration value for the connection retries of the current
+  backend. This value can be overwritten by a "set-retries" rule. See also the
+  "cur_max_retries".
+
 be_name : string
   Returns a string containing the current backend's name. It can be used in
   frontends with responses to check which backend processed the request. If
@@ -24711,6 +24718,11 @@ cur_client_timeout : integer
   Returns the currently applied client timeout in millisecond for the stream.
   In the default case, this will be equal to fe_client_timeout unless a
   "set-timeout" rule has been applied. See also "fe_client_timeout".
+
+cur_max_retries : integer
+  Returns the currently applied connect retries for the stream.
+  In the default case, this will be equal to be_max_retries unless a
+  "set-retries" rule has been applied. See also "be_max_retries".
 
 cur_queue_timeout : integer
   Returns the currently applied queue timeout in millisecond for the stream.

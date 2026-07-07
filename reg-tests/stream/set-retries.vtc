@@ -1,0 +1,114 @@
+varnishtest "set-retries action test"
+
+feature ignore_unknown_macro
+
+server srv_h1 -repeat 6 {
+    rxreq
+    txresp -hdr "Connection: close"
+} -start
+
+
+haproxy hap -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        timeout connect 5s
+        timeout client 5s
+        timeout server 5s
+	retries 3
+        log global
+
+    listen li1
+        mode http
+        bind "fd@${li1}"
+        http-after-response set-header retries "%[be_max_retries] %[cur_max_retries]"
+        server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    listen li2
+        mode http
+        bind "fd@${li2}"
+        http-request set-retries 5
+        http-after-response set-header retries "%[be_max_retries] %[cur_max_retries]"
+        server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    listen li3
+        mode http
+        bind "fd@${li3}"
+        http-request set-retries 5
+        http-after-response set-header retries "%[be_max_retries] %[cur_max_retries]"
+	default_backend be1
+
+    listen li4
+        mode http
+        bind "fd@${li4}"
+        http-request set-retries 4
+        http-after-response set-header retries "%[be_max_retries] %[cur_max_retries]"
+	default_backend be2
+
+    frontend fe5
+        mode http
+        bind "fd@${fe5}"
+        http-after-response set-header retries "%[be_max_retries] %[cur_max_retries]"
+        default_backend be1
+
+    frontend fe6
+        mode http
+        bind "fd@${fe6}"
+        http-after-response set-header retries "%[be_max_retries] %[cur_max_retries]"
+        default_backend be2
+
+    backend be1
+       mode http
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    backend be2
+       mode http
+       http-request set-retries 5
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+} -start
+
+client c1 -connect ${hap_li1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.retries == "3 3"
+} -run
+
+client c2 -connect ${hap_li2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.retries == "3 5"
+} -run
+
+client c3 -connect ${hap_li3_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.retries == "3 3"
+} -run
+
+client c4 -connect ${hap_li4_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.retries == "3 5"
+} -run
+
+client c5 -connect ${hap_fe5_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.retries == "3 3"
+} -run
+
+client c6 -connect ${hap_fe6_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.retries == "3 5"
+} -run

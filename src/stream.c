@@ -4420,6 +4420,17 @@ static struct action_kw_list stream_http_after_res_actions =  { ILH, {
 
 INITCALL1(STG_REGISTER, http_after_res_keywords_register, &stream_http_after_res_actions);
 
+static int smp_fetch_cur_max_retries(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	if (!smp->strm)
+		return 0;
+
+	smp->data.u.sint = smp->strm->max_retries;
+	return 1;
+}
+
 static int smp_fetch_cur_connect_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	smp->flags = SMP_F_VOL_TXN;
@@ -4687,6 +4698,7 @@ static int smp_fetch_redispatched(const struct arg *args, struct sample *smp, co
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "cur_connect_timeout",smp_fetch_cur_connect_timeout,0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "cur_client_timeout", smp_fetch_cur_client_timeout, 0, NULL, SMP_T_SINT, SMP_USE_FTEND, },
+	{ "cur_max_retries",    smp_fetch_cur_max_retries,    0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "cur_server_timeout", smp_fetch_cur_server_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "cur_queue_timeout",  smp_fetch_cur_queue_timeout,  0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "cur_tarpit_timeout", smp_fetch_cur_tarpit_timeout, 0, NULL, SMP_T_SINT, SMP_USE_FTEND | SMP_USE_BKEND, },

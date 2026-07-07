@@ -3757,6 +3757,24 @@ smp_fetch_srv_uweight(const struct arg *args, struct sample *smp, const char *kw
 }
 
 static int
+smp_fetch_be_max_retries(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	struct proxy *px = NULL;
+
+	if (smp->strm)
+		px = smp->strm->be;
+	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		px = __objt_check(smp->sess->origin)->proxy;
+	if (!px)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = px->conn_retries;
+	return 1;
+}
+
+static int
 smp_fetch_be_connect_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
 {
 	struct proxy *px = NULL;
@@ -3929,6 +3947,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "be_id",             smp_fetch_be_id,             0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_name",           smp_fetch_be_name,           0,           NULL, SMP_T_STR,  SMP_USE_BKEND, },
 	{ "be_connect_timeout",smp_fetch_be_connect_timeout,0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "be_max_retries",    smp_fetch_be_max_retries,    0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_queue_timeout",  smp_fetch_be_queue_timeout,  0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_server_timeout", smp_fetch_be_server_timeout, 0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ "be_sess_rate",      smp_fetch_be_sess_rate,      ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
