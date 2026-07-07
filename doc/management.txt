@@ -1367,6 +1367,14 @@ Here is the list of static fields using the proxy statistics domain:
       since the worker process started
  112. proto [L...]: protocol
  113. priv_idle_cur [...S]: current number of private idle connections
+ 114. reqbin [LFBS]: total number of request bytes received since the worker
+      process started
+ 115. reqbout [LFBS]: total number of request bytes sent since the worker
+      process started
+ 116. resbin [LFBS]: total number of response bytes received since the worker
+      process started
+ 117. resbout [LFBS]: total number of response bytes sent since the worker
+      process started
 
 For all other statistics domains, the presence or the order of the fields are
 not guaranteed. In this case, the header line should always be used to parse
