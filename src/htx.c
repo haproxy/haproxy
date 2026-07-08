@@ -91,6 +91,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 				htx_memcpy(htx_get_blk_ptr(tmp, newblk), htx_get_blk_ptr(htx, oldblk), blksz);
 				break;
 		};
+		newblk->flags |= oldblk->flags;
 
 		/* update the start-line position */
 		if (htx->first == old)
@@ -142,6 +143,7 @@ static void htx_defrag_blks(struct htx *htx)
 		newblk = htx_get_blk(htx, new++);
 		newblk->info = posblk->info;
 		newblk->addr = posblk->addr;
+		newblk->flags = posblk->flags;
 	}
 	BUG_ON(!new);
 	htx->head = 0;
@@ -167,6 +169,7 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 		htx->head = htx->tail = htx->first = 0;
 		blk = htx_get_blk(htx, htx->tail);
 		blk->addr = 0;
+		blk->flags = HTX_BLK_FL_NONE;
 		htx->data = blksz;
 		htx->tail_addr = blksz;
 		return blk;
@@ -356,6 +359,7 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
 		return NULL;
 	BUG_ON(blk->addr > htx->size);
 
+	blk->flags = HTX_BLK_FL_NONE;
 	blk->info = (type << 28);
 	if (type < HTX_BLK_EOH)
 		htx->hdrs_data += blksz;
@@ -806,6 +810,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 				dst_full = 1;
 				goto stop;
 			}
+			last_dstblk->flags = blk->flags;
 			break;
 
 		default:
@@ -819,6 +824,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 				dst_full = 1;
 				goto stop;
 			}
+			last_dstblk->flags = blk->flags;
 			last_dstblk->info = blk->info;
 			htx_memcpy(htx_get_blk_ptr(dst, last_dstblk), htx_get_blk_ptr(src, blk), sz);
 			last_dstblk_sz = sz;
@@ -1191,6 +1197,7 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 			break;
 
 		/* Swap .addr and .info fields */
+		blk->flags ^= pblk->flags; pblk->flags ^= blk->flags; blk->flags ^= pblk->flags;
 		blk->addr ^= pblk->addr; pblk->addr ^= blk->addr; blk->addr ^= pblk->addr;
 		blk->info ^= pblk->info; pblk->info ^= blk->info; blk->info ^= pblk->info;
 
@@ -1213,7 +1220,8 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 	for (pblk = htx_get_prev_blk(htx, cblk); pblk; pblk = htx_get_prev_blk(htx, pblk)) {
 		htx->flags |= HTX_FL_UNORDERED;
 
-		/* Swap .addr and .info fields */
+		/* Swap .flags, .addr and .info fields */
+		cblk->flags ^= pblk->flags; pblk->flags ^= cblk->flags; cblk->flags ^= pblk->flags;
 		cblk->addr ^= pblk->addr; pblk->addr ^= cblk->addr; cblk->addr ^= pblk->addr;
 		cblk->info ^= pblk->info; pblk->info ^= cblk->info; cblk->info ^= pblk->info;
 
@@ -1243,6 +1251,7 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 		newblk = htx_add_blk(dst, type, blksz);
 		if (!newblk)
 			goto error;
+		newblk->flags = blk->flags;
 		newblk->info = blk->info;
 		htx_memcpy(htx_get_blk_ptr(dst, newblk), htx_get_blk_ptr(src, blk), blksz);
 	}

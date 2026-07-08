@@ -539,7 +539,8 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 	     prevblk && htx_get_blk_type(prevblk) > HTX_BLK_HDR;
 	     prevblk = htx_get_prev_blk(htx, blk)) {
 
-		/* Swap .addr and .info fields */
+		/* Swap .flags, .addr and .info fields */
+		blk->flags ^= prevblk->flags; prevblk->flags ^= blk->flags; blk->flags ^= prevblk->flags;
 		blk->addr ^= prevblk->addr; prevblk->addr ^= blk->addr; blk->addr ^= prevblk->addr;
 		blk->info ^= prevblk->info; prevblk->info ^= blk->info; blk->info ^= prevblk->info;
 		blk = prevblk;
@@ -575,7 +576,8 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 	     prevblk && htx_get_blk_type(prevblk) > HTX_BLK_TLR;
 	     prevblk = htx_get_prev_blk(htx, blk)) {
 
-		/* Swap .addr and .info fields */
+		/* Swap .flags, .addr and .info fields */
+		blk->flags ^= prevblk->flags; prevblk->flags ^= blk->flags; blk->flags ^= prevblk->flags;
 		blk->addr ^= prevblk->addr; prevblk->addr ^= blk->addr; blk->addr ^= prevblk->addr;
 		blk->info ^= prevblk->info; prevblk->info ^= blk->info; blk->info ^= prevblk->info;
 		blk = prevblk;
@@ -934,20 +936,20 @@ static inline void htx_dump(struct buffer *chunk, const struct htx *htx, int ful
 
 		if (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL) {
 			sl = htx_get_blk_ptr(htx, blk);
-			chunk_appendf(chunk, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s %.*s %.*s\n",
-				      pos, htx_blk_type_str(type), sz, blk->addr,
+			chunk_appendf(chunk, "\t\t[%u] type=%-17s - flags=0x%04x - size=%-6u - addr=%-6u\t%.*s %.*s %.*s\n",
+				      pos, htx_blk_type_str(type), blk->flags, sz, blk->addr,
 				      HTX_SL_P1_LEN(sl), HTX_SL_P1_PTR(sl),
 				      HTX_SL_P2_LEN(sl), HTX_SL_P2_PTR(sl),
 				      HTX_SL_P3_LEN(sl), HTX_SL_P3_PTR(sl));
 		}
 		else if (type == HTX_BLK_HDR || type == HTX_BLK_TLR)
-			chunk_appendf(chunk, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s: %.*s\n",
-				      pos, htx_blk_type_str(type), sz, blk->addr,
+			chunk_appendf(chunk, "\t\t[%u] type=%-17s - flags=0x%04x - size=%-6u - addr=%-6u\t%.*s: %.*s\n",
+				      pos, htx_blk_type_str(type), blk->flags, sz, blk->addr,
 				      (int)MIN(n.len, 32), n.ptr,
 				      (int)MIN(v.len, 64), v.ptr);
 		else
-			chunk_appendf(chunk, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u%s\n",
-				      pos, htx_blk_type_str(type), sz, blk->addr,
+			chunk_appendf(chunk, "\t\t[%u] type=%-17s - flags=0x%04x - size=%-6u - addr=%-6u%s\n",
+				      pos, htx_blk_type_str(type), blk->flags, sz, blk->addr,
 				      (!v.len ? "\t<empty>" : ""));
 	}
 }

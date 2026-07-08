@@ -214,9 +214,12 @@ enum htx_blk_type {
 	HTX_BLK_UNUSED = 15, /* unused/removed block */
 };
 
+#define HTX_BLK_FL_NONE 0x00 /* For init purpose */
+
 /* One HTX block descriptor */
 struct htx_blk {
-	uint32_t addr; /* relative storage address of the block's payload */
+	uint32_t flags:4;
+	uint32_t addr:28; /* relative storage address of the block's payload */
 	uint32_t info; /* information about the block (type, length) */
 };
 
