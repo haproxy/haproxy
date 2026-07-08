@@ -477,7 +477,7 @@ static inline struct stconn *sc_new_from_hldstream(struct hldstream *hs, unsigne
  */
 static const char *human_number(double x)
 {
-	static char str[5];
+	static char str[8];
 	char unit = '.';
 
 	if (x < 0)
