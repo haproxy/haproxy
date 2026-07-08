@@ -42,9 +42,6 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t max);
 
 struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 				      const struct ist old, const struct ist new);
-struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
-			     enum htx_blk_type mark);
-
 struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const struct ist p1,
 				  const struct ist p2, const struct ist p3);
 
