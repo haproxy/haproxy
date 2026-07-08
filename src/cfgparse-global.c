@@ -1433,7 +1433,27 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 		return 0;
 	}
 	else if (strcmp(args[0], "tune.defaults.purge") == 0) {
-		global.tune.options |= GTUNE_PURGE_DEFAULTS;
+		if (args[1]) {
+			struct ist arg = ist(args[1]);
+			do {
+				struct ist token = istsplit(&arg, ',');
+
+				if (isteq(token, ist("proxies"))) {
+					global.tune.options |= GTUNE_PURGE_DEFAULTS;
+				}
+				else if (isteq(token, ist("servers"))) {
+					global.tune.options |= GTUNE_PURGE_DEF_SRV;
+				}
+				else {
+					memprintf(err, "'%s' unknown directive '%s'.", args[0], ist0(token));
+					return -1;
+				}
+			} while (istlen(arg));
+		}
+		else {
+			/* default value if no argument : purge defaults proxies. */
+			global.tune.options |= GTUNE_PURGE_DEFAULTS;
+		}
 	}
 	else if (strcmp(args[0], "tune.pattern.cache-size") == 0) {
 		if (*(args[1]) == 0) {

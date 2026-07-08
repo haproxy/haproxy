@@ -4225,18 +4225,36 @@ tune.comp.maxlevel <number>
   Each stream using compression initializes the compression algorithm with
   this value. The default value is 1.
 
-tune.defaults.purge
-  For dynamic backends support, all named defaults sections are now kept in
-  memory after parsing. This is necessary as backend added at runtime must be
-  based on a named defaults for its configuration.
+tune.defaults.purge [<element[,...]>]
+  Define what default instances to purge after configuration parsing.
 
-  This may consume significant memory if the number of defaults instances is
-  important. In this case and if dynamic backend feature is unnecessary, it's
-  possible to use this option to force deletion of defaults section after
-  parsing. It is still mandatory though to keep referenced defaults section
-  which contain settings whose cannot be copied by their referencing proxies.
-  For example, this is the case if the defaults section defines TCP/HTTP rules
-  or a tcpcheck ruleset.
+  The elements to be purged are defined by a comma-delimited list of tokens.
+  The currently supported entries are :
+    - "proxies" to purge "defaults" sections
+    - "servers" to purge "default-server" instances
+
+  If the list is empty, only proxies "defaults" sections will be purged.
+
+  Default-server instances are kept in memory after parsing as they may be
+  reused for dynamic servers added at runtime. Similarly, named defaults
+  proxies sections are preserved as dynamic backends rely on them.
+
+  This may consume a noticeable amount of memory if the number of default
+  instances is important. It's possible to reclaim this memory after the
+  configuration parsing if dynamic features are unneeded.
+
+  In any case, referenced "defaults" sections which contain settings which
+  cannot be copied by their referencing proxies (e.g. TCP/HTTP rules or
+  tcpcheck ruleset) will be preserved, regardless of the global purge setting.
+
+  Example:
+      # reclaim the maximum memory possible
+      tune.defaults.purge proxies,servers
+
+      # purge proxies defaults sections
+      # both syntax are equivalent
+      tune.defaults.purge
+      tune.defaults.purge proxies
 
 tune.disable-fast-forward
   Disables the data fast-forwarding. It is a mechanism to optimize the data
@@ -7380,9 +7398,11 @@ default-server [from <origin>] [param*]
 
   A default-server with no parameter set will automatically be purged after
   parsing. As such, a final "default-server from none" statement will be
-  sufficient to release this unused memory.
+  sufficient to release this unused memory, regardless of the global setting
+  "tune.defaults.purge" value.
 
-  See also: "server" and section 5 about server options
+  See also: "server", section 5 about server options and global
+    "tune.defaults.purge" option
 
 
 default_backend <backend>

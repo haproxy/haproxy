@@ -2429,6 +2429,14 @@ init_proxies_list_stage1:
 			cfgerr++;
 		}
 
+		/* Remove default-server if tune.defaults.purge is set for it. */
+		if (curproxy->cap & PR_CAP_BE && (global.tune.options & GTUNE_PURGE_DEF_SRV)) {
+			if (curproxy->defsrv) {
+				srv_free_params(curproxy->defsrv);
+				srv_free(&curproxy->defsrv);
+			}
+		}
+
 		if (curproxy->flags & PR_FL_DISABLED) {
 			/* ensure we don't keep listeners uselessly bound. We
 			 * can't disable their listeners yet (fdtab not
