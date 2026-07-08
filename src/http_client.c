@@ -735,9 +735,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					else
 						applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 
-					if (htx->flags & HTX_FL_EOM)
-						hc_htx->flags |= HTX_FL_EOM;
-
 					htx_to_buf(hc_htx, &hc->res.buf);
 
 				} else {
@@ -824,9 +821,6 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 						applet_wont_consume(appctx);
 					else
 						applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
-
-					if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))
-						hc_htx->flags |= HTX_FL_EOM;
 
 					htx_to_buf(hc_htx, &hc->res.buf);
 				} else {
