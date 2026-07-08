@@ -1273,12 +1273,20 @@ int init_pollers()
 
 	do {
 		bp = NULL;
+redo:
 		for (p = 0; p < nbpollers; p++)
 			if (!bp || (pollers[p].pref > bp->pref))
 				bp = &pollers[p];
 
 		if (!bp || bp->pref == 0)
 			break;
+
+		if ((global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+		    !(bp->flags & HAP_POLL_F_NO_FD_SHARING)) {
+			ha_alert("Can't use poller '%s' with per-thread-group FD tables\n", bp->name);
+			bp->pref = 0;
+			goto redo;
+		}
 
 		if (bp->init(bp)) {
 			memcpy(&cur_poller, bp, sizeof(*bp));

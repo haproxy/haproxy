@@ -231,6 +231,7 @@ struct polled_mask {
 
 #define HAP_POLL_F_RDHUP        0x00000001                   /* the poller notifies of HUP with reads */
 #define HAP_POLL_F_ERRHUP       0x00000002                   /* the poller reports ERR and HUP */
+#define HAP_POLL_F_NO_FD_SHARING 0x00000004                  /* the poller supports not sharing fds across thread groups */
 
 struct poller {
 	void   *private;                                     /* any private data for the poller */
