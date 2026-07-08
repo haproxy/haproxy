@@ -394,6 +394,10 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	prevblk = htx_get_prev_blk(htx, blk);
 	nextblk = htx_get_next_blk(htx, blk);
 
+	/* Move EOM flag on the previous block if any */
+	if (prevblk)
+		prevblk->flags |= (blk->flags & HTX_BLK_FL_EOM);
+
 	/* There is at least 2 used blocks, so (head != tail and tail > 0) */
 
 	type = htx_get_blk_type(blk);
@@ -582,7 +586,9 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	sz = htx_get_blksz(tailblk);
 
 	/* Don't try to append data if the last inserted block is not of the
-	 * same type */
+	 * same type or if it is the end of the message */
+	if (tailblk->flags & HTX_BLK_FL_EOM)
+		goto add_new_block;
 	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
 		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
 			flags |= HTX_FL_UNORDERED;
@@ -811,6 +817,8 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 				goto stop;
 			}
 			last_dstblk->flags = blk->flags;
+			if (last_dstblk->flags & HTX_BLK_FL_EOM)
+				dst->flags |= HTX_FL_HAS_EOM;
 			break;
 
 		default:
@@ -827,6 +835,8 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			last_dstblk->flags = blk->flags;
 			last_dstblk->info = blk->info;
 			htx_memcpy(htx_get_blk_ptr(dst, last_dstblk), htx_get_blk_ptr(src, blk), sz);
+			if (last_dstblk->flags & HTX_BLK_FL_EOM)
+				dst->flags |= HTX_FL_HAS_EOM;
 			last_dstblk_sz = sz;
 			count -= meta_sz + sz;
 			ret += meta_sz + sz;
@@ -897,9 +907,9 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 		}
 	}
 
-	/* Everything was copied, transfer terminal HTX flags too */
+	/* Everything was copied, transfer HTX error flags too */
 	if (!blk) {
-		dst->flags |= (src->flags & (HTX_FL_HAS_EOM|HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
+		dst->flags |= (src->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
 		if (!(flags & HTX_XFER_KEEP_SRC_BLKS))
 			src->flags = 0;
 	}
@@ -1043,7 +1053,9 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
 		goto rsv_new_block;
 
 	/* Don't try to append data if the last inserted block is not of the
-	 * same type */
+	 * same type or if it is the end of the message */
+	if (tailblk->flags & HTX_BLK_FL_EOM)
+		goto rsv_new_block;
 	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
 		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
 			flags |= HTX_FL_UNORDERED;
@@ -1121,7 +1133,9 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 		goto add_new_block;
 
 	/* Don't try to append data if the last inserted block is not of the
-	 * same type */
+	 * same type or if it is the end of the message */
+	if (tailblk->flags & HTX_BLK_FL_EOM)
+		goto add_new_block;
 	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
 		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
 			flags |= HTX_FL_UNORDERED;
@@ -1193,8 +1207,11 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 		return NULL;
 
 	for (pblk = htx_get_prev_blk(htx, blk); pblk; pblk = htx_get_prev_blk(htx, pblk)) {
-		if (htx_get_blk_type(pblk) <= HTX_BLK_DATA)
+		if (htx_get_blk_type(pblk) <= HTX_BLK_DATA) {
+			blk->flags |= (pblk->flags & HTX_BLK_FL_EOM);
+			pblk->flags &= ~HTX_BLK_FL_EOM;
 			break;
+		}
 
 		/* Swap .addr and .info fields */
 		blk->flags ^= pblk->flags; pblk->flags ^= blk->flags; blk->flags ^= pblk->flags;
@@ -1211,7 +1228,10 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 
 /* Moves the block <blk> just before the block <ref>. Both blocks must be in the
  * HTX message <htx> and <blk> must be placed after <ref>. pointer to these
- * blocks are updated to remain valid after the move. */
+ * blocks are updated to remain valid after the move.
+ *
+ * It is the caller responsibility to take care the result remains valid.
+ */
 void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref)
 {
 	struct htx_blk *cblk, *pblk;
@@ -1219,6 +1239,12 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 	cblk = *blk;
 	for (pblk = htx_get_prev_blk(htx, cblk); pblk; pblk = htx_get_prev_blk(htx, pblk)) {
 		htx->flags |= HTX_FL_UNORDERED;
+
+		/* transfer EOM to <pblk> before swapping blocs */
+		if (cblk->flags & HTX_BLK_FL_EOM) {
+			pblk->flags |= HTX_BLK_FL_EOM;
+			cblk->flags &= ~HTX_BLK_FL_EOM;
+		}
 
 		/* Swap .flags, .addr and .info fields */
 		cblk->flags ^= pblk->flags; pblk->flags ^= cblk->flags; cblk->flags ^= pblk->flags;
@@ -1238,6 +1264,8 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 /* Append the HTX message <src> to the HTX message <dst>. It returns 1 on
  * success and 0 on error.  All the message or nothing is copied. If an error
  * occurred, all blocks from <src> already appended to <dst> are truncated.
+ *
+ * It is the caller responsibility to take care the result remains valid.
  */
 int htx_append_msg(struct htx *dst, const struct htx *src)
 {

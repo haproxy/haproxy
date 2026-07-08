@@ -847,11 +847,18 @@ static inline int htx_expect_more(const struct htx *htx)
  */
 static inline int htx_set_eom(struct htx *htx)
 {
+	struct htx_blk *blk;
+
 	if (htx_is_empty(htx)) {
 		if (!htx_add_endof(htx, HTX_BLK_EOT))
 			return 0;
 	}
 
+	blk = ASSUME_NONNULL(htx_get_tail_blk(htx));
+	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_EOH &&
+	       htx_get_blk_type(blk) != HTX_BLK_EOT &&
+	       htx_get_blk_type(blk) != HTX_BLK_DATA);
+	blk->flags |= HTX_BLK_FL_EOM;
 	htx->flags |= HTX_FL_HAS_EOM;
 	return 1;
 }

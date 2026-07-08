@@ -7901,11 +7901,19 @@ __LJMP static int hlua_http_msg_unset_eom(lua_State *L)
 {
 	struct http_msg *msg;
 	struct htx *htx;
+	struct htx_blk *blk;
 
 	MAY_LJMP(check_args(L, 1, "set_eom"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
 	htx->flags &= ~HTX_FL_HAS_EOM;
+
+	for (blk = htx_get_tail_blk(htx); blk; blk = htx_get_prev_blk(htx, blk)) {
+		if (blk->flags & HTX_BLK_FL_EOM) {
+			blk->flags &= ~HTX_BLK_FL_EOM;
+			break;
+		}
+	}
 	return 0;
 }
 

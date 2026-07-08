@@ -215,6 +215,7 @@ enum htx_blk_type {
 };
 
 #define HTX_BLK_FL_NONE 0x00 /* For init purpose */
+#define HTX_BLK_FL_EOM  0x01 /* flag marking the end of the message */
 
 /* One HTX block descriptor */
 struct htx_blk {
