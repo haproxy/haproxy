@@ -33,7 +33,7 @@ target to provide on the "make" command line as follows:
 
 HATerm supports HTTPS/SSL/TCP:
 
-  $ make TARGET=linux-glibc USE_OPENSSL=1
+  $ make TARGET=linux-glibc USE_OPENSSL=1 haterm
 
 It also supports QUIC:
 
