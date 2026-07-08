@@ -34,6 +34,7 @@ static void haterm_usage(char *name)
 		"        --" QUIC_BIND_LONG_OPT " <opts> : append options to QUIC \"bind\" lines\n"
 #endif
 		"        --" TCP_BIND_LONG_OPT " <opts> : append options to TCP \"bind\" lines\n"
+		"Note: QUIC is automatically enabled on the SSL port if built in.\n"
 		, name);
 	exit(1);
 }
