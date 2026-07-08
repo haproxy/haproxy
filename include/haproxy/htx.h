@@ -521,12 +521,11 @@ static inline struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type t
 static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 					     const struct ist value)
 {
-	struct htx_blk *blk, *tailblk;
+	struct htx_blk *blk, *prevblk;
 
 	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
-	tailblk = htx_get_tail_blk(htx);
 	blk = htx_add_blk(htx, HTX_BLK_HDR, name.len + value.len);
 	if (!blk)
 		return NULL;
@@ -534,8 +533,17 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 	blk->info += (value.len << 8) + name.len;
 	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
 	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
-	if (tailblk && htx_get_blk_type(tailblk) >= HTX_BLK_EOH)
-		htx->flags |= HTX_FL_UNORDERED;
+
+	for (prevblk = htx_get_prev_blk(htx, blk);
+	     prevblk && htx_get_blk_type(prevblk) > HTX_BLK_HDR;
+	     prevblk = htx_get_prev_blk(htx, blk)) {
+
+		/* Swap .addr and .info fields */
+		blk->addr ^= prevblk->addr; prevblk->addr ^= blk->addr; blk->addr ^= prevblk->addr;
+		blk->info ^= prevblk->info; prevblk->info ^= blk->info; blk->info ^= prevblk->info;
+		blk = prevblk;
+	}
+
 	return blk;
 }
 
@@ -545,12 +553,11 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
 					      const struct ist value)
 {
-	struct htx_blk *blk, *tailblk;
+	struct htx_blk *blk, *prevblk;
 
 	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
-	tailblk = htx_get_tail_blk(htx);
 	blk = htx_add_blk(htx, HTX_BLK_TLR, name.len + value.len);
 	if (!blk)
 		return NULL;
@@ -558,8 +565,17 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 	blk->info += (value.len << 8) + name.len;
 	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
 	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
-	if (tailblk && htx_get_blk_type(tailblk) >= HTX_BLK_EOT)
-		htx->flags |= HTX_FL_UNORDERED;
+
+	for (prevblk = htx_get_prev_blk(htx, blk);
+	     prevblk && htx_get_blk_type(prevblk) > HTX_BLK_TLR;
+	     prevblk = htx_get_prev_blk(htx, blk)) {
+
+		/* Swap .addr and .info fields */
+		blk->addr ^= prevblk->addr; prevblk->addr ^= blk->addr; blk->addr ^= prevblk->addr;
+		blk->info ^= prevblk->info; prevblk->info ^= blk->info; blk->info ^= prevblk->info;
+		blk = prevblk;
+	}
+
 	return blk;
 }
 
