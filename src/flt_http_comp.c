@@ -297,7 +297,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		switch (type) {
 			case HTX_BLK_DATA:
 				/* it is the last data block */
-				last = ((!next && (htx->flags & HTX_FL_HAS_EOM)) || (next && htx_get_blk_type(next) != HTX_BLK_DATA));
+				last = ((blk->flags & HTX_BLK_FL_EOM) || (next && htx_get_blk_type(next) != HTX_BLK_DATA));
 				v = htx_get_blk_value(htx, blk);
 				v = istadv(v, offset);
 				if (v.len > len) {
