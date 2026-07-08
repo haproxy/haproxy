@@ -285,41 +285,12 @@ int http_match_header(const struct htx *htx, const struct my_regex *re, struct h
  */
 int http_add_header(struct htx *htx, const struct ist n, const struct ist v, int update_authority)
 {
-	struct htx_blk *blk;
-	struct htx_sl *sl;
-	enum htx_blk_type type = htx_get_tail_type(htx);
-	int32_t prev;
-
-	blk = htx_add_header(htx, n, v);
-	if (!blk)
+	if (!htx_add_header(htx, n, v))
 		goto fail;
 
-	if (unlikely(type < HTX_BLK_EOH))
-		goto end;
-
-	/* <blk> is the head, swap it iteratively with its predecessor to place
-	 * it just before the end-of-header block. So blocks remains ordered. */
-	for (prev = htx_get_prev(htx, htx->tail); prev != htx->first; prev = htx_get_prev(htx, prev)) {
-		struct htx_blk   *pblk = htx_get_blk(htx, prev);
-		enum htx_blk_type ptype = htx_get_blk_type(pblk);
-
-		/* Swap .addr and .info fields */
-		blk->addr ^= pblk->addr; pblk->addr ^= blk->addr; blk->addr ^= pblk->addr;
-		blk->info ^= pblk->info; pblk->info ^= blk->info; blk->info ^= pblk->info;
-
-		if (blk->addr == pblk->addr)
-			blk->addr += htx_get_blksz(pblk);
-
-		/* Stop when end-of-header is reached */
-		if (ptype == HTX_BLK_EOH)
-			break;
-
-		blk = pblk;
-	}
-
-  end:
 	if (update_authority) {
-		sl = http_get_stline(htx);
+		struct htx_sl *sl = http_get_stline(htx);
+
 		if (sl && (sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(n, ist("host"))) {
 			if (!http_update_authority(htx, sl, v))
 				goto fail;
