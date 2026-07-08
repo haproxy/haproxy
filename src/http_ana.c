@@ -2632,7 +2632,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
 
-	htx->flags |= HTX_FL_EOM;
+	htx_set_eom(htx);
 	htx_to_buf(htx, &res->buf);
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -4485,7 +4485,7 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
 
-	htx->flags |= HTX_FL_EOM;
+	htx_set_eom(htx);
 	htx_to_buf(htx, &res->buf);
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -4780,7 +4780,8 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		channel_auto_close(res);
 		sc_schedule_abort(s->scb);
 		s->scb->flags |= SC_FL_EOI; /* The response is terminated, add EOI */
-		htxbuf(&res->buf)->flags |= HTX_FL_EOM; /* no more data are expected */
+		if (!htx_is_empty(htx))
+			htx_set_eom(htx); /* no more data are expected */
 	}
 	else {
 		/* Send ASAP informational messages. Rely on SC_FL_EOI for final
@@ -4999,7 +5000,7 @@ int http_reply_to_htx(struct stream *s, struct htx *htx, struct http_reply *repl
 		    (body && b_data(body) && !htx_add_data_atonce(htx, ist2(b_head(body), b_data(body)))))
 			goto fail;
 
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 	}
 
   leave:

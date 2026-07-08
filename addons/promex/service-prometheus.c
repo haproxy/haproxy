@@ -2160,19 +2160,11 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			__fallthrough;
 
 		case PROMEX_ST_DONE:
-			/* no more data are expected. If the response buffer is
-			 * empty, be sure to add something (EOT block in this
-			 * case) to have something to send. It is important to
-			 * be sure the EOM flags will be handled by the
-			 * endpoint.
-			 */
-			if (htx_is_empty(res_htx)) {
-				if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-					applet_have_more_data(appctx);
-					break;
-				}
+			/* no more data are expected */
+			if (!htx_set_eom(res_htx)) {
+				applet_have_more_data(appctx);
+				break;
 			}
-		        res_htx->flags |= HTX_FL_EOM;
 			applet_set_eoi(appctx);
 			appctx->st0 = PROMEX_ST_END;
 			__fallthrough;

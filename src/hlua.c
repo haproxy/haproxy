@@ -7888,7 +7888,7 @@ __LJMP static int hlua_http_msg_set_eom(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "set_eom"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
-	htx->flags |= HTX_FL_EOM;
+	htx_set_eom(htx);
 	return 0;
 }
 
@@ -8438,7 +8438,7 @@ __LJMP static int hlua_txn_forward_reply(lua_State *L, struct stream *s)
 	    (body_len && !htx_add_data_atonce(htx, ist2(body, body_len))))
 		goto fail;
 
-	htx->flags |= HTX_FL_EOM;
+	htx_set_eom(htx);
 
 	/* Now, forward the response and terminate the transaction */
 	s->txn.http->status = code;
@@ -11052,14 +11052,11 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		 * sure the EOM flags will be handled by the endpoint.
 		 */
 		res_htx = htx_from_buf(outbuf);
-		if (htx_is_empty(res_htx)) {
-			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				applet_have_more_data(ctx);
-				yield = 1;
-				goto out;
-			}
+		if (!htx_set_eom(res_htx)) {
+			applet_have_more_data(ctx);
+			yield = 1;
+			goto out;
 		}
-		res_htx->flags |= HTX_FL_EOM;
 		htx_to_buf(res_htx, outbuf);
 		applet_set_eoi(ctx);
 		applet_set_eos(ctx);

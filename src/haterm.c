@@ -482,7 +482,7 @@ static int hstream_build_http_help_resp(struct hstream *hs)
 		goto err;
 	}
 
-	htx->flags |= HTX_FL_EOM;
+	htx_set_eom(htx);
 	hs->flags |= HS_ST_HTTP_EOM_SENT;
 	htx_to_buf(htx, buf);
 	sl->info.res.status = 200;
@@ -728,7 +728,7 @@ static int hstream_build_http_resp(struct hstream *hs)
 	if (hs->to_write > 0)
 		hs->to_write -= hstream_add_htx_data(hs, htx, hs->to_write);
 	if (hs->to_write <= 0) {
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 		hs->flags |= HS_ST_HTTP_EOM_SENT;
 	}
 	htx_to_buf(htx, buf);
@@ -1060,7 +1060,7 @@ static struct task *process_hstream(struct task *t, void *context, unsigned int 
 		if (hs->to_write > 0)
 			hs->to_write -= hstream_add_htx_data(hs, htx, hs->to_write);
 		if (hs->to_write <= 0) {
-			htx->flags |= HTX_FL_EOM;
+			htx_set_eom(htx);
 			hs->flags |= HS_ST_HTTP_EOM_SENT;
 		}
 		htx_to_buf(htx, &hs->res);

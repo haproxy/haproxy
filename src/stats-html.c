@@ -2071,18 +2071,11 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DONE) {
-		/* no more data are expected. If the response buffer is empty,
-		 * be sure to add something (EOT block in this case) to have
-		 * something to send. It is important to be sure the EOM flags
-		 * will be handled by the endpoint.
-		 */
-		if (htx_is_empty(res_htx)) {
-			if (!htx_add_endof(res_htx, HTX_BLK_EOT)) {
-				applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
-				goto out;
-			}
+		/* no more data are expected */
+		if (!htx_set_eom(res_htx)) {
+			applet_fl_set(appctx, APPCTX_FL_OUTBLK_FULL);
+			goto out;
 		}
-		res_htx->flags |= HTX_FL_EOM;
 		applet_set_eoi(appctx);
 		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);

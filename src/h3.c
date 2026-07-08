@@ -1169,7 +1169,7 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	if (fin)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 
 	htx_to_buf(htx, &htx_buf);
 	htx = NULL;
@@ -1450,7 +1450,7 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	if (fin)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 
 	/* Detect if an interim or final response was handled. */
 	if (sl->info.res.status >= 100 && sl->info.res.status < 200) {
@@ -1635,7 +1635,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	if (fin)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 
  out:
 	/* HTX may be non NULL if error before previous htx_to_buf(). */
@@ -1711,7 +1711,7 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	if (fin && len == htx_sent)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 
  out:
 	if (appbuf)

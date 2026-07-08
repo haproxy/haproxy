@@ -485,8 +485,6 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	    (*msgf & H2_MSGF_BODY_TUNNEL)) {
 		/* Request without body or tunnel requested */
 		sl_flags |= HTX_SL_F_BODYLESS;
-		if (*msgf & H2_MSGF_BODY_TUNNEL)
-		    htx->flags |= HTX_FL_EOM;
 	}
 
 	if (*msgf & H2_MSGF_EXT_CONNECT) {
@@ -530,6 +528,9 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	/* now send the end of headers marker */
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
+
+	if (*msgf & H2_MSGF_BODY_TUNNEL)
+		htx_set_eom(htx);
 
 	/* proceed to scheme-based normalization on target-URI */
 	if (fields & H2_PHDR_FND_SCHM)
@@ -775,8 +776,6 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	    (*msgf & H2_MSGF_BODY_TUNNEL)) {
 		/* Response without body or tunnel successfully established */
 		sl_flags |= HTX_SL_F_BODYLESS;
-		if (*msgf & H2_MSGF_BODY_TUNNEL)
-		    htx->flags |= HTX_FL_EOM;
 	}
 
 	/* update the start line with last detected header info */
@@ -796,6 +795,9 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	/* now send the end of headers marker */
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
+
+	if (*msgf & H2_MSGF_BODY_TUNNEL)
+		htx_set_eom(htx);
 
 	ret = 1;
 	return ret;

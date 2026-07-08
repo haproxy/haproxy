@@ -202,7 +202,6 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
 		h1m->curr_len = h1m->body_len = 0;
 		h1m->state = H1_MSG_DONE;
-		htx->flags |= HTX_FL_EOM;
 	}
 	else {
 		if (h1sl->rq.meth == HTTP_METH_HEAD)
@@ -211,7 +210,6 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		if (((h1m->flags & H1_MF_CLEN) && h1m->body_len == 0) ||
 		    (h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN) {
 			h1m->state = H1_MSG_DONE;
-			htx->flags |= HTX_FL_EOM;
 		}
 	}
 
@@ -261,8 +259,10 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		http_scheme_based_normalize(htx);
 	}
 
-  end:
+	if (h1m->state == H1_MSG_DONE)
+		htx_set_eom(htx);
 	return 1;
+
   output_full:
 	h1m_init_req(h1m);
 	h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
@@ -341,7 +341,6 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
 		h1m->state = H1_MSG_DONE;
-		htx->flags |= HTX_FL_EOM;
 	}
 	else if ((h1m->flags & H1_MF_METH_HEAD) || (code >= 100 && code < 200) ||
 		 (code == 204) || (code == 304)) {
@@ -357,10 +356,8 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 
 		h1m->flags |= H1_MF_XFER_LEN;
 		h1m->curr_len = h1m->body_len = 0;
-		if (code >= 200) {
+		if (code >= 200)
 			flags |= HTX_SL_F_BODYLESS_RESP;
-			htx->flags |= HTX_FL_EOM;
-		}
 		h1m->state = H1_MSG_DONE;
 	}
 	else {
@@ -370,10 +367,8 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		}
 
 		if (((h1m->flags & H1_MF_CLEN) && h1m->body_len == 0) ||
-		    (h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN) {
+		    (h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN)
 			h1m->state = H1_MSG_DONE;
-			htx->flags |= HTX_FL_EOM;
-		}
 	}
 
 	flags |= h1m_htx_sl_flags(h1m);
@@ -382,8 +377,10 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		goto error;
 	sl->info.res.status = code;
 
-  end:
+	if (h1m->state == H1_MSG_DONE)
+		htx_set_eom(htx);
 	return 1;
+
   output_full:
 	h1m_init_res(h1m);
 	h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
@@ -941,7 +938,7 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		total += sz;
 		if (!h1m->curr_len) {
 			h1m->state = H1_MSG_DONE;
-			(*dsthtx)->flags |= HTX_FL_EOM;
+			htx_set_eom(*dsthtx);
 		}
 	}
 	else if (h1m->flags & H1_MF_CHNK) {
@@ -953,7 +950,7 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		 * body. Switch the message in DONE state
 		 */
 		h1m->state = H1_MSG_DONE;
-		(*dsthtx)->flags |= HTX_FL_EOM;
+		htx_set_eom(*dsthtx);
 	}
 	else {
 		/* no content length, read till SHUTW */
@@ -1018,7 +1015,7 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 		goto error;
 
 	h1m->state = H1_MSG_DONE;
-	dsthtx->flags |= HTX_FL_EOM;
+	htx_set_eom(dsthtx);
 
   end:
 	return ret;

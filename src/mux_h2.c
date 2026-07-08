@@ -6421,7 +6421,7 @@ next_frame:
 			goto fail;
 		}
 		/* no more data are expected for this message */
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 		*flags |= H2_SF_ES_RCVD;
 	}
 

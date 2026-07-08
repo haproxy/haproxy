@@ -2253,7 +2253,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 	if (appctx->st0 == HTX_CACHE_EOM) {
 		 /* no more data are expected. */
-		res_htx->flags |= HTX_FL_EOM;
+		htx_set_eom(res_htx);
 		applet_set_eoi(appctx);
 		se_fl_clr(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD);
 		applet_fl_clr(appctx, APPCTX_FL_FASTFWD);

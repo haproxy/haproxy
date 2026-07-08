@@ -1831,7 +1831,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 			goto error_htx;
 
 		/* no more data are expected */
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 		htx_to_buf(htx, &check->bo);
 		break;
 	}

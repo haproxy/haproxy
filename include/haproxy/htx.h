@@ -837,10 +837,11 @@ static inline int htx_expect_more(const struct htx *htx)
 	return !(htx->flags & HTX_FL_EOM);
 }
 
-/* Set EOM flag in <htx>. This function is useful if the HTX message is empty.
- * In this case, an EOT block is appended first to ensure the EOM will be
- * forwarded as expected. This is a workaround as it is not possibly currently
- * to push an empty HTX DATA block.
+/* Set EOM flag in <htx>. This function must always be called to report the end
+ * of the message. Corresponding flags must never be added by hand, except from
+ * the HTX API itself. It must also be called after the last block of the
+ * message was added. Finally, this function takes care to add an EOT block if
+ * the HTX message is empty.
  *
  * Returns 1 on success else 0.
  */

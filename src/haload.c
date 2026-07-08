@@ -894,7 +894,7 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path, int e
 		goto err;
 
 	if (eom)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 	htx_to_buf(htx, &hs->bo);
  leave:
 	ret = 1;
