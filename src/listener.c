@@ -792,6 +792,7 @@ int tg_agents_enabled = 0;
 
 enum rx_xfer_op {
 	RX_XFER_OP_REBIND = 0,
+	RX_XFER_OP_GETSOCKS,
 };
 
 struct rx_xfer_msg {
@@ -801,7 +802,6 @@ struct rx_xfer_msg {
 
 static void rx_xfer_send_members(struct receiver *ref);
 static int rx_xfer_send_fd(uint grp, struct receiver *rx, enum rx_xfer_op op, int fd);
-static void rx_xfer_drain(uint grp);
 
 /* Queues receiver <rx> to 1-based group <grp>'s agent and wakes it. The
  * operation fields must be set before calling this, see struct tg_agent.
@@ -815,6 +815,7 @@ static void rx_agent_post(struct receiver *rx, uint grp)
 static void rx_agent_process_one(struct receiver *rx)
 {
 	int fd = HA_ATOMIC_XCHG(&rx->agent.close_fd, -1);
+	uint dest;
 	uint ops;
 
 	if (fd >= 0)
@@ -844,6 +845,12 @@ static void rx_agent_process_one(struct receiver *rx)
 		if (ops & RX_AGENT_OP_ENABLE)
 			enable_listener(l);
 	}
+
+	dest = HA_ATOMIC_XCHG(&rx->agent.getsocks_grp, 0);
+	if (dest && rx->fd >= 0) {
+		HA_ATOMIC_OR(&fdtab[rx->fd].state, FD_CLONED);
+		rx_xfer_send_fd(dest, rx, RX_XFER_OP_GETSOCKS, rx->fd);
+	}
 }
 
 static struct task *tg_agent_process(struct task *t, void *context, unsigned int state)
@@ -867,6 +874,12 @@ void rx_agent_close(struct receiver *rx)
 static void rx_agent_schedule_op(struct receiver *rx, uint op)
 {
 	HA_ATOMIC_OR(&rx->agent.ops, op);
+	rx_agent_post(rx, rx_owner_tgid(rx));
+}
+
+void rx_agent_getsocks_request(struct receiver *rx, uint dest_grp)
+{
+	HA_ATOMIC_STORE(&rx->agent.getsocks_grp, dest_grp);
 	rx_agent_post(rx, rx_owner_tgid(rx));
 }
 
@@ -924,7 +937,7 @@ static int rx_xfer_send_fd(uint grp, struct receiver *rx, enum rx_xfer_op op, in
 	return 1;
 }
 
-static void rx_xfer_drain(uint grp)
+void rx_xfer_drain(uint grp)
 {
 	while (1) {
 		struct rx_xfer_msg xmsg;
@@ -972,6 +985,10 @@ static void rx_xfer_drain(uint grp)
 				close(rx->agent.xfer_fd);
 				rx->agent.xfer_fd = -1;
 			}
+			break;
+
+		case RX_XFER_OP_GETSOCKS:
+			HA_ATOMIC_STORE(&rx->agent.getsocks_fd, fd);
 			break;
 
 		default:

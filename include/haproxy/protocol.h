@@ -65,6 +65,11 @@ void protocol_init_rx_agents(void);
  */
 void protocol_localize_rx_fds(void);
 
+/*
+ * Collects fd of other thread groups to be sent when _getsocks is used.
+ */
+int protocol_getsocks_foreign_fds(struct receiver ***orxs, int **ofds);
+
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL, ERR_ABORT.
  */

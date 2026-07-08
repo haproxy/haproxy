@@ -93,7 +93,9 @@ struct receiver {
 		struct rx_agent_link link;   /* position in the owner group agent's queue */
 		int close_fd;                /* FD to release, -1 if none */
 		uint ops;                    /* pending RX_AGENT_OP_* */
+		uint getsocks_grp;           /* group requesting an FD copy for _getsocks */
 		int xfer_fd;                 /* FD copy received for a rebind, -1 if none */
+		int getsocks_fd;             /* FD copy received for _getsocks, -1 if none */
 	} agent;                         /* only used with per-tgroup FD tables */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC

@@ -185,6 +185,8 @@ void default_unbind_listener(struct listener *listener);
 extern int tg_agents_enabled;
 int rx_agent_init(void);
 void rx_agent_close(struct receiver *rx);
+void rx_agent_getsocks_request(struct receiver *rx, uint dest_grp);
+void rx_xfer_drain(uint grp);
 
 /* default function called to suspend a listener: it simply passes the call to
  * the underlying receiver. This is find for most socket-based protocols. This

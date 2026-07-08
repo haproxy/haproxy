@@ -145,6 +145,7 @@ void protocol_init_rx_agents(void)
 			rx->agent.link.rx = rx;
 			rx->agent.close_fd = -1;
 			rx->agent.xfer_fd = -1;
+			rx->agent.getsocks_fd = -1;
 		}
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
@@ -179,6 +180,116 @@ void protocol_localize_rx_fds(void)
 		}
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+}
+
+/*
+ * Collect file descriptor from other thread groups, if they have their
+ * own file descriptors table.
+ */
+int protocol_getsocks_foreign_fds(struct receiver ***orxs, int **ofds)
+{
+	struct protocol *proto;
+	struct receiver *rx;
+	struct receiver **rxs;
+	int *fds;
+	int nb, filled, done, i;
+
+	*orxs = NULL;
+	*ofds = NULL;
+
+	if (!(global.tune.options & GTUNE_NO_TG_FD_SHARING) || global.nbtgroups < 2)
+		return 0;
+
+	/* first pass: count the candidates */
+	nb = 0;
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+	list_for_each_entry(proto, &protocols, list) {
+		list_for_each_entry(rx, &proto->receivers, proto_list) {
+			if (rx->fd < 0 || rx_owner_tgid(rx) == tgid)
+				continue;
+			if (!(ha_tgroup_ctx[rx_owner_tgid(rx) - 1].fdtab[rx->fd].state & FD_EXPORTED))
+				continue;
+			nb++;
+		}
+	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+
+	if (!nb)
+		return 0;
+
+	rxs = calloc(nb, sizeof(*rxs));
+	fds = calloc(nb, sizeof(*fds));
+	if (!rxs || !fds) {
+		free(rxs);
+		free(fds);
+		return -1;
+	}
+
+	/* second pass: arm the requests. A copy left over by a previous
+	 * timed-out collection is closed on the way.
+	 */
+	filled = 0;
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+	list_for_each_entry(proto, &protocols, list) {
+		list_for_each_entry(rx, &proto->receivers, proto_list) {
+			int old;
+
+			if (filled >= nb)
+				break;
+			if (rx->fd < 0 || rx_owner_tgid(rx) == tgid)
+				continue;
+			if (!(ha_tgroup_ctx[rx_owner_tgid(rx) - 1].fdtab[rx->fd].state & FD_EXPORTED))
+				continue;
+
+			old = rx->agent.getsocks_fd;
+			if (old >= 0)
+				close(old);
+			HA_ATOMIC_STORE(&rx->agent.getsocks_fd, -1);
+			rxs[filled++] = rx;
+			rx_agent_getsocks_request(rx, tgid);
+		}
+	}
+	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+	nb = filled;
+
+	for (i = 0; i < 50; i++) {
+		rx_xfer_drain(tgid - 1);
+		done = 1;
+		for (filled = 0; filled < nb; filled++) {
+			if (HA_ATOMIC_LOAD(&rxs[filled]->agent.getsocks_fd) < 0)
+				done = 0;
+		}
+		if (done)
+			break;
+		/* XXX: we're waiting for other thread groups to send their
+		 * fds, let's sleep for a bit.
+		 */
+		usleep(10000);
+	}
+
+	done = 0;
+	for (i = 0; i < nb; i++) {
+		int f = HA_ATOMIC_LOAD(&rxs[i]->agent.getsocks_fd);
+
+		if (f < 0) {
+			ha_warning("_getsocks: could not get a copy of a listener FD from thread group %u, the new process will have to bind it itself.\n",
+			           rx_owner_tgid(rxs[i]));
+			continue;
+		}
+		HA_ATOMIC_STORE(&rxs[i]->agent.getsocks_fd, -1);
+		rxs[done] = rxs[i];
+		fds[done] = f;
+		done++;
+	}
+
+	if (!done) {
+		free(rxs);
+		free(fds);
+		return 0;
+	}
+	*orxs = rxs;
+	*ofds = fds;
+	return done;
 }
 
 /* binds all listeners of all registered protocols. Returns a composition

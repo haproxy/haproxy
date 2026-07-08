@@ -2444,6 +2444,80 @@ static int bind_parse_severity_output(char **args, int cur_arg, struct proxy *px
 	}
 }
 
+/*
+ * Send one FD, with its relevant informations.
+ */
+static int _getsocks_send_one(int sock, int send_fd, const struct receiver *rx,
+                              struct msghdr *msghdr, unsigned char *tmpbuf,
+                              int *tmpfd, int *nb_queued, int *curoff)
+{
+	const char *ns_name, *if_name;
+	unsigned char ns_nlen, if_nlen;
+
+	ns_name = if_name = "";
+	ns_nlen = if_nlen = 0;
+
+	/* for now we can only retrieve namespaces and interfaces from
+	 * pure listeners.
+	 */
+	if (rx && rx->iocb == sock_accept_iocb) {
+		if (rx->settings->interface) {
+			if_name = rx->settings->interface;
+			if_nlen = strlen(if_name);
+		}
+
+#ifdef USE_NS
+		if (rx->settings->netns) {
+			ns_name = rx->settings->netns->node.key;
+			ns_nlen = rx->settings->netns->name_len;
+		}
+#endif
+	}
+
+	/* put the FD into the CMSG_DATA */
+	tmpfd[(*nb_queued)++] = send_fd;
+
+	/* first block is <ns_name_len> <ns_name> */
+	tmpbuf[(*curoff)++] = ns_nlen;
+	if (ns_nlen)
+		memcpy(tmpbuf + *curoff, ns_name, ns_nlen);
+	*curoff += ns_nlen;
+
+	/* second block is <if_name_len> <if_name> */
+	tmpbuf[(*curoff)++] = if_nlen;
+	if (if_nlen)
+		memcpy(tmpbuf + *curoff, if_name, if_nlen);
+	*curoff += if_nlen;
+
+	/* we used to send the listener options here before 2.3 */
+	memset(tmpbuf + *curoff, 0, sizeof(int));
+	*curoff += sizeof(int);
+
+	/* there's a limit to how many FDs may be sent at once */
+	if (*nb_queued == MAX_SEND_FD) {
+		int ack, ret;
+
+		msghdr->msg_iov->iov_len = *curoff;
+		if (sendmsg(sock, msghdr, 0) != *curoff) {
+			ha_warning("Failed to transfer sockets\n");
+			return 0;
+		}
+
+		/* Wait for an ack */
+		do {
+			ret = recv(sock, &ack, sizeof(ack), 0);
+		} while (ret == -1 && errno == EINTR);
+
+		if (ret <= 0) {
+			ha_warning("Unexpected error while transferring sockets\n");
+			return 0;
+		}
+		*curoff = 0;
+		*nb_queued = 0;
+	}
+	return 1;
+}
+
 /* Send all the bound sockets, always returns 1 */
 static int _getsocks(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -2457,8 +2531,10 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	struct msghdr msghdr;
 	struct iovec iov;
 	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
-	const char *ns_name, *if_name;
-	unsigned char ns_nlen, if_nlen;
+	struct receiver **foreign_rxs = NULL;
+	int *foreign_fds = NULL;
+	int nb_foreign = 0;
+	int foreign_idx;
 	int nb_queued;
 	int cur_fd = 0;
 	int *tmpfd;
@@ -2496,12 +2572,25 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	if (!(strm_li(s)->bind_conf->level & ACCESS_FD_LISTENERS))
 		goto out;
 	memset(&msghdr, 0, sizeof(msghdr));
+
+	/*
+	 * Collect file descriptors from other thread groups, if they have
+	 * a separate file descriptor table.
+	 */
+	nb_foreign = protocol_getsocks_foreign_fds(&foreign_rxs, &foreign_fds);
+	if (nb_foreign < 0) {
+		ha_warning("Failed to allocate memory to transfer other groups' sockets\n");
+		goto out;
+	}
+
 	/*
 	 * First, calculates the total number of FD, so that we can let
 	 * the caller know how much it should expect.
 	 */
 	for (cur_fd = 0;cur_fd < global.maxsock; cur_fd++)
 		tot_fd_nb += !!(fdtab[cur_fd].state & FD_EXPORTED);
+
+	tot_fd_nb += nb_foreign;
 
 	if (tot_fd_nb == 0) {
 		if (already_sent)
@@ -2548,73 +2637,27 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	nb_queued = 0;
 	iov.iov_base = tmpbuf;
 	for (cur_fd = 0; cur_fd < global.maxsock; cur_fd++) {
+		const struct receiver *rx = NULL;
+
 		if (!(fdtab[cur_fd].state & FD_EXPORTED))
 			continue;
 
 		/* this FD is now shared between processes */
 		HA_ATOMIC_OR(&fdtab[cur_fd].state, FD_CLONED);
 
-		ns_name = if_name = "";
-		ns_nlen = if_nlen = 0;
+		if (fdtab[cur_fd].iocb == sock_accept_iocb)
+			rx = &((const struct listener *)fdtab[cur_fd].owner)->rx;
 
-		/* for now we can only retrieve namespaces and interfaces from
-		 * pure listeners.
-		 */
-		if (fdtab[cur_fd].iocb == sock_accept_iocb) {
-			const struct listener *l = fdtab[cur_fd].owner;
+		if (!_getsocks_send_one(fd, cur_fd, rx, &msghdr, tmpbuf,
+		                        tmpfd, &nb_queued, &curoff))
+			goto out;
+	}
 
-			if (l->rx.settings->interface) {
-				if_name = l->rx.settings->interface;
-				if_nlen = strlen(if_name);
-			}
-
-#ifdef USE_NS
-			if (l->rx.settings->netns) {
-				ns_name = l->rx.settings->netns->node.key;
-				ns_nlen = l->rx.settings->netns->name_len;
-			}
-#endif
-		}
-
-		/* put the FD into the CMSG_DATA */
-		tmpfd[nb_queued++] = cur_fd;
-
-		/* first block is <ns_name_len> <ns_name> */
-		tmpbuf[curoff++] = ns_nlen;
-		if (ns_nlen)
-			memcpy(tmpbuf + curoff, ns_name, ns_nlen);
-		curoff += ns_nlen;
-
-		/* second block is <if_name_len> <if_name> */
-		tmpbuf[curoff++] = if_nlen;
-		if (if_nlen)
-			memcpy(tmpbuf + curoff, if_name, if_nlen);
-		curoff += if_nlen;
-
-		/* we used to send the listener options here before 2.3 */
-		memset(tmpbuf + curoff, 0, sizeof(int));
-		curoff += sizeof(int);
-
-		/* there's a limit to how many FDs may be sent at once */
-		if (nb_queued == MAX_SEND_FD) {
-			iov.iov_len = curoff;
-			if (sendmsg(fd, &msghdr, 0) != curoff) {
-				ha_warning("Failed to transfer sockets\n");
-				goto out;
-			}
-
-			/* Wait for an ack */
-			do {
-				ret = recv(fd, &tot_fd_nb, sizeof(tot_fd_nb), 0);
-			} while (ret == -1 && errno == EINTR);
-
-			if (ret <= 0) {
-				ha_warning("Unexpected error while transferring sockets\n");
-				goto out;
-			}
-			curoff = 0;
-			nb_queued = 0;
-		}
+	for (foreign_idx = 0; foreign_idx < nb_foreign; foreign_idx++) {
+		if (!_getsocks_send_one(fd, foreign_fds[foreign_idx],
+		                        foreign_rxs[foreign_idx], &msghdr,
+		                        tmpbuf, tmpfd, &nb_queued, &curoff))
+			goto out;
 	}
 
 	already_sent = 1;
@@ -2641,6 +2684,10 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	}
 
 out:
+	for (foreign_idx = 0; foreign_idx < nb_foreign; foreign_idx++)
+		close(foreign_fds[foreign_idx]);
+	free(foreign_rxs);
+	free(foreign_fds);
 	if (fd >= 0 && old_fcntl >= 0 && fcntl(fd, F_SETFL, old_fcntl) == -1)
 		ha_warning("Cannot make the unix socket non-blocking\n");
 	applet_set_eoi(appctx);
