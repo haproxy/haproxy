@@ -841,11 +841,18 @@ static inline int htx_expect_more(const struct htx *htx)
  */
 static inline int htx_set_eom(struct htx *htx)
 {
+	struct htx_blk *blk;
+
 	if (htx_is_empty(htx)) {
 		if (!htx_add_endof(htx, HTX_BLK_EOT))
 			return 0;
 	}
 
+	blk = ASSUME_NONNULL(htx_get_tail_blk(htx));
+	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_EOH &&
+	       htx_get_blk_type(blk) != HTX_BLK_EOT &&
+	       htx_get_blk_type(blk) != HTX_BLK_DATA);
+	blk->flags |= HTX_BLK_FL_EOM;
 	htx->flags |= HTX_FL_HAS_EOM;
 	return 1;
 }
@@ -870,18 +877,27 @@ static inline int htx_copy_msg(struct htx *htx, const struct buffer *msg)
 	return htx_append_msg(htx, htx_msg);
 }
 
-/* Remove all blocks except headers. Trailers will also be removed too. */
+/* Remove all blocks except headers. Trailers will also be removed too.  The EOM
+ * flag, if set on the payload part, it is then reinserted. It means a EOT black
+ * could be added if the message only contains payload.
+ */
 static inline void htx_skip_msg_payload(struct htx *htx)
 {
 	struct htx_blk *blk = htx_get_first_blk(htx);
+	int eom = 0;
 
 	while (blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		blk = ((type > HTX_BLK_EOH)
-		       ? htx_remove_blk(htx, blk)
-		       : htx_get_next_blk(htx, blk));
+		if (type > HTX_BLK_EOH) {
+			eom |= !!(blk->flags & HTX_BLK_FL_EOM);
+			blk = htx_remove_blk(htx, blk);
+		}
+		else
+			blk = htx_get_next_blk(htx, blk);
 	}
+	if (eom)
+		htx_set_eom(htx);
 }
 
 /* Returns the number of used blocks in the HTX message <htx>. Note that it is
