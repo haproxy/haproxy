@@ -55,6 +55,10 @@ void hbuf_str_append(struct hbuf *h, const char *line)
 			}
 			else if (*p == 't')
 				*to++ = '\t';
+			else {
+				/* unexpected escape sequence, treat as literal */
+				*to++ = *p;
+			}
 			p++;
 			h->data++;
 		}
