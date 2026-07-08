@@ -109,7 +109,7 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 	sl->info.req.meth = find_http_meth(istptr(meth), 3);
 
 	htx_add_endof(htx, HTX_BLK_EOH);
-	htx->flags |= HTX_FL_EOM;
+	htx_set_eom(htx);
 	htx_to_buf(htx, &htx_buf);
 
 	hq_trace_req(meth, path, QMUX_EV_QCC_RECV, ist(TRC_LOC), __FUNCTION__, qcs, qcs->qcc);
@@ -202,7 +202,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 		}
 
 		if (fin && to_copy == htx_sent)
-			htx->flags |= HTX_FL_EOM;
+			htx_set_eom(htx);
 	}
 
  out:

@@ -417,7 +417,7 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
   error:
 	/* On error, restore HTX_FL_EOM flag */
 	if (st->flags & DECOMP_STATE_EOM_SEEN)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 	htx_to_buf(htx, &chn->buf);
 	return -1;
 }

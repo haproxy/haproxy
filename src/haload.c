@@ -1215,7 +1215,7 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path)
 		hs->to_send -= hldstream_add_htx_data(hs, htx, hs->to_send);
 
 	if (!hs->to_send)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 	htx_to_buf(htx, &hs->bo);
  leave:
 	ret = 1;
@@ -1248,7 +1248,7 @@ static int hldstream_build_http_body(struct hldstream *hs)
 	htx = htx_from_buf(buf);
 	hs->to_send -= hldstream_add_htx_data(hs, htx, hs->to_send);
 	if (!hs->to_send)
-		htx->flags |= HTX_FL_EOM;
+		htx_set_eom(htx);
 	htx_to_buf(htx, &hs->bo);
  leave:
 	ret = 1;

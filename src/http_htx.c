@@ -1089,8 +1089,7 @@ int http_str_to_htx(struct buffer *buf, struct ist raw, char **errmsg)
 		}
 		ret += sent;
 	}
-
-	htx->flags |= HTX_FL_EOM;
+	htx_set_eom(htx);
 
 	return 1;
 
