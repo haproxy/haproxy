@@ -1,0 +1,48 @@
+varnishtest "Test server from keyword"
+
+feature ignore_unknown_macro
+
+# Do nothing. Is there only to create s1_* macros
+server s1 {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${feS}"
+		use_backend be
+
+	backend be
+		default-server weight 10
+		# ensure that default-server overloading is working as expected
+		default-server inter 5s
+
+		server srvconf1 ${s1_addr}:${s1_port}
+} -start
+
+haproxy h1 -cli {
+	# static server uses by default the default-server
+	send "get weight be/srvconf1"
+	expect ~ "10 \\(initial 10\\)"
+}
+
+# dynamic servers
+haproxy h1 -cli {
+	# dynamic server does not use the default-server by default
+	send "add server be/srvdyn1 ${s1_addr}:${s1_port}"
+	expect ~ "New server registered."
+	send "get weight be/srvdyn1"
+	expect ~ "1 \\(initial 1\\)"
+}

@@ -7352,7 +7352,7 @@ declare capture [ request | response ] len <length>
             "http-request capture" and "http-response capture".
 
 
-default-server [param*]
+default-server [from <origin>] [param*]
   Change default options for a server in a backend
 
   May be used in the following contexts: tcp, http
@@ -7361,6 +7361,11 @@ default-server [param*]
                                  yes   |    no    |   yes  |   yes
 
   Arguments:
+    <origin>  instructs to reinitialize first the set of options to their
+              default values and then reusing the settings from the designated
+              server or default-server instance. See section 5.2 about server
+              options for a complete description of the supported arguments.
+
     <param*>  is a list of parameters for this server. The "default-server"
               keyword accepts an important number of options and has a complete
               section dedicated to it. Please refer to section 5 for more
@@ -12525,7 +12530,7 @@ server-state-file-name [ { use-backend-name | <file> } ]
   See also: "server-state-base", "load-server-state-from-file", and
   "show servers state"
 
-server-template <prefix> <num | range> <fqdn>[:<port>] [params*]
+server-template <prefix> <num | range> <fqdn>[:<port>] [from <origin>] [params*]
   Set a template to initialize servers with shared parameters.
   The names of these servers are built from <prefix> and <num | range> parameters.
 
@@ -12546,6 +12551,10 @@ server-template <prefix> <num | range> <fqdn>[:<port>] [params*]
     <fqdn>    A FQDN for all the servers this template initializes.
 
     <port>    Same meaning as "server" <port> argument (see "server" keyword).
+
+    <origin>  instructs to reuse the settings from the designated server or
+              default-server instance. See section 5.2 about server options for
+              a complete description of the supported arguments.
 
     <params*>
               Remaining server parameters among all those supported by "server"
@@ -18168,16 +18177,24 @@ which are all passed as arguments on the server line. The order in which those
 arguments appear does not count, and they are all optional. Some of those
 settings are single words (booleans) while others expect one or several values
 after them. In this case, the values must immediately follow the setting name.
+
 Except default-server, all those settings must be specified after the server's
-address if they are used:
+address if they are used. Before any of those settings, the extra keyword
+"from" may be used both on "server" and "default-server" lines to preset
+its settings.
 
-  server <name> <address>[:port] [settings ...]
-  default-server [settings ...]
+  server <name> <address>[:port] [from <origin>] [settings ...]
+  default-server [from <origin>] [settings ...]
 
-Note that all these settings are supported both by "server" and "default-server"
-keywords, except "id" which is only supported by "server".
+from <origin>
+  Preinitialize the server settings by copying values from another server or
+  default-server instance.
 
-The currently supported settings are the following ones.
+  Here is the list of the supported values for the "from" keyword :
+
+The currently supported server settings are the following ones. Note that all
+these settings are supported both by "server" and "default-server" keywords,
+except "id" which is only supported by "server".
 
 addr <ipv4|ipv6>
   May be used in the following contexts: tcp, http, log

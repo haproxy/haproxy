@@ -3888,11 +3888,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 		(*cur_arg)++;
  skip_addr:
-		if (!(parse_flags & SRV_PARSE_DYNAMIC)) {
-			/* Copy default server settings to new server */
-			srv_settings_cpy(newsrv, curproxy->defsrv, 0);
-		} else
-			srv_settings_init(newsrv);
 		HA_SPIN_INIT(&newsrv->lock);
 	}
 	else {
@@ -3921,6 +3916,66 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 out:
 	free(fqdn);
+	return err_code;
+}
+
+/* Try to parse optional positional "from" keyword for <srv> server instance.
+ * The keyword is read from <args>. If found <cur_arg> is incremented to the
+ * next argument.
+ *
+ * On return, <from> will point to a server or default-instance from with
+ * settings must be copied. If NULL the server settings must be initialized to
+ * default clean values. If <from> points to <srv>, the caller must neither
+ * reinit or copy settings.
+ *
+ * A mask of errors is returned. ERR_FATAL is set on parsing error.
+ */
+static int _srv_parse_from(struct server *srv, char **args, int *cur_arg,
+                           struct proxy *curproxy, struct server **from,
+                           int parse_flags)
+{
+	int err_code = ERR_NONE;
+
+	if (strcmp(args[*cur_arg], "from") == 0) {
+		if (!*args[*cur_arg + 1]) {
+			ha_alert("from: missing value.\n");
+			err_code |= ERR_FATAL | ERR_ALERT;
+			goto out;
+		}
+		else {
+			ha_alert("invalid '%s' value for 'from' keyword.\n", args[*cur_arg + 1]);
+			err_code |= ERR_FATAL | ERR_ALERT;
+			goto out;
+		}
+
+		*cur_arg += 2;
+
+		/* detect duplicate 'from' keyword usage. */
+		if (strcmp(args[*cur_arg], "from") == 0) {
+			ha_alert("'from' keyword can only be specified once.\n");
+			err_code |= ERR_FATAL | ERR_ALERT;
+			goto out;
+		}
+	}
+	else {
+		/* from keyword not used : fallback to the default behavior. */
+		if (parse_flags & SRV_PARSE_DEFAULT_SERVER) {
+			/* default-server can be defined on multiple lines with settings overriding.
+			 * In this case, caller do not have to reinit or copy the settings.
+			 */
+			*from = srv;
+		}
+		else if (!(parse_flags & SRV_PARSE_DYNAMIC)) {
+			/* Reuses the default-server in the current proxy when parsing configuration files. */
+			*from = curproxy->defsrv;
+		}
+		else {
+			/* Servers added at runtime to not inherit by default from the default-server. */
+			*from = NULL;
+		}
+	}
+
+ out:
 	return err_code;
 }
 
@@ -4113,6 +4168,7 @@ int parse_server(const char *file, int linenum, char **args,
                  int parse_flags)
 {
 	struct server *newsrv = NULL;
+	struct server *from = NULL;
 	int err_code = 0;
 
 	int cur_arg;
@@ -4137,9 +4193,18 @@ int parse_server(const char *file, int linenum, char **args,
 
 	err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
 	                           parse_flags);
-
 	if (err_code & ERR_CODE)
 		goto out;
+
+	err_code = _srv_parse_from(newsrv, args, &cur_arg, curproxy, &from,
+	                           parse_flags);
+	if (err_code & ERR_FATAL)
+		goto out;
+
+	if (newsrv != from) {
+		/* This will copy <from> settings or init them if NULL. */
+		srv_settings_cpy(newsrv, from, !!(parse_flags & SRV_PARSE_TEMPLATE));
+	}
 
 	if (!newsrv->conf.file) // note: do it only once for default-server
 		newsrv->conf.file = strdup(file);
@@ -6366,7 +6431,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 {
 	struct add_srv_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct proxy *be;
-	struct server *srv;
+	struct server *srv, *from = NULL;
 	char *be_name, *sv_name, *errmsg;
 	int errcode, argc;
 	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
@@ -6429,6 +6494,11 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	errcode = _srv_parse_init(&srv, args, &argc, be, parse_flags);
 	if (errcode)
 		goto out;
+
+	errcode = _srv_parse_from(srv, args, &argc, be, &from, parse_flags);
+	if (errcode)
+		goto out;
+	srv_settings_cpy(srv, from, 0);
 
 	while (*args[argc]) {
 		errcode = _srv_parse_kw(srv, args, &argc, be, parse_flags);
