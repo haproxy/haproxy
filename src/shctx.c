@@ -226,30 +226,22 @@ int shctx_row_data_append(struct shared_context *shctx, struct shared_block *fir
 int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
                        unsigned char *dst, int offset, int len)
 {
-	int count = 0, size = 0, start = -1;
+	int count, size, start = -1;
 	struct shared_block *block;
 
 	/* can't copy more */
 	if (len > first->len)
 		len = first->len;
 
-	block = first;
-	count = 0;
-	/* Pass through the blocks to copy them */
-	do {
-		if (count >= first->block_count  || len <= 0)
-			break;
-
-		count++;
-		/* continue until we are in right block
-		   corresponding to the offset */
-		if (count < offset / shctx->block_size + 1)
+	/* Walk the blocks, skipping those that precede the one holding <offset>. */
+	for (block = first, count = 0; count < first->block_count && len > 0;
+	     block = LIST_ELEM(block->list.n, struct shared_block *, list), count++) {
+		if (count < offset / shctx->block_size)
 			continue;
 
-		/* on the first block, data won't possibly began at offset 0 */
+		/* the first copied block may not start at its beginning */
 		if (start == -1)
-			start = offset - (count - 1) * shctx->block_size;
-
+			start = offset - count * shctx->block_size;
 		BUG_ON(start < 0);
 
 		/* size can be lower than a block when copying the last block */
@@ -260,9 +252,7 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 		dst += size;
 		len -= size;
 		start = 0;
-
-		block = LIST_ELEM(block->list.n, struct shared_block*, list);
-	} while (block != first);
+	}
 	return len;
 }
 
