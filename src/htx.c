@@ -368,6 +368,7 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
  */
 struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 {
+	struct htx_blk *prevblk, *nextblk;
 	enum htx_blk_type type;
 	uint32_t pos, addr, sz;
 
@@ -382,6 +383,15 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 		return NULL;
 	}
 
+	/* Get prev and next blocks, skipping all UNUSED blocks.
+	 *   <prevblk> may NULL if the head is removed otherwise it must exists
+	 *   <nextblk> may NULL if the tail is removed otherwise it must exists
+	 */
+	prevblk = htx_get_prev_blk(htx, blk);
+	nextblk = htx_get_next_blk(htx, blk);
+
+	/* There is at least 2 used blocks, so (head != tail and tail > 0) */
+
 	type = htx_get_blk_type(blk);
 	pos  = htx_get_blk_pos(htx, blk);
 	sz   = htx_get_blksz(blk);
@@ -394,26 +404,24 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 		blk->info = ((uint32_t)HTX_BLK_UNUSED << 28);
 	}
 
-	/* There is at least 2 blocks, so tail is always > 0 */
+
 	if (pos == htx->head) {
 		/* move the head forward */
-		htx->head++;
+		BUG_ON_HOT(prevblk != NULL || nextblk == NULL);
+		htx->head = htx_get_blk_pos(htx, nextblk);
 	}
 	else if (pos == htx->tail) {
-		/* remove the tail. this was the last inserted block so
-		 * return NULL. */
-		htx->tail--;
-		blk = NULL;
+		/* remove the tail */
+		BUG_ON_HOT(prevblk == NULL || nextblk != NULL);
+		htx->tail = htx_get_blk_pos(htx, prevblk);
 		goto end;
 	}
 	else
 		htx->flags |= HTX_FL_FRAGMENTED;
 
-	blk = htx_get_blk(htx, pos+1);
-
   end:
 	if (pos == htx->first)
-		htx->first = (blk ? htx_get_blk_pos(htx, blk) : -1);
+		htx->first = (nextblk ? htx_get_blk_pos(htx, nextblk) : -1);
 
 	if (htx->head == htx->tail) {
 		/* If there is just one block in the HTX message, free space can
@@ -443,7 +451,7 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 	BUG_ON((int32_t)htx->head_addr < 0);
 	BUG_ON(htx->end_addr > htx->tail_addr);
 	BUG_ON(htx->head_addr > htx->end_addr);
-	return blk;
+	return nextblk;
 }
 
 /* Looks for the HTX block containing the offset <offset>, starting at the HTX

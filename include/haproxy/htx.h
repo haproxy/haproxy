@@ -272,16 +272,22 @@ static inline int32_t htx_get_prev(const struct htx *htx, uint32_t pos)
 	return (pos - 1);
 }
 
-/* Returns the HTX block before <blk> in the HTX message <htx>. If <blk> is the
- * head, NULL returned.
+/* Returns the HTX block before <blk> in the HTX message <htx>, skipping all
+ * UNUSED blocks. If <blk> is the head, NULL returned.
  */
 static inline struct htx_blk *htx_get_prev_blk(const struct htx *htx,
 					       const struct htx_blk *blk)
 {
-	int32_t pos;
+	struct htx_blk *pblk = NULL;
+	int32_t pos = htx_get_blk_pos(htx, blk);
 
-	pos = htx_get_prev(htx, htx_get_blk_pos(htx, blk));
-	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+	for (pos = htx_get_prev(htx, pos); pos != -1; pos = htx_get_prev(htx, pos)) {
+		pblk = htx_get_blk(htx, pos);
+		if (htx_get_blk_type(pblk) != HTX_BLK_UNUSED)
+			break;
+		pblk = NULL;
+	}
+	return pblk;
 }
 
 /* Returns the position of block immediately after the one pointed by <pos>. If
@@ -295,17 +301,24 @@ static inline int32_t htx_get_next(const struct htx *htx, uint32_t pos)
 
 }
 
-/* Returns the HTX block after <blk> in the HTX message <htx>. If <blk> is the
- * tail, NULL returned.
+/* Returns the HTX block after <blk> in the HTX message <htx>, skipping UNUSED
+ * blocks. If <blk> is the tail, NULL returned.
  */
 static inline struct htx_blk *htx_get_next_blk(const struct htx *htx,
 					       const struct htx_blk *blk)
 {
-	int32_t pos;
+	struct htx_blk *nblk = NULL;
+	int32_t pos = htx_get_blk_pos(htx, blk);
 
-	pos = htx_get_next(htx, htx_get_blk_pos(htx, blk));
-	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+	for (pos = htx_get_next(htx, pos); pos != -1; pos = htx_get_next(htx, pos)) {
+		nblk = htx_get_blk(htx, pos);
+		if (htx_get_blk_type(nblk) != HTX_BLK_UNUSED)
+			break;
+		nblk = NULL;
+	}
+	return nblk;
 }
+
 
 /* Returns the position of the first block in the HTX message <htx>. -1 means
  * the first block is unset or the HTS is empty.
@@ -315,15 +328,21 @@ static inline int32_t htx_get_first(const struct htx *htx)
 	return htx->first;
 }
 
-/* Returns the first HTX block in the HTX message <htx>. If unset or if <htx> is
- * empty, NULL returned.
+/* Returns the first HTX block in the HTX message <htx>, skipping UNUSED
+ * blocks. If unset or if <htx> is empty, NULL returned.
  */
 static inline struct htx_blk *htx_get_first_blk(const struct htx *htx)
 {
+	struct htx_blk *fblk = NULL;
 	int32_t pos;
 
-	pos = htx_get_first(htx);
-	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+		fblk = htx_get_blk(htx, pos);
+		if (htx_get_blk_type(fblk) != HTX_BLK_UNUSED)
+			break;
+		fblk = NULL;
+	}
+	return fblk;
 }
 
 /* Returns the type of the first block in the HTX message <htx>. If unset or if
