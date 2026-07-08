@@ -21,7 +21,7 @@ jobs:
       - name: "Build and test on FreeBSD"
         uses: vmactions/freebsd-vm@v1
         with:
-          release: "14.3"
+          release: "14.4"
           prepare: |
             pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua54 socat pcre2 python3
           run: |
