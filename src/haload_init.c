@@ -187,7 +187,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	struct hld_url_cfg *purl;
 	struct hld_path *p = NULL;
 	struct hbuf opts_buf = HBUF_NULL;
-	char quic_addr[128];
+	char quic_addr[128], tmp_addr[16];
 
 	if (strncmp(url, "http://", 7) == 0)
 		addr = url + 7;
@@ -248,6 +248,11 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 			return hld_url_cfg;
 		}
+	}
+
+	if (addr[0] == '0' && addr[1] == ':') {
+		snprintf(tmp_addr, sizeof(tmp_addr), "0.0.0.0:%s", addr + 2);
+		addr = tmp_addr;
 	}
 
 	if (!is_quic) {
