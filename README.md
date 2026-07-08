@@ -41,6 +41,7 @@ Please refer to the following files depending on what you're looking for:
   - [BRANCHES](BRANCHES) to understand the project's life cycle and what version to use
   - [LICENSE](LICENSE) for the project's license
   - [CONTRIBUTING](CONTRIBUTING) for the process to follow to submit contributions
+  - [ doc/haterm.txt ](doc/haterm.txt) and [ doc/haload.txt ](doc/haload.txt) for load generation utilities
 
 The more detailed documentation is located into the doc/ directory:
 
