@@ -346,10 +346,10 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 			for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 				enum htx_blk_type type = htx_get_blk_type(blk);
 
-				if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
-					break;
 				if (type == HTX_BLK_DATA)
 					len += htx_get_blksz(blk);
+				if (type == HTX_BLK_TLR || type == HTX_BLK_EOT || (blk->flags & HTX_BLK_FL_EOM))
+					break;
 			}
 			end = ultoa_o(len, trash.area, trash.size);
 			if (http_add_header(htx, ist("content-length"), ist2(trash.area, end-trash.area), 0)) {
