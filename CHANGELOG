@@ -1,6 +1,122 @@
 ChangeLog :
 ===========
 
+2026/07/08 : 3.5-dev2
+    - MINOR: proxy: permit to report version info for option deprecation
+    - MAJOR: proxy: remove support for "dispatch" and "transparent" proxy keywords
+    - MEDIUM: cli/show-fd: no longer accept filtering for dispatch mode
+    - CLEANUP: connection: remove some checks for objt_proxy(conn->target)
+    - CLEANUP: backend: drop checks for OBJ_TYPE_PROXY in connect() code
+    - CLEANUP: trace: remove backend retrieval attempt from conn->target
+    - MAJOR: ot: remove deprecated OpenTracing support
+    - BUG/MEDIUM: h3: fix trace crash on frontend response headers
+    - CI: github: remove OpenTracing leftovers
+    - BUG/MEDIUM: mux_quic: fix memory leak of rx app_buf on stream free
+    - MINOR: ssl: export ssl_sock_init_srv()
+    - MEDIUM: httpclient: initialize the httpclient with default SSL values
+    - BUG/MINOR: hq-interop: fix transcoding of wrapping response buffer
+    - BUG/MINOR: hq-interop: support transcoding of absolute URI
+    - BUG/MINOR: h3: adjust HTTP headers traces
+    - MINOR: mux_quic: add minimal traces for QUIC MUX init/release
+    - MINOR: hq-interop: add request start-line traces
+    - MINOR: hq-interop: trace transcoding of response status line
+    - MINOR: hq-interop: trace HTX headers
+    - BUG/MEDIUM: server: initialise agent.health in srv_settings_init()
+    - BUG/MINOR: sample: set SMP_F_CONST on srv_name fetch
+    - MINOR: server: distinguish name references with new SRV_F_NAME_REFD flag
+    - MEDIUM: server: add 'set server name' CLI command for runtime server renaming
+    - REGTESTS: server: add test for 'set server name' CLI command
+    - DOC: server: document 'set server name' CLI command
+    - BUG/MEDIUM: servers: Use a refcount for port_range and free it properly
+    - MINOR: hbuf: new lightweight hbuf API
+    - MINOR: init: add no listener mode
+    - MINOR: trace: add definitions for haload streams
+    - MINOR: hldstream: add definition of hldstream struct objects
+    - MINOR: obj_type: add OBJ_TYPE_HALOAD for haload stream objects
+    - MINOR: stconn: add sc_hastream() and __sc_hastream() helpers
+    - MINOR: stconn: export sc_new()
+    - MINOR: server: export functions used during server initialization
+    - MINOR: haload: import source code and documentation
+    - MINOR: log: add app_log_raw() and send_log_raw() for binary-safe logging
+    - BUG/MINOR: init: fix default global settings being overwritten by -G
+    - BUG/MINOR: tools: fix invalid character detection in strl2ic()
+    - BUG/MAJOR: htx: Don't swap buffers for empty HTX message with an error
+    - CLEANUP: applet/http-client: Don't needlessly copy HTX flags after htx_xfer()
+    - BUG/MINOR: mux-quic: Fix handling EOM after in qcs_http_rcv_buf()
+    - BUG/MINOR: http-htx: Don't by-pass HTX API when merging cookie values
+    - BUG/MEDIUM: h3: fix parser desync on error with multiple frames
+    - BUG/MINOR: mux_quic: prevent multiple STOP_SENDING emission per stream
+    - BUILD: quic: workaround a gcc bug saying "maybe used uninitialized" when USE_TRACE=0
+    - CLEANUP: traces: get rid of a few rare empty args in TRACE calls
+    - MINOR: compiler: add a macro to ignore all arguments
+    - MINOR: trace: always pretend to use args when disabled
+    - BUILD: ssl: avoid a wrong null deref warning in ssl_sock_handshake
+    - CLEANUP: haproxy: remove -dt parsing and help when !USE_TRACE
+    - CLEANUP: mux-h2/traces: remove unused trace code when building without USE_TRACE
+    - CLEANUP: debug/trace: remote "debug dev trace" when USE_TRACE is not set
+    - BUG/MINOR: trace/quic_frame: use buf, not trace_buf in chunk_frm_appendf()
+    - CLEANUP: trace/h3: allow to disable traces in H3
+    - CLEANUP: trace/config: do not register section "traces" with USE_TRACE=0
+    - CLEANUP: trace/tree-wide: drop trace decoding/definition when USE_TRACE=0
+    - BUILD: makefile: only build trace.c and ssl_trace.c when USE_TRACE is set
+    - BUILD: makefile: add macros enable_opts and disable_opts
+    - BUILD: makefile: add an option to enable or disable HTTP/2 (USE_H2)
+    - BUILD: makefile: add an option to enable or disable FCGI (USE_FCGI)
+    - BUILD: makefile: add an option to enable or disable SPOE (USE_SPOE)
+    - BUILD: makefile: add a new generic target "tiny"
+    - BUG/MEDIUM: mux_quic: do not free QCS if STOP_SENDING to sent
+    - MINOR: mux_quic: use separate error code for STOP_SENDING
+    - MINOR: mux_quic: adjust shut stream callback
+    - BUG/MEDIUM: mux_quic: complete stream shutdown for read channel
+    - BUG/MINOR: quic: ignore STREAM after MUX closure on BE side
+    - BUG/MEDIUM: fd: Fix a deadlock when closing other tgroups fds
+    - MEDIUM: quic: remove deprecated keywords
+    - DEV: patchbot: keep the review start in sync with the radios on reload
+    - DEV: patchbot: only display the first 8 chars of the commit id
+    - DEV: patchbot: pass the branch version to the generated page
+    - DEV: patchbot: let the page fetch the shared review state
+    - DEV: patchbot: let the page save the review edits to the server
+    - DEV: patchbot: let the page edit and delete whole notes
+    - DEV: patchbot: gray the save button when there is nothing to save
+    - DEV: patchbot: don't pretend a save succeeded when the server ignored it
+    - DEV: patchbot: tolerate polluted save responses and show server warnings
+    - DEV: patchbot: repeat the syncing buttons at the bottom of the page
+    - DEV: patchbot: update: add an awk backend to persist review edits
+    - DEV: patchbot: update: return the stored overlay as JSON on GET
+    - DEV: patchbot: update: support replacing a whole note blob (setnotes)
+    - DEV: patchbot: update: report git commit failures in the save response
+    - DEV: patchbot: update: report the exact git error to the user
+    - DEV: patchbot: update: never write to stderr, thttpd sends it first
+    - DEV: patchbot: update: name the touched commits in the storage messages
+    - DEV: patchbot: document the shared review persistence
+    - BUG/MINOR: haload: fix spurious task wakeup in hld_strm_task()
+    - BUG/MINOR: hbuf: treat unexpected escape sequences as literals
+    - BUG/MEDIUM: tcpcheck: Add proxy used for healthcheck sections in proxies list
+    - BUG/MINOR: sample: Fix a possible underflow on be2hex for large chunk size
+    - MINOR: chunks: Add function to get a large/regular chunk depending on a buffer
+    - BUG/MEDIUM: chunk: Review chunks usage to not retrieve a large buffer by error
+    - MINOR: htx: Add a field to save the headers data size
+    - MEDIUM: htx: Be sure size of headers never exceed regular buffer on update
+    - BUG/MINOR: stream: Fix custom timeouts initialization when setting backend
+    - REGTESTS: Improve script testing the set-timeout action
+    - BUG/MINOR: stream: Fix custom max-retries initialization when setting backend
+    - MINOR: stream: Add be_max_retries/cur_max_retries sample fetch functions
+    - BUG/MINOR: http-conv: Make url-dec failed if no space for trailing null byte
+    - MAJOR: mworker: remove deprecated "master-worker" global keyword
+    - DOC: haterm: add a missing 'haterm' build target on an example
+    - DOC: readme: add a pointer to haterm/haload docs
+    - MINOR: ocsp: Do not see ocsp loading failures as fatal anymore
+    - REGTESTS: Remove unused `add_range_to_test_list` function from `scripts/run-regtests.sh`
+    - REGTESTS: Remove unused `_version` function from `scripts/run-regtests.sh`
+    - REGTESTS: Migrate REQUIRE_OPTION to `haproxy -cc`
+    - REGTESTS: Remove support for `REQUIRE_OPTION` from scripts/run-regtests.sh
+    - REGTESTS: Migrate `REQUIRE_SERVICE=prometheus-exporter` to a `feature(PROMEX)` check
+    - REGTESTS: Remove support for `REQUIRE_SERVICE` from scripts/run-regtests.sh
+    - CI: github: update vmactions/freebsd-vm to 14.4
+    - MINOR: haload: move statistics header printing to mtask_cb
+    - MINOR: haterm: add note about QUIC usage on SSL port
+    - MINOR: haload: allow "0" shortcut for IPv4 bind address
+
 2026/06/25 : 3.5-dev1
     - BUG/MEDIUM: check: Skip tcpcheck post-config for external checks
     - BUG/MEDIUM: check: Ignore small-buffer option when starting an external check
