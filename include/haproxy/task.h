@@ -245,7 +245,7 @@ static inline int __task_set_state_and_tid(struct task *t, int expected_tid, int
 #endif
 	return 1;
 #else /* !HA_CAS_IS_8B && !HA_HAVE_CAS_DW */
-	int old_state;
+	unsigned int old_state;
 	int ret = 0;
 
 	HA_SPIN_LOCK(OTHER_LOCK, &task_state_tid);
