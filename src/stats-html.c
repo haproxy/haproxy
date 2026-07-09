@@ -1668,7 +1668,8 @@ static int stats_process_http_post(struct stconn *sc)
 	struct htx_blk *blk;
 
 	/*  we need more data */
-	if (!(htx->flags & HTX_FL_HAS_EOM)) {
+	blk = ASSUME_NONNULL(htx_get_tail_blk(htx));
+	if (!(blk->flags & HTX_BLK_FL_EOM)) {
 		/* check if we can receive more */
 		if (applet_fl_test(appctx, APPCTX_FL_INBLK_FULL)) {
 			ctx->st_code = STAT_STATUS_EXCD;
