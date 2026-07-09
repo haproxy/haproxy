@@ -2273,7 +2273,7 @@ int check_config_validity()
 	struct proxy *defpx;
 	struct list *init_proxies_list = NULL;
 	struct stktable *t;
-	struct server *newsrv = NULL;
+	struct server *newsrv = NULL, *defsrv;
 	struct mt_list back;
 	int err_code = 0;
 	/* Value forced to skip '1' due to an historical bug, see below for more details. */
@@ -2429,11 +2429,19 @@ init_proxies_list_stage1:
 			cfgerr++;
 		}
 
-		/* Remove default-server if tune.defaults.purge is set for it. */
+		/* Remove default-server instances if tune.defaults.purge is set for it. */
 		if (curproxy->cap & PR_CAP_BE && (global.tune.options & GTUNE_PURGE_DEF_SRV)) {
+			/* remove unnamed default server */
 			if (curproxy->defsrv) {
 				srv_free_params(curproxy->defsrv);
 				srv_free(&curproxy->defsrv);
+			}
+
+			/* also removed named default servers */
+			while ((defsrv = cebuis_item_first(&curproxy->defsrv_by_name, conf.name_node, id, struct server))) {
+				cebuis_item_delete(&curproxy->defsrv_by_name, conf.name_node, id, defsrv);
+				srv_free_params(defsrv);
+				srv_free(&defsrv);
 			}
 		}
 

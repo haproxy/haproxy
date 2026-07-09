@@ -327,6 +327,7 @@ static inline void proxy_free_common(struct proxy *px)
 void deinit_proxy(struct proxy *p)
 {
 	struct server *s, *s_back;
+	struct server *defsrv;
 	struct cap_hdr *h,*h_next;
 	struct listener *l,*l_next;
 	struct bind_conf *bind_conf, *bind_back;
@@ -422,6 +423,12 @@ void deinit_proxy(struct proxy *p)
 	if (p->defsrv) {
 		srv_free_params(p->defsrv);
 		srv_free(&p->defsrv);
+	}
+
+	while ((defsrv = cebuis_item_first(&p->defsrv_by_name, conf.name_node, id, struct server))) {
+		cebuis_item_delete(&p->defsrv_by_name, conf.name_node, id, defsrv);
+		srv_free_params(defsrv);
+		srv_free(&defsrv);
 	}
 
 	if (p->lbprm.ops && p->lbprm.ops->proxy_deinit)
@@ -4326,7 +4333,7 @@ static int post_section_px_cleanup()
 	 * executed for defaults section as this may still be useful.
 	 */
 	if ((curproxy->cap & PR_CAP_LISTEN) && !(curproxy->cap & PR_CAP_DEF)) {
-		/* Default-server is removed if it does not define specific setting. */
+		/* Unnamed default-server is removed if it does not define specific setting. */
 		if (curproxy->defsrv && !(curproxy->defsrv->flags & SRV_F_UMODIFIED)) {
 			srv_free_params(curproxy->defsrv);
 			srv_free(&curproxy->defsrv);

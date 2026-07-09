@@ -3893,24 +3893,65 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		HA_SPIN_INIT(&newsrv->lock);
 	}
 	else {
-		/* This is a "default-server" line. Let's make certain the
-		 * current proxy's default server exists, otherwise it's
-		 * time to allocate it now.
-		 */
-		newsrv = curproxy->defsrv;
+		char *name;
+
+		/* Parse optional "name" default-server keyword. */
+		if (*args[1] && strcmp(args[1], "name") == 0) {
+			if (!*args[2]) {
+				ha_alert("default-server name: missing value.\n");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			*cur_arg = 3;
+			name = strdup(args[2]);
+			if (!name) {
+				ha_alert("out of memory.\n");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			/* Retrieve default-server by its name. */
+			newsrv = cebuis_item_lookup(&curproxy->defsrv_by_name,
+			                            conf.name_node, id, name,
+			                            struct server);
+		}
+		else {
+			/* unnamed default-server instance */
+			*cur_arg = 1;
+			name = NULL;
+			newsrv = curproxy->defsrv;
+		}
+
 		if (!newsrv) {
+			/* Allocate non-existing yet default-server instance. */
+			struct server *srv_other;
+
+			if (name && (srv_other = server_find_by_name(curproxy, name))) {
+				ha_alert("default-server name '%s' conflicts with server defined at line %d.\n",
+				         name, srv_other->conf.line);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
 			newsrv = srv_alloc();
 			if (!newsrv) {
 				ha_alert("out of memory.\n");
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-			newsrv->id = NULL;
+			newsrv->id = name;
 			srv_settings_init(newsrv);
-			curproxy->defsrv = newsrv;
+
+			if (newsrv->id) {
+				cebuis_item_insert(&curproxy->defsrv_by_name,
+				                   conf.name_node, id, newsrv);
+			}
+			else {
+				curproxy->defsrv = newsrv;
+			}
 		}
 		*srv = newsrv;
-		*cur_arg = 1;
 	}
 
 	free(fqdn);
@@ -3987,7 +4028,9 @@ static int _srv_parse_from(struct server *srv, char **args, int *cur_arg,
 			*from = srv;
 		}
 		else if (!(parse_flags & SRV_PARSE_DYNAMIC)) {
-			/* Reuses the default-server in the current proxy when parsing configuration files. */
+			/* Reuses the unnamed default-server in the same proxy
+			 * for servers declared in the configuration files.
+			 */
 			*from = curproxy->defsrv;
 		}
 		else {

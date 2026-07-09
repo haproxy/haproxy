@@ -7370,8 +7370,8 @@ declare capture [ request | response ] len <length>
             "http-request capture" and "http-response capture".
 
 
-default-server [from <origin>] [param*]
-  Change default options for a server in a backend
+default-server [name <name>] [from <origin>] [param*]
+  Changes a set of options reusable for future server declarations.
 
   May be used in the following contexts: tcp, http
 
@@ -7379,6 +7379,9 @@ default-server [from <origin>] [param*]
                                  yes   |    no    |   yes  |   yes
 
   Arguments:
+    <name>    specifies a named default-instance instead of the default
+              anonymous one.
+
     <origin>  instructs to reinitialize first the set of options to their
               default values and then reusing the settings from the designated
               server or default-server instance. See section 5.2 about server
@@ -7392,12 +7395,18 @@ default-server [from <origin>] [param*]
   Example :
         default-server inter 1000 weight 13
 
-  Multiple default-server lines can be specified in the same backend with each
-  new line completing the previous one. This set of options can be reset by
-  using the "from none" keyword value.
+  Several sets of options can be defined per backend instance. A backend always
+  contains an unnamed default-server which is selected when <name> argument is
+  not present. A named default-server can be created by specifying the <name>
+  argument with a value. This name must not collide with servers in the same
+  backend.
 
-  A default-server with no parameter set will automatically be purged after
-  parsing. As such, a final "default-server from none" statement will be
+  The same default-server can be defined over multiple lines, with each line
+  completing the previous one. This set of options can be reset by using the
+  "from none" keyword value.
+
+  An unnamed default-server with no parameter set will automatically be purged
+  after parsing. As such, a final "default-server from none" statement will be
   sufficient to release this unused memory, regardless of the global setting
   "tune.defaults.purge" value.
 
@@ -18212,7 +18221,7 @@ address if they are used. Before any of those settings, the extra keyword
 its settings.
 
   server <name> <address>[:port] [from <origin>] [settings ...]
-  default-server [from <origin>] [settings ...]
+  default-server [name <name>] [from <origin>] [settings ...]
 
 from <origin>
   Preinitialize the server settings by copying values from another server or

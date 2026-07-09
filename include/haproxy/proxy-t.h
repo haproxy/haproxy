@@ -369,6 +369,7 @@ struct proxy {
 #endif
 	struct list servers;		/* servers present in current backend */
 	struct server *defsrv;			/* default server configuration */
+	struct ceb_root *defsrv_by_name;	/* named default servers */
 	struct lbprm lbprm;			/* load-balancing parameters */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
 	int load_server_state_from_file;	/* location of the file containing server state.
