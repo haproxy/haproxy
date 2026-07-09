@@ -3321,7 +3321,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 				return 1;
 			}
 
-			curproxy->defsrv->id = "default-server";
+			curproxy->defsrv->id = NULL;
 			srv_settings_init(curproxy->defsrv);
 		}
 		srv_settings_cpy(curproxy->defsrv, defproxy->defsrv, 0);

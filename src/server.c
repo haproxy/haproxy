@@ -3212,6 +3212,7 @@ void srv_free_params(struct server *srv)
 {
 	struct srv_pp_tlv_list *srv_tlv = NULL;
 
+	free(srv->id);
 	free(srv->cookie);
 	free(srv->rdr_pfx);
 	free(srv->hostname);
@@ -3289,8 +3290,6 @@ void srv_drop(struct server *srv)
 		tasklet_kill(srv->requeue_tasklet);
 	task_destroy(srv->warmup);
 	task_destroy(srv->srvrq_check);
-
-	free(srv->id);
 
 #ifdef USE_QUIC
 	if (srv->per_thr) {
@@ -3906,7 +3905,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-			newsrv->id = "default-server";
+			newsrv->id = NULL;
 			srv_settings_init(newsrv);
 			curproxy->defsrv = newsrv;
 		}
