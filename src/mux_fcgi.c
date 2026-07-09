@@ -2137,6 +2137,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	enum htx_blk_type type;
 	uint32_t size, extra_bytes;
 	size_t total = 0;
+	int send_empty_stdin_now = 0;
 
 	extra_bytes = 0;
 
@@ -2184,11 +2185,12 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (unlikely(size <= 0xFFFF && size == count && b_size(mbuf) == b_size(buf) &&
 		     htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = mbuf->area;
-		int eom = (htx->flags & HTX_FL_HAS_EOM);
 
 		 /* Last block of the message: Reserve the size for the empty stdin record */
-		if (eom)
+		if (blk->flags & HTX_BLK_FL_EOM) {
+			send_empty_stdin_now = 1;
 			extra_bytes = FCGI_RECORD_HEADER_SZ;
+		}
 
 		if (b_data(mbuf)) {
 			/* Too bad there are data left there. We're willing to memcpy/memmove
@@ -2223,9 +2225,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
 		htx = (struct htx *)buf->area;
 		htx_reset(htx);
-		if (eom)
-			goto empty_stdin;
-		goto end;
+		goto out;
 	}
 
   copy:
@@ -2262,8 +2262,10 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 				TRACE_PROTO("sending stding data", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){size});
 				v = htx_get_blk_value(htx, blk);
 
-				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM))
+				if (blk->flags & HTX_BLK_FL_EOM) {
+					send_empty_stdin_now = 1;
 					extra_bytes = FCGI_RECORD_HEADER_SZ; /* Last block of the message */
+				}
 
 				if (v.len > count) {
 					v.len = count;
@@ -2286,12 +2288,14 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 				if (!v.len || !chunk_memcat(&outbuf, v.ptr, v.len)) {
 					if (outbuf.data == FCGI_RECORD_HEADER_SZ)
 						goto full;
+					send_empty_stdin_now = 0;
 					goto done;
 				}
 				if (v.len != size) {
 					total += v.len;
 					count -= v.len;
 					htx_cut_data_blk(htx, blk, v.len);
+					send_empty_stdin_now = 0;
 					goto done;
 				}
 				break;
@@ -2310,9 +2314,9 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	fcgi_set_record_size(outbuf.area, outbuf.data - FCGI_RECORD_HEADER_SZ);
 	b_add(mbuf, outbuf.data);
 
+  out:
 	/* Send the empty stding here to finish the message */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_HAS_EOM)) {
-	  empty_stdin:
+	if (send_empty_stdin_now) {
 		TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 		if (!fcgi_strm_send_empty_stdin(fconn, fstrm)) {
 			/* bytes already reserved for this record. It should not fail */
@@ -4169,7 +4173,8 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 		 * full. Otherwise, the request is invalid.
 		 */
 		sl = http_get_stline(htx);
-		if (!sl || (!(sl->flags & HTX_SL_F_CLEN) && !(htx->flags & HTX_FL_HAS_EOM))) {
+		blk = ASSUME_NONNULL(htx_get_tail_blk(htx));
+		if (!sl || (!(sl->flags & HTX_SL_F_CLEN) && !(blk->flags & HTX_BLK_FL_EOM))) {
 			htx->flags |= HTX_FL_PARSING_ERROR;
 			fcgi_strm_error(fstrm);
 			goto done;
@@ -4209,7 +4214,7 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 					if (!ret)
 						goto done;
 				}
-				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM)) {
+				if (blk->flags & HTX_BLK_FL_EOM) {
 					TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 					ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
 					if (!ret)
@@ -4230,7 +4235,7 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 				break;
 
 			case HTX_BLK_EOT:
-				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM)) {
+				if (blk->flags & HTX_BLK_FL_EOM) {
 					TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 					ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
 					if (!ret)
