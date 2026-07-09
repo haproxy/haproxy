@@ -229,9 +229,11 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 	int count, size, start = -1;
 	struct shared_block *block;
 
-	/* can't copy more */
-	if (len > first->len)
-		len = first->len;
+	/* can't copy more than what is stored past <offset> */
+	if (offset >= first->len)
+		return len;
+	if (len > first->len - offset)
+		len = first->len - offset;
 
 	/* Walk the blocks, skipping those that precede the one holding <offset>. */
 	for (block = first, count = 0; count < first->block_count && len > 0;
