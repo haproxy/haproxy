@@ -3962,6 +3962,44 @@ out:
 	return err_code;
 }
 
+/* Look up a server according to <sv_name> argument of the form [<be>/]<srv>.
+ * Both standard and default-server are searched. If the proxy is not
+ * specified, caller must set <curproxy> as a default value. If the server is
+ * not found, <msg> is allocated to indicate the failure reason.
+ *
+ * Returns the server instance or NULL if not found.
+ */
+static struct server *lookup_srv_be_arg(struct ist sv_name,
+                                        struct proxy *curproxy,
+                                        char **msg)
+{
+	struct server *srv;
+	struct ist be_name;
+	struct proxy *px = curproxy;
+
+	if (istchr(sv_name, '/')) {
+		be_name = istsplit(&sv_name, '/');
+		px = proxy_be_by_name(ist0(be_name));
+		if (!px) {
+			memprintf(msg, "unknown backend '%s'", istptr(be_name));
+			return NULL;
+		}
+	}
+
+	if (!istlen(sv_name) || !px) {
+		memprintf(msg, "require <backend>/<server>");
+		return NULL;
+	}
+
+	srv = server_find_by_name2(px, istptr(sv_name));
+	if (!srv) {
+		memprintf(msg, "unknown server '%s' in backend '%s'",
+		          istptr(sv_name), px->id);
+	}
+
+	return srv;
+}
+
 /* Try to parse optional positional "from" keyword for <srv> server instance.
  * The keyword is read from <args>. If found <cur_arg> is incremented to the
  * next argument.
@@ -4003,6 +4041,18 @@ static int _srv_parse_from(struct server *srv, char **args, int *cur_arg,
 			}
 
 			*from = px->defsrv;
+		}
+		else if (strncmp(args[*cur_arg + 1], "srv:", 4) == 0) {
+			struct ist sv_name = istadv(ist(args[*cur_arg + 1]), 4);
+			char *errmsg = NULL;
+
+			*from = lookup_srv_be_arg(sv_name, curproxy, &errmsg);
+			if (!*from) {
+				ha_alert("from: %s.\n", errmsg);
+				ha_free(&errmsg);
+				err_code = ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 		else {
 			ha_alert("invalid '%s' value for 'from' keyword.\n", args[*cur_arg + 1]);

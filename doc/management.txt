@@ -1812,8 +1812,8 @@ add server <backend>/<server> [args]*
 
   By default, 'default-server' is ignored by a dynamically created server.
   However, it is possible to use the 'from' server positional keyword to
-  explicitely preset the settings of the newly created server from a
-  default-server instance.
+  explicitely preset the settings of the newly created server from another
+  server or a default-server instance, either named or unnamed.
 
   Currently a dynamic server is statically initialized with the "none"
   init-addr method. This means that no resolution will be undertaken if a FQDN
