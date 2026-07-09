@@ -1484,6 +1484,22 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 		}
 		return 0;
 	}
+	else if (strcmp(args[0], "tune.fd.tables") == 0) {
+#ifdef CLONE_FILES
+		if (strcmp(args[1], "per-thread-group") == 0)
+			global.tune.options |= GTUNE_NO_TG_FD_SHARING;
+		else if (strcmp(args[1], "shared") == 0)
+			global.tune.options &= ~GTUNE_NO_TG_FD_SHARING;
+		else {
+			memprintf(err, "'%s' expects 'shared' or 'per-thread-group', got '%s'", args[0], args[1]);
+			return -1;
+		}
+		return 0;
+#else
+		memprintf(err, "'%s' is not supported on that platform", args[0]);
+		return -1;
+#endif
+	}
 	else {
 		BUG_ON(1, "Triggered in cfg_parse_global_tune_opts() by unsupported keyword.");
 		return -1;
@@ -1882,6 +1898,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.defaults.purge", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.disable-fast-forward", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
+	{ CFG_GLOBAL, "tune.fd.tables", cfg_parse_global_tune_opts, KWF_EXPERIMENTAL },
 	{ CFG_GLOBAL, "tune.glitches.kill.cpu-usage", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.http.cookielen", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.http.logurilen", cfg_parse_global_tune_opts },
