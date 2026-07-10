@@ -826,6 +826,12 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	applet_need_more_data(app);
 	applet_have_no_more_data(app);
 
+	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) &&
+	    sc_state_in(sco->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
+		sc_ep_clr(sc, SE_FL_APPLET_NEED_CONN);
+		sc_ep_report_read_activity(sc);
+	}
+
 	/* Now we'll try to allocate the input buffer. We wake up the applet in
 	 * all cases. So this is the applet's responsibility to check if this
 	 * buffer was allocated or not. This leaves a chance for applets to do

@@ -717,8 +717,11 @@ void sc_chk_rcv(struct stconn *sc)
 
 	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) &&
 	    sc_state_in(sc_opposite(sc)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
-		sc_ep_clr(sc, SE_FL_APPLET_NEED_CONN);
-		sc_ep_report_read_activity(sc);
+		/* connection available (or closed), so wake applet up to handle
+		 * the event. here we are not in the applet context (but most
+		 * probably in the connection context).
+		 */
+		appctx_wakeup(__sc_appctx(sc));
 	}
 
 	if (!sc_is_recv_allowed(sc))
@@ -2023,6 +2026,12 @@ int sc_applet_sync_recv(struct stconn *sc)
 {
 	if (!appctx_app_test(__sc_appctx(sc), APPLET_FL_NEW_API))
 		return 0;
+
+	if (sc_ep_test(sc, SE_FL_APPLET_NEED_CONN) &&
+	    sc_state_in(sc_opposite(sc)->state, SC_SB_RDY|SC_SB_EST|SC_SB_DIS|SC_SB_CLO)) {
+		sc_ep_clr(sc, SE_FL_APPLET_NEED_CONN);
+		sc_ep_report_read_activity(sc);
+	}
 
 	if (!sc_state_in(sc->state, SC_SB_RDY|SC_SB_EST))
 		return 0;
