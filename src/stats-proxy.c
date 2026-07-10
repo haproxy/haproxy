@@ -1388,6 +1388,41 @@ static int stats_dump_be_line(struct stconn *sc, struct proxy *px)
 	return stats_dump_one_line(line, stats_count, appctx);
 }
 
+/* This is used to verify that a given proxy matches one of the scopes defined
+ * by "stats scope" rules. It returns non-zero if the proxy <px> is in any of
+ * the scopes associated with <uri>, or if <uri> doesn't exist or has no scope.
+ * It also accepts the proxy if it matches the requesting one (<http_px>) when
+ * a scope is ".". Otherwise it returns zero indicating that the proxy is out
+ * of scope.
+ */
+int stats_proxy_in_scope(const struct proxy *px, const struct uri_auth *uri,
+                         const struct proxy *http_px)
+{
+	struct stat_scope *scope;
+	int len;
+
+	/* no scope defined ? we're in scope */
+	if (!uri || !uri->scope)
+		return 1;
+
+	/* we have a limited scope, we have to look up the proxy name in all
+	 * defined scopes.
+	 */
+	len = strlen(px->id);
+	for (scope = uri->scope; scope; scope = scope->next) {
+		/* match exact proxy name */
+		if (scope->px_len == len && memcmp(px->id, scope->px_id, len) == 0)
+			break;
+
+		/* match '.' which means 'self' proxy */
+		if (px == http_px && strcmp(scope->px_id, ".") == 0)
+			break;
+	}
+
+	/* scope is non-null if the proxy name was found */
+	return scope != NULL;
+}
+
 /*
  * Dumps statistics for a proxy. The output is sent to the stream connector's
  * input buffer. Returns 0 if it had to stop dumping data because of lack of
@@ -1415,29 +1450,9 @@ more:
 	switch (ctx->px_st) {
 	case STAT_PX_ST_INIT:
 		/* we are on a new proxy */
-		if (uri && uri->scope) {
-			/* we have a limited scope, we have to check the proxy name */
-			struct stat_scope *scope;
-			int len;
-
-			len = strlen(px->id);
-			scope = uri->scope;
-
-			while (scope) {
-				/* match exact proxy name */
-				if (scope->px_len == len && !memcmp(px->id, scope->px_id, len))
-					break;
-
-				/* match '.' which means 'self' proxy */
-				if (strcmp(scope->px_id, ".") == 0 && px == ctx->http_px)
-					break;
-				scope = scope->next;
-			}
-
-			/* proxy name not found : don't dump anything */
-			if (scope == NULL)
-				return 1;
-		}
+		/* Let's skip it if the proxy is out of scope */
+		if (!stats_proxy_in_scope(px, uri, ctx->http_px))
+			return 1;
 
 		/* if the user has requested a limited output and the proxy
 		 * name does not match, skip it.
