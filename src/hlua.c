@@ -2744,7 +2744,6 @@ static int hlua_socket_init(struct appctx *appctx)
 
 	if (csk_ctx->timeout) {
 		s->sess->fe->timeout.connect = csk_ctx->timeout;
-		s->scf->ioto = csk_ctx->timeout;
 		s->scb->ioto = csk_ctx->timeout;
 	}
 
@@ -3722,7 +3721,6 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	s = appctx_strm(csk_ctx->appctx);
 
 	s->sess->fe->timeout.connect = tmout;
-	s->scf->ioto = tmout;
 	s->scb->ioto = tmout;
 
 	s->task->expire = (tick_is_expired(s->task->expire, now_ms) ? 0 : s->task->expire);
