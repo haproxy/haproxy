@@ -2231,6 +2231,9 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			return ACT_RET_CONT;
 		} else if (!res->complete) {
 			release_entry(cache_tree, res, 1);
+			shctx_wrlock(shctx);
+			shctx_row_reattach(shctx, entry_block);
+			shctx_wrunlock(shctx);
 			return ACT_RET_CONT;
 		}
 
