@@ -19,6 +19,7 @@
 #include <haproxy/pipe.h>
 #include <haproxy/proxy.h>
 #include <haproxy/stats.h>
+#include <haproxy/stats-proxy.h>
 #include <haproxy/stconn.h>
 #include <haproxy/server.h>
 #include <haproxy/task.h>
@@ -1734,7 +1735,29 @@ static int stats_process_http_post(struct stconn *sc)
 
 			/* Now we can check the key to see what to do */
 			if (!px && (strcmp(key, "b") == 0)) {
-				if ((px = proxy_be_by_name(value)) == NULL) {
+				/* we need to lookup the proxy because its name
+				 * may be a real name ("pub") or numeric ("#4").
+				 */
+				px = proxy_be_by_name(value);
+
+				/* now we have two possibilities:
+				 *   - if the are "stats scope" rules, a non-existing
+				 *     proxy or a forbidden one are the same, we return
+				 *     a deny because a non-existing name cannot match
+				 *     a scope rule and we don't want to disclose the
+				 *     existence of a given name.
+				 *   - without "stats scope" rules, we just return
+				 *     not found.
+				 */
+				if (ctx->http_px->uri_auth && ctx->http_px->uri_auth->scope) {
+					if (!px || !stats_proxy_in_scope(px, ctx->http_px->uri_auth, ctx->http_px)) {
+						/* "stats scope" rules do not permit to access this proxy name */
+						ctx->st_code = STAT_STATUS_DENY;
+						goto out;
+					}
+				}
+
+				if (!px) {
 					/* the backend name is unknown or ambiguous (duplicate names) */
 					ctx->st_code = STAT_STATUS_ERRP;
 					goto out;

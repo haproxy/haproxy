@@ -12758,7 +12758,9 @@ stats admin { if | unless } <cond>
   matched.
 
   The admin level allows to enable/disable servers from the web interface. By
-  default, statistics page is read-only for security reasons.
+  default, statistics page is read-only for security reasons. If "stats scope"
+  directives are set in the section, then only proxies designated by these
+  directives will accept state changes; access to other ones will be denied.
 
   Currently, the POST request is limited to the buffer size minus the reserved
   buffer space, which means that if the list of servers is too long, the
@@ -12793,8 +12795,8 @@ stats admin { if | unless } <cond>
         stats http-request auth unless AUTH
         stats admin if AUTH_ADMIN
 
-  See also : "stats enable", "stats auth", "stats http-request", section 12.2
-             about userlists and section 7 about ACL usage.
+  See also : "stats enable", "stats auth", "stats http-request", "stats scope",
+             section 12.2 about userlists and section 7 about ACL usage.
 
 ssl-f-use [<sslbindconf> ...]*
   Assignate a certificate to the current frontend.
@@ -13122,11 +13124,11 @@ stats scope { <name> | "." }
               section in which the statement appears.
 
   When this statement is specified, only the sections enumerated with this
-  statement will appear in the report. All other ones will be hidden. This
-  statement may appear as many times as needed if multiple sections need to be
-  reported. Please note that the name checking is performed as simple string
-  comparisons, and that it is never checked that a give section name really
-  exists.
+  statement will appear in the report. All other ones will be hidden, and
+  attempts to change their state in admin mode will be rejected. This statement
+  may appear as many times as needed if multiple sections need to be reported.
+  Please note that the name checking is performed as simple string comparisons,
+  and that it is never checked that a give section name really exists.
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
@@ -13150,7 +13152,8 @@ stats scope { <name> | "." }
         stats uri     /admin?stats
         stats refresh 5s
 
-  See also : "stats auth", "stats enable", "stats realm", "stats uri"
+  See also : "stats auth", "stats enable", "stats realm", "stats uri" and
+             "stats admin"
 
 
 stats show-desc [ <desc> ]
