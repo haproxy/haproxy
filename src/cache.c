@@ -2657,17 +2657,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 		if (hint_buf && b_data(hint_buf) > 0 &&
 		    cache_emit_early_hints(s, b_orig(hint_buf), b_data(hint_buf))) {
-			long long *ctr = NULL;
-
 			if (px == strm_fe(s)) {
 				if (px->fe_counters.shared.tg)
-					ctr = &px->fe_counters.shared.tg[tgid - 1]->p.http.cache_hint_hits;
+					_HA_ATOMIC_INC(&px->fe_counters.shared.tg[tgid - 1]->p.http.cache_hint_hits);
 			}
-			else if (px->be_counters.shared.tg)
-				ctr = &px->be_counters.shared.tg[tgid - 1]->p.http.cache_hint_hits;
-
-			if (ctr)
-				_HA_ATOMIC_INC(ctr);
+			else {
+				if (px->be_counters.shared.tg)
+					_HA_ATOMIC_INC(&px->be_counters.shared.tg[tgid - 1]->p.http.cache_hint_hits);
+			}
 		}
 
 		/* In case of Vary, we could have multiple entries with the same
