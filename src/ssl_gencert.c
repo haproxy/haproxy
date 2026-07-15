@@ -299,6 +299,8 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 #endif /* defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH) */
 #endif /* HA_OPENSSL_VERSION_NUMBER >= 0x10101000L */
  end:
+	if (ctmp) NCONF_free(ctmp);
+	if (tmp_ssl) SSL_free(tmp_ssl);
 	return ssl_ctx;
 
  mkcert_error:
