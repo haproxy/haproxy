@@ -596,7 +596,7 @@ int stats_dump_stat_to_buffer(struct stconn *sc, struct buffer *buf, struct htx 
 		ctx->state = STAT_STATE_LIST;
 		/* Update ctx->obj1 via watcher to point on the first proxy. */
 		if (domain == STATS_DOMAIN_PROXY)
-			watcher_attach(&ctx->px_watch, proxies_list);
+			watcher_attach(&ctx->px_watch, main_proxies_first());
 
 		__fallthrough;
 

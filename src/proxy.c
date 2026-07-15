@@ -4592,10 +4592,10 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 		ctx->state = SHOW_SRV_LIST;
 
 		if (!ctx->px)
-			watcher_attach(&ctx->px_watch, proxies_list);
+			watcher_attach(&ctx->px_watch, main_proxies_first());
 	}
 
-	for (; ctx->px; watcher_next(&ctx->px_watch, ctx->px->next)) {
+	for (; ctx->px; watcher_next(&ctx->px_watch, main_proxies_next(ctx->px))) {
 		curproxy = ctx->px;
 		/* servers are only in backends */
 		if ((curproxy->cap & PR_CAP_BE) && !(curproxy->cap & PR_CAP_INT)) {
@@ -4629,11 +4629,11 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 
 		watcher_init(&ctx->px_watch, &ctx->px, offsetof(struct proxy, watcher_list));
 		/* This will automatically update ctx->px pointer. */
-		watcher_attach(&ctx->px_watch, proxies_list);
+		watcher_attach(&ctx->px_watch, main_proxies_first());
 	}
 
-	for (; ctx->px; watcher_next(&ctx->px_watch, ctx->px->next)) {
-		curproxy = ctx->px;
+	for (; ctx->px; watcher_next(&ctx->px_watch, main_proxies_next(ctx->px))) {
+		curproxy = appctx->svcctx;
 
 		/* looking for non-internal backends only */
 		if ((curproxy->cap & (PR_CAP_BE|PR_CAP_INT)) != PR_CAP_BE)
@@ -5111,7 +5111,7 @@ static int cli_parse_delete_backend(char **args, char *payload, struct appctx *a
 
 	while (!MT_LIST_ISEMPTY(&px->watcher_list)) {
 		px_watch = MT_LIST_NEXT(&px->watcher_list, struct watcher *, el);
-		watcher_next(px_watch, px->next);
+		watcher_next(px_watch, main_proxies_next(px));
 	}
 
 	ceb32_item_delete(&used_proxy_id, conf.uuid_node, uuid, px);
@@ -5327,7 +5327,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		if (applet_putchk(appctx, &trash) == -1)
 			goto cant_send;
 
-		watcher_attach(&ctx->px_watch, proxies_list);
+		watcher_attach(&ctx->px_watch, main_proxies_first());
 		ctx->bol = 0;
 		ctx->ptr = -1;
 	}
@@ -5459,7 +5459,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		ctx->ptr = -1;
 		ctx->flag ^= 1;
 		if (!(ctx->flag & 1))
-			watcher_next(&ctx->px_watch, ctx->px->next);
+			watcher_next(&ctx->px_watch, main_proxies_next(ctx->px));
 	}
 
 	/* dump complete */

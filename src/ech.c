@@ -154,7 +154,7 @@ static int cli_parse_show_ech(char **args, char *payload,
 	} else {
 		ctx->specific_name = NULL;
 		ctx->specific_ctx = NULL;
-		ctx->pp = proxies_list;
+		ctx->pp = main_proxies_first();
 		ctx->b = NULL;
 		ctx->state = SHOW_ECH_ALL;
 	}
@@ -246,7 +246,7 @@ static int cli_io_handler_ech_details(struct appctx *appctx)
 		bind_conf = ctx->b;
 		p = ctx->pp;
 
-		for (; p; p = p->next) {
+		for (; p; p = main_proxies_next(p)) {
 
 			if (!(p->cap & PR_CAP_FE) || LIST_ISEMPTY(&p->conf.bind))
 				continue;

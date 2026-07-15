@@ -1635,7 +1635,7 @@ int stats_dump_proxies(struct stconn *sc, struct buffer *buf, struct htx *htx)
 	/* dump proxies */
 	/* obj1 is updated and returned through watcher_next() */
 	for (px = ctx->obj1; px;
-	     px = watcher_next(&ctx->px_watch, px->next)) {
+	     px = watcher_next(&ctx->px_watch, main_proxies_next(px))) {
 
 		if (stats_is_full(appctx, buf, htx))
 			goto full;

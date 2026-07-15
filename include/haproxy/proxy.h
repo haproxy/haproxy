@@ -324,6 +324,28 @@ static inline void main_proxies_register(struct proxy *px)
 	proxies_list = px;
 }
 
+/* Returns first entry in main proxies list or NULL if empty. */
+static inline struct proxy *main_proxies_first(void)
+{
+	return proxies_list;
+}
+
+/* Returns first entry in main proxies list unless <px> is already set. This is
+ * useful when iterating over proxies with possible task yielding interruption.
+ */
+static inline struct proxy *main_proxies_cond_first(struct proxy *px)
+{
+	if (!px)
+		px = proxies_list;
+	return px;
+}
+
+/* Return next entry after <px> in main proxies list or NULL if reaching end of list. */
+static inline struct proxy *main_proxies_next(const struct proxy *px)
+{
+	return px->next;
+}
+
 #endif /* _HAPROXY_PROXY_H */
 
 /*
