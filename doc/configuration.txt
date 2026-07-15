@@ -12767,6 +12767,14 @@ stats admin { if | unless } <cond>
   request won't be processed. It is recommended to alter few servers at a
   time.
 
+  Those admin POST requests are prone to CSRF attacks. This is partially
+  mitigated by checking that the Origin (or Referer if no Origin is present)
+  matches the Host header, but this is not enough to totally prevent the
+  attack.
+  There is no way to be completely protected from those. It is recommended
+  to avoid exposing it on a public interface, and to restrict who can
+  access it.
+
   Example :
     # statistics admin level only for localhost
     backend stats_localhost
