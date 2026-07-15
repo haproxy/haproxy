@@ -4094,6 +4094,37 @@ static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct p
 	return 1;
 }
 
+/*
+ * Attempt to mitigate a CSRF attack, by checking that if we have an Origin
+ * or a Referer header, it matches what we expect.
+ */
+static int stats_check_same_origin(const struct htx *htx)
+{
+	struct http_hdr_ctx ctx = { .blk = NULL };
+	struct http_uri_parser parser;
+	struct ist host = IST_NULL;
+	struct ist source;
+
+	if (http_find_header(htx, ist("host"), &ctx, 1))
+		host = ctx.value;
+
+	ctx.blk = NULL;
+	/*
+	 * Check "Origin" first, as it is authoritative, and fallback to
+	 * "Referer" if not present.
+	 */
+	if (!http_find_header(htx, ist("origin"), &ctx, 1))
+		http_find_header(htx, ist("referer"), &ctx, 1);
+
+	/* Neither header present: most likely a non-browser client, allow it. */
+	if (!ctx.blk)
+		return 1;
+
+	parser = http_uri_parser_init(ctx.value);
+	source = http_parse_authority(&parser, 1);
+	return isttest(source) && isteqi(source, host);
+}
+
 /* This function prepares an applet to handle the stats. It can deal with the
  * "100-continue" expectation, check that admin rules are met for POST requests,
  * and program a response message if something was unexpected. It cannot fail
@@ -4250,13 +4281,13 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 		appctx->st0 = STAT_HTTP_HEAD;
 	else if (txn->meth == HTTP_METH_POST) {
-		if (ctx->flags & STAT_F_ADMIN) {
+		if ((ctx->flags & STAT_F_ADMIN) && stats_check_same_origin(htx)) {
 			appctx->st0 = STAT_HTTP_POST;
 			if (msg->msg_state < HTTP_MSG_DATA)
 				req->analysers |= AN_REQ_HTTP_BODY;
 		}
 		else {
-			/* POST without admin level */
+			/* POST without admin level, or potential CSRF attack */
 			ctx->flags &= ~STAT_F_CHUNKED;
 			ctx->st_code = STAT_STATUS_DENY;
 			appctx->st0 = STAT_HTTP_LAST;
