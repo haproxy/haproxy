@@ -1876,10 +1876,11 @@ static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx,
 				if (strcmp(px->id, args[cur_arg+1]) == 0) {
 					ctx->px = px;
 					ctx->options |= SHOW_SNI_OPT_1FRONTEND;
+					break;
 				}
 			}
 			cur_arg++; /* skip the argument */
-			if (ctx->px == NULL)
+			if (px == NULL)
 				return cli_err(appctx, "Couldn't find the specified frontend!\n");
 
 		} else if (strcmp(args[cur_arg], "-A") == 0) {
