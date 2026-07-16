@@ -342,8 +342,7 @@ int event_hdl_lookup_resume(event_hdl_sub_list *sub_list,
 		 * EVENT_HDL_ASYNC_EVENT_DATA				\
 		 * size in event_hdl-t.h				\
 		 */							\
-		__attribute__((unused))					\
-		char __static_assert[(size <= EVENT_HDL_ASYNC_EVENT_DATA) ? 1 : -1];\
+		BUG_ON_STATIC(size > EVENT_HDL_ASYNC_EVENT_DATA);	\
 		(size);							\
 	})
 #define _EVENT_HDL_CB_DATA(data,size,mfree)				\
