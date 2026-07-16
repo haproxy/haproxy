@@ -1,0 +1,93 @@
+#REGTEST_TYPE=devel
+varnishtest "Protobuf complete validation: hierarchical nested paths AND flat sibling paths"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(v3.5-dev3)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+
+    frontend fe
+        bind "fd@${fe}"
+        option http-buffer-request
+        http-request wait-for-body time 1s
+
+        # --- ROUTE 1: Validation of NESTED path (1.2 == 9) ---
+        # Only evaluate this if the client explicitly asks for nested validation
+        http-request set-var(req.nested_val) req.body,protobuf(1.2,int32) if { hdr(x-test-case) -m str nested }
+        acl is_nested_ok var(req.nested_val) -m int 9
+
+        # --- ROUTE 2: Validation of FLAT / SIBLING path (2 == 9) ---
+        # Only evaluate this if the client explicitly asks for flat validation
+        http-request set-var(req.flat_val) req.body,protobuf(2,int32) if { hdr(x-test-case) -m str flat }
+        acl is_flat_ok var(req.flat_val) -m int 9
+
+        # HTTP Responses based on matched ACLs
+        http-request return status 201 content-type "text/plain" string "MATCH: Nested path 1.2 matched 9\n" if is_nested_ok
+        http-request return status 202 content-type "text/plain" string "MATCH: Flat path 2 matched 9\n"     if is_flat_ok
+
+        # Default fallback if nothing matches
+        http-request return status 403 content-type "text/plain" string "OK: Request blocked\n"
+} -start
+
+# =====================================================================
+# CASE 1: Sending a NESTED payload (0a 04 08 07 10 09)
+# =====================================================================
+
+# Client 1.1: Validating legitimate nesting (Should pass -> 201)
+client c_nested_on_nested -connect ${h1_fe_sock} {
+    txreq -req "POST" -url "/" -hdr "Content-Length: 6" \
+      -hdr "x-test-case: nested" -nolen
+    # Legitimately nested layout:
+    # - 0a : Field 1 (Length-delimited)
+    # - 04 : Sub-message length (4 bytes)
+    # - 08 07 : Inside sub-message -> Field 1 (Varint) = 7
+    # - 10 09 : Inside sub-message -> Field 2 (Varint) = 9
+    sendhex "0a0408071009"
+    rxresp
+    expect resp.status == 201
+} -run
+
+# Client 1.2: Searching for flat field '2' inside a nested payload.
+# Since '2' is encapsulated under '1', it is not at the root level
+# With the header filter, we ensure only the flat rule is tested.
+# HAProxy must not find it as a top-level field (Should block -> 403).
+client c_flat_on_nested -connect ${h1_fe_sock} {
+    txreq -req "POST" -url "/" -hdr "Content-Length: 6" \
+      -hdr "x-test-case: flat" -nolen
+    sendhex "0a0408071009"
+    rxresp
+    expect resp.status == 403
+} -run
+
+# =====================================================================
+# CASE 2: Sending a FLAT / SIBLING payload (08 07 10 09)
+# =====================================================================
+
+# Client 2.1: Validating top-level sibling field '2' (Should pass -> 202)
+client c_flat_on_flat -connect ${h1_fe_sock} {
+    txreq -req "POST" -url "/" -hdr "Content-Length: 4" \
+      -hdr "x-test-case: flat" -nolen
+    # Flat sibling layout
+    # - 08 07 : Field 1 (Varint) = 7
+    # - 10 09 : Field 2 (Varint) = 9
+    # Root level sibling access is fully allowed
+    sendhex "08071009"
+    rxresp
+    expect resp.status == 202
+} -run
+
+# Client 2.2: Searching for a nested path '1.2' on a flat payload.
+# This was the original vulnerability / security bypass vector
+# Patched HAProxy must refuse to enter nested scope and block (Should block -> 403)
+client c_nested_on_flat -connect ${h1_fe_sock} {
+    txreq -req "POST" -url "/" -hdr "Content-Length: 4" \
+      -hdr "x-test-case: nested" -nolen
+    sendhex "08071009"
+    rxresp
+    expect resp.status == 403
+} -run
