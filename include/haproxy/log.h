@@ -53,7 +53,7 @@ extern const char sess_fin_state[];
 extern unsigned int dropped_logs;
 
 /* lof forward proxy list */
-extern struct proxy *cfg_log_forward;
+extern struct list cfg_log_forward;
 
 extern THREAD_LOCAL char *logline;
 extern THREAD_LOCAL char *logline_rfc5424;
@@ -237,12 +237,11 @@ struct ist *build_log_header(struct log_header hdr, size_t *nbelem);
  */
 static inline struct proxy *log_forward_by_name(const char *name)
 {
-	struct proxy *px = cfg_log_forward;
+	struct proxy *px;
 
-	while (px) {
+	list_for_each_entry(px, &cfg_log_forward, el) {
 		if (strcmp(px->id, name) == 0)
 			return px;
-		px = px->next;
 	}
 	return NULL;
 }

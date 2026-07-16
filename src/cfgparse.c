@@ -2269,7 +2269,7 @@ static struct proxy *_get_next_proxy(void *head, struct proxy *cur)
 	struct proxy *next;
 	struct list *list = (struct list *)head;
 
-	if (0) { /* TODO complete with newly converted list */
+	if (head == &cfg_log_forward) {
 		next = cur ?
 		  LIST_ELEM(cur->el.n, struct proxy *, el) :
 		  LIST_ELEM(list->n,   struct proxy *, el);
@@ -2498,13 +2498,11 @@ init_proxies_list_stage1:
 	 * we must also configure the log-forward proxies list
 	 */
 	if (init_proxies_list == proxies_list) {
-		init_proxies_list = cfg_log_forward;
-		/* check if list is not null to avoid infinite loop */
-		if (init_proxies_list)
-			goto init_proxies_list_stage1;
+		init_proxies_list = &cfg_log_forward;
+		goto init_proxies_list_stage1;
 	}
 
-	if (init_proxies_list == cfg_log_forward) {
+	if (init_proxies_list == &cfg_log_forward) {
 		init_proxies_list = sink_proxies_list;
 		/* check if list is not null to avoid infinite loop */
 		if (init_proxies_list)
@@ -2655,13 +2653,11 @@ init_proxies_list_stage2:
 	 * we must also configure the log-forward proxies list
 	 */
 	if (init_proxies_list == proxies_list) {
-		init_proxies_list = cfg_log_forward;
-		/* check if list is not null to avoid infinite loop */
-		if (init_proxies_list)
-			goto init_proxies_list_stage2;
+		init_proxies_list = &cfg_log_forward;
+		goto init_proxies_list_stage2;
 	}
 
-	if (init_proxies_list == cfg_log_forward) {
+	if (init_proxies_list == &cfg_log_forward) {
 		init_proxies_list = sink_proxies_list;
 		/* check if list is not null to avoid infinite loop */
 		if (init_proxies_list)

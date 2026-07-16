@@ -2373,9 +2373,10 @@ static void step_init_2(int argc, char** argv)
 
 		if (!px) {
 			/* We may only have log-forward section */
-			for (px = cfg_log_forward; px; px = px->next)
+			list_for_each_entry(px, &cfg_log_forward, el) {
 				if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all)
 					break;
+			}
 		}
 
 		if (pr || px) {

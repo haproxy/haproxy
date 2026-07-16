@@ -56,7 +56,7 @@
 int cum_log_messages;
 
 /* log forward proxy list */
-struct proxy *cfg_log_forward;
+struct list cfg_log_forward = LIST_HEAD_INIT(cfg_log_forward);
 
 struct log_fmt_st {
 	char *name;
@@ -3785,12 +3785,10 @@ void deinit_log_forward()
 {
 	struct proxy *p, *p0;
 
-	p = cfg_log_forward;
 	/* we need to manually clean cfg_log_forward proxy list */
-	while (p) {
-		p0 = p;
-		p = p->next;
-		proxy_drop(p0);
+	list_for_each_entry_safe(p, p0, &cfg_log_forward, el) {
+		LIST_DEL_INIT(&p->el);
+		proxy_drop(p);
 	}
 }
 
@@ -6180,8 +6178,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		curproxy->next = cfg_log_forward;
-		cfg_log_forward = curproxy;
+		LIST_INSERT(&cfg_log_forward, &curproxy->el);
 		curproxy->conf.file = copy_file_name(file);
 		curproxy->conf.line = linenum;
 		curproxy->mode = PR_MODE_SYSLOG;
@@ -6380,7 +6377,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		 * also, cfg_parse_listen_match_option() assumes global curproxy variable points to
 		 * currently evaluated proxy
 		 */
-		curproxy = cfg_log_forward;
+		curproxy = LIST_NEXT(&cfg_log_forward, struct proxy *, el);
 		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts3, &err_code, args,
 		                                  PR_MODE_SYSLOG, PR_CAP_FE,
 		                                  &curproxy->options3, &curproxy->no_options3))
@@ -6911,7 +6908,7 @@ static int postresolve_loggers()
 	for (px = proxies_list; px; px = px->next)
 		err_code |= postresolve_logger_list(px, &px->loggers, "proxy", px->id);
 	/* log-forward log directives */
-	for (px = cfg_log_forward; px; px = px->next)
+	list_for_each_entry(px, &cfg_log_forward, el)
 		err_code |= postresolve_logger_list(NULL, &px->loggers, "log-forward", px->id);
 
 	return err_code;
