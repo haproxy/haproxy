@@ -514,78 +514,66 @@ static inline int protobuf_field_lookup(const struct arg *arg_p, struct sample *
 	unsigned int *fid;
 	size_t fid_sz;
 	int type;
-	uint64_t elen;
-	int field;
+	size_t depth = 0;
 
 	fid = arg_p[0].data.fid.ids;
 	fid_sz = arg_p[0].data.fid.sz;
 	type = arg_p[1].data.sint;
 
-	/* Length of the length-delimited messages if any. */
-	elen = 0;
-	field = 0;
-
-	while (field < fid_sz) {
-		int found;
-		uint64_t key, sleft;
-		struct protobuf_parser_def *pbuf_parser = NULL;
+	/* Main loop: scan the message as long as there are bytes to read
+	 * and we haven't reached the end of the configured path (depth).
+	 */
+	while (*len > 0 && depth < fid_sz) {
+		uint64_t key, vlen = 0;
 		unsigned int wire_type, field_number;
+		struct protobuf_parser_def *p;
+		int found;
 
-		if ((ssize_t)*len <= 0)
-			return 0;
-
-		/* Remaining bytes saving. */
-		sleft = *len;
-
-		/* Key decoding */
+		/* Key decoding (contains the field number and wire type) */
 		if (!protobuf_decode_varint(&key, pos, len))
 			return 0;
 
 		wire_type = key & 0x7;
 		field_number = key >> 3;
-		found = field_number == fid[field];
+		found = (field_number == fid[depth]);
 
-		/* Skip the data if the current field does not match. */
-		switch (wire_type) {
-		case PBUF_TYPE_VARINT:
-		case PBUF_TYPE_32BIT:
-		case PBUF_TYPE_64BIT:
-			pbuf_parser = &protobuf_parser_defs[wire_type];
-			if (!found && !pbuf_parser->skip(pos, len, 0))
-				return 0;
-			break;
+		if (wire_type >= sizeof(protobuf_parser_defs) / sizeof(protobuf_parser_defs[0]))
+			return 0;
 
-		case PBUF_TYPE_LENGTH_DELIMITED:
-			/* Decode the length of this length-delimited field. */
-			if (!protobuf_decode_varint(&elen, pos, len) || elen > *len)
-				return 0;
+		p = &protobuf_parser_defs[wire_type];
+		/* If it is a length-delimited block (e.g., sub-message),
+		 * read its size.
+		 * Buffer overflow check (vlen > *len).
+		 */
+		if (wire_type == PBUF_TYPE_LENGTH_DELIMITED &&
+		    (!protobuf_decode_varint(&vlen, pos, len) || vlen > *len))
+			return 0;
 
-			/* The size of the current field is computed from here to skip
-			 * the bytes used to encode the previous length.*
+		if (found) {
+			/* Success: we found the final field at the end of the path. */
+			if (depth == fid_sz - 1)
+				return p->smp_store(smp, type, *pos, *len, vlen);
+
+			/* We found an intermediate parent (start of path matches)
+			 * and it's a delimited block: we must zoom in inside it.
 			 */
-			sleft = *len;
-			pbuf_parser = &protobuf_parser_defs[wire_type];
-			if (!found && !pbuf_parser->skip(pos, len, elen))
-				return 0;
-			break;
+			if (wire_type == PBUF_TYPE_LENGTH_DELIMITED) {
+				/* Restrict the scanning boundary to the size of this sub-message */
+				*len = vlen;
+				depth++;
+				continue;
+			}
 
-		default:
+			/* We expected an intermediate sub-message, but got
+			 * a primitive type instead (e.g., a flat number).
+			 * This is an anomaly, abort.
+			 */
 			return 0;
 		}
 
-		/* Store the data if found. Note that <pbuf_parser> is not NULL */
-		if (found && field == fid_sz - 1)
-			return pbuf_parser->smp_store(smp, type, *pos, *len, elen);
-
-		if ((ssize_t)(elen) > 0)
-			elen -= sleft - *len;
-
-		if (found) {
-			field++;
-		}
-		else if ((ssize_t)elen <= 0) {
-			field = 0;
-		}
+		/* Skip current sibling to keep searching at this level */
+		if (!p->skip(pos, len, vlen))
+			return 0;
 	}
 
 	return 0;
