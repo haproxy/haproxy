@@ -439,6 +439,15 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 # define BUG_ON_STRESS(cond, ...)  do { } while (0)
 #endif
 
+/* BUG_ON_STATIC(cond): fail the build if <cond> is true. */
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#define BUG_ON_STATIC(cond) \
+	_Static_assert(!(cond), "bug condition \"" #cond "\" matched")
+#else
+#define BUG_ON_STATIC(cond) \
+	extern char CONCAT(bug_on_static_, __LINE__)[(cond) ? -1 : 1] __maybe_unused
+#endif
+
 /* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
 #if defined(__GNUC__) && defined(__OPTIMIZE__)
 #define HA_LINK_ERROR(what)                                                  \
