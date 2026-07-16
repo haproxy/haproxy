@@ -42,7 +42,7 @@
 struct list sink_list = LIST_HEAD_INIT(sink_list);
 
 /* sink proxies list */
-struct proxy *sink_proxies_list;
+struct list sink_proxies_list = LIST_HEAD_INIT(sink_proxies_list);
 
 struct sink *cfg_sink;
 
@@ -418,8 +418,7 @@ void sink_setup_proxy(struct proxy *px)
 	px->timeout.connect = TICK_ETERNITY;
 	px->accept = NULL;
 	px->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
-	px->next = sink_proxies_list;
-	sink_proxies_list = px;
+	LIST_INSERT(&sink_proxies_list, &px->el);
 }
 
 static void _sink_forward_io_handler(struct appctx *appctx,

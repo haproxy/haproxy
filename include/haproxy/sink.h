@@ -28,7 +28,7 @@
 
 extern struct list sink_list;
 
-extern struct proxy *sink_proxies_list;
+extern struct list sink_proxies_list;
 
 struct sink *sink_find(const char *name);
 struct sink *sink_find_early(const char *name, const char *from, const char *file, int line);
