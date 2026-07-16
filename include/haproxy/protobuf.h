@@ -270,6 +270,19 @@ protobuf_varint_getlen(unsigned char *pos, size_t len)
 	return pos - spos;
 }
 
+/* Adjust maximum size capacity for the string <smp> after having been updated */
+static inline void protobuf_adjust_smp_size(struct sample *smp,
+                                            const unsigned char *new_pos)
+{
+	size_t offset = (const char *)new_pos - smp->data.u.str.area;
+
+	if (smp->data.u.str.size > offset) {
+		smp->data.u.str.size -= offset;
+	} else {
+		smp->data.u.str.size = 0;
+	}
+}
+
 /*
  * Store a varint field value in a sample from <pos> buffer
  * with <len> available bytes after having decoded it if needed
@@ -288,6 +301,7 @@ int protobuf_smp_store_varint(struct sample *smp, int type,
 		if (varint_len == -1)
 			return 0;
 
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_BIN;
 		smp->data.u.str.area = (char *)pos;
 		smp->data.u.str.data = varint_len;
@@ -302,6 +316,7 @@ int protobuf_smp_store_varint(struct sample *smp, int type,
 		if (!protobuf_varint(&varint, pos, len))
 			return 0;
 
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.u.sint = varint;
 		smp->data.type = SMP_T_SINT;
 		break;
@@ -315,6 +330,7 @@ int protobuf_smp_store_varint(struct sample *smp, int type,
 			return 0;
 
 		/* zigzag decoding. */
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.u.sint = (varint >> 1) ^ -(varint & 1);
 		smp->data.type = SMP_T_SINT;
 		break;
@@ -356,6 +372,7 @@ int protobuf_smp_store_64bit(struct sample *smp, int type,
 
 	switch (type) {
 	case PBUF_T_BINARY:
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_BIN;
 		smp->data.u.str.area = (char *)pos;
 		smp->data.u.str.data = sizeof(uint64_t);
@@ -364,12 +381,14 @@ int protobuf_smp_store_64bit(struct sample *smp, int type,
 
 	case PBUF_T_64BIT_FIXED64:
 	case PBUF_T_64BIT_SFIXED64:
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_SINT;
 		smp->data.u.sint = pbuf_le64toh(read_u64(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 
 	case PBUF_T_64BIT_DOUBLE:
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_SINT;
 		smp->data.u.sint = pbuf_le64toh(read_dbl(pos));
 		smp->flags = SMP_F_VOL_TEST;
@@ -411,6 +430,7 @@ int protobuf_smp_store_vlen(struct sample *smp, int type,
 	if (type != PBUF_T_BINARY)
 		return 0;
 
+	protobuf_adjust_smp_size(smp, pos);
 	smp->data.type = SMP_T_BIN;
 	smp->data.u.str.area = (char *)pos;
 	smp->data.u.str.data = vlen;
@@ -447,6 +467,7 @@ int protobuf_smp_store_32bit(struct sample *smp, int type,
 
 	switch (type) {
 	case PBUF_T_BINARY:
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_BIN;
 		smp->data.u.str.area = (char *)pos;
 		smp->data.u.str.data = sizeof(uint32_t);
@@ -454,18 +475,21 @@ int protobuf_smp_store_32bit(struct sample *smp, int type,
 		break;
 
 	case PBUF_T_32BIT_FIXED32:
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_SINT;
 		smp->data.u.sint = pbuf_le32toh(read_u32(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 
 	case PBUF_T_32BIT_SFIXED32:
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_SINT;
 		smp->data.u.sint = (int32_t)pbuf_le32toh(read_u32(pos));
 		smp->flags = SMP_F_VOL_TEST;
 		break;
 
 	case PBUF_T_32BIT_FLOAT:
+		protobuf_adjust_smp_size(smp, pos);
 		smp->data.type = SMP_T_SINT;
 		smp->data.u.sint = pbuf_le32toh(read_flt(pos));
 		smp->flags = SMP_F_VOL_TEST;
