@@ -427,7 +427,6 @@ struct proxy {
 	void *(*stream_new_from_sc)(struct session *sess, struct stconn *sc, struct buffer *in); /* stream instantiation callback for mux stream connector */
 	struct conn_src conn_src;               /* connection source settings */
 	enum obj_type *default_target;		/* default target to use for accepted streams or NULL */
-	struct proxy *next;
 	struct proxy *next_stkt_ref;    /* Link to the list of proxies which refer to the same stick-table. */
 
 	struct list loggers;                    /* one per 'log' directive */

@@ -2258,32 +2258,6 @@ err:
 	return err_code;
 }
 
-/* Returns the next entry following <cur> proxy attached it <head> list. This
- * is a wrapper able to work with either a simple singly linked list or a
- * doubly linked struct list type.
- *
- * TODO remove it once all proxies list are unified under the same type
- */
-static struct proxy *_get_next_proxy(void *head, struct proxy *cur)
-{
-	struct proxy *next;
-	struct list *list = (struct list *)head;
-
-	if (head == &main_proxies || head == &cfg_log_forward || head == &sink_proxies_list) {
-		next = cur ?
-		  LIST_ELEM(cur->el.n, struct proxy *, el) :
-		  LIST_ELEM(list->n,   struct proxy *, el);
-
-		if (&next->el == head)
-			next = NULL;
-	}
-	else {
-		next = cur ? cur->next : head;
-	}
-
-	return next;
-}
-
 /*
  * Returns the error code, 0 if OK, or any combination of :
  *  - ERR_ABORT: must abort ASAP
@@ -2297,7 +2271,7 @@ int check_config_validity()
 {
 	int cfgerr = 0, ret;
 	struct proxy *defpx;
-	void *init_proxies_list = NULL;
+	struct list *init_proxies_list = NULL;
 	struct stktable *t;
 	struct server *newsrv = NULL;
 	struct mt_list back;
@@ -2423,12 +2397,11 @@ int check_config_validity()
 		err_code |= proxy_check_http_errors(defpx);
 	}
 
-	curproxy = NULL;
 	/* starting to initialize the main proxies list */
 	init_proxies_list = &main_proxies;
 
 init_proxies_list_stage1:
-	while ((curproxy = _get_next_proxy(init_proxies_list, curproxy))) {
+	list_for_each_entry(curproxy, init_proxies_list, el) {
 		proxy_init_per_thr(curproxy);
 
 		/* Assign automatic UUID if unset except for internal proxies.
@@ -2479,7 +2452,6 @@ init_proxies_list_stage1:
 	/* Dynamic proxies IDs will never be lowered than this value. */
 	dynpx_next_id = next_pxid;
 
-	curproxy = NULL;
 	/*
 	 * We have just initialized the main proxies list
 	 * we must also configure the log-forward proxies list
@@ -2525,12 +2497,11 @@ init_proxies_list_stage1:
 
 	/* perform the final checks before creating tasks */
 
-	curproxy = NULL;
 	/* starting to initialize the main proxies list */
 	init_proxies_list = &main_proxies;
 
 init_proxies_list_stage2:
-	while ((curproxy = _get_next_proxy(init_proxies_list, curproxy))) {
+	list_for_each_entry(curproxy, init_proxies_list, el) {
 		struct listener *listener;
 		unsigned int next_id;
 
@@ -2633,6 +2604,7 @@ init_proxies_list_stage2:
 	}
 
 	curproxy = NULL;
+
 	/*
 	 * We have just initialized the main proxies list
 	 * we must also configure the log-forward proxies list
