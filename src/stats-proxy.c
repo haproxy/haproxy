@@ -1673,34 +1673,15 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 			counters_fe_reset(&px->fe_counters);
 		}
 		else {
-			px->be_counters.conn_max = 0;
-			px->be_counters.p.http.rps_max = 0;
-			px->be_counters.sps_max = 0;
-			px->be_counters.cps_max = 0;
-			px->be_counters.nbpend_max = 0;
-			px->be_counters.qtime_max = 0;
-			px->be_counters.ctime_max = 0;
-			px->be_counters.dtime_max = 0;
-			px->be_counters.ttime_max = 0;
-
-			px->fe_counters.conn_max = 0;
-			px->fe_counters.p.http.rps_max = 0;
-			px->fe_counters.sps_max = 0;
-			px->fe_counters.cps_max = 0;
+			counters_be_reset_max(&px->be_counters);
+			counters_fe_reset_max(&px->fe_counters);
 		}
 
 		list_for_each_entry(sv, &px->servers, el_px) {
 			if (clrall)
 				counters_be_reset(&sv->counters);
-			else {
-				sv->counters.cur_sess_max = 0;
-				sv->counters.nbpend_max = 0;
-				sv->counters.sps_max = 0;
-				sv->counters.qtime_max = 0;
-				sv->counters.ctime_max = 0;
-				sv->counters.dtime_max = 0;
-				sv->counters.ttime_max = 0;
-			}
+			else
+				counters_be_reset_max(&sv->counters);
 		}
 
 		list_for_each_entry(li, &px->conf.listeners, by_fe)
@@ -1708,7 +1689,7 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 				if (clrall)
 					counters_fe_reset(li->counters);
 				else
-					li->counters->conn_max = 0;
+					counters_fe_reset_max(li->counters);
 			}
 	}
 

@@ -214,3 +214,45 @@ void counters_be_reset(struct be_counters *counters)
 	memset((char *)counters + sizeof(counters->shared), 0,
 	       sizeof(*counters) - sizeof(counters->shared));
 }
+
+/* Reset only the max/peak gauges of a frontend/listener <counters> struct,
+ * leaving cumulative counters intact. Used by the plain "clear counters"
+ * command (as opposed to "clear counters all" which resets everything via
+ * counters_fe_reset()).
+ */
+void counters_fe_reset_max(struct fe_counters *counters)
+{
+	if (!counters)
+		return;
+
+	counters->conn_max = 0;
+	counters->cps_max = 0;
+	counters->sps_max = 0;
+	counters->p.http.rps_max = 0;
+}
+
+/* Reset only the max/peak gauges of a backend/server <counters> struct,
+ * leaving cumulative counters intact. See counters_fe_reset_max().
+ *
+ * Note: this clears the union of all max gauges present in the struct. The
+ * previous inline code cleared slightly different subsets for backends and
+ * servers (backends left cur_sess_max untouched, servers left conn_max /
+ * cps_max / rps_max untouched); those were latent gaps, so plain "clear
+ * counters" now consistently resets every peak gauge for both.
+ */
+void counters_be_reset_max(struct be_counters *counters)
+{
+	if (!counters)
+		return;
+
+	counters->conn_max = 0;
+	counters->cps_max = 0;
+	counters->sps_max = 0;
+	counters->nbpend_max = 0;
+	counters->cur_sess_max = 0;
+	counters->qtime_max = 0;
+	counters->ctime_max = 0;
+	counters->dtime_max = 0;
+	counters->ttime_max = 0;
+	counters->p.http.rps_max = 0;
+}

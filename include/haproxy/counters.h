@@ -45,6 +45,15 @@ void counters_be_shared_drop(struct be_counters_shared *counters);
 void counters_fe_reset(struct fe_counters *counters);
 void counters_be_reset(struct be_counters *counters);
 
+/* Reset only the max/peak fields of <counters>, leaving cumulative counters
+ * intact. This is what the plain "clear counters" command does (as opposed to
+ * "clear counters all" which performs a full reset via counters_*_reset()).
+ * The max fields are interleaved with live cumulative fields, so they are
+ * cleared individually rather than with a blanket memset.
+ */
+void counters_fe_reset_max(struct fe_counters *counters);
+void counters_be_reset_max(struct be_counters *counters);
+
 /* time oriented helper: get last time (relative to current time) on a given
  * <scounter> array, for <elem> member (one member per thread group) which is
  * assumed to be unsigned long type.
