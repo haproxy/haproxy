@@ -2885,6 +2885,9 @@ int srv_prepare_for_resolution(struct server *srv, const char *hostname)
  */
 void srv_settings_init(struct server *srv)
 {
+	/* Mark server as reset. A default-server will be purged on post parsing. */
+	srv->flags &= ~SRV_F_UMODIFIED;
+
 	srv->check.inter = DEF_CHKINTR;
 	srv->check.fastinter = 0;
 	srv->check.downinter = 0;
@@ -4218,6 +4221,11 @@ int parse_server(const char *file, int linenum, char **args,
 		                         parse_flags);
 		if (err_code & ERR_FATAL)
 			goto out;
+
+		/* Mark server as modified by a keyword. Prevents a
+		 * default-server to be purged on post parsing.
+		 */
+		newsrv->flags |= SRV_F_UMODIFIED;
 	}
 
 	if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {

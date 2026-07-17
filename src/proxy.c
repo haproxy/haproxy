@@ -4321,13 +4321,13 @@ static int post_section_px_cleanup()
 {
 	if (!curproxy)
 		return 0; // nothing to do
-	if ((curproxy->cap & PR_CAP_LISTEN) && !(curproxy->cap & PR_CAP_DEF)) {
-		/* This is a regular proxy (not defaults). It doesn't need
-		 * to keep a default-server section if it still had one. We
-		 * want to keep it for defaults however, obviously.
-		 */
 
-		if (curproxy->defsrv) {
+	/* Perform clean up of empty default-server in proxies. This is not
+	 * executed for defaults section as this may still be useful.
+	 */
+	if ((curproxy->cap & PR_CAP_LISTEN) && !(curproxy->cap & PR_CAP_DEF)) {
+		/* Default-server is removed if it does not define specific setting. */
+		if (curproxy->defsrv && !(curproxy->defsrv->flags & SRV_F_UMODIFIED)) {
 			srv_free_params(curproxy->defsrv);
 			srv_free(&curproxy->defsrv);
 		}
