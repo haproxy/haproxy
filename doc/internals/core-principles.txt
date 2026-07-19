@@ -38,6 +38,8 @@ HAPROXY CORE PRINCIPLES
 
 3. MEMORY MANAGEMENT AND POOLS
    - Pools are used for runtime allocation; malloc/free are for boot code only.
+   - Structures that carry configuration (such as proxy, server, listener, receiver, protocol) are all obtained via `calloc()` during boot.
+   - Runtime structs (connection, stream, task, and their derivatives) are obtained via `pool_alloc()` and **are not initialized**.
    - pool_alloc() semantics match malloc(); the return must always be tested.
    - pool_alloc() and malloc() are not interchangeable: memory obtained from one
      must not be released using the other's free function.
@@ -47,6 +49,7 @@ HAPROXY CORE PRINCIPLES
    - Memory allocated from one pool must be released to the same pool.
    - ha_free() calls free() and sets the pointer to NULL before returning.
    - my_realloc2() frees the original pointer if the allocation fails.
+   - pool_zalloc() allocates and zeroes an area.
    - never leave dangling pointers in structs after free().
 
 4. BUFFER INVARIANTS (struct buffer)
@@ -118,7 +121,8 @@ HAPROXY CORE PRINCIPLES
    - Atomic loops must use CPU relaxation or exponential back-off.
    - For multiple changes at once, threads may use spinlocks (HA_SPIN_LOCK()/
      HA_SPIN_UNLOCK/HA_SPIN_TRYLOCK), and upgradable RW locks (HA_RWLOCK_*) if
-     read accesses dominate.
+     read accesses dominate. All these locks must be initialized to zero before
+     first use (e.g. calloc() OK).
    - No sleeping locks (mutex etc), only spinning/rwlocks/atomic loops.
 
 7. SCHEDULING AND LATENCY
