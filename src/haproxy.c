@@ -2258,7 +2258,7 @@ static void step_init_2(int argc, char** argv)
 	clock_adjust_now_offset();
 	ready_date = date;
 
-	list_for_each_entry(px, &proxies, global_list) {
+	list_for_each_entry(px, &all_proxies, global_list) {
 		struct server *srv;
 		struct post_proxy_check_fct *ppcf;
 		struct post_server_check_fct *pscf;

@@ -36,7 +36,7 @@
 #include <haproxy/thread.h>
 
 extern struct list main_proxies;
-extern struct list proxies;
+extern struct list all_proxies;
 extern struct ceb_root *used_proxy_id;  /* list of proxy IDs in use */
 extern unsigned int error_snapshot_id;  /* global ID assigned to each error then incremented */
 extern struct ceb_root *proxy_by_name;    /* tree of proxies sorted by name */

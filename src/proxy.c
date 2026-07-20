@@ -82,7 +82,7 @@ struct list main_proxies = LIST_HEAD_INIT(main_proxies);
 /* List of all proxies, except defaults.
  * Currently only used for post_proxy_check_fct and post_server_check_fct post init.
  */
-struct list proxies = LIST_HEAD_INIT(proxies);
+struct list all_proxies = LIST_HEAD_INIT(all_proxies);
 
 struct ceb_root *used_proxy_id = NULL; /* list of proxy IDs in use */
 struct ceb_root *proxy_by_name = NULL; /* tree of proxies sorted by name */
@@ -3214,7 +3214,7 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 		proxy_store_name(px);
 
 	if (!(cap & PR_CAP_DEF))
-		LIST_APPEND(&proxies, &px->global_list);
+		LIST_APPEND(&all_proxies, &px->global_list);
 
 	return 1;
 
@@ -4978,7 +4978,7 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	dynpx_next_id = px->uuid;
 
 	/* Insert <px> into <main_proxies> list of visible proxies. Note that
-	 * insertion in <proxies> has already been performed in
+	 * insertion in <all_proxies> has already been performed in
 	 * setup_new_proxy() via alloc_new_proxy().
 	 */
 	main_proxies_register(px);
