@@ -25,6 +25,8 @@ static int sample_conv_eth_data(const struct arg *arg_p, struct sample *smp, voi
 
 	for (idx = 12; idx + 2 < smp->data.u.str.data; idx += 4) {
 		if (read_n16(smp->data.u.str.area + idx) != 0x8100) {
+			if (smp->data.u.str.size)
+				smp->data.u.str.size -= idx + 2;
 			smp->data.u.str.area += idx + 2;
 			smp->data.u.str.data -= idx + 2;
 			return 1;
@@ -90,6 +92,8 @@ static int sample_conv_eth_src(const struct arg *arg_p, struct sample *smp, void
 	if (smp->data.u.str.data < 12)
 		return 0;
 
+	if (smp->data.u.str.size)
+		smp->data.u.str.size -= 6;
 	smp->data.u.str.area += 6; // src is at address 6
 	smp->data.u.str.data  = 6; // output length is 6
 	return 1;
@@ -178,6 +182,8 @@ static int sample_conv_ip_data(const struct arg *arg_p, struct sample *smp, void
 		return 0;
 
 	/* advance buffer by <len> */
+	if (smp->data.u.str.size)
+		smp->data.u.str.size -= len;
 	smp->data.u.str.area += len;
 	smp->data.u.str.data -= len;
 	return 1;
