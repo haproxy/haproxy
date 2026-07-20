@@ -2977,14 +2977,12 @@ static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *
 
 		if (smp_arg1.data.u.sint > (smp->data.u.str.data - start_idx)) {
 			// arg1 value is greater than the remaining length
-			if (smp->opt & SMP_OPT_FINAL) {
-				// truncate to remaining length
-				length = smp->data.u.str.data - start_idx;
-				goto end;
-			}
-			goto wait;
+			if (!(smp->opt & SMP_OPT_FINAL))
+				goto wait;
+			// keep all remaining data
 		}
-		length = smp_arg1.data.u.sint;
+		else
+			length = smp_arg1.data.u.sint;
 	}
 
 	// update the output using the start_idx and length
