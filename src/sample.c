@@ -4510,6 +4510,8 @@ static int sample_conv_ltrim(const struct arg *arg_p, struct sample *smp, void *
 		l--;
 	}
 
+	if (smp->data.u.str.size)
+		smp->data.u.str.size -= p - smp->data.u.str.area;
 	smp->data.u.str.area = p;
 	smp->data.u.str.data = l;
 	return 1;
