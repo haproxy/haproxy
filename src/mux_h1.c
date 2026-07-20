@@ -4899,6 +4899,7 @@ static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 {
 	struct h1s *h1s = __sc_mux_strm(sc);
 	struct h1c *h1c;
+	struct h1m *h1m;
 	size_t total = 0;
 
 	if (!h1s)
@@ -4935,6 +4936,7 @@ static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 	if (flags & CO_SFL_STREAMER)
 		h1c->flags |= H1C_F_CO_STREAMER;
 
+	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 	while (count) {
 		size_t ret = 0;
 
@@ -4948,6 +4950,13 @@ static size_t h1_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 		if ((count - ret) > 0)
 			h1c->flags |= H1C_F_CO_MSG_MORE;
+		else {
+			/* Remove H1C_F_CO_MSG_MORE if a content-length was set and all the payload was sent.
+			 * At worst, it remains trailers from H2/QUIC messages that will be dropped.
+			 */
+			if ((h1m->flags & H1_MF_CLEN) && !h1m->curr_len)
+				h1c->flags &= ~H1C_F_CO_MSG_MORE;
+		}
 
 		total += ret;
 		count -= ret;
@@ -5195,8 +5204,13 @@ static size_t h1_done_ff(struct stconn *sc)
 	if (h1m->curr_len)
 		h1m->curr_len -= total;
 
-	if (!h1m->curr_len && (h1m->flags & H1_MF_CLEN))
+	if (!h1m->curr_len && (h1m->flags & H1_MF_CLEN)) {
 		h1m->state = ((sd->iobuf.flags & IOBUF_FL_EOI) ? H1_MSG_DONE : H1_MSG_TRAILERS);
+		/* Remove H1C_F_CO_MSG_MORE if a content-length was set and all the payload was sent.
+		 * At worst, it remains trailers from H2/QUIC messages that will be dropped.
+		 */
+		h1c->flags &= ~H1C_F_CO_MSG_MORE;
+	}
 	else if (!h1m->curr_len && (h1m->flags & H1_MF_CHNK)) {
 		if (h1m->state == H1_MSG_DATA)
 			h1m->state = H1_MSG_CHUNK_CRLF;
