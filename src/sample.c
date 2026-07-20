@@ -2988,6 +2988,8 @@ static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *
 	}
 
 	// update the output using the start_idx and length
+	if (smp->data.u.str.size)
+		smp->data.u.str.size -= start_idx;
 	smp->data.u.str.area += start_idx;
 	smp->data.u.str.data = length;
 
