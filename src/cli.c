@@ -3615,15 +3615,7 @@ read_again:
 			else
 				target_pid = pcli->next_pid;
 			/* we can connect now */
-			s->target = pcli_pid_to_server(target_pid);
-			if (objt_server(s->target)) {
-				struct server *srv = __objt_server(s->target);
-
-				if (srv->counters.shared.tg)
-					s->sv_tgcounters = srv->counters.shared.tg[tgid - 1];
-				else
-					s->sv_tgcounters = NULL;
-			}
+			stream_set_target(s, pcli_pid_to_server(target_pid));
 
 			if (!s->target)
 				goto server_disconnect;
@@ -3788,7 +3780,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				process_srv_queue(__objt_server(s->target));
 		}
 
-		s->target = NULL;
+		stream_set_target(s, NULL);
 
 		/* Always release our endpoint */
 		s->srv_conn = NULL;
@@ -3827,7 +3819,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		s->logs.logwait = strm_fe(s)->to_log;
 		s->logs.level = 0;
 		stream_del_srv_conn(s);
-		s->target = NULL;
+		stream_set_target(s, NULL);
 		/* re-init store persistence */
 		s->store_count = 0;
 		s->uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);

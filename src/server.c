@@ -2095,7 +2095,13 @@ static int srv_parse_strict_maxconn(char **args, int *cur_arg, struct proxy *px,
 /* Returns 1 if the server has streams pointing to it, and 0 otherwise. */
 static int srv_has_streams(struct server *srv)
 {
-	return !!_HA_ATOMIC_LOAD(&srv->served);
+	int i;
+
+	for (i = 0; i < global.nbtgroups; i++) {
+		if (_HA_ATOMIC_LOAD(&srv->per_tgrp[i].nb_strm))
+			return 1;
+	}
+	return 0;
 }
 
 /* Shutdown all connections of a server. The caller must pass a termination

@@ -668,7 +668,7 @@ int assign_server(struct stream *s)
 	 */
 
 	srv = NULL;
-	s->target = NULL;
+	stream_set_target(s, NULL);
 
 	if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
 	    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
@@ -3041,7 +3041,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	if (*p != '.')
 		goto no_cookie;
 
-	s->target = NULL;
+	stream_set_target(s, NULL);
 	while (srv) {
 		if (srv->addr.ss_family == AF_INET &&
 		    port == srv->svc_port &&

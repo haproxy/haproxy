@@ -296,6 +296,7 @@ struct srv_per_tgroup {
 	struct server *next_full;               /* next server in the temporary full list */
 	unsigned int last_other_tgrp_served;	/* Last other tgrp we dequeued from */
 	unsigned int self_served;		/* Number of connection we dequeued from our own queue */
+	unsigned int nb_strm;                   /* nb streams in this tgroup referencing this server */
 	unsigned int dequeuing;                 /* non-zero = dequeuing in progress (atomic) */
 	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
 	struct eb_root *lb_tree;                 /* For LB algos with split between thread groups, the tree to be used, for each group */

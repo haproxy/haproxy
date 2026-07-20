@@ -2725,6 +2725,9 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			return ACT_RET_CONT;
 		}
 
+		/* This runs before any server assignment, so s->target holds no
+		 * server here and there is no nb_strm reference to drop.
+		 */
 		s->target = &http_cache_applet.obj_type;
 		if ((appctx = sc_applet_create(s->scb, objt_applet(s->target)))) {
 			struct cache_appctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));

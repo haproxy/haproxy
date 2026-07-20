@@ -472,6 +472,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 * reqdeny can still block them. This clearly needs to change in 1.6!
 	 */
 	if (!s->target && http_stats_check_uri(s, txn, px)) {
+		/* s->target was NULL (checked above), no nb_strm reference to drop */
 		s->target = &http_stats_applet.obj_type;
 		if (unlikely(!sc_applet_create(s->scb, objt_applet(s->target)))) {
 			s->logs.request_ts = now_ns;
