@@ -5414,8 +5414,10 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 			chunk_appendf(&trash, "  \n");
 
-			if (applet_putchk(appctx, &trash) == -1)
+			if (STRESS_RUN1(applet_putchk_stress(appctx, &trash) == -1,
+			                applet_putchk(appctx, &trash) == -1)) {
 				goto cant_send_unlock;
+			}
 
 			ctx->ptr = 0;
 			ctx->ev_id = es->ev_id;
@@ -5443,8 +5445,10 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 				goto cant_send_unlock;
 			}
 
-			if (applet_putchk(appctx, &trash) == -1)
+			if (STRESS_RUN1(applet_putchk_stress(appctx, &trash) == -1,
+			                applet_putchk(appctx, &trash) == -1)) {
 				goto cant_send_unlock;
+			}
 
 			ctx->ptr = newptr;
 			ctx->bol = newline;
