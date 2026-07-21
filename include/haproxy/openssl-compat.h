@@ -23,6 +23,13 @@
 #include <openssl/rand.h>
 #include <openssl/hmac.h>
 #include <openssl/rsa.h>
+
+#ifdef OPENSSL_IS_AWSLC
+#if !defined(USE_OPENSSL_AWSLC)
+#error "AWSLC detected but USE_OPENSSL_AWSLC=1 is not set on the make line"
+#endif
+#endif
+
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 #include <openssl/ocsp.h>
 #endif
