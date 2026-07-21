@@ -2202,7 +2202,7 @@ del ssl crt-list <filename> <certfile[:line]>
   you will need to provide which line you want to delete. To display the line
   numbers, use "show ssl crt-list -n <crtlist>".
 
-det ssl ech <bind>
+del ssl ech <bind>
   Delete the ECH keys of a bind line.
 
   The bind line format is <frontend>/@<filename>:<linenum> (Example:
