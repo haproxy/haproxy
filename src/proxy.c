@@ -82,6 +82,12 @@ unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then
 
 unsigned int dynpx_next_id = 0; /* lowest ID assigned to dynamic proxies */
 
+/* CLI context used during "show backend" */
+struct show_be_ctx {
+	struct proxy *px;
+	struct watcher px_watch; /* watcher to automatically update px pointer on backend deletion */
+};
+
 /* CLI context used during "show servers {state|conn}" */
 struct show_srv_ctx {
 	struct proxy *px;       /* current proxy to dump or NULL */
@@ -4609,20 +4615,23 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
  */
 static int cli_io_handler_show_backend(struct appctx *appctx)
 {
+	struct show_be_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
 
-	if (!appctx->svcctx) {
+	if (!ctx->px) {
 		chunk_printf(&trash, "# name\n");
 		if (applet_putchk(appctx, &trash) == -1)
 			return 0;
 
-		appctx->svcctx = proxies_list;
+		watcher_init(&ctx->px_watch, &ctx->px, offsetof(struct proxy, watcher_list));
+		/* This will automatically update ctx->px pointer. */
+		watcher_attach(&ctx->px_watch, proxies_list);
 	}
 
-	for (; appctx->svcctx != NULL; appctx->svcctx = curproxy->next) {
-		curproxy = appctx->svcctx;
+	for (; ctx->px; watcher_next(&ctx->px_watch, ctx->px->next)) {
+		curproxy = ctx->px;
 
 		/* looking for non-internal backends only */
 		if ((curproxy->cap & (PR_CAP_BE|PR_CAP_INT)) != PR_CAP_BE)
