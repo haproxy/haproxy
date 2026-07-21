@@ -1751,7 +1751,7 @@ add acl [@<ver>] <acl> <pattern>
   This command cannot be used if the reference <acl> is a name also used with
   a map. In this case, the "add map" command must be used instead.
 
-add backend <name> from <defproxy> [mode <mode>] [guid <guid>] [ EXPERIMENTAL ]
+add backend <name> from <defproxy> [mode <mode>] [guid <guid>]
   Instantiate a new backend proxy with the name <name>.
 
   Only TCP or HTTP proxies can be created. All of the settings are inherited
@@ -1769,8 +1769,7 @@ add backend <name> from <defproxy> [mode <mode>] [guid <guid>] [ EXPERIMENTAL ]
   exceptions though, for example when the mode is neither TCP nor HTTP.
 
   This command is restricted and can only be issued on sockets configured for
-  level "admin". Moreover, this feature is still considered in development so it
-  also requires experimental mode (see "experimental-mode on").
+  level "admin".
 
 add map [@<ver>] <map> <key> <value>
 add map [@<ver>] <map> <payload>
@@ -2167,8 +2166,7 @@ del backend <name>
   the final closure of the streams attached to the target backend.
 
   This command is restricted and can only be issued on sockets configured for
-  level "admin". Moreover, this feature is still considered in development so it
-  also requires experimental mode (see "experimental-mode on").
+  level "admin".
 
 del map <map> [<key>|#<ref>]
   Delete all the map entries from the map <map> corresponding to the key <key>.
