@@ -93,6 +93,7 @@ struct show_srv_ctx {
 		SHOW_SRV_LIST,
 	} state;
 
+	struct watcher px_watch;  /* watcher to automatically update px on backend deletion */
 	struct watcher srv_watch; /* watcher to automatically update sv on server deletion */
 };
 
@@ -4440,6 +4441,8 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
 	struct proxy *px;
 
 	ctx->show_conn = *args[2] == 'c'; // "conn" vs "state"
+
+	watcher_init(&ctx->px_watch,  &ctx->px, offsetof(struct proxy,  watcher_list));
 	watcher_init(&ctx->srv_watch, &ctx->sv, offsetof(struct server, watcher_list));
 
 	/* check if a backend name has been provided */
@@ -4450,7 +4453,7 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
 		if (!px)
 			return cli_err(appctx, "Can't find backend.\n");
 
-		ctx->px = px;
+		watcher_attach(&ctx->px_watch, px);
 		ctx->only_pxid = px->uuid;
 	}
 	return 0;
@@ -4581,10 +4584,10 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 		ctx->state = SHOW_SRV_LIST;
 
 		if (!ctx->px)
-			ctx->px = proxies_list;
+			watcher_attach(&ctx->px_watch, proxies_list);
 	}
 
-	for (; ctx->px != NULL; ctx->px = curproxy->next) {
+	for (; ctx->px; watcher_next(&ctx->px_watch, ctx->px->next)) {
 		curproxy = ctx->px;
 		/* servers are only in backends */
 		if ((curproxy->cap & PR_CAP_BE) && !(curproxy->cap & PR_CAP_INT)) {
@@ -4592,8 +4595,10 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 				return 0;
 		}
 		/* only the selected proxy is dumped */
-		if (ctx->only_pxid)
+		if (ctx->only_pxid) {
+			watcher_detach(&ctx->px_watch);
 			break;
+		}
 	}
 
 	return 1;
