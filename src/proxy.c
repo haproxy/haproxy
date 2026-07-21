@@ -92,6 +92,8 @@ struct show_srv_ctx {
 		SHOW_SRV_HEAD = 0,
 		SHOW_SRV_LIST,
 	} state;
+
+	struct watcher srv_watch; /* watcher to automatically update sv on server deletion */
 };
 
 /* proxy->options. For unsupported ones, pass 0 in the "cap" (PR_CAP_*) field.
@@ -4438,6 +4440,7 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
 	struct proxy *px;
 
 	ctx->show_conn = *args[2] == 'c'; // "conn" vs "state"
+	watcher_init(&ctx->srv_watch, &ctx->sv, offsetof(struct server, watcher_list));
 
 	/* check if a backend name has been provided */
 	if (*args[3]) {
@@ -4489,9 +4492,9 @@ static int dump_servers_state(struct appctx *appctx)
 	char *srvrecord;
 
 	if (!ctx->sv)
-		ctx->sv = px->srv;
+		watcher_attach(&ctx->srv_watch, px->srv);
 
-	for (; ctx->sv != NULL; ctx->sv = srv->next) {
+	for (; ctx->sv; watcher_next(&ctx->srv_watch, ctx->sv->next)) {
 		srv = ctx->sv;
 
 		dump_server_addr(&srv->addr, srv_addr);
