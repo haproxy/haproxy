@@ -7354,15 +7354,13 @@ static int _hlua_http_msg_dup(struct http_msg *msg, lua_State *L, size_t offset,
 				break;
 
 			default:
-				if (!ret)
-					goto no_data;
 				goto end;
 		}
 		offset = 0;
 	}
 
-end:
-	if (!ret && (htx->flags & HTX_FL_EOM))
+  end:
+	if (!ret)
 		goto no_data;
 	luaL_pushresult(&b);
 	return ret;
