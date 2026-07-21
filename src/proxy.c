@@ -61,6 +61,7 @@
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/stress.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
@@ -4560,7 +4561,8 @@ static int dump_servers_state(struct appctx *appctx)
 			chunk_appendf(&trash, "\n");
 		}
 
-		if (applet_putchk(appctx, &trash) == -1) {
+		if (STRESS_RUN1(applet_putchk_stress(appctx, &trash) == -1,
+		                applet_putchk(appctx, &trash) == -1)) {
 			return 0;
 		}
 	}
@@ -4638,8 +4640,10 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 			continue;
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);
-		if (applet_putchk(appctx, &trash) == -1)
+		if (STRESS_RUN1(applet_putchk_stress(appctx, &trash) == -1,
+		                applet_putchk(appctx, &trash) == -1)) {
 			return 0;
+		}
 	}
 
 	return 1;
