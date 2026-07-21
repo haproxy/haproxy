@@ -5850,6 +5850,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOT:
+				http_ctx->flags |= APPLET_REQ_RECV;
 				stop = 1;
 				break;
 
@@ -5857,20 +5858,17 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 				break;
 		}
 
-		if (sz == vlen)
+		if (sz == vlen) {
+			if (blk->flags & HTX_BLK_FL_EOM) {
+				http_ctx->flags |= APPLET_REQ_RECV;
+				stop = 1;
+			}
 			blk = htx_remove_blk(htx, blk);
+		}
 		else {
 			htx_cut_data_blk(htx, blk, vlen);
 			break;
 		}
-	}
-
-	/* The message was fully consumed and no more data are expected
-	 * (EOM flag set).
-	 */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_HAS_EOM)) {
-		http_ctx->flags |= APPLET_REQ_RECV;
-		stop = 1;
 	}
 
 	htx_to_buf(htx, inbuf);
@@ -5946,6 +5944,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOT:
+				http_ctx->flags |= APPLET_REQ_RECV;
 				len = 0;
 				break;
 
@@ -5953,20 +5952,17 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 				break;
 		}
 
-		if (sz == vlen)
+		if (sz == vlen) {
+			if (blk->flags & HTX_BLK_FL_EOM) {
+				http_ctx->flags |= APPLET_REQ_RECV;
+				len = 0;
+			}
 			blk = htx_remove_blk(htx, blk);
+		}
 		else {
 			htx_cut_data_blk(htx, blk, vlen);
 			break;
 		}
-	}
-
-	/* The message was fully consumed and no more data are expected
-	 * (EOM flag set).
-	 */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_HAS_EOM)) {
-		http_ctx->flags |= APPLET_REQ_RECV;
-		len = 0;
 	}
 
 	htx_to_buf(htx, inbuf);
