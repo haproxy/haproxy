@@ -1290,8 +1290,8 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		 * is also the stream with the oldest expiration time.
 		 */
 		first_hs = LIST_ELEM(usr->strms.n, struct hldstream *, list);
-		hs->usr->task->expire = first_hs->expire;
-		task_queue(hs->usr->task);
+		usr->task->expire = first_hs->expire;
+		task_queue(usr->task);
 	}
 
 	goto leave;
