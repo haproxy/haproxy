@@ -79,7 +79,7 @@ int srv_init_addr(void);
 struct server *cli_find_server(struct appctx *appctx, char *arg);
 struct server *new_server(struct proxy *proxy);
 void srv_take(struct server *srv);
-struct server *srv_drop(struct server *srv);
+void srv_drop(struct server *srv);
 void srv_free_params(struct server *srv);
 int srv_preinit(struct server *srv);
 int srv_set_ssl(struct server *s, int use_ssl);

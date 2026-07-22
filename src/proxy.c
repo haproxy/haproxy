@@ -326,7 +326,7 @@ static inline void proxy_free_common(struct proxy *px)
  */
 void deinit_proxy(struct proxy *p)
 {
-	struct server *s;
+	struct server *s, *s_next;
 	struct cap_hdr *h,*h_next;
 	struct listener *l,*l_next;
 	struct bind_conf *bind_conf, *bind_back;
@@ -414,7 +414,9 @@ void deinit_proxy(struct proxy *p)
 		if (p->lbprm.ops && p->lbprm.ops->server_deinit)
 			p->lbprm.ops->server_deinit(s);
 
-		s = srv_drop(s);
+		s_next = s->next;
+		srv_drop(s);
+		s = s_next;
 	}/* end while(s) */
 
 	/* also free default-server parameters since some of them might have

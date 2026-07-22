@@ -3260,20 +3260,14 @@ void srv_free_params(struct server *srv)
  *
  * A general rule is to assume that proxy may already be freed, so cleanup checks
  * must not depend on the proxy
- *
- * As a convenience, <srv.next> is returned if srv is not NULL. It may be useful
- * when calling srv_drop on the list of servers.
  */
-struct server *srv_drop(struct server *srv)
+void srv_drop(struct server *srv)
 {
-	struct server *next = NULL;
 	struct proxy *px = NULL;
 	int i __maybe_unused;
 
 	if (!srv)
-		goto end;
-
-	next = srv->next;
+		return;
 
 	/* If srv was deleted, a proxy refcount must be dropped. */
 	if (srv->flags & SRV_F_DELETED)
@@ -3283,7 +3277,7 @@ struct server *srv_drop(struct server *srv)
 	 * server when reaching zero.
 	 */
 	if (HA_ATOMIC_SUB_FETCH(&srv->refcount, 1))
-		goto end;
+		return;
 
 	/* This BUG_ON() is invalid for now as server released on deinit will
 	 * trigger it as they are not properly removed from their tree.
@@ -3322,9 +3316,6 @@ struct server *srv_drop(struct server *srv)
 	srv_free(&srv);
 
 	proxy_drop(px);
-
- end:
-	return next;
 }
 
 /* Remove a server <srv> from a tracking list if <srv> is tracking another
