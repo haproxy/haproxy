@@ -893,7 +893,8 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 	/* Everything was copied, transfer terminal HTX flags too */
 	if (!blk) {
 		dst->flags |= (src->flags & (HTX_FL_EOM|HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
-		src->flags = 0;
+		if (!(flags & HTX_XFER_KEEP_SRC_BLKS))
+			src->flags = 0;
 	}
 
 	return ret;
