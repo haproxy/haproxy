@@ -1663,7 +1663,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 {
 	struct list tmp_list = LIST_HEAD_INIT(tmp_list);
 	struct bind_conf *bind_conf;
-	struct server *newsrv, *newsrv_back;
+	struct server *newsrv;
 	struct switching_rule *rule;
 	struct server_rule *srule;
 	struct sticking_rule *mrule;
@@ -2494,13 +2494,6 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			}
 			break;
 	}
-
-	/* first, we will invert the servers list order */
-	list_for_each_entry_safe(newsrv, newsrv_back, &px->servers, el_px) {
-		LIST_DEL_INIT(&newsrv->el_px);
-		LIST_INSERT(&tmp_list, &newsrv->el_px);
-	}
-	LIST_SPLICE(&px->servers, &tmp_list);
 
 	/* Check that no server name conflicts. This causes trouble in the stats.
 	 * We only emit an error for the first conflict affecting each server,

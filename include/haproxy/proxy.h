@@ -352,6 +352,12 @@ static inline struct server *proxy_first_server(const struct proxy *px)
 	  LIST_NEXT(&px->servers, struct server *, el_px) : NULL;
 }
 
+static inline struct server *proxy_last_server(const struct proxy *px)
+{
+	return !LIST_ISEMPTY(&px->servers) ?
+	  LIST_PREV(&px->servers, struct server *, el_px) : NULL;
+}
+
 static inline struct server *proxy_next_server(const struct server *srv)
 {
 	if (srv->el_px.n == &srv->proxy->servers)

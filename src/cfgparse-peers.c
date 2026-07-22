@@ -365,10 +365,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * or if we are parsing a "server" line and the current peer is not the local one.
 		 */
 		parse_addr = (peer || !local_peer) ? SRV_PARSE_PARSE_ADDR : 0;
-		prev_srv = proxy_first_server(curpeers->peers_fe);
+		prev_srv = proxy_last_server(curpeers->peers_fe);
 		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL,
 		                         SRV_PARSE_IN_PEER_SECTION|parse_addr|SRV_PARSE_INITIAL_RESOLVE);
-		if (prev_srv == proxy_first_server(curpeers->peers_fe)) {
+		if (prev_srv == proxy_last_server(curpeers->peers_fe)) {
 			/* parse_server didn't add a server:
 			 * Remove the newly allocated peer.
 			 */
@@ -404,7 +404,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		srv = proxy_first_server(curpeers->peers_fe);
+		srv = proxy_last_server(curpeers->peers_fe);
 
 		if (!parse_addr && bind_addr) {
 			/* local peer declared using "server": has name but no

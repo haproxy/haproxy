@@ -3154,6 +3154,7 @@ struct server *new_server(struct proxy *proxy)
 
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
+	LIST_APPEND(&proxy->servers, &srv->el_px);
 	MT_LIST_APPEND(&all_servers, &srv->global_list);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
@@ -3183,18 +3184,6 @@ struct server *new_server(struct proxy *proxy)
 #ifdef USE_OPENSSL
 	HA_RWLOCK_INIT(&srv->ssl_ctx.lock);
 #endif
-
-	// add server to proxy list:
-	if (!(proxy->flags & PR_FL_CHECKED)) {
-		/* they are linked backwards first during parsing
-		 * This will be restablished after parsing.
-		 */
-		LIST_INSERT(&proxy->servers, &srv->el_px);
-	}
-	else {
-		// runtime, add the server at the end of the list
-		LIST_APPEND(&proxy->servers, &srv->el_px);
-	}
 
 	HA_RWLOCK_INIT(&srv->path_params.param_lock);
 
