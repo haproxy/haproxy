@@ -8350,7 +8350,7 @@ static int ssl_sock_get_capability(struct connection *conn, void *xprt_ctx, enum
 			ret = arg;
 			if ((ctx->flags & (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND)) ==
 			                  (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND)) {
-#ifdef USE_VANILLA_OPENSSL
+#ifdef HAVE_VANILLA_OPENSSL
 				/*
 				 * We can splice yet if there's still
 				 * data in OpenSSL internal buffers
