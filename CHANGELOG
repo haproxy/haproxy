@@ -1,6 +1,67 @@
 ChangeLog :
 ===========
 
+2026/07/22 : 3.5-dev3
+    - BUILD: haload: Increase a buffer size so that gcc will stop complaining
+    - BUILD: task: Fix build when no 8B CAS is available at all
+    - BUG/MINOR: hlua: Apply socket timeout on server side only
+    - BUG/MEDIUM: applet: Reenable reads in applet context if requesting a connection
+    - MINOR: stats: factor the proxy vs scope check into its own function
+    - BUG/MEDIUM: stats: subject "stats admin" accesses to "stats scope" filtering
+    - BUG/MINOR: shctx: fix shctx_row_data_get() when offset exceeds a block
+    - MINOR: shctx: clamp shctx_row_data_get() reads against the offset
+    - DOC: stats: document the per-proxy byte count fields in the CSV list
+    - BUG/MEDIUM: cache: reattach the row when a secondary entry is incomplete
+    - MINOR: http: add two header parsing functions
+    - MINOR: cache: minor changes ahead of support for sending early hints
+    - MINOR: cache: add config options for early hints support
+    - MINOR: cache: add helper functions for early hints support
+    - MINOR: shctx: allow consumers to customize eviction strategy
+    - MINOR: cache: track full and hints entries in per-pool LRU lists
+    - MEDIUM: cache: early hints-aware eviction code
+    - MINOR: cache: indicate whether entries are stripped or not
+    - MINOR: http: factor 103 emission into start/end helpers
+    - MEDIUM: cache: emit early hints if configured to do so
+    - MINOR: cache: add a counter for cache hits serving early hints
+    - MINOR: cache: allow opting out of early hints at the rule level
+    - MINOR: cache: allow customizing ratio for early hints
+    - REGTESTS: cache: validate the emission of 103s
+    - MINOR: cache: factor cache_extract_link_hints out of cache_extract_hints
+    - MEDIUM: cache: add support for hints-only HTTP caches
+    - MEDIUM: ssl: introduce src/fips.c with TLS version check
+    - MEDIUM: ssl: add FIPS TLS 1.2 cipher check for AWS-LC
+    - MEDIUM: ssl: set FIPS-approved cipher defaults for AWS-LC FIPS builds
+    - MEDIUM: ssl: add FIPS TLS 1.3 ciphersuite check for AWS-LC
+    - MEDIUM: ssl: set FIPS-approved curve defaults for AWS-LC FIPS builds
+    - MEDIUM: ssl: add FIPS elliptic curve check for AWS-LC
+    - MEDIUM: ssl: set FIPS-approved sigalgs defaults for AWS-LC FIPS builds
+    - MEDIUM: ssl: add FIPS signature algorithm check for AWS-LC
+    - CLEANUP: cache: align the cache_hint_hits increment with its siblings
+    - BUG/MEDIUM: stats: Ensure that Origin is valid on POSTs
+    - DOC: stats: Document that stats admin is vulnerable to a CSRF attack
+    - BUG/MEDIUM: ssl-gencert: Don't forget to free memory when done
+    - BUG/MEDIUM: protobuf: adjust sample size capacity after pointer shift
+    - BUG/MEDIUM: protobuf: fix nested path bypass in field lookup
+    - BUG/MINOR: ssl: fix proxy lookup for show ssl sni
+    - REGTESTS: protobuf: add regression test for nested vs flat paths
+    - DEBUG: add BUG_ON_STATIC(): a compile-time BUG_ON()
+    - CLEANUP: event_hdl: Use BUG_ON_STATIC()
+    - DOC: internals: update core-principles with initializations
+    - BUG/MINOR: mux-h1: Don't delay send if message with c-l was fully sent
+    - BUG/MEDIUM: net-helper: Adjust sample size capacity after pointer shift
+    - BUG/MEDIUM: sample: Adjust sample size capacity after pointer shift for bytes()
+    - BUG/MEDIUM: sample: Adjust sample size capacity after pointer shift for ltrim()
+    - BUG/MINOR: sample: Fix bytes() when length it greater than remaining data
+    - BUILD: Makefile: error when trying to build with aws-lc with the wrong flags
+    - DOC: fix typo in "del ssl ech" command
+    - DOC: remove outdated experimental mention on dynamic backends
+    - BUG/MEDIUM: proxy: protect "show servers ..." against server deletion
+    - BUG/MEDIUM: proxy: protect "show servers ..." against backend deletion
+    - BUG/MEDIUM: proxy: protect show backend against be deletion
+    - MINOR: proxy: stress CLI commands with backends/servers loop
+    - BUG/MEDIUM: server: Properly check for streams before deletion
+    - BUG/MINOR: resolvers: do not index resolvers names in the proxies
+
 2026/07/08 : 3.5-dev2
     - MINOR: proxy: permit to report version info for option deprecation
     - MAJOR: proxy: remove support for "dispatch" and "transparent" proxy keywords
