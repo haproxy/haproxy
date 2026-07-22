@@ -301,7 +301,7 @@ static int fwrr_init_server_groups(struct proxy *p)
 	int i, j;
 
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
-	for (srv = p->srv; srv; srv = srv->next) {
+	list_for_each_entry(srv, &p->servers, el_px) {
 		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
 		srv_lb_commit_status(srv);
 	}
@@ -332,7 +332,7 @@ static int fwrr_init_server_groups(struct proxy *p)
 
 		/* queue active and backup servers in two distinct groups */
 		j = 0;
-		for (srv = p->srv; srv; srv = srv->next) {
+		list_for_each_entry(srv, &p->servers, el_px) {
 			j++;
 			if (!srv_currently_usable(srv))
 				continue;

@@ -606,7 +606,7 @@ static int chash_init_server_tree(struct proxy *p)
 	struct eb_root init_head = EB_ROOT;
 
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
-	for (srv = p->srv; srv; srv = srv->next) {
+	list_for_each_entry(srv, &p->servers, el_px) {
 		srv->next_eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
 		srv_lb_commit_status(srv);
 	}
@@ -619,7 +619,7 @@ static int chash_init_server_tree(struct proxy *p)
 	p->lbprm.chash.last = NULL;
 
 	/* queue active and backup servers in two distinct groups */
-	for (srv = p->srv; srv; srv = srv->next) {
+	list_for_each_entry(srv, &p->servers, el_px) {
 		srv->lb_tree = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.chash.bck : &p->lbprm.chash.act;
 		srv->lb_nodes_tot = srv->uweight * BE_WEIGHT_SCALE;
 		srv->lb_nodes_now = 0;

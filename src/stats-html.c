@@ -1374,7 +1374,7 @@ void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 	struct stats_module *mod;
 	int stats_module_len = 0;
 
-	if (px->cap & PR_CAP_BE && px->srv && (ctx->flags & STAT_F_ADMIN)) {
+	if (px->cap & PR_CAP_BE && !LIST_ISEMPTY(&px->servers) && (ctx->flags & STAT_F_ADMIN)) {
 		/* A form to enable/disable this proxy servers */
 
 		/* scope_txt = search pattern + search query, ctx->scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
@@ -1424,7 +1424,7 @@ void stats_dump_html_px_hdr(struct stconn *sc, struct proxy *px)
 
 	if (ctx->flags & STAT_F_ADMIN) {
 		/* Column heading for Enable or Disable server */
-		if ((px->cap & PR_CAP_BE) && px->srv)
+		if ((px->cap & PR_CAP_BE) && !LIST_ISEMPTY(&px->servers))
 			chunk_appendf(chk,
 				      "<th rowspan=2 width=1><input type=\"checkbox\" "
 				      "onclick=\"for(c in document.getElementsByClassName('%s-checkbox')) "
@@ -1485,7 +1485,7 @@ void stats_dump_html_px_end(struct stconn *sc, struct proxy *px)
 
 	chunk_appendf(chk, "</table>");
 
-	if ((px->cap & PR_CAP_BE) && px->srv && (ctx->flags & STAT_F_ADMIN)) {
+	if ((px->cap & PR_CAP_BE) && !LIST_ISEMPTY(&px->servers) && (ctx->flags & STAT_F_ADMIN)) {
 		/* close the form used to enable/disable this proxy servers */
 		chunk_appendf(chk,
 			      "Choose the action to perform on the checked servers : "

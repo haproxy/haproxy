@@ -127,7 +127,7 @@ void recount_servers(struct proxy *px)
 	px->srv_act = px->srv_bck = 0;
 	px->lbprm.tot_wact = px->lbprm.tot_wbck = 0;
 	px->lbprm.fbck = NULL;
-	for (srv = px->srv; srv != NULL; srv = srv->next) {
+	list_for_each_entry(srv, &px->servers, el_px) {
 		if (!srv_willbe_usable(srv))
 			continue;
 
@@ -3011,7 +3011,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	struct proxy    *px   = s->be;
 	int              ret;
 	struct sample    smp;
-	struct server *srv = px->srv;
+	struct server *srv;
 	uint16_t port;
 	uint32_t addr;
 	char *p;
@@ -3042,7 +3042,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 		goto no_cookie;
 
 	stream_set_target(s, NULL);
-	while (srv) {
+	list_for_each_entry(srv, &px->servers, el_px) {
 		if (srv->addr.ss_family == AF_INET &&
 		    port == srv->svc_port &&
 		    addr == ((struct sockaddr_in *)&srv->addr)->sin_addr.s_addr) {
@@ -3053,7 +3053,6 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 				break;
 			}
 		}
-		srv = srv->next;
 	}
 
 no_cookie:
@@ -3408,7 +3407,7 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	for (iterator = px->srv; iterator; iterator = iterator->next) {
+	list_for_each_entry(iterator, &px->servers, el_px) {
 		if (iterator->cur_state == SRV_ST_STOPPED)
 			continue;
 
@@ -3572,7 +3571,7 @@ smp_fetch_be_conn_free(const struct arg *args, struct sample *smp, const char *k
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	for (iterator = px->srv; iterator; iterator = iterator->next) {
+	list_for_each_entry(iterator, &px->servers, el_px) {
 		if (iterator->cur_state == SRV_ST_STOPPED)
 			continue;
 

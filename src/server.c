@@ -550,8 +550,7 @@ static inline void srv_check_for_dup_dyncookie(struct server *s)
 	struct proxy *p = s->proxy;
 	struct server *tmpserv;
 
-	for (tmpserv = p->srv; tmpserv != NULL;
-	    tmpserv = tmpserv->next) {
+	list_for_each_entry(tmpserv, &p->servers, el_px) {
 		if (tmpserv == s)
 			continue;
 		if (tmpserv->next_admin & SRV_ADMF_FMAINT)
@@ -2135,9 +2134,10 @@ void srv_shutdown_backup_streams(struct proxy *px, int why)
 {
 	struct server *srv;
 
-	for (srv = px->srv; srv != NULL; srv = srv->next)
+	list_for_each_entry(srv, &px->servers, el_px) {
 		if (srv->flags & SRV_F_BACKUP)
 			srv_shutdown_streams(srv, why);
+	}
 }
 
 static void srv_append_op_chg_cause(struct buffer *msg, struct server *s, enum srv_op_st_chg_cause cause)
@@ -2393,7 +2393,7 @@ void srv_compute_all_admin_states(struct proxy *px)
 {
 	struct server *srv;
 
-	for (srv = px->srv; srv; srv = srv->next) {
+	list_for_each_entry(srv, &px->servers, el_px) {
 		if (srv->track)
 			continue;
 		srv_propagate_admin_state(srv);
@@ -3185,21 +3185,15 @@ struct server *new_server(struct proxy *proxy)
 #endif
 
 	// add server to proxy list:
-	/* TODO use a double-linked list for px->srv */
-	if (!(proxy->flags & PR_FL_CHECKED) || !proxy->srv) {
+	if (!(proxy->flags & PR_FL_CHECKED)) {
 		/* they are linked backwards first during parsing
 		 * This will be restablished after parsing.
 		 */
-		srv->next = proxy->srv;
-		proxy->srv = srv;
+		LIST_INSERT(&proxy->servers, &srv->el_px);
 	}
 	else {
-		struct server *sv = proxy->srv;
-
 		// runtime, add the server at the end of the list
-		while (sv && sv->next)
-			sv = sv->next;
-		sv->next = srv;
+		LIST_APPEND(&proxy->servers, &srv->el_px);
 	}
 
 	HA_RWLOCK_INIT(&srv->path_params.param_lock);
@@ -5194,7 +5188,7 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 		return NULL;
 
 	be = srv->proxy;
-	for (tmpsrv = be->srv; tmpsrv; tmpsrv = tmpsrv->next) {
+	list_for_each_entry(tmpsrv, &be->servers, el_px) {
 		/* we found the current server is the same, ignore it */
 		if (srv == tmpsrv)
 			continue;
@@ -5460,7 +5454,7 @@ int srv_init_addr(void)
 		if (!(curproxy->cap & PR_CAP_BE) || (curproxy->flags & (PR_FL_DISABLED|PR_FL_STOPPED)))
 			continue;
 
-		for (srv = curproxy->srv; srv; srv = srv->next) {
+		list_for_each_entry(srv, &curproxy->servers, el_px) {
 			set_usermsgs_ctx(srv->conf.file, srv->conf.line, &srv->obj_type);
 			if (srv->hostname || srv->srvrq)
 				return_code |= srv_iterate_initaddr(srv);

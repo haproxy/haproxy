@@ -1167,7 +1167,7 @@ int stats_allocate_proxy_counters(struct proxy *px)
 		}
 	}
 
-	for (sv = px->srv; sv; sv = sv->next) {
+	list_for_each_entry(sv, &px->servers, el_px) {
 		if (!stats_allocate_proxy_counters_internal(&sv->extra_counters,
 		                                            COUNTERS_SV,
 		                                            STATS_PX_CAP_SRV,

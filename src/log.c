@@ -1447,8 +1447,7 @@ static int postcheck_log_backend(struct proxy *be)
 	}
 
 	/* finish the initialization of proxy's servers */
-	srv = be->srv;
-	while (srv) {
+	list_for_each_entry(srv, &be->servers, el_px) {
 		BUG_ON(srv->log_target);
 		BUG_ON(srv->addr_type.proto_type != PROTO_TYPE_DGRAM &&
 		       srv->addr_type.proto_type != PROTO_TYPE_STREAM);
@@ -1497,7 +1496,6 @@ static int postcheck_log_backend(struct proxy *be)
 			goto end;
 		}
 		srv->log_target->flags |= LOG_TARGET_FL_RESOLVED;
-		srv = srv->next;
 	}
  end:
 	if (err_code & ERR_CODE) {

@@ -367,7 +367,8 @@ struct proxy {
 #ifdef USE_QUIC
 	struct list quic_init_rules;		/* quic-initial rules */
 #endif
-	struct server *srv, *defsrv;		/* known servers; default server configuration */
+	struct list servers;		/* servers present in current backend */
+	struct server *defsrv;			/* default server configuration */
 	struct lbprm lbprm;			/* load-balancing parameters */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
 	int load_server_state_from_file;	/* location of the file containing server state.

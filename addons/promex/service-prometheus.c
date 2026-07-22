@@ -966,13 +966,11 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			switch (ctx->field_num) {
 				case ST_I_PX_AGG_SRV_CHECK_STATUS: // DEPRECATED
 				case ST_I_PX_AGG_SRV_STATUS:
-					if (!px->srv)
+					if (LIST_ISEMPTY(&px->servers))
 						goto next_px;
-					sv = px->srv;
-					while (sv) {
+					list_for_each_entry(sv, &px->servers, el_px) {
 						srv_state = promex_srv_status(sv);
 						srv_state_count[srv_state] += 1;
-						sv = sv->next;
 					}
 					for (; ctx->obj_state < PROMEX_SRV_STATE_COUNT; ctx->obj_state++) {
 						val = mkf_u32(FN_GAUGE, srv_state_count[ctx->obj_state]);
@@ -986,15 +984,13 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					ctx->obj_state = 0;
 					goto next_px;
 				case ST_I_PX_AGG_CHECK_STATUS:
-					if (!px->srv)
+					if (LIST_ISEMPTY(&px->servers))
 						goto next_px;
-					sv = px->srv;
-					while (sv) {
+					list_for_each_entry(sv, &px->servers, el_px) {
 						if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
 							srv_check_status = sv->check.status;
 							srv_check_count[srv_check_status] += 1;
 						}
-						sv = sv->next;
 					}
 					for (; ctx->obj_state < HCHK_STATUS_SIZE; ctx->obj_state++) {
 						if (get_check_status_result(ctx->obj_state) < CHK_RES_FAILED)
@@ -1011,7 +1007,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					ctx->obj_state = 0;
 					goto next_px;
 				case ST_I_PX_STATUS:
-					bkd_state = ((px->lbprm.tot_weight > 0 || !px->srv) ? 1 : 0);
+					bkd_state = ((px->lbprm.tot_weight > 0 || LIST_ISEMPTY(&px->servers)) ? 1 : 0);
 					for (; ctx->obj_state < PROMEX_BACK_STATE_COUNT; ctx->obj_state++) {
 						labels[lb_idx].name = ist("state");
 						labels[lb_idx].value = promex_back_st[ctx->obj_state];

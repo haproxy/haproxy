@@ -326,7 +326,7 @@ static inline void proxy_free_common(struct proxy *px)
  */
 void deinit_proxy(struct proxy *p)
 {
-	struct server *s, *s_next;
+	struct server *s, *s_back;
 	struct cap_hdr *h,*h_next;
 	struct listener *l,*l_next;
 	struct bind_conf *bind_conf, *bind_back;
@@ -406,17 +406,14 @@ void deinit_proxy(struct proxy *p)
 		h = h_next;
 	}/* end while(h) */
 
-	s = p->srv;
-	while (s) {
+	list_for_each_entry_safe(s, s_back, &p->servers, el_px) {
 		list_for_each_entry(srvdf, &server_deinit_list, list)
 			srvdf->fct(s);
 
 		if (p->lbprm.ops && p->lbprm.ops->server_deinit)
 			p->lbprm.ops->server_deinit(s);
 
-		s_next = s->next;
 		srv_drop(s);
-		s = s_next;
 	}/* end while(s) */
 
 	/* also free default-server parameters since some of them might have
@@ -1571,6 +1568,7 @@ void init_new_proxy(struct proxy *p)
 	memset(p, 0, sizeof(struct proxy));
 	p->obj_type = OBJ_TYPE_PROXY;
 	LIST_INIT(&p->global_list);
+	LIST_INIT(&p->servers);
 	LIST_INIT(&p->el);
 	LIST_INIT(&p->acl);
 	LIST_INIT(&p->http_req_rules);
@@ -1663,8 +1661,9 @@ int proxy_init_per_thr(struct proxy *px)
 
 int proxy_finalize(struct proxy *px, int *err_code)
 {
+	struct list tmp_list = LIST_HEAD_INIT(tmp_list);
 	struct bind_conf *bind_conf;
-	struct server *newsrv;
+	struct server *newsrv, *newsrv_back;
 	struct switching_rule *rule;
 	struct server_rule *srule;
 	struct sticking_rule *mrule;
@@ -1997,7 +1996,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			free(px->defbe.name);
 			px->defbe.be = target;
 			/* Emit a warning if this proxy also has some servers */
-			if (px->srv) {
+			if (!LIST_ISEMPTY(&px->servers)) {
 				ha_warning("In proxy '%s', the 'default_backend' rule always has precedence over the servers, which will never be used.\n",
 				           px->id);
 				*err_code |= ERR_WARN;
@@ -2176,7 +2175,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 #endif
 
 	/* Warn is a switch-mode http is used on a TCP listener with servers but no backend */
-	if (!px->defbe.name && LIST_ISEMPTY(&px->switching_rules) && px->srv) {
+	if (!px->defbe.name && LIST_ISEMPTY(&px->switching_rules) && !LIST_ISEMPTY(&px->servers)) {
 		if ((px->options & PR_O_HTTP_UPG) && px->mode == PR_MODE_TCP)
 			ha_warning("Proxy '%s' : 'switch-mode http' configured for a %s %s with no backend. "
 			           "Incoming connections upgraded to HTTP cannot be routed to TCP servers\n",
@@ -2436,7 +2435,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 
 	if (!(px->cap & PR_CAP_INT) && (px->mode == PR_MODE_TCP || px->mode == PR_MODE_HTTP) &&
 	    (((px->cap & PR_CAP_FE) && !px->timeout.client) ||
-	     ((px->cap & PR_CAP_BE) && (px->srv) &&
+	     ((px->cap & PR_CAP_BE) && !LIST_ISEMPTY(&px->servers) &&
 	      (!px->timeout.connect ||
 	       (!px->timeout.server && (px->mode == PR_MODE_HTTP || !px->timeout.tunnel)))))) {
 		ha_warning("missing timeouts for %s '%s'.\n"
@@ -2497,17 +2496,11 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	}
 
 	/* first, we will invert the servers list order */
-	newsrv = NULL;
-	while (px->srv) {
-		struct server *next;
-
-		next = px->srv->next;
-		px->srv->next = newsrv;
-		newsrv = px->srv;
-		if (!next)
-			break;
-		px->srv = next;
+	list_for_each_entry_safe(newsrv, newsrv_back, &px->servers, el_px) {
+		LIST_DEL_INIT(&newsrv->el_px);
+		LIST_INSERT(&tmp_list, &newsrv->el_px);
 	}
+	LIST_SPLICE(&px->servers, &tmp_list);
 
 	/* Check that no server name conflicts. This causes trouble in the stats.
 	 * We only emit an error for the first conflict affecting each server,
@@ -2516,7 +2509,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	 * we simply have to check for the current server's duplicates to spot
 	 * conflicts.
 	 */
-	for (newsrv = px->srv; newsrv; newsrv = newsrv->next) {
+	list_for_each_entry(newsrv, &px->servers, el_px) {
 		struct server *other_srv;
 
 		/* Note: internal servers are not always registered and
@@ -2537,8 +2530,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 
 	/* assign automatic UIDs to servers which don't have one yet */
 	next_id = 1;
-	newsrv = px->srv;
-	while (newsrv != NULL) {
+	list_for_each_entry(newsrv, &px->servers, el_px) {
 		if (!newsrv->puid) {
 			/* server ID not set, use automatic numbering with first
 			 * spare entry starting with next_svid.
@@ -2549,7 +2541,6 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		}
 
 		next_id++;
-		newsrv = newsrv->next;
 	}
 
 	px->lbprm.wmult = 1; /* default weight multiplier */
@@ -2560,8 +2551,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	 * tasks to fill the emptied slots when a connection leaves.
 	 * Also, resolve deferred tracking dependency if needed.
 	 */
-	newsrv = px->srv;
-	while (newsrv != NULL) {
+	list_for_each_entry(newsrv, &px->servers, el_px) {
 		set_usermsgs_ctx(newsrv->conf.file, newsrv->conf.line, &newsrv->obj_type);
 
 		srv_minmax_conn_apply(newsrv);
@@ -2615,7 +2605,6 @@ int proxy_finalize(struct proxy *px, int *err_code)
 
 	next_srv:
 		reset_usermsgs_ctx();
-		newsrv = newsrv->next;
 	}
 
 	/*
@@ -2626,11 +2615,8 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	 * have been provided yet.
 	 */
 	if (px->ck_opts & PR_CK_DYNAMIC) {
-		newsrv = px->srv;
-		while (newsrv != NULL) {
+		list_for_each_entry(newsrv, &px->servers, el_px)
 			srv_set_dyncookie(newsrv);
-			newsrv = newsrv->next;
-		}
 
 	}
 	/* We have to initialize the server lookup mechanism depending
@@ -2752,8 +2738,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	/*
 	 * ensure that we're not cross-dressing a TCP server into HTTP.
 	 */
-	newsrv = px->srv;
-	while (newsrv != NULL) {
+	list_for_each_entry(newsrv, &px->servers, el_px) {
 		if ((px->mode != PR_MODE_HTTP) && newsrv->rdr_len) {
 			ha_alert("%s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
 			         proxy_type_str(px), px->id);
@@ -2793,8 +2778,6 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			*err_code |= ERR_FATAL | ERR_ALERT;
 			goto out;
 		}
-
-		newsrv = newsrv->next;
 	}
 
 	/* Check filter configuration, if any */
@@ -2857,7 +2840,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 
 	/* Check the mux protocols, if any, for each server attached to
 	 * the current proxy */
-	for (newsrv = px->srv; newsrv; newsrv = newsrv->next) {
+	list_for_each_entry(newsrv, &px->servers, el_px) {
 		int mode = conn_pr_mode_to_proto_mode(px->mode);
 		const struct mux_proto_list *mux_ent;
 
@@ -4682,7 +4665,7 @@ static int cli_parse_enable_dyncookie_backend(char **args, char *payload, struct
 	px->ck_opts |= PR_CK_DYNAMIC;
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
-	for (s = px->srv; s != NULL; s = s->next) {
+	list_for_each_entry(s, &px->servers, el_px) {
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 		srv_set_dyncookie(s);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
@@ -4717,7 +4700,7 @@ static int cli_parse_disable_dyncookie_backend(char **args, char *payload, struc
 	px->ck_opts &= ~PR_CK_DYNAMIC;
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
-	for (s = px->srv; s != NULL; s = s->next) {
+	list_for_each_entry(s, &px->servers, el_px) {
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 		if (!(s->flags & SRV_F_COOKIESET))
 			ha_free(&s->cookie);
@@ -4762,7 +4745,7 @@ static int cli_parse_set_dyncookie_key_backend(char **args, char *payload, struc
 	px->dyncookie_key = newkey;
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
-	for (s = px->srv; s != NULL; s = s->next) {
+	list_for_each_entry(s, &px->servers, el_px) {
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 		srv_set_dyncookie(s);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
@@ -5062,7 +5045,7 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 		goto out;
 	}
 
-	if (be->srv) {
+	if (!LIST_ISEMPTY(&be->servers)) {
 		msg = "Only a backend without server can be deleted.";
 		goto out;
 	}

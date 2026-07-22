@@ -348,12 +348,15 @@ static inline struct proxy *main_proxies_next(const struct proxy *px)
 
 static inline struct server *proxy_first_server(const struct proxy *px)
 {
-	return px->srv;
+	return !LIST_ISEMPTY(&px->servers) ?
+	  LIST_NEXT(&px->servers, struct server *, el_px) : NULL;
 }
 
 static inline struct server *proxy_next_server(const struct server *srv)
 {
-	return srv->next;
+	if (srv->el_px.n == &srv->proxy->servers)
+		return NULL;
+	return LIST_ELEM(srv->el_px.n, struct server *, el_px);
 }
 
 #endif /* _HAPROXY_PROXY_H */

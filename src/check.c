@@ -1698,7 +1698,7 @@ static int start_checks()
 	 * too short an interval for all others.
 	 */
 	list_for_each_entry(px, &main_proxies, el) {
-		for (s = px->srv; s; s = s->next) {
+		list_for_each_entry(s, &px->servers, el_px) {
 			if ((px->options2 & PR_O2_USE_SBUF_CHECK) &&
 			    (s->check.tcpcheck->rs && s->check.tcpcheck->rs->flags & TCPCHK_RULES_MAY_USE_SBUF))
 				s->check.state |= CHK_ST_USE_SMALL_BUFF;
@@ -1737,7 +1737,7 @@ static int start_checks()
 			}
 		}
 
-		for (s = px->srv; s; s = s->next) {
+		list_for_each_entry(s, &px->servers, el_px) {
 			/* A task for the main check */
 			if (s->check.state & CHK_ST_CONFIGURED) {
 				if (s->check.type == PR_O2_EXT_CHK) {

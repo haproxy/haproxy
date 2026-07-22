@@ -908,10 +908,10 @@ static void sig_dump_state(struct sig_handler *sh)
 
 	ha_warning("SIGHUP received, dumping servers states.\n");
 	list_for_each_entry(p, &main_proxies, el) {
-		struct server *s = p->srv;
+		struct server *s;
 
 		send_log(p, LOG_NOTICE, "SIGHUP received, dumping servers states for proxy %s.\n", p->id);
-		while (s) {
+		list_for_each_entry(s, &p->servers, el_px) {
 			chunk_printf(&trash,
 			             "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %llu tot.",
 			             p->id, s->id,
@@ -919,11 +919,10 @@ static void sig_dump_state(struct sig_handler *sh)
 			             s->cur_sess, s->queueslength, (ullong)COUNTERS_SHARED_TOTAL(s->counters.shared.tg, cum_sess, HA_ATOMIC_LOAD));
 			ha_warning("%s\n", trash.area);
 			send_log(p, LOG_NOTICE, "%s\n", trash.area);
-			s = s->next;
 		}
 
 		/* FIXME: those info are a bit outdated. We should be able to distinguish between FE and BE. */
-		if (!p->srv) {
+		if (LIST_ISEMPTY(&p->servers)) {
 			chunk_printf(&trash,
 			             "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %llu+%llu.",
 			             p->id,
@@ -2267,7 +2266,7 @@ static void step_init_2(int argc, char** argv)
 			continue;
 
 		list_for_each_entry(pscf, &post_server_check_list, list) {
-			for (srv = px->srv; srv; srv = srv->next) {
+			list_for_each_entry(srv, &px->servers, el_px) {
 				err_code |= pscf->fct(srv);
 				if (err_code & (ERR_ABORT|ERR_FATAL)) {
 					ha_alert("Fatal errors found in configuration.\n");

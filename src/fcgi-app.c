@@ -643,7 +643,7 @@ static int cfg_fcgi_apps_postparser()
 		if (fcgi_conf && !(px->options2 & PR_O2_RSTRICT_REQ_HDR_NAMES_MASK))
 			px->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_DEL;
 
-		for (srv = px->srv; srv; srv = srv->next) {
+		list_for_each_entry(srv, &px->servers, el_px) {
 			if (srv->mux_proto && isteq(srv->mux_proto->mux_proto, ist("fcgi"))) {
 				nb_fcgi_srv++;
 				if (fcgi_conf)

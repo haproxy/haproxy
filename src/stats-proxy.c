@@ -1160,7 +1160,7 @@ static void stats_fill_be_computesrv(struct proxy *px, int *nbup, int *nbsrv, in
 	const struct server *srv;
 
 	nbup_tmp = nbsrv_tmp = totuw_tmp = 0;
-	for (srv = px->srv; srv; srv = srv->next) {
+	list_for_each_entry(srv, &px->servers, el_px) {
 		if (srv->cur_state != SRV_ST_STOPPED) {
 			nbup_tmp++;
 			if (srv_currently_usable(srv) &&
@@ -1254,7 +1254,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				break;
 			case ST_I_PX_STATUS:
 				fld = chunk_newstr(out);
-				chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
+				chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || LIST_ISEMPTY(&px->servers)) ? "UP" : "DOWN");
 				if (px->flags & PR_FL_BE_UNPUBLISHED)
 					chunk_appendf(out, " (UNPUB)");
 				if (flags & (STAT_F_HIDE_MAINT|STAT_F_HIDE_DOWN))
@@ -1281,7 +1281,7 @@ int stats_fill_be_line(struct proxy *px, int flags, struct field *line, int len,
 				field = mkf_u32(0, px->srv_bck);
 				break;
 			case ST_I_PX_DOWNTIME:
-				if (px->srv)
+				if (!LIST_ISEMPTY(&px->servers))
 					field = mkf_u32(FN_COUNTER, be_downtime(px));
 				break;
 			case ST_I_PX_PID:
@@ -1689,7 +1689,7 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 			px->fe_counters.cps_max = 0;
 		}
 
-		for (sv = px->srv; sv; sv = sv->next)
+		list_for_each_entry(sv, &px->servers, el_px) {
 			if (clrall)
 				memset(&sv->counters, 0, sizeof(sv->counters));
 			else {
@@ -1701,6 +1701,7 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 				sv->counters.dtime_max = 0;
 				sv->counters.ttime_max = 0;
 			}
+		}
 
 		list_for_each_entry(li, &px->conf.listeners, by_fe)
 			if (li->counters) {
@@ -1733,7 +1734,7 @@ void proxy_stats_clear_counters(int clrall, struct list *stat_modules)
 			}
 
 			if (mod_cap & STATS_PX_CAP_SRV) {
-				for (sv = px->srv; sv; sv = sv->next) {
+				list_for_each_entry(sv, &px->servers, el_px) {
 					EXTRA_COUNTERS_INIT(sv->extra_counters,
 				                            mod,
 					                    mod->counters,

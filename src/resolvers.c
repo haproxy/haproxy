@@ -2818,7 +2818,7 @@ static int resolvers_finalize_config(void)
 			continue;
 		}
 
-		for (srv = px->srv; srv; srv = srv->next) {
+		list_for_each_entry(srv, &px->servers, el_px) {
 			struct resolvers *resolvers;
 
 			if (!srv->resolvers_id)
@@ -4064,8 +4064,7 @@ static int cfg_post_check_resolvers(void)
 	list_for_each_entry(r, &sec_resolvers, list) {
 		/* prepare forward server descriptors */
 		if (r->px) {
-			srv = r->px->srv;
-			while (srv) {
+			list_for_each_entry(srv, &r->px->servers, el_px) {
 				/* init ssl if needed */
 				if (srv->use_ssl == 1 && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
 					if (xprt_get(XPRT_SSL)->prepare_srv(srv)) {
@@ -4074,7 +4073,6 @@ static int cfg_post_check_resolvers(void)
 						break;
 					}
 				}
-				srv = srv->next;
 			}
 		}
 	}

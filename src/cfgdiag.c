@@ -91,7 +91,7 @@ static void run_servers_diag(int *ret)
 	struct server *srv;
 
 	list_for_each_entry(px, &main_proxies, el) {
-		for (srv = px->srv; srv; srv = srv->next) {
+		list_for_each_entry(srv, &px->servers, el_px) {
 			srv_diag_cookies(ret, srv, &cookies_tree);
 			srv_diag_check_reuse(ret, srv, px);
 		}

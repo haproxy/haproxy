@@ -44,7 +44,7 @@ static void recalc_server_ss(struct proxy *px)
 
 	first = NULL;
 
-	for (cur = px->srv; cur; cur = cur->next) {
+	list_for_each_entry(cur, &px->servers, el_px) {
 		if ((cur->flags & SRV_F_BACKUP) == flag &&
 		    srv_willbe_usable(cur)) {
 			first = cur;
@@ -148,10 +148,10 @@ static int init_server_ss(struct proxy *p)
 {
 	struct server *srv;
 
-	if (!p->srv)
+	if (LIST_ISEMPTY(&p->servers))
 		return 0;
 
-	for (srv = p->srv; srv; srv = srv->next) {
+	list_for_each_entry(srv, &p->servers, el_px) {
 		srv->next_eweight = 1; /* ignore weights, all servers have the same weight */
 		srv_lb_commit_status(srv);
 	}

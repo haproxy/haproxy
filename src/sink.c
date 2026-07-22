@@ -929,13 +929,11 @@ static int sink_finalize(struct sink *sink)
 		/* prepare forward server descriptors */
 		if (sink->forward_px) {
 			/* sink proxy is set: register all servers from the proxy */
-			srv = sink->forward_px->srv;
-			while (srv) {
+			list_for_each_entry(srv, &sink->forward_px->servers, el_px) {
 				if (!sink_add_srv(sink, srv)) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					break;
 				}
-				srv = srv->next;
 			}
 		}
 		/* init forwarding if at least one sft is registered */
