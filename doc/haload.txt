@@ -66,7 +66,7 @@ HALoad displays its usage when run without argument or wrong arguments:
             -n <reqs>        maximum total requests (-1)
             -r <reqs>        number of requests per connection (-1)
             -s <time>        soft start: time in sec to reach 100% load
-            -t <threads>     number of threads
+            -t <threads>     number of threads (1)
             -u <users>       number of users (1)
             -w <time>        I/O timeout in milliseconds (10000)
             -C               dump the configuration and exit
