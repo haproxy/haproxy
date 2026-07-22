@@ -285,10 +285,24 @@ static int ssl_sock_to_pipe(struct connection *conn, void *xprt_ctx, struct pipe
 static int ssl_sock_from_pipe(struct connection *conn, void *xprt_ctx, struct pipe *pipe, unsigned int count)
 {
 	struct ssl_sock_ctx *ctx = xprt_ctx;
+	int ret;
 
 	if (!(ctx->flags & SSL_SOCK_F_KTLS_SEND))
 		return -1;
-	return ctx->xprt->rcv_pipe(conn, ctx->xprt_ctx, pipe, count);
+
+	ret = ctx->xprt->rcv_pipe(conn, ctx->xprt_ctx, pipe, count);
+
+	/*
+	 * Splicing failed, so we probably received a TLS record that is
+	 * not application data.
+	 * Just add SSL_SOCK_F_KTLS_RX_CTRL so that next time rcv_buf
+	 * will be called, and it will be taken care of.
+	 */
+	if (ret == 0 && fd_recv_ready(conn->handle.fd) &&
+	    !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)))
+		ctx->flags |= SSL_SOCK_F_KTLS_RX_CTRL;
+
+	return ret;
 }
 #endif /* USE_LINUX_SPLICE && HA_USE_KTLS */
 
@@ -370,17 +384,18 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	size_t *msg_controllenp = NULL;
 	int detect_shutr;
 	int ret;
+	int flags;
 
 	ctx = BIO_get_data(h);
 #ifdef HA_USE_KTLS
 #ifdef HAVE_VANILLA_OPENSSL
 	if (ctx->flags & SSL_SOCK_F_KTLS_RECV) {
-		if (ctx->conn->flags & CO_FL_WANT_SPLICING) {
+		if ((ctx->conn->flags & CO_FL_WANT_SPLICING) &&
+		    !(ctx->flags & SSL_SOCK_F_KTLS_RX_CTRL)) {
 			/*
-			 * We want to use splicing at this point, so
-			 * pretend we had nothing to read with the hope
-			 * OpenSSL will empty its buffers, and we can
-			 * finally start splicing
+			 * We want to use splicing at this point, so pretend we
+			 * had nothing to read with the hope OpenSSL will empty
+			 * its buffers, and we can finally start splicing.
 			 */
 			BIO_set_retry_read(h);
 			return -1;
@@ -407,7 +422,16 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	else
 		detect_shutr = 0;
 
-	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, msg_control, msg_controllenp, detect_shutr ? CO_RFL_TRY_HARDER : 0);
+	flags = detect_shutr ? CO_RFL_TRY_HARDER : 0;
+	/*
+	 * When reading a kTLS record, we want to read only one record,
+	 * as we only receive one msg_control from rcv_buf, while we'd need
+	 * one per record.
+	 */
+	if (msg_control)
+		flags |= CO_RFL_READ_ONCE;
+	ret = ctx->xprt->rcv_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, size, msg_control, msg_controllenp, flags);
+
 	if (detect_shutr && ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 		ret = -1;
 	}
@@ -7327,6 +7351,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		}
 	}
  leave:
+	ctx->flags &= ~SSL_SOCK_F_KTLS_RX_CTRL;
 	TRACE_LEAVE(SSL_EV_CONN_RECV, conn);
 	return done;
 
@@ -8350,6 +8375,15 @@ static int ssl_sock_get_capability(struct connection *conn, void *xprt_ctx, enum
 			ret = arg;
 			if ((ctx->flags & (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND)) ==
 			                  (SSL_SOCK_F_KTLS_RECV | SSL_SOCK_F_KTLS_SEND)) {
+				/*
+				 * If we tried to splice and received
+				 * a non-application data record, don't try
+				 * to splice again, we have to go the regular
+				 * route for that record.
+				 */
+				if (ctx->flags & SSL_SOCK_F_KTLS_RX_CTRL)
+					*ret = XPRT_CONN_COULD_SPLICE;
+				else
 #ifdef HAVE_VANILLA_OPENSSL
 				/*
 				 * We can splice yet if there's still
