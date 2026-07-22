@@ -2295,9 +2295,8 @@ static struct proxy *_get_next_proxy(void *head, struct proxy *cur)
  */
 int check_config_validity()
 {
-	struct list tmp_list = LIST_HEAD_INIT(tmp_list);
 	int cfgerr = 0, ret;
-	struct proxy *defpx, *old;
+	struct proxy *defpx;
 	void *init_proxies_list = NULL;
 	struct stktable *t;
 	struct server *newsrv = NULL;
@@ -2385,13 +2384,6 @@ int check_config_validity()
 	err_code = userlist_postinit();
 	if (err_code != ERR_NONE)
 		goto out;
-
-	/* first, we will invert the proxy list order */
-	list_for_each_entry_safe(curproxy, old, &main_proxies, el) {
-		LIST_DELETE(&curproxy->el);
-		LIST_INSERT(&tmp_list, &curproxy->el);
-	}
-	LIST_SPLICE(&main_proxies, &tmp_list);
 
 	/*
 	 * we must finish to initialize certain things on the servers,

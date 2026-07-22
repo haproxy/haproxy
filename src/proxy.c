@@ -4977,8 +4977,11 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	proxy_index_id(px);
 	dynpx_next_id = px->uuid;
 
-	LIST_APPEND(&main_proxies, &px->el);
-
+	/* Insert <px> into <main_proxies> list of visible proxies. Note that
+	 * insertion in <proxies> has already been performed in
+	 * setup_new_proxy() via alloc_new_proxy().
+	 */
+	main_proxies_register(px);
 	thread_release();
 
 	if (unlikely(!be_supports_dynamic_srv(px, &msg)))
