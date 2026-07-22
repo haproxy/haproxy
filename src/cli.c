@@ -470,8 +470,7 @@ static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 		return NULL;
 	}
 
-	fe->next = proxies_list;
-	proxies_list = fe;
+	main_proxies_register(fe);
 	fe->maxconn = 10;                 /* default to 10 concurrent connections */
 	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
 	fe->conf.file = copy_file_name(file);
@@ -3904,8 +3903,7 @@ int mworker_cli_create_master_proxy(char **errmsg)
 	/* Does not init the default target the CLI applet, but must be done in
 	 * the request parsing code */
 	mworker_proxy->default_target = NULL;
-	mworker_proxy->next = proxies_list;
-	proxies_list = mworker_proxy;
+	main_proxies_register(mworker_proxy);
 
 	return 0;
 }

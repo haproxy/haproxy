@@ -520,8 +520,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curr_defproxy = last_defproxy = curproxy;
 		} else {
 			/* regular proxies are in a list */
-			curproxy->next = proxies_list;
-			proxies_list = curproxy;
+			main_proxies_register(curproxy);
 		}
 		goto out;
 	}

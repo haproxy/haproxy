@@ -314,6 +314,16 @@ static inline void increment_send_rate(uint64_t bytes, int splice)
 	update_freq_ctr(&th_ctx->out_32bps, (bytes + 16) / 32);
 }
 
+/* Insert <px> at the front of the global list of visible proxies. This should
+ * only be used during configuration parsing. At runtime, a newly added proxy
+ * should be appended at the end of the list instead.
+ */
+static inline void main_proxies_register(struct proxy *px)
+{
+	px->next = proxies_list;
+	proxies_list = px;
+}
+
 #endif /* _HAPROXY_PROXY_H */
 
 /*

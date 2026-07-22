@@ -1207,8 +1207,7 @@ struct proxy *httpclient_create_proxy(const char *id)
 #endif
 
 	/* add the proxy in the proxy list only if everything is successful */
-	px->next = proxies_list;
-	proxies_list = px;
+	main_proxies_register(px);
 
 	if (httpclient_resolve_init(px) != 0) {
 		memprintf(&errmsg, "cannot initialize resolvers.");

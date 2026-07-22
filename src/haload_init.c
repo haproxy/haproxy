@@ -732,8 +732,7 @@ static int hld_pre_check(void)
 	hld_proxy.mode = PR_MODE_HTTP;
 	if (arg_fast)
 		hld_proxy.options2 = PR_O2_SMARTCON;
-	hld_proxy.next = proxies_list;
-    proxies_list = &hld_proxy;
+	main_proxies_register(&hld_proxy);
 
     hld_proxy.timeout.server = 60000;
     hld_proxy.timeout.connect = 60000;
