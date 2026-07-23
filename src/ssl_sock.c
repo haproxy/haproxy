@@ -2243,7 +2243,7 @@ static void ssl_sock_keyupdate_ratelimit(int write_p, int version,
 	/* only count KeyUpdate messages received from the peer */
 	if (write_p || content_type != SSL3_RT_HANDSHAKE)
 		return;
-	if (len < 1 || ((const unsigned char *)buf)[0] != SSL3_MT_KEY_UPDATE)
+	if (len < 1 || ((const unsigned char *)buf)[0] != 24 /* SSL3_MT_KEY_UPDATE */)
 		return;
 
 	conn = ssl_sock_get_conn(ssl, &ctx);
