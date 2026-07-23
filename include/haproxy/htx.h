@@ -262,35 +262,6 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Returns the position of the first block in the HTX message <htx>. -1 means
- * the first block is unset or the HTS is empty.
- */
-static inline int32_t htx_get_first(const struct htx *htx)
-{
-	return htx->first;
-}
-
-/* Returns the first HTX block in the HTX message <htx>. If unset or if <htx> is
- * empty, NULL returned.
- */
-static inline struct htx_blk *htx_get_first_blk(const struct htx *htx)
-{
-	int32_t pos;
-
-	pos = htx_get_first(htx);
-	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
-}
-
-/* Returns the type of the first block in the HTX message <htx>. If unset or if
- * <htx> is empty, HTX_BLK_UNUSED is returned.
- */
-static inline enum htx_blk_type htx_get_first_type(const struct htx *htx)
-{
-	struct htx_blk *blk = htx_get_first_blk(htx);
-
-	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
-}
-
 /* Returns the position of block immediately before the one pointed by <pos>. If
  * the message is empty or if <pos> is the position of the head, -1 returned.
  */
@@ -334,6 +305,35 @@ static inline struct htx_blk *htx_get_next_blk(const struct htx *htx,
 
 	pos = htx_get_next(htx, htx_get_blk_pos(htx, blk));
 	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+}
+
+/* Returns the position of the first block in the HTX message <htx>. -1 means
+ * the first block is unset or the HTS is empty.
+ */
+static inline int32_t htx_get_first(const struct htx *htx)
+{
+	return htx->first;
+}
+
+/* Returns the first HTX block in the HTX message <htx>. If unset or if <htx> is
+ * empty, NULL returned.
+ */
+static inline struct htx_blk *htx_get_first_blk(const struct htx *htx)
+{
+	int32_t pos;
+
+	pos = htx_get_first(htx);
+	return ((pos == -1) ? NULL : htx_get_blk(htx, pos));
+}
+
+/* Returns the type of the first block in the HTX message <htx>. If unset or if
+ * <htx> is empty, HTX_BLK_UNUSED is returned.
+ */
+static inline enum htx_blk_type htx_get_first_type(const struct htx *htx)
+{
+	struct htx_blk *blk = htx_get_first_blk(htx);
+
+	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
 /* Returns 1 if <blk> is the block is the only one inside the HTX message <htx>,
