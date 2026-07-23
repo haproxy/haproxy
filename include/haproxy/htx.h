@@ -319,7 +319,6 @@ static inline struct htx_blk *htx_get_next_blk(const struct htx *htx,
 	return nblk;
 }
 
-
 /* Returns the position of the first block in the HTX message <htx>. -1 means
  * the first block is unset or the HTS is empty.
  */
