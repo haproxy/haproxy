@@ -59,6 +59,7 @@ extern int arg_head;
 extern int arg_hscd;
 extern int arg_long;
 extern int arg_mreqs;
+extern int arg_rate;
 extern int arg_reqs;
 extern int arg_rcon;
 extern int arg_slow;

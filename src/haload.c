@@ -78,6 +78,7 @@ struct hld_usr {
 };
 
 struct hld_thr_info *thrs_info;
+static struct task **hld_rate_tasks;
 
 struct list hld_hdrs = LIST_HEAD_INIT(hld_hdrs);
 struct proxy hld_proxy;
@@ -94,18 +95,19 @@ int arg_head;          // use HEAD
 int arg_hscd;          // HTTP status code distribution
 int arg_long;          // long output format; 2=raw values
 int arg_mreqs = 1;     // max concurrent streams by connection
+int arg_rate;          // connection & request rate limit
 int arg_rcon = -1;     // max requests per conn
 int arg_reqs = -1;     // max total requests
 int arg_serr;          // stop on first error
 int arg_slow;          // slow start: delay in milliseconds
-int arg_thrd = -1;     // number of threads
+int arg_thrd = 1;      // number of threads
 int arg_usr = 1;       // number of users
 int arg_wait = 10000;  // I/O time out (ms)
 
 int all_usr_stop_asap; // all users must stop as soon as possible
 int usr_tid;
 int usr_cnt;           // user counter incremented by <mtask> main task
-int running_usrs;      // user counter decremented each time a user is released
+int running_tasks;     // tasks counter for the users and for the conn rate
 
 char *hld_args[MAX_LINE_ARGS + 1];
 
@@ -268,8 +270,7 @@ static inline void hld_rotate_freq_ctr(struct hld_freq_ctr *ctr,
  * rotated if the period is over. It is important that it correctly initializes
  * a null area.
  */
-__attribute__((unused))
-static inline void hdl_update_freq_ctr(struct hld_freq_ctr *ctr, uint32_t inc,
+static inline void hld_update_freq_ctr(struct hld_freq_ctr *ctr, uint32_t inc,
                                        const struct timeval now)
 {
 	if (ctr->curr_sec == now.tv_sec) {
@@ -773,7 +774,7 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 	update_throttle();
 	if (tick_is_expired(mtask.show_time, now_ms)) {
 		hld_summary();
-		if (!HA_ATOMIC_LOAD(&running_usrs)) {
+		if (!HA_ATOMIC_LOAD(&running_tasks)) {
 			task_destroy(t);
 			t = NULL;
 			hld_dealloc_thrs_info();
@@ -789,7 +790,7 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	/* users initializations */
-	if (usr_cnt < arg_usr) {
+	if (!arg_rate && usr_cnt < arg_usr) {
 		if (throttle) {
 			int i, nb_usr;
 
@@ -807,7 +808,7 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 						break;
 					}
 
-					HA_ATOMIC_INC(&running_usrs);
+					HA_ATOMIC_INC(&running_tasks);
 					usr_cnt++;
 				}
 			}
@@ -830,10 +831,13 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 				}
 			}
 
-			HA_ATOMIC_ADD(&running_usrs, nb_usr);
+			HA_ATOMIC_ADD(&running_tasks, nb_usr);
 			task_wakeup(t, TASK_WOKEN_IO);
 		}
 
+	}
+	else if (arg_rate && HA_ATOMIC_LOAD(&running_tasks) <= arg_usr) {
+		t->expire = tick_first(tick_add(now_ms, MS_TO_TICKS(100)), mtask.show_time);
 	}
 	else
 		t->expire = tick_add(now_ms, MS_TO_TICKS(1000));
@@ -1190,6 +1194,9 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 			goto err;
 		}
 
+		if (arg_rate)
+			hld_update_freq_ctr(&thrs_info[tid].conn_rate, 1, date);
+
 		conn_set_private(conn);
 		session_add_conn(sess, conn);
 		conn->ctx = hs->sc;
@@ -1263,6 +1270,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	return t;
  done:
 	url->tot_rconn_done++;
+	thrs_info[tid].cur_req--;
 	BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
 	url->mreqs++;
 	if (arg_rcon > 0 && url->tot_rconn_done == arg_rcon) {
@@ -1275,30 +1283,54 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		url->mreqs = arg_mreqs;
 	}
 
-	/* Note that the user task will release all the expired streams
-	 * attached to it.
-	 */
-	task_wakeup(usr->task, TASK_WOKEN_IO);
-
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
 	t = NULL;
 
-	if (LIST_ISEMPTY(&usr->strms))
-		usr->task->expire = TICK_ETERNITY;
+	/* Note that the user task will release all the expired streams
+	 * attached to it.
+	 */
+	if (!arg_rate) {
+		task_wakeup(usr->task, TASK_WOKEN_IO);
+		if (LIST_ISEMPTY(&usr->strms))
+			usr->task->expire = TICK_ETERNITY;
+		else {
+			/* Update the user task expiration from the first stream which
+			 * is also the stream with the oldest expiration time.
+			 */
+			first_hs = LIST_ELEM(usr->strms.n, struct hldstream *, list);
+			usr->task->expire = first_hs->expire;
+			task_queue(usr->task);
+		}
+	}
 	else {
-		/* Update the user task expiration from the first stream which
-		 * is also the stream with the oldest expiration time.
-		 */
-		first_hs = LIST_ELEM(usr->strms.n, struct hldstream *, list);
-		usr->task->expire = first_hs->expire;
-		task_queue(usr->task);
+		uint32_t max, wait;
+		uint32_t maxusrs = thrs_info[tid].maxusrs;
+
+		if (throttle) {
+			maxusrs = mul32hi(maxusrs, throttle);
+			maxusrs = maxusrs ? maxusrs : 1;
+		}
+
+		if (thrs_info[tid].curusrs < maxusrs && throttle)
+			max = 0;
+		else if (throttle)
+			max = (mul32hi(arg_rate, throttle) + arg_thrd - 1) / arg_thrd;
+		else
+			max = (arg_rate + arg_thrd - 1) / arg_thrd;
+
+		max = max ? max : 1;
+		wait =
+			hld_next_event_delay(&thrs_info[tid].req_rate, max,
+			                     thrs_info[tid].curusrs - thrs_info[tid].cur_req, date);
+		task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(wait)));
 	}
 
 	goto leave;
  err:
 	TRACE_DEVEL("leaving on error", HLD_STRM_EV_TASK, hs);
 	thrs_info[tid].tot_perr++;
+	thrs_info[tid].cur_req--;
 	url->mreqs++;
 	if (arg_rcon > 0) {
 		BUG_ON(!url->tot_rconn_sent);
@@ -1457,6 +1489,10 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 				goto out;
 			}
 
+			if (arg_rate)
+				hld_update_freq_ctr(&thrs_info[tid].req_rate, 1, date);
+
+			thrs_info[tid].cur_req++;
 			url->cfg->cur_path = hld_next_path(url->cfg->paths, path);
 			BUG_ON(!url->mreqs || !usr->nreqs || !nreqs);
 
@@ -1502,7 +1538,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 	}
 
 	if (((usr->flags & HLD_USR_FL_STOP) || !usr->nreqs) && LIST_ISEMPTY(&usr->strms)) {
-		HA_ATOMIC_DEC(&running_usrs);
+		HA_ATOMIC_DEC(&running_tasks);
 		hld_usr_release(&usr);
 		t = NULL;
 		goto out;
@@ -1787,6 +1823,22 @@ static void hld_dealloc_thrs_info(void)
 	thrs_info = NULL;
 }
 
+/* Deallocate the array of conn rate tasks */
+static void hld_dealloc_rate_task(void)
+{
+	int i;
+
+	if (!hld_rate_tasks)
+		return;
+
+	for (i = 0; i < global.nbthread; i++) {
+		task_destroy(hld_rate_tasks[i]);
+		hld_rate_tasks[i] = NULL;
+	}
+
+	ha_free(hld_rate_tasks);
+}
+
 /* Allocate all thread information structs */
 static int hld_alloc_thrs_info(void)
 {
@@ -1804,6 +1856,55 @@ static int hld_alloc_thrs_info(void)
 	return 1;
 }
 
+/* Thread task launched to handle the connection and request rate */
+static struct task *hld_rate_task(struct task *t, void *context, unsigned int state)
+{
+	if (thrs_info[tid].curusrs < thrs_info[tid].maxusrs) {
+		int budget = -1;
+		uint32_t max;
+		uint32_t b1, b2;
+		int nb_usr = thrs_info[tid].maxusrs;
+
+		if (throttle) {
+			nb_usr = mul32hi(thrs_info[tid].maxusrs, throttle);
+			nb_usr = nb_usr ? nb_usr : 1;
+			max = (mul32hi(arg_rate, throttle) + arg_thrd - 1) / arg_thrd;
+		}
+		else
+			max = (arg_rate + arg_thrd - 1) / arg_thrd;
+
+		max = max ? max : 1;
+		b1 = hld_freq_ctr_remain(&thrs_info[tid].conn_rate, max, 0, date);
+		b2 = hld_freq_ctr_remain(&thrs_info[tid].req_rate, max,
+		                         thrs_info[tid].curusrs - thrs_info[tid].cur_req, date);
+		budget = (!b2 || b1 <= b2) ? b1 : b2;
+
+		while (thrs_info[tid].curusrs < nb_usr && budget--) {
+			struct hld_usr *hu;
+			int req = arg_reqs == -1 ? -1 : (arg_reqs + tid) / arg_usr;
+
+			hu = hld_new_usr(req, tid);
+			if (!hu) {
+				ha_alert("could not allocate a new haload user\n");
+				break;
+			}
+
+			HA_ATOMIC_INC(&running_tasks);
+		}
+
+		task_schedule(t, tick_add(now_ms, MS_TO_TICKS(100)));
+	}
+	else {
+		HA_ATOMIC_DEC(&running_tasks);
+		t->expire = TICK_ETERNITY;
+		task_destroy(t);
+		hld_rate_tasks[tid] = NULL;
+		t = NULL;
+	}
+
+	return t;
+}
+
 static int hld_init(void)
 {
 	int ret = ERR_ALERT | ERR_FATAL;
@@ -1813,19 +1914,45 @@ static int hld_init(void)
 		throttle = 1;
 
 	if (!hld_cfg_finalize())
-		goto leave;
+		goto err;
 
 	/* Consider the case where <arg_reqs> < <arg_usr> */
 	if (arg_reqs != -1 && arg_reqs < arg_usr)
 		arg_usr = arg_reqs;
 
 	if (!hld_alloc_thrs_info())
-		goto leave;
+		goto err;
 
 	mtask.t = task_new_here();
 	if (mtask.t == NULL) {
 		ha_alert("could start main task\n");
-		goto leave;
+		goto err;
+	}
+
+	if (arg_rate) {
+		int i;
+
+		hld_rate_tasks = calloc(global.nbthread, sizeof(*hld_rate_tasks));
+		if (!hld_rate_tasks) {
+			ha_alert("could not allocate arg rate tasks\n");
+			goto err;
+		}
+
+		for (i = 0; i < global.nbthread; i++) {
+			struct task *t;
+
+			t = task_new_on(i);
+			if (!t) {
+				ha_alert("could not allocate a new thread task\n");
+				goto err;
+			}
+
+			hld_rate_tasks[i] = t;
+			t->process = hld_rate_task;
+			t->expire = TICK_ETERNITY;
+			task_wakeup(t, TASK_WOKEN_INIT);
+			HA_ATOMIC_INC(&running_tasks);
+		}
 	}
 
 	mtask.t->process = mtask_cb;
@@ -1847,5 +1974,8 @@ static int hld_init(void)
  leave:
 	ha_free(&errmsg);
 	return ret;
+ err:
+	hld_dealloc_rate_task();
+	goto leave;
 }
 REGISTER_POST_CHECK(hld_init);

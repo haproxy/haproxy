@@ -72,6 +72,7 @@ HALoad displays its usage when run without argument or wrong arguments:
             -C               dump the configuration and exit
             -H "foo:bar"     add this header name and value
             -I               use HEAD instead of GET
+            -R <rate>        limit to this many request attempts per second (0)
             -v               shows version
             --defaults <str> add a string to default section
             --global <str>   add a string to global section

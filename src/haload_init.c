@@ -36,6 +36,7 @@ static void  hld_usage(char *name, int argc)
 		"        -F               merge send() with connect's ACK\n"
 		"        -H \"foo:bar\"   add this header name and value\n"
 		"        -I               use HEAD instead of GET\n"
+		"        -R <rate>        limit to this many request attempts per second (0)\n"
 		"        -v               shows version\n"
 		"        --defaults <str> add a string to default section\n"
 		"        --global <str>   add a string to global section\n"
@@ -612,6 +613,10 @@ void haproxy_init_args(int argc, char **argv)
 					hld_usage(progname, argc);
 
 				arg_head = 1;
+			}
+			else if (*opt == 'R') {
+				opt++;
+				hld_parse_long(&arg_rate, opt, &argc, &argv);
 			}
 			else if (*opt == 'v') {
 				/* empty option */
