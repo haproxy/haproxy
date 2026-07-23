@@ -5260,6 +5260,8 @@ struct show_errors_ctx {
 	int iid;		/* if >= 0, ID of the proxy to filter on */
 	int ptr;		/* <0: headers, >=0 : text pointer to restart from */
 	int bol;		/* pointer to beginning of current line */
+
+	struct watcher px_watch; /* watcher to automatically update px pointer on backend deletion */
 };
 
 /* "show errors" handler for the CLI. Returns 0 if wants to continue, 1 to stop
@@ -5292,7 +5294,10 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
 		ctx->flag |= 4; // ignore response
 	else if (strcmp(args[3], "response") == 0)
 		ctx->flag |= 2; // ignore request
+
 	ctx->px = NULL;
+	watcher_init(&ctx->px_watch, &ctx->px, offsetof(struct proxy, watcher_list));
+
 	return 0;
 }
 
@@ -5322,7 +5327,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		if (applet_putchk(appctx, &trash) == -1)
 			goto cant_send;
 
-		ctx->px = proxies_list;
+		watcher_attach(&ctx->px_watch, proxies_list);
 		ctx->bol = 0;
 		ctx->ptr = -1;
 	}
@@ -5450,7 +5455,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 		ctx->ptr = -1;
 		ctx->flag ^= 1;
 		if (!(ctx->flag & 1))
-			ctx->px = ctx->px->next;
+			watcher_next(&ctx->px_watch, ctx->px->next);
 	}
 
 	/* dump complete */
