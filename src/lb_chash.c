@@ -21,6 +21,7 @@
 #include <haproxy/backend.h>
 #include <haproxy/errors.h>
 #include <haproxy/guid.h>
+#include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/server.h>
 #include <haproxy/tools.h>
@@ -240,7 +241,7 @@ static void chash_set_server_status_down(struct server *srv)
 			 */
 			struct server *srv2 = p->lbprm.fbck;
 			do {
-				srv2 = srv2->next;
+				srv2 = proxy_next_server(srv2);
 			} while (srv2 &&
 				 !((srv2->flags & SRV_F_BACKUP) &&
 				   srv_willbe_usable(srv2)));
@@ -301,7 +302,7 @@ static void chash_set_server_status_up(struct server *srv)
 				 */
 				struct server *srv2 = srv;
 				do {
-					srv2 = srv2->next;
+					srv2 = proxy_next_server(srv2);
 				} while (srv2 && (srv2 != p->lbprm.fbck));
 				if (srv2)
 					p->lbprm.fbck = srv;

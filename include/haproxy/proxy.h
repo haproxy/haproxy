@@ -346,6 +346,16 @@ static inline struct proxy *main_proxies_next(const struct proxy *px)
 	return LIST_ELEM(px->el.n, struct proxy *, el);
 }
 
+static inline struct server *proxy_first_server(const struct proxy *px)
+{
+	return px->srv;
+}
+
+static inline struct server *proxy_next_server(const struct server *srv)
+{
+	return srv->next;
+}
+
 #endif /* _HAPROXY_PROXY_H */
 
 /*

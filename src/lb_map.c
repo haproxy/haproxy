@@ -14,6 +14,7 @@
 #include <haproxy/api.h>
 #include <haproxy/backend.h>
 #include <haproxy/lb_map.h>
+#include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/server-t.h>
 
@@ -152,13 +153,13 @@ static int init_server_map(struct proxy *p)
 	 * find a non-zero weight server.
 	 */
 	pgcd = 1;
-	srv = p->srv;
+	srv = proxy_first_server(p);
 	while (srv && !srv->uweight)
-		srv = srv->next;
+		srv = proxy_next_server(srv);
 
 	if (srv) {
 		pgcd = srv->uweight; /* note: cannot be zero */
-		while (pgcd > 1 && (srv = srv->next)) {
+		while (pgcd > 1 && (srv = proxy_next_server(srv))) {
 			int w = srv->uweight;
 			while (w) {
 				int t = pgcd % w;

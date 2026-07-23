@@ -1890,7 +1890,7 @@ int hlua_listable_servers_pairs_iterator(lua_State *L)
 
 	if (ctx->px) {
 		/* First iteration, initialize list on the first server */
-		cur = ctx->px->srv;
+		cur = proxy_first_server(ctx->px);
 		watcher_attach(&ctx->srv_watch, cur);
 		ctx->px = NULL;
 	}
@@ -1906,7 +1906,7 @@ int hlua_listable_servers_pairs_iterator(lua_State *L)
 	}
 
 	/* compute next server */
-	ctx->next = watcher_next(&ctx->srv_watch, cur->next);
+	ctx->next = watcher_next(&ctx->srv_watch, proxy_next_server(cur));
 
 	lua_pushstring(L, cur->id);
 	hlua_fcn_new_server(L, cur);

@@ -3424,7 +3424,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 			 */
 			if ((att_end - att_beg == s->be->cookie_len) && (s->be->cookie_name != NULL) &&
 			    (memcmp(att_beg, s->be->cookie_name, att_end - att_beg) == 0)) {
-				struct server *srv = s->be->srv;
+				struct server *srv = proxy_first_server(s->be);
 				char *delim;
 
 				/* if we're in cookie prefix mode, we'll search the delimiter so that we
@@ -3520,7 +3520,7 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 				if ((delim == val_beg) || (s->flags & (SF_IGNORE_PRST | SF_ASSIGNED)))
 					srv = NULL;
 
-				while (srv) {
+				for (; srv; srv = proxy_next_server(srv)) {
 					if (srv->cookie && (srv->cklen == delim - val_beg) &&
 					    !memcmp(val_beg, srv->cookie, delim - val_beg)) {
 						if ((srv->cur_state != SRV_ST_STOPPED) ||
@@ -3541,7 +3541,6 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 							txn->flags |= TX_CK_DOWN;
 						}
 					}
-					srv = srv->next;
 				}
 
 				if (!srv && !(txn->flags & (TX_CK_DOWN|TX_CK_EXPIRED|TX_CK_OLD))) {

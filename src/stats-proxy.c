@@ -1529,7 +1529,7 @@ more:
 		}
 
 		/* for servers ctx.obj2 is set via watcher_attach() */
-		watcher_attach(&ctx->srv_watch, px->srv);
+		watcher_attach(&ctx->srv_watch, proxy_first_server(px));
 		ctx->px_st = STAT_PX_ST_SV;
 
 		__fallthrough;
@@ -1537,7 +1537,7 @@ more:
 	case STAT_PX_ST_SV:
 		/* obj2 is updated and returned through watcher_next() */
 		for (sv = ctx->obj2; sv;
-		     sv = watcher_next(&ctx->srv_watch, sv->next)) {
+		     sv = watcher_next(&ctx->srv_watch, proxy_next_server(sv))) {
 
 			if (stats_is_full(appctx, buf, htx))
 				goto full;

@@ -3780,7 +3780,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-			if (dns_stream_init(newnameserver, curr_resolvers->px->srv) < 0) {
+			if (dns_stream_init(newnameserver, proxy_first_server(curr_resolvers->px)) < 0) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT|ERR_ABORT;
 				free(newnameserver);

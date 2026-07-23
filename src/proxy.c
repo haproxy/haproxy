@@ -4509,9 +4509,9 @@ static int dump_servers_state(struct appctx *appctx)
 	char *srvrecord;
 
 	if (!ctx->sv)
-		watcher_attach(&ctx->srv_watch, px->srv);
+		watcher_attach(&ctx->srv_watch, proxy_first_server(px));
 
-	for (; ctx->sv; watcher_next(&ctx->srv_watch, ctx->sv->next)) {
+	for (; ctx->sv; watcher_next(&ctx->srv_watch, proxy_next_server(ctx->sv))) {
 		srv = ctx->sv;
 
 		dump_server_addr(&srv->addr, srv_addr);

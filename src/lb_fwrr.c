@@ -16,6 +16,7 @@
 #include <haproxy/queue.h>
 #include <haproxy/server-t.h>
 #include <haproxy/global.h>
+#include <haproxy/proxy.h>
 
 
 static inline void fwrr_remove_from_tree(struct server *s, int tgid);
@@ -68,7 +69,7 @@ static void fwrr_set_server_status_down(struct server *srv)
 			 */
 			struct server *srv2 = p->lbprm.fbck;
 			do {
-				srv2 = srv2->next;
+				srv2 = proxy_next_server(srv2);
 			} while (srv2 &&
 				 !((srv2->flags & SRV_F_BACKUP) &&
 				   srv_willbe_usable(srv2)));
@@ -134,7 +135,7 @@ static void fwrr_set_server_status_up(struct server *srv)
 				 */
 				struct server *srv2 = srv;
 				do {
-					srv2 = srv2->next;
+					srv2 = proxy_next_server(srv2);
 				} while (srv2 && (srv2 != p->lbprm.fbck));
 				if (srv2)
 					p->lbprm.fbck = srv;
@@ -343,7 +344,7 @@ static int fwrr_init_server_groups(struct proxy *p)
 					srv, i + 1);
 		}
 		j = 0;
-		for (srv = p->srv; srv && j < i; srv = srv->next) {
+		for (srv = proxy_first_server(p); srv && j < i; srv = proxy_next_server(srv)) {
 			j++;
 			if (!srv_currently_usable(srv))
 				continue;

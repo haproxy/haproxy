@@ -6699,7 +6699,7 @@ leave:
 static int cli_parse_delete_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *be;
-	struct server *srv;
+	struct server *srv, *next;
 	struct ist be_name, sv_name;
 	struct watcher *srv_watch;
 	const char *msg;
@@ -6750,10 +6750,11 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	if (srv->proxy->lbprm.ops && srv->proxy->lbprm.ops->server_deinit)
 		srv->proxy->lbprm.ops->server_deinit(srv);
 
+	next = proxy_next_server(srv);
+	BUG_ON(next && next->flags & SRV_F_DELETED);
 	while (!MT_LIST_ISEMPTY(&srv->watcher_list)) {
 		srv_watch = MT_LIST_NEXT(&srv->watcher_list, struct watcher *, el);
-		BUG_ON(srv->next && srv->next->flags & SRV_F_DELETED);
-		watcher_next(srv_watch, srv->next);
+		watcher_next(srv_watch, next);
 	}
 
 	/* detach the server from the proxy linked list

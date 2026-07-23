@@ -314,7 +314,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (strcmp(args[0], "peer") == 0 ||
 	         strcmp(args[0], "server") == 0) { /* peer or server definition */
-		struct server *prev_srv;
+		struct server *srv, *prev_srv;
 		int local_peer, peer;
 		int parse_addr = 0;
 
@@ -365,10 +365,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		 * or if we are parsing a "server" line and the current peer is not the local one.
 		 */
 		parse_addr = (peer || !local_peer) ? SRV_PARSE_PARSE_ADDR : 0;
-		prev_srv = curpeers->peers_fe->srv;
+		prev_srv = proxy_first_server(curpeers->peers_fe);
 		err_code |= parse_server(file, linenum, args, curpeers->peers_fe, NULL,
 		                         SRV_PARSE_IN_PEER_SECTION|parse_addr|SRV_PARSE_INITIAL_RESOLVE);
-		if (curpeers->peers_fe->srv == prev_srv) {
+		if (prev_srv == proxy_first_server(curpeers->peers_fe)) {
 			/* parse_server didn't add a server:
 			 * Remove the newly allocated peer.
 			 */
@@ -404,31 +404,33 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		srv = proxy_first_server(curpeers->peers_fe);
+
 		if (!parse_addr && bind_addr) {
 			/* local peer declared using "server": has name but no
 			 * address: we use the known "bind" line addr settings
 			 * as implicit server's addr and port.
 			 */
-			curpeers->peers_fe->srv->addr = *bind_addr;
-			curpeers->peers_fe->srv->svc_port = get_host_port(bind_addr);
+			srv->addr = *bind_addr;
+			srv->svc_port = get_host_port(bind_addr);
 		}
 
-		if (nb_shards && curpeers->peers_fe->srv->shard > nb_shards) {
+		if (nb_shards && srv->shard > nb_shards) {
 			ha_warning("parsing [%s:%d] : '%s %s' : %d peer shard greater value than %d shards value is ignored.\n",
-			           file, linenum, args[0], args[1], curpeers->peers_fe->srv->shard, nb_shards);
-			curpeers->peers_fe->srv->shard = 0;
+			           file, linenum, args[0], args[1], srv->shard, nb_shards);
+			srv->shard = 0;
 			err_code |= ERR_WARN;
 		}
 
-		if (curpeers->peers_fe->srv->init_addr_methods || curpeers->peers_fe->srv->resolvers_id ||
-		    curpeers->peers_fe->srv->do_check || curpeers->peers_fe->srv->do_agent) {
+		if (srv->init_addr_methods || srv->resolvers_id ||
+		    srv->do_check || srv->do_agent) {
 			ha_warning("parsing [%s:%d] : '%s %s' : init_addr, resolvers, check and agent are ignored for peers.\n", file, linenum, args[0], args[1]);
 			err_code |= ERR_WARN;
 		}
 
 		HA_SPIN_INIT(&newpeer->lock);
 
-		newpeer->srv = curpeers->peers_fe->srv;
+		newpeer->srv = srv;
 		if (!newpeer->local)
 			goto out;
 

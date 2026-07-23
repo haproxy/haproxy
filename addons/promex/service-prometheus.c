@@ -1398,7 +1398,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						    &val, labels, &out, max))
 					goto full;
 			  next_sv:
-				sv = watcher_next(&ctx->srv_watch, sv->next);
+				sv = watcher_next(&ctx->srv_watch, proxy_next_server(sv));
 			}
 
 		  next_px:
@@ -1406,7 +1406,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			px = watcher_next(&ctx->px_watch, main_proxies_next(px));
 			if (px) {
 				/* Update ctx.p[1] via watcher. */
-				watcher_attach(&ctx->srv_watch, px->srv);
+				watcher_attach(&ctx->srv_watch, proxy_first_server(px));
 				sv = ctx->p[1];
 			}
 		}
@@ -1419,7 +1419,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 		px = main_proxies_first();
 		watcher_attach(&ctx->px_watch, px);
 		if (likely(px)) {
-			watcher_attach(&ctx->srv_watch, px->srv);
+			watcher_attach(&ctx->srv_watch, proxy_first_server(px));
 			sv = ctx->p[1];
 		}
 	}
@@ -1486,7 +1486,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						goto full;
 
 				  next_sv2:
-					sv = watcher_next(&ctx->srv_watch, sv->next);
+					sv = watcher_next(&ctx->srv_watch, proxy_next_server(sv));
 				}
 
 			  next_px2:
@@ -1494,7 +1494,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 				px = watcher_next(&ctx->px_watch, main_proxies_next(px));
 				if (px) {
 					/* Update ctx.p[1] via watcher. */
-					watcher_attach(&ctx->srv_watch, px->srv);
+					watcher_attach(&ctx->srv_watch, proxy_first_server(px));
 					sv = ctx->p[1];
 				}
 			}
@@ -1507,7 +1507,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			px = main_proxies_first();
 			watcher_attach(&ctx->px_watch, px);
 			if (likely(px)) {
-				watcher_attach(&ctx->srv_watch, px->srv);
+				watcher_attach(&ctx->srv_watch, proxy_first_server(px));
 				sv = ctx->p[1];
 			}
 		}
@@ -1793,7 +1793,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct htx *htx)
 				watcher_attach(&ctx->px_watch, px);
 				if (likely(px)) {
 					/* Update ctx.p[1] via watcher. */
-					watcher_attach(&ctx->srv_watch, px->srv);
+					watcher_attach(&ctx->srv_watch, proxy_first_server(px));
 				}
 			}
 			__fallthrough;
