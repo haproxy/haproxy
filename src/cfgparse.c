@@ -2363,7 +2363,7 @@ int check_config_validity()
 	 * we must finish to initialize certain things on the servers,
 	 * as some of the fields may be accessed soon
 	 */
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &servers_list, global_list, back) {
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &all_servers, global_list, back) {
 		err_code |= srv_preinit(newsrv);
 		if (err_code & ERR_CODE)
 			goto out;

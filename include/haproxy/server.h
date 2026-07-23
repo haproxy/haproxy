@@ -44,7 +44,7 @@
 extern struct idle_conns idle_conns[MAX_THREADS];
 extern struct task *idle_conn_task[MAX_THREADS];
 extern struct eb_root idle_conn_srv[MAX_THREADS];
-extern struct mt_list servers_list;
+extern struct mt_list all_servers;
 extern struct dict server_key_dict;
 
 int srv_downtime(const struct server *s);
