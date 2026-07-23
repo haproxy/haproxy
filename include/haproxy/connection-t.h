@@ -270,7 +270,6 @@ enum {
 	CO_ER_SSL_TOO_MANY,     /* too many SSL connections */
 	CO_ER_SSL_NO_MEM,       /* no more memory to allocate an SSL connection */
 	CO_ER_SSL_RENEG,        /* forbidden client renegotiation */
-	CO_ER_SSL_KEYUPDATE,    /* too many TLS1.3 KeyUpdate messages */
 	CO_ER_SSL_CA_FAIL,      /* client cert verification failed in the CA chain */
 	CO_ER_SSL_CRT_FAIL,     /* client cert verification failed on the certificate */
 	CO_ER_SSL_MISMATCH,     /* Server presented an SSL certificate different from the configured one */
@@ -304,6 +303,7 @@ enum {
 	CO_ER_ENSOCK,            /* ENSOCK returned to recv/send */
 	CO_ER_ENOBUFS,           /* ENOBUFS returned to send */
 	CO_ER_EPIPE,             /* EPIPE returned to send */
+	CO_ER_SSL_KEYUPDATE,     /* too many TLS1.3 KeyUpdate messages */
 };
 
 /* error return codes for accept_conn() */
