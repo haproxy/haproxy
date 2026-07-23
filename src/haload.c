@@ -665,6 +665,7 @@ void hld_summary(void)
 		       (unsigned long long)(tot_sc[4] - prev_sc[4]));
 
 	putchar('\n');
+	fflush(stdout);
 
 	prev_totc = tot_conn;
 	prev_totr = tot_req;
