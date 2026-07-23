@@ -1923,10 +1923,6 @@ static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx 
 	blk = htx_get_head_blk(htx); // returns the SL that we skip
 	for (blk = htx_get_next_blk(htx, blk); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_UNUSED)
-			continue;
-
 		if (type != HTX_BLK_HDR)
 			break;
 
@@ -2473,10 +2469,6 @@ static size_t h1_make_reqline(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			goto end;
 		type = htx_get_blk_type(blk);
 		sz = htx_get_blksz(blk);
-		if (type == HTX_BLK_UNUSED) {
-			htx_remove_blk(htx, blk);
-			continue;
-		}
 		if (type != HTX_BLK_REQ_SL || sz > count)
 			goto error;
 		break;
@@ -2563,11 +2555,6 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 
 		type = htx_get_blk_type(blk);
 		sz = htx_get_blksz(blk);
-
-		if (type == HTX_BLK_UNUSED) {
-			htx_remove_blk(htx, blk);
-			continue;
-		}
 		if (type != HTX_BLK_RES_SL || sz > count)
 			goto error;
 		break;
@@ -2731,8 +2718,6 @@ static size_t h1_make_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			h1m->state = H1_MSG_LAST_LF;
 			break; /* Do not consume this block */
                 }
-		else if (type == HTX_BLK_UNUSED)
-			goto nextblk;
 		else
 			goto error;
 
@@ -2788,9 +2773,6 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 
 		type = htx_get_blk_type(blk);
 		sz = htx_get_blksz(blk);
-
-                if (type == HTX_BLK_UNUSED)
-			continue;
 		if (type != HTX_BLK_EOH || sz > count)
 			goto error;
 		break;
@@ -3262,8 +3244,6 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			h1m->state = H1_MSG_TRAILERS;
 			break;
 		}
-		else if (type == HTX_BLK_UNUSED)
-			goto nextblk;
 		else
 			goto error;
 
@@ -3381,8 +3361,6 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 			if (!h1_format_htx_data(v, &outbuf, 0))
 				goto full;
 		}
-		else if (type == HTX_BLK_UNUSED)
-			goto nextblk;
 		else
 			goto error;
 
@@ -3482,8 +3460,6 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 			}
 			h1m->state = H1_MSG_DONE;
 		}
-		else if (type == HTX_BLK_UNUSED)
-			goto nextblk;
 		else
 			goto error;
 

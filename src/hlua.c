@@ -5825,9 +5825,6 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 
 		vlen = sz;
 		switch (type) {
-			case HTX_BLK_UNUSED:
-				break;
-
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
 				vlen = v.len;
@@ -5925,9 +5922,6 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 
 		vlen = sz;
 		switch (type) {
-			case HTX_BLK_UNUSED:
-				break;
-
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
 				vlen = v.len;
@@ -7329,9 +7323,6 @@ static int _hlua_http_msg_dup(struct http_msg *msg, lua_State *L, size_t offset,
 		struct ist v;
 
 		switch (type) {
-			case HTX_BLK_UNUSED:
-				break;
-
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
 				v = istadv(v, offset);
@@ -7465,9 +7456,6 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 		uint32_t sz = htx_get_blksz(blk);
 
 		switch (type) {
-			case HTX_BLK_UNUSED:
-				break;
-
 			case HTX_BLK_DATA:
 				if (len < sz) {
 					/* don't discard whole blk, only part of it

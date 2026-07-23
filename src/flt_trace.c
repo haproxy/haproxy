@@ -167,12 +167,9 @@ trace_get_htx_datalen(struct htx *htx, unsigned int offset, unsigned int len)
 		blk = htx_get_next_blk(htx, blk);
 	}
 	while (blk) {
-		if (htx_get_blk_type(blk) == HTX_BLK_UNUSED)
-			goto next;
-		else if (htx_get_blk_type(blk) != HTX_BLK_DATA)
+		if (htx_get_blk_type(blk) != HTX_BLK_DATA)
 			break;
 		data += htx_get_blksz(blk);
-	  next:
 		blk = htx_get_next_blk(htx, blk);
 	}
 	return data;

@@ -2286,8 +2286,6 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 		switch (type) {
 		case HTX_BLK_EOH:
 			goto end_loop;
-		case HTX_BLK_UNUSED:
-			break;
 
 		case HTX_BLK_REQ_SL:
 			BUG_ON(sl); /* Only one start-line expected */
@@ -2506,9 +2504,6 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	hdr = 0;
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_UNUSED)
-			continue;
 
 		if (type == HTX_BLK_EOH)
 			break;
@@ -2743,9 +2738,6 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_UNUSED)
-			continue;
 
 		if (type == HTX_BLK_EOT)
 			break;

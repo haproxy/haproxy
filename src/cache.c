@@ -830,9 +830,6 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 		struct ist v;
 
 		switch (type) {
-			case HTX_BLK_UNUSED:
-				break;
-
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
 				v = istadv(v, offset);

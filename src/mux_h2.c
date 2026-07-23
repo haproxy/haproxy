@@ -6659,9 +6659,6 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
 
-		if (type == HTX_BLK_UNUSED)
-			continue;
-
 		if (type == HTX_BLK_EOH)
 			break;
 
@@ -6930,9 +6927,6 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 	hdr = 0;
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_UNUSED)
-			continue;
 
 		if (type == HTX_BLK_EOH)
 			break;
@@ -7736,9 +7730,6 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_UNUSED)
-			continue;
 
 		if (type == HTX_BLK_EOT)
 			break;

@@ -534,10 +534,6 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 		uint32_t sz = htx_get_blksz(blk);
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		/* Ignore unused block */
-		if (type == HTX_BLK_UNUSED)
-			goto next;
-
 		if (sz > count) {
 			if (type == HTX_BLK_DATA) {
 				htx_cut_data_blk(htx, blk, count);
@@ -547,7 +543,6 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 		}
 		count -= sz;
 		htxret.ret += sz;
-	  next:
 		blk = htx_remove_blk(htx, blk);
 	}
 	htxret.blk = blk;
@@ -780,8 +775,6 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 
 		/* Ignore unused block */
 		type = htx_get_blk_type(blk);
-		if (type == HTX_BLK_UNUSED)
-			continue;
 
 		if ((flags & HTX_XFER_HDRS_ONLY) &&
 		    type != HTX_BLK_REQ_SL && type != HTX_BLK_RES_SL &&
@@ -1246,10 +1239,6 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 
 	for (blk = htx_get_head_blk(src); blk; blk = htx_get_next_blk(src, blk)) {
 		type = htx_get_blk_type(blk);
-
-		if (type == HTX_BLK_UNUSED)
-			continue;
-
 		blksz = htx_get_blksz(blk);
 		newblk = htx_add_blk(dst, type, blksz);
 		if (!newblk)
