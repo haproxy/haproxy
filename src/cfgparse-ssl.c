@@ -521,6 +521,32 @@ static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *
 }
 #endif
 
+/*
+ *  parse "tune.ssl.keyupdate-rate-limit" : max received TLS1.3 KeyUpdate
+ * messages per second and per connection. 0 disables the limit.
+ */
+static int ssl_parse_global_keyupdate_ratelimit(char **args, int section_type, struct proxy *curpx,
+                                                 const struct proxy *defpx, const char *file, int line,
+                                                 char **err)
+{
+	int val;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' expects a number (KeyUpdates/s, 0 to disable).", args[0]);
+		return -1;
+	}
+	val = atoi(args[1]);
+	if (val < 0) {
+		memprintf(err, "'%s' expects a positive number.", args[0]);
+		return -1;
+	}
+	global_ssl.keyupdate_max = val;
+	return 0;
+}
+
 /* Allow to explicitly disable certificate compression when set to "off" */
 #ifdef SSL_OP_NO_RX_CERTIFICATE_COMPRESSION
 static int ssl_parse_certificate_compression(char **args, int section_type, struct proxy *curpx,
@@ -2825,6 +2851,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_buffer },
 	{ CFG_GLOBAL, "tune.ssl.capture-buffer-size", ssl_parse_global_capture_buffer },
 	{ CFG_GLOBAL, "tune.ssl.keylog", ssl_parse_global_keylog },
+	{ CFG_GLOBAL, "tune.ssl.keyupdate-rate-limit", ssl_parse_global_keyupdate_ratelimit },
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-bind-curves", ssl_parse_global_curves },

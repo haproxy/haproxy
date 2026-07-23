@@ -257,6 +257,7 @@ struct ssl_keylog {
 #define SSL_SOCK_F_HAS_ALPN             (1 << 5) /* An ALPN has been negotiated */
 #define SSL_SOCK_F_KTLS_ULP             (1 << 6) /* TLS ULP is enabled on that socket */
 #define SSL_SOCK_F_KTLS_RX_CTRL         (1 << 7) /* a non-app-data record is blocking kTLS splicing, fall back to a buffered read to consume it */
+#define SSL_SOCK_F_KILL                 (1 << 9) /* connection must be aborted (e.g. KeyUpdate flood) */
 
 struct ssl_sock_ctx {
 	struct connection *conn;
@@ -271,6 +272,8 @@ struct ssl_sock_ctx {
 	struct buffer early_buf;      /* buffer to store the early data received */
 	int sent_early_data;          /* Amount of early data we sent so far */
 	int flags;                    /* Various flags for the ssl_sock_ctx */
+	uint keyupdate_tokens;        /* remaining TLS1.3 KeyUpdate token budget */
+	uint keyupdate_last_ms;       /* last KeyUpdate token refill */
 #ifdef HA_USE_KTLS
 	char record_type;             /* Record type to use if not just sending application data */
 #endif
@@ -320,6 +323,7 @@ struct global_ssl {
 	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
 	int capture_buffer_size; /* Size of the capture buffer. */
 	int keylog; /* activate keylog  */
+	uint keyupdate_max; /* max received TLS1.3 KeyUpdates per second per connection (0 == unlimited) */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 	int extra_files_noext; /* whether we remove the extension when looking up a extra file */
 	int security_level;    /* configure the openssl security level */

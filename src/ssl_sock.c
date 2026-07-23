@@ -139,6 +139,7 @@ struct global_ssl global_ssl = {
 	.default_dh_param = SSL_DEFAULT_DH_PARAM,
 	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
 	.capture_buffer_size = 0,
+	.keyupdate_max = 100, /* max received TLS1.3 KeyUpdates/s per conn; 0 to disable */
 	.extra_files = SSL_GF_ALL,
 	.extra_files_noext = 0,
 #ifdef HAVE_SSL_KEYLOG
@@ -387,6 +388,15 @@ static int ha_ssl_read(BIO *h, char *buf, int size)
 	int flags;
 
 	ctx = BIO_get_data(h);
+
+	/* A KeyUpdate flood was detected, we should abort now, as we may
+	 * have plenty more KeyUpdate to deal with, and that would end up
+	 * triggering the watchdog.
+	 */
+	if (ctx->flags & SSL_SOCK_F_KILL) {
+		ctx->conn->flags |= CO_FL_ERROR;
+		return -1;
+	}
 #ifdef HA_USE_KTLS
 #ifdef HAVE_VANILLA_OPENSSL
 	if (ctx->flags & SSL_SOCK_F_KTLS_RECV) {
@@ -869,6 +879,10 @@ static void ssl_init_keylog(int write_p, int version,
                             SSL *ssl);
 #endif
 
+static void ssl_sock_keyupdate_ratelimit(int write_p, int version,
+                                          int content_type, const void *buf,
+                                          size_t len, SSL *ssl);
+
 /* List head of all registered SSL/TLS protocol message callbacks. */
 struct list ssl_sock_msg_callbacks = LIST_HEAD_INIT(ssl_sock_msg_callbacks);
 
@@ -914,6 +928,10 @@ static int ssl_sock_register_msg_callbacks(void)
 			return ERR_ABORT;
 	}
 #endif
+	if (global_ssl.keyupdate_max) {
+		if (!ssl_sock_register_msg_callback(ssl_sock_keyupdate_ratelimit))
+			return ERR_ABORT;
+	}
 #ifdef USE_QUIC_OPENSSL_COMPAT
 	if (!ssl_sock_register_msg_callback(quic_tls_compat_msg_callback))
 		return ERR_ABORT;
@@ -2213,6 +2231,49 @@ static void ssl_init_keylog(int write_p, int version,
 	}
 }
 #endif
+
+static void ssl_sock_keyupdate_ratelimit(int write_p, int version,
+                                         int content_type, const void *buf,
+                                         size_t len, SSL *ssl)
+{
+	struct ssl_sock_ctx *ctx = NULL;
+	struct connection *conn;
+	uint rate, elapsed;
+
+	/* only count KeyUpdate messages received from the peer */
+	if (write_p || content_type != SSL3_RT_HANDSHAKE)
+		return;
+	if (len < 1 || ((const unsigned char *)buf)[0] != SSL3_MT_KEY_UPDATE)
+		return;
+
+	conn = ssl_sock_get_conn(ssl, &ctx);
+	if (!conn || !ctx)
+		return;
+
+	rate = global_ssl.keyupdate_max;
+	elapsed = now_ms - ctx->keyupdate_last_ms;  /* wrap-safe */
+	if (elapsed) {
+		uint refill = (uint)((ullong)elapsed * rate / 1000);
+
+		if (refill) {
+			ctx->keyupdate_tokens += refill;
+			if (ctx->keyupdate_tokens > rate)
+				ctx->keyupdate_tokens = rate;
+			ctx->keyupdate_last_ms = now_ms;
+		}
+	}
+
+	if (ctx->keyupdate_tokens)
+		ctx->keyupdate_tokens--;
+	else {
+		/* received way too many KeyUpdates, kill the connection */
+		if (conn->owner)
+			session_add_glitch_ctr(conn->owner, 1);
+		ctx->flags |= SSL_SOCK_F_KILL;
+		conn->flags |= CO_FL_ERROR;
+		conn->err_code = CO_ER_SSL_KEYUPDATE;
+	}
+}
 
 /* Callback is called for ssl protocol analyse */
 static __maybe_unused void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
@@ -5938,6 +5999,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->xprt_ctx = NULL;
 	ctx->error_code = 0;
 	ctx->flags = SSL_SOCK_F_EARLY_ENABLED;
+	ctx->keyupdate_tokens = global_ssl.keyupdate_max;
+	ctx->keyupdate_last_ms = now_ms;
 #ifdef HA_USE_KTLS
 	ctx->record_type = 0;
 #endif

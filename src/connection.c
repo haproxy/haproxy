@@ -908,6 +908,7 @@ const char *conn_err_code_name(struct connection *c)
 	case CO_ER_SSL_TOO_MANY:     return "SSL_TOO_MANY";
 	case CO_ER_SSL_NO_MEM:       return "SSL_NO_MEM";
 	case CO_ER_SSL_RENEG:        return "SSL_RENEG";
+	case CO_ER_SSL_KEYUPDATE:    return "SSL_KEYUPDATE";
 	case CO_ER_SSL_CA_FAIL:      return "SSL_CA_FAIL";
 	case CO_ER_SSL_CRT_FAIL:     return "SSL_CRT_FAIL";
 	case CO_ER_SSL_MISMATCH:     return "SSL_MISMATCH";
@@ -979,6 +980,7 @@ const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SSL_TOO_MANY:  return "Too many SSL connections";
 	case CO_ER_SSL_NO_MEM:    return "Out of memory when initializing an SSL connection";
 	case CO_ER_SSL_RENEG:     return "Rejected a client-initiated SSL renegotiation attempt";
+	case CO_ER_SSL_KEYUPDATE: return "Aborted connection after a TLS 1.3 KeyUpdate flood";
 	case CO_ER_SSL_CA_FAIL:   return "SSL client CA chain cannot be verified";
 	case CO_ER_SSL_CRT_FAIL:  return "SSL client certificate not trusted";
 	case CO_ER_SSL_MISMATCH:  return "Server presented an SSL certificate different from the configured one";
