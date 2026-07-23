@@ -129,7 +129,7 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	comp_type = NULL;
 
 	/* compress only if body size is >= than the min size */
-	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_EOM)) &&
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_HAS_EOM)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_req)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_req)))) {
 		/* small requests should not be compressed */
@@ -291,9 +291,9 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	 * early to next filters. But save the information to be able to restore
 	 * the flag at the end of the compression.
 	 */
-	if (htx->flags & HTX_FL_EOM) {
+	if (htx->flags & HTX_FL_HAS_EOM) {
 		st->flags |= COMP_STATE_EOM_SEEN;
-		htx->flags &= ~HTX_FL_EOM;
+		htx->flags &= ~HTX_FL_HAS_EOM;
 	}
 
 	for (next = NULL; blk && len; blk = next) {
@@ -409,9 +409,9 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	return to_forward;
 
   error:
-	/* On error, restore HTX_FL_EOM flag */
+	/* On error, restore HTX_FL_HAS_EOM flag */
 	if (st->flags & COMP_STATE_EOM_SEEN)
-		htx_set_eom(htx);
+		htx->flags |= HTX_FL_HAS_EOM;
 	return -1;
 }
 
@@ -695,7 +695,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		goto fail;
 
 	/* compress only if body size is >= than the min size */
-	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_EOM)) &&
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_HAS_EOM)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_res)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_res)))) {
 		/* small responses should not be compressed */

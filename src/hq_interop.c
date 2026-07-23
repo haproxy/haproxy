@@ -240,7 +240,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 	*fin = 0;
 	htx = htx_from_buf(buf);
 	/* EOM is saved here, useful if 0-copy is performed with HTX buf. */
-	eom = htx->flags & HTX_FL_EOM;
+	eom = htx->flags & HTX_FL_HAS_EOM;
 
 	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs)) {
 		/* Not implemented : QUIC on backend side */

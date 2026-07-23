@@ -913,7 +913,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 
 	/* Everything was copied, transfer terminal HTX flags too */
 	if (!blk) {
-		dst->flags |= (src->flags & (HTX_FL_EOM|HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
+		dst->flags |= (src->flags & (HTX_FL_HAS_EOM|HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR));
 		if (!(flags & HTX_XFER_KEEP_SRC_BLKS))
 			src->flags = 0;
 	}
@@ -1272,7 +1272,7 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 		newblk->info = blk->info;
 		htx_memcpy(htx_get_blk_ptr(dst, newblk), htx_get_blk_ptr(src, blk), blksz);
 	}
-	dst->flags |= (src->flags & HTX_FL_EOM);
+	dst->flags |= (src->flags & HTX_FL_HAS_EOM);
 	return 1;
 
   error:

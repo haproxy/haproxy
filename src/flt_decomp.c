@@ -210,9 +210,9 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 	 * early to next filters. But save the information to be able to restore
 	 * the flag at the end of the decompression.
 	 */
-	if (htx->flags & HTX_FL_EOM) {
+	if (htx->flags & HTX_FL_HAS_EOM) {
 		st->flags |= DECOMP_STATE_EOM_SEEN;
-		htx->flags &= ~HTX_FL_EOM;
+		htx->flags &= ~HTX_FL_HAS_EOM;
 	}
 
 	while (blk && len) {
@@ -415,7 +415,7 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 	return total;
 
   error:
-	/* On error, restore HTX_FL_EOM flag */
+	/* On error, restore HTX_FL_HAS_EOM flag */
 	if (st->flags & DECOMP_STATE_EOM_SEEN)
 		htx_set_eom(htx);
 	htx_to_buf(htx, &chn->buf);

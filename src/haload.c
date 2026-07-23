@@ -1228,7 +1228,7 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path)
 }
 
 /* Continue sending the POST body once the previous output buffer was fully
- * drained but hs->to_send is still > 0. Sets HTX_FL_EOM once it reaches 0.
+ * drained but hs->to_send is still > 0. Sets HTX_FL_HAS_EOM once it reaches 0.
  * Return 1 if succeeded, 0 if not.
  */
 static int hldstream_build_http_body(struct hldstream *hs)
