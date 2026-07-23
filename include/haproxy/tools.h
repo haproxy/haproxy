@@ -602,25 +602,8 @@ static inline char *alltrim(char *s, char c) {
 	return ltrim(s, c);
 }
 
-/* This function converts the time_t value <now> into a broken out struct tm
- * which must be allocated by the caller. It is highly recommended to use this
- * function instead of localtime() because that one requires a time_t* which
- * is not always compatible with tv_sec depending on OS/hardware combinations.
- */
-static inline void get_localtime(const time_t now, struct tm *tm)
-{
-	localtime_r(&now, tm);
-}
-
-/* This function converts the time_t value <now> into a broken out struct tm
- * which must be allocated by the caller. It is highly recommended to use this
- * function instead of gmtime() because that one requires a time_t* which
- * is not always compatible with tv_sec depending on OS/hardware combinations.
- */
-static inline void get_gmtime(const time_t now, struct tm *tm)
-{
-	gmtime_r(&now, tm);
-}
+void get_localtime(const time_t now, struct tm *tm);
+void get_gmtime(const time_t now, struct tm *tm);
 
 /* Counts a number of elapsed days since 01/01/0000 based solely on elapsed
  * years and assuming the regular rule for leap years applies. It's fake but

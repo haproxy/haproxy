@@ -749,4 +749,13 @@
 #define STKTABLE_MAX_UPDATES_AT_ONCE 100
 #endif /* STKTABLE_MAX_UPDATES_AT_ONCE */
 
+/* number of time cache entries, must be a power of two, hence the setting in
+ * bits. Note that 2 or 4 slots is already sufficient in practice.
+ */
+#ifndef TIME_CACHE_BITS
+# define TIME_CACHE_BITS 2
+#endif
+#define TIME_CACHE_SLOTS (1U << TIME_CACHE_BITS)
+
+
 #endif /* _HAPROXY_DEFAULTS_H */
