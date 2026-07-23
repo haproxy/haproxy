@@ -1993,6 +1993,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.force-private-cache
    - tune.ssl.hard-maxrecord
    - tune.ssl.keylog
+   - tune.ssl.keyupdate-rate-limit
    - tune.ssl.lifetime
    - tune.ssl.maxrecord
    - tune.ssl.ssl-ctx-cache-size
@@ -5565,6 +5566,12 @@ tune.ssl.keylog { on | off }
     $HAPROXY_KEYLOG_FC_LOG_FMT   frontend (client-facing) connection keys
     $HAPROXY_KEYLOG_BC_LOG_FMT   backend (server-facing) connection keys
 
+tune.ssl.keyupdate-rate-limit <limit>
+  Limit the amount of KeyUpdate per second we're willing to accept to <limit>
+  before considering it flood, and killing the connection. Dealing with
+  KeyUpdate is cpu-expensive, and there is little reason to receive a lot of
+  them. Using a value of "0" disables the rate limiting.
+  The default value is 100.
 tune.ssl.lifetime <timeout>
   Sets how long a cached SSL session may remain valid. This time is expressed
   in seconds and defaults to 300 (5 min). It is important to understand that it
