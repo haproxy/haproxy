@@ -5856,7 +5856,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)) {
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_HAS_EOM)) {
 		http_ctx->flags |= APPLET_REQ_RECV;
 		stop = 1;
 	}
@@ -5952,7 +5952,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	/* The message was fully consumed and no more data are expected
 	 * (EOM flag set).
 	 */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)) {
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_HAS_EOM)) {
 		http_ctx->flags |= APPLET_REQ_RECV;
 		len = 0;
 	}
@@ -7905,7 +7905,7 @@ __LJMP static int hlua_http_msg_unset_eom(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "set_eom"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
-	htx->flags &= ~HTX_FL_EOM;
+	htx->flags &= ~HTX_FL_HAS_EOM;
 	return 0;
 }
 

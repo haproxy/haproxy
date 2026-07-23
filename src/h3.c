@@ -3038,7 +3038,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 	*fin = 0;
 	htx = htx_from_buf(buf);
 	/* EOM is saved here, useful if 0-copy is performed with HTX buf. */
-	eom = htx->flags & HTX_FL_EOM;
+	eom = htx->flags & HTX_FL_HAS_EOM;
 
 	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs) && ret >= 0) {
 		idx = htx_get_head(htx);
@@ -3128,7 +3128,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 	 * which results in transfers reported as prematurely aborted (cL--).
 	 */
 #if 0
-	if (unlikely((htx->flags & HTX_FL_EOM) && htx_is_empty(htx)) &&
+	if (unlikely((htx->flags & HTX_FL_HAS_EOM) && htx_is_empty(htx)) &&
 	             !qcs_is_close_remote(qcs)) {
 	        /* Generate a STOP_SENDING if full response transferred before
 	         * receiving the full request.

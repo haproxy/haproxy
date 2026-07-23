@@ -561,7 +561,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					goto out;
 				}
 
-				if (htx->flags & HTX_FL_EOM) { /* check if a body need to be added */
+				if (htx->flags & HTX_FL_HAS_EOM) { /* check if a body need to be added */
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					applet_set_eoi(appctx);
 					goto out; /* we need to leave the IO handler once we wrote the request */
@@ -623,8 +623,8 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				htx = htxbuf(outbuf);
 
-				/* if the request contains the HTX_FL_EOM, we finished the request part. */
-				if (htx->flags & HTX_FL_EOM) {
+				/* if the request contains the HTX_FL_HAS_EOM, we finished the request part. */
+				if (htx->flags & HTX_FL_HAS_EOM) {
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					applet_set_eoi(appctx);
 					goto out; /* we need to leave the IO handler once we wrote the request */
@@ -689,7 +689,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				/* if there is no HTX data anymore and the EOM flag is
 				 * set, leave (no body) */
-				if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM)
+				if (htx_is_empty(htx) && htx->flags & HTX_FL_HAS_EOM)
 					appctx->st0 = HTTPCLIENT_S_RES_END;
 				else
 					appctx->st0 = HTTPCLIENT_S_RES_HDR;
@@ -772,7 +772,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				/* if there is no HTX data anymore and the EOM flag is
 				 * set, leave (no body) */
-				if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM) {
+				if (htx_is_empty(htx) && htx->flags & HTX_FL_HAS_EOM) {
 					appctx->st0 = HTTPCLIENT_S_RES_END;
 				} else {
 					appctx->st0 = HTTPCLIENT_S_RES_BODY;
@@ -854,7 +854,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					hc->ops.res_payload(hc);
 
 				/* if not finished, should be called again */
-				if ((htx_is_empty(htx) && (htx->flags & HTX_FL_EOM))) {
+				if ((htx_is_empty(htx) && (htx->flags & HTX_FL_HAS_EOM))) {
 					appctx->st0 = HTTPCLIENT_S_RES_END;
 					htx_to_buf(htx, inbuf);
 					break;

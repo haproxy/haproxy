@@ -2686,7 +2686,7 @@ smp_fetch_htx_has_eom(const struct arg *arg_p, struct sample *smp, const char *k
 	if (!htx)
 		return 0;
 
-	smp->data.u.sint = !!(htx->flags & HTX_FL_EOM);
+	smp->data.u.sint = !!(htx->flags & HTX_FL_HAS_EOM);
 	smp->data.type   = SMP_T_BOOL;
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;

@@ -2834,7 +2834,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 			TRACE_STATE("force close mode (T-E + HTTP/1.0)", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 		}
 		else if ((h1m->flags & H1_MF_CLEN) && h1m->body_len != 0 &&
-			 htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM) &&
+			 htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM) &&
 			 (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP))) {
 			/* C-L but no data for non-bodyless response or for a request: force close */
 			h1s->flags = (h1s->flags & ~H1S_F_WANT_MSK) | H1S_F_WANT_CLO;
@@ -2950,7 +2950,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		TRACE_STATE("1xx response xferred", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 	}
 	else if (htx_is_unique_blk(htx, blk) &&
-		 ((htx->flags & HTX_FL_EOM) || ((h1m->flags & H1_MF_CLEN) && !h1m->curr_len))) {
+		 ((htx->flags & HTX_FL_HAS_EOM) || ((h1m->flags & H1_MF_CLEN) && !h1m->curr_len))) {
 		/* EOM flag is set and it is the last block or there is no
 		 * payload. It cannot be removed now. We must emit the end of
 		 * the message first to be sure the output buffer is not full.
@@ -2962,7 +2962,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		}
 		else if (!chunk_memcat(&outbuf, "\r\n", 2))
 			goto full;
-		h1m->state = ((htx->flags & HTX_FL_EOM) ? H1_MSG_DONE : H1_MSG_TRAILERS);
+		h1m->state = ((htx->flags & HTX_FL_HAS_EOM) ? H1_MSG_DONE : H1_MSG_TRAILERS);
 	}
 	else {
 		if (!chunk_memcat(&outbuf, "\r\n", 2))
@@ -3032,7 +3032,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	    htx_get_blk_value(htx, blk).len == count &&
 	    b_size(&h1c->obuf) == b_size(buf)) {
 		void *old_area;
-		int eom = (htx->flags & HTX_FL_EOM);
+		int eom = (htx->flags & HTX_FL_HAS_EOM);
 
 		old_area = h1c->obuf.area;
 		h1c->obuf.area = buf->area;
@@ -3147,7 +3147,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				/* Get the maximum amount of data we can xferred */
 				vlen = count;
 			}
-			else if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM)) {
+			else if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM)) {
 				/* It is the last block of this message. After this one,
 				 * only tunneled data may be forwarded. */
 				TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);

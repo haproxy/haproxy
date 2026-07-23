@@ -743,7 +743,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * in case we previously disabled it, otherwise we might cause
 	 * the client to delay further data.
 	 */
-	if ((sess->listener && (sess->listener->bind_conf->options & BC_O_NOQUICKACK)) && !(htx->flags & HTX_FL_EOM))
+	if ((sess->listener && (sess->listener->bind_conf->options & BC_O_NOQUICKACK)) && !(htx->flags & HTX_FL_HAS_EOM))
 		conn_set_quickack(cli_conn, 1);
 
 	/*************************************************************
@@ -992,7 +992,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	else {
 		c_adv(req, htx->data - co_data(req));
 		if ((global.tune.options & GTUNE_USE_FAST_FWD) && (msg->flags & HTTP_MSGF_XFER_LEN) &&
-		    (!(msg->flags & HTTP_MSGF_CONN_UPG) || (htx->flags & HTX_FL_EOM)))
+		    (!(msg->flags & HTTP_MSGF_CONN_UPG) || (htx->flags & HTX_FL_HAS_EOM)))
 			channel_htx_forward_forever(req, htx);
 	}
 
@@ -1003,7 +1003,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * in HTTP_MSG_ENDING state. Then if all data was marked to be
 	 * forwarded, set the state to HTTP_MSG_DONE.
 	 */
-	if (!(htx->flags & HTX_FL_EOM))
+	if (!(htx->flags & HTX_FL_HAS_EOM))
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_ENDING;
@@ -2229,7 +2229,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * in HTTP_MSG_ENDING state. Then if all data was marked to be
 	 * forwarded, set the state to HTTP_MSG_DONE.
 	 */
-	if (!(htx->flags & HTX_FL_EOM))
+	if (!(htx->flags & HTX_FL_HAS_EOM))
 		goto missing_data_or_waiting;
 
 	msg->msg_state = HTTP_MSG_ENDING;
@@ -4353,7 +4353,7 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	/* Now we're are waiting for the payload. We just need to know if all
 	 * data have been received or if the buffer is full.
 	 */
-	if ((htx->flags & HTX_FL_EOM) || htx_get_tail_type(htx) > HTX_BLK_DATA)
+	if ((htx->flags & HTX_FL_HAS_EOM) || htx_get_tail_type(htx) > HTX_BLK_DATA)
 		goto end; /* all data received */
 
 	if (bytes) {

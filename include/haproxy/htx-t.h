@@ -180,7 +180,7 @@ static forceinline char *hsl_show_flags(char *buf, size_t len, const char *delim
 #define HTX_FL_PROCESSING_ERROR  0x00000002 /* Set when a processing error occurred */
 #define HTX_FL_FRAGMENTED        0x00000004 /* Set when the HTX buffer is fragmented */
 #define HTX_FL_UNORDERED         0x00000008 /* Set when the HTX buffer are not ordered */
-#define HTX_FL_EOM               0x00000010 /* Set when end-of-message is reached from the HTTP point of view */
+#define HTX_FL_HAS_EOM           0x00000010 /* Set when end-of-message is reached from the HTTP point of view */
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -193,7 +193,7 @@ static forceinline char *htx_show_flags(char *buf, size_t len, const char *delim
 	_(0);
 	/* flags */
 	_(HTX_FL_PARSING_ERROR, _(HTX_FL_PROCESSING_ERROR,
-	_(HTX_FL_FRAGMENTED, _(HTX_FL_UNORDERED, _(HTX_FL_EOM)))));
+	_(HTX_FL_FRAGMENTED, _(HTX_FL_UNORDERED, _(HTX_FL_HAS_EOM)))));
 	/* epilogue */
 	_(~0U);
 	return buf;

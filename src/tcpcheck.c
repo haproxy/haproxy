@@ -2000,7 +2000,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 
 	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
-	last_read |= (!htx_free_data_space(htx) || (htx->flags & HTX_FL_EOM));
+	last_read |= (!htx_free_data_space(htx) || (htx->flags & HTX_FL_HAS_EOM));
 
 	if (htx->flags & HTX_FL_PARSING_ERROR) {
 		TRACE_ERROR("invalid response", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);

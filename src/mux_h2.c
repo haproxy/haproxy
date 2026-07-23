@@ -6837,7 +6837,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 		/* Response already closed: add END_STREAM */
 		es_now = 1;
 	}
-	else if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx) && h2s->status >= 200) {
+	else if ((htx->flags & HTX_FL_HAS_EOM) && htx_is_empty(htx) && h2s->status >= 200) {
 		/* EOM+empty: we may need to add END_STREAM except for 1xx
 		 * responses and tunneled response.
 		 */
@@ -7272,7 +7272,7 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 		/* Request already closed: add END_STREAM */
 		es_now = 1;
 	}
-	if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx)) {
+	if ((htx->flags & HTX_FL_HAS_EOM) && htx_is_empty(htx)) {
 		/* EOM+empty: we may need to add END_STREAM (except for CONNECT
 		 * request)
 		 */
@@ -7443,7 +7443,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 			goto end;
 		}
 
-		if (htx->flags & HTX_FL_EOM) {
+		if (htx->flags & HTX_FL_HAS_EOM) {
 			/* EOM+empty: we may need to add END_STREAM (except for tunneled
 			 * message)
 			 */
@@ -7580,7 +7580,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	total += fsize;
 	if (fsize == bsize) {
 		htx_remove_blk(htx, blk);
-		if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx)) {
+		if ((htx->flags & HTX_FL_HAS_EOM) && htx_is_empty(htx)) {
 			/* EOM+empty: we may need to add END_STREAM (except for tunneled
 			 * message)
 			 */
@@ -7664,7 +7664,7 @@ static size_t h2s_skip_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	if (fsize != bsize)
 		goto skip_data;
 
-	if (!(htx->flags & HTX_FL_EOM) || !htx_is_unique_blk(htx, blk))
+	if (!(htx->flags & HTX_FL_HAS_EOM) || !htx_is_unique_blk(htx, blk))
 		goto skip_data;
 
 	h2s->flags &= ~H2_SF_MORE_HTX_DATA;

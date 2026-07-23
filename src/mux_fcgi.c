@@ -2184,7 +2184,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (unlikely(size <= 0xFFFF && size == count && b_size(mbuf) == b_size(buf) &&
 		     htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = mbuf->area;
-		int eom = (htx->flags & HTX_FL_EOM);
+		int eom = (htx->flags & HTX_FL_HAS_EOM);
 
 		 /* Last block of the message: Reserve the size for the empty stdin record */
 		if (eom)
@@ -2262,7 +2262,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 				TRACE_PROTO("sending stding data", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){size});
 				v = htx_get_blk_value(htx, blk);
 
-				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM))
+				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM))
 					extra_bytes = FCGI_RECORD_HEADER_SZ; /* Last block of the message */
 
 				if (v.len > count) {
@@ -2311,7 +2311,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	b_add(mbuf, outbuf.data);
 
 	/* Send the empty stding here to finish the message */
-	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)) {
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_HAS_EOM)) {
 	  empty_stdin:
 		TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 		if (!fcgi_strm_send_empty_stdin(fconn, fstrm)) {
@@ -4169,7 +4169,7 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 		 * full. Otherwise, the request is invalid.
 		 */
 		sl = http_get_stline(htx);
-		if (!sl || (!(sl->flags & HTX_SL_F_CLEN) && !(htx->flags & HTX_FL_EOM))) {
+		if (!sl || (!(sl->flags & HTX_SL_F_CLEN) && !(htx->flags & HTX_FL_HAS_EOM))) {
 			htx->flags |= HTX_FL_PARSING_ERROR;
 			fcgi_strm_error(fstrm);
 			goto done;
@@ -4209,7 +4209,7 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 					if (!ret)
 						goto done;
 				}
-				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM)) {
+				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM)) {
 					TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 					ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
 					if (!ret)
@@ -4230,7 +4230,7 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 				break;
 
 			case HTX_BLK_EOT:
-				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM)) {
+				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_HAS_EOM)) {
 					TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
 					ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
 					if (!ret)
