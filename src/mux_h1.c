@@ -1918,11 +1918,10 @@ static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx 
 	struct htx_blk *blk;
 	enum htx_blk_type type;
 	struct ist n, v;
-	int ws_key_found = 0, idx;
+	int ws_key_found = 0;
 
-	idx = htx_get_head(htx); // returns the SL that we skip
-	while ((idx = htx_get_next(htx, idx)) != -1) {
-		blk = htx_get_blk(htx, idx);
+	blk = htx_get_head_blk(htx); // returns the SL that we skip
+	for (blk = htx_get_next_blk(htx, blk); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
 
 		if (type == HTX_BLK_UNUSED)
