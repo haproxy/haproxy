@@ -507,6 +507,22 @@ static void reset_refs(union ref *refs, long count)
 	} while (refs < end);
 }
 
+/* Number of bits wasted by the 9-bit literals above which it becomes
+ * preferable to send the pending literals as a stored block. It corresponds to
+ * the cost of leaving the fixed huffman encoding and coming back to it: EOB
+ * (7 bits) + block type (3 bits) + alignment (up to 7 bits) + LEN and NLEN
+ * (32 bits) + block type of the next block (3 bits), that is 52 bits. Two
+ * cheaper variants are needed for the last literals of a block: nothing
+ * follows the stored block while the huffman encoding still has to send an EOB
+ * (10 bits less), and if the stream is still in EOB state, no EOB has to be
+ * sent and the block type is needed in both cases (10 more bits less). Using a
+ * larger value than these would leave the output larger than the same data
+ * sent as stored blocks, in violation of the promise made above.
+ */
+#define SLZ_SWITCH_COST      52
+#define SLZ_LAST_COST        42
+#define SLZ_LAST_COST_EOB    32
+
 /* Compresses <ilen> bytes from <in> into <out> according to RFC1951. The
  * output result may be up to 5 bytes larger than the input for each 65535
  * nput bytes, to which 2 extra bytes may be added to send the last chunk due
@@ -691,7 +707,8 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		 * is what guarantees that once switched to FIXED we can stay
 		 * in it for as long as needed.
 		 */
-		if (strm->state == SLZ_ST_EOB && (dist & 0x1f) + (code >> 16) + 52 > 8 * mlen)
+		if (strm->state == SLZ_ST_EOB &&
+		    (dist & 0x1f) + (code >> 16) + SLZ_SWITCH_COST > 8 * mlen)
 			goto send_as_lit;
 
 		/* first, copy pending literals */
@@ -703,7 +720,7 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 			 * block. Only use plain literals if there are more than 52 bits
 			 * to save then.
 			 */
-			if (bit9 >= 52)
+			if (bit9 >= SLZ_SWITCH_COST)
 				copy_lit(strm, in + pos - plit, plit, 1);
 			else
 				copy_lit_huff(strm, in + pos - plit, plit, 1);
@@ -749,9 +766,19 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 	}
 
  final_lit_dump:
-	/* now copy remaining literals or mark the end */
+	/* Now copy remaining literals or mark the end. The cost of switching to
+	 * a stored block depends on the current state and on the presence of
+	 * data after these literals, see the SLZ_*_COST definitions above.
+	 */
 	if (plit) {
-		if (bit9 >= 52)
+		uint32_t cost;
+
+		if (more)
+			cost = SLZ_SWITCH_COST;
+		else
+			cost = (strm->state == SLZ_ST_EOB) ? SLZ_LAST_COST_EOB : SLZ_LAST_COST;
+
+		if (bit9 >= cost)
 			copy_lit(strm, in + pos - plit, plit, more);
 		else
 			copy_lit_huff(strm, in + pos - plit, plit, more);
