@@ -523,6 +523,20 @@ static void reset_refs(union ref *refs, long count)
 #define SLZ_LAST_COST        42
 #define SLZ_LAST_COST_EOB    32
 
+/* Maximum number of bits the fixed huffman encoding is allowed to be behind
+ * the equivalent stored blocks before the encoder stops trusting the local
+ * decisions above and falls back to stored blocks only (see <debt> in
+ * slz_rfc1951_encode_blk()). This bounds by 25 bytes the amount by which a
+ * stream may exceed the size of the same data sent as stored blocks. It must
+ * be large enough not to trigger on regular data, where the debt oscillates
+ * around zero: measured on the 212 MB silesia.tar, no value from 196 up
+ * changes the output by a single byte, while 52 costs 2331 bytes and 192
+ * costs 615. It must also leave room for one last group of literals in the
+ * 8-bit counter that holds the debt, which is why it may not exceed
+ * 255 - (SLZ_SWITCH_COST - 1) = 204.
+ */
+#define SLZ_MAX_DEBT        200
+
 /* Compresses <ilen> bytes from <in> into <out> according to RFC1951. The
  * output result may be up to 5 bytes larger than the input for each 65535
  * nput bytes, to which 2 extra bytes may be added to send the last chunk due
@@ -707,7 +721,7 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		 * is what guarantees that once switched to FIXED we can stay
 		 * in it for as long as needed.
 		 */
-		if (strm->state == SLZ_ST_EOB &&
+		if ((strm->state == SLZ_ST_EOB || strm->debt >= SLZ_MAX_DEBT) &&
 		    (dist & 0x1f) + (code >> 16) + SLZ_SWITCH_COST > 8 * mlen)
 			goto send_as_lit;
 
@@ -718,12 +732,17 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 			 * and no-comp then huffman consumes 52 bits (7 for EOB + 3 for
 			 * block type + 7 for alignment + 32 for LEN+NLEN + 3 for next
 			 * block. Only use plain literals if there are more than 52 bits
-			 * to save then.
+			 * to save then, or if we're already too much in debt, in which
+			 * case only stored blocks may be emitted, see <debt> below.
+			 * Literals sent in a stored block do not cost anything extra,
+			 * only those sent in huffman mode add to the debt.
 			 */
-			if (bit9 >= SLZ_SWITCH_COST)
+			if (bit9 >= SLZ_SWITCH_COST || strm->debt >= SLZ_MAX_DEBT)
 				copy_lit(strm, in + pos - plit, plit, 1);
-			else
+			else {
 				copy_lit_huff(strm, in + pos - plit, plit, 1);
+				strm->debt += bit9;
+			}
 
 			plit = 0;
 		}
@@ -739,6 +758,26 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 
 		/* in fixed huffman mode, dist is fixed 5 bits */
 		enqueue24(strm, dist >> 5, dist & 0x1f);
+
+		/* <bit9> only measures the current group of literals, which is
+		 * what the decisions above compare against, and it restarts
+		 * from zero after each reference. <debt> accumulates how much
+		 * the literals already emitted in fixed huffman mode are still
+		 * costing us compared to the same bytes sent as stored blocks,
+		 * and is what bounds the growth of the output: the reference
+		 * just used (code>>16)+(dist&0x1f) bits in place of the 8*mlen
+		 * bits these bytes would have taken as literals, so it repays
+		 * that much of the debt. Without this, a stream made of series
+		 * of 9-bit literals interleaved with cheap references would
+		 * never reach the threshold above and would keep inflating. The
+		 * debt is saturated at zero since we're not interested in
+		 * accumulating credits. The update is unconditional because a
+		 * test on a debt that is often null but not always turns into
+		 * a mispredicted branch on binary data.
+		 */
+		code = strm->debt + (code >> 16) + (dist & 0x1f);
+		strm->debt = (code > 8 * (uint32_t)mlen) ? code - 8 * (uint32_t)mlen : 0;
+
 		bit9 = 0;
 		rem -= mlen;
 		pos += mlen;
@@ -778,7 +817,7 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		else
 			cost = (strm->state == SLZ_ST_EOB) ? SLZ_LAST_COST_EOB : SLZ_LAST_COST;
 
-		if (bit9 >= cost)
+		if (bit9 >= cost || strm->debt >= SLZ_MAX_DEBT)
 			copy_lit(strm, in + pos - plit, plit, more);
 		else
 			copy_lit_huff(strm, in + pos - plit, plit, more);
@@ -804,6 +843,7 @@ int slz_rfc1951_init(struct slz_stream *strm, int level)
 	strm->ilen  = 0;
 	strm->qbits = 0;
 	strm->queue = 0;
+	strm->debt  = 0;
 	return 0;
 }
 
@@ -1177,6 +1217,7 @@ int slz_rfc1952_init(struct slz_stream *strm, int level)
 	strm->ilen   = 0;
 	strm->qbits  = 0;
 	strm->queue  = 0;
+	strm->debt   = 0;
 	return 0;
 }
 
@@ -1454,6 +1495,7 @@ int slz_rfc1950_init(struct slz_stream *strm, int level)
 	strm->ilen   = 0;
 	strm->qbits  = 0;
 	strm->queue  = 0;
+	strm->debt   = 0;
 	return 0;
 }
 
