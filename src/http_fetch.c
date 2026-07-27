@@ -685,7 +685,10 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 				/* More than one DATA block we must use a trash */
 				if (!chk) {
 					smp->flags &= ~SMP_F_CONST;
-					chk = get_best_trash_chunk(&chn->buf, htx->data);
+					/* <chn> is NULL in the health-check context,
+					 * where the message comes from <check->bi>
+					 */
+					chk = get_best_trash_chunk((chn ? &chn->buf : &check->bi), htx->data);
 					if (!chk || !chunk_istcat(chk, body))
 						return 0;
 				}
