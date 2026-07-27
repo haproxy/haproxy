@@ -402,9 +402,12 @@ static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void
 	if (len > hdr->len)
 		len = hdr->len;
 
-	/* Capture input data. */
-	memcpy(smp->strm->req_cap[idx], smp->data.u.str.area, len);
-	smp->strm->req_cap[idx][len] = '\0';
+	/* Capture input data. Use hdr->index and not idx: while both are equal
+	 * for a properly built capture list, only the former is guaranteed to
+	 * be a valid slot number for the array allocated above.
+	 */
+	memcpy(smp->strm->req_cap[hdr->index], smp->data.u.str.area, len);
+	smp->strm->req_cap[hdr->index][len] = '\0';
 
 	return 1;
 }
@@ -447,9 +450,12 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 	if (len > hdr->len)
 		len = hdr->len;
 
-	/* Capture input data. */
-	memcpy(smp->strm->res_cap[idx], smp->data.u.str.area, len);
-	smp->strm->res_cap[idx][len] = '\0';
+	/* Capture input data. Use hdr->index and not idx: while both are equal
+	 * for a properly built capture list, only the former is guaranteed to
+	 * be a valid slot number for the array allocated above.
+	 */
+	memcpy(smp->strm->res_cap[hdr->index], smp->data.u.str.area, len);
+	smp->strm->res_cap[hdr->index][len] = '\0';
 
 	return 1;
 }
