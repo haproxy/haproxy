@@ -1880,6 +1880,9 @@ int http_scheme_based_normalize(struct htx *htx)
 		struct buffer *temp = alloc_trash_chunk();
 		struct ist meth, vsn;
 
+		if (!temp)
+			goto fail;
+
 		/* meth */
 		chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
 		meth = ist2(temp->area, HTX_SL_REQ_MLEN(sl));
