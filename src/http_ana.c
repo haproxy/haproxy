@@ -3341,9 +3341,12 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 			/* We have nothing to do with attributes beginning with
 			 * '$'. However, they will automatically be removed if a
 			 * header before them is removed, since they're supposed
-			 * to be linked together.
+			 * to be linked together. Note that <att_beg> may be equal
+			 * to <hdr_end> for a header value ending with a delimiter
+			 * possibly followed by blanks, so it must not be
+			 * dereferenced without being checked first.
 			 */
-			if (*att_beg == '$')
+			if (att_beg < hdr_end && *att_beg == '$')
 				continue;
 
 			/* Ignore cookies with no equal sign */
