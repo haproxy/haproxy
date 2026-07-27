@@ -994,7 +994,7 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 		}
 
 		id = strtol(args[cur_arg], &error, 10);
-		if (*error != '\0') {
+		if (*error != '\0' || id < 0) {
 			memprintf(err, "cannot parse id '%s'", args[cur_arg]);
 			release_sample_expr(expr);
 			return ACT_RET_PRS_ERR;
@@ -1141,7 +1141,7 @@ static enum act_parse_ret parse_http_res_capture(const char **args, int *orig_ar
 	}
 
 	id = strtol(args[cur_arg], &error, 10);
-	if (*error != '\0') {
+	if (*error != '\0' || id < 0) {
 		memprintf(err, "cannot parse id '%s'", args[cur_arg]);
 		release_sample_expr(expr);
 		return ACT_RET_PRS_ERR;
