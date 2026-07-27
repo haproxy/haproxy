@@ -347,7 +347,6 @@ static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
 	if (!trash)
 		return 0;
 
-	enc_type = ENC_QUERY;
 	enc_type = args->data.sint;
 
 	if (enc_type == ENC_QUERY)
