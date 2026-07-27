@@ -608,7 +608,6 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 	if (st->comp_algo) {
 		if ((s->be->comp && (s->be->comp->flags & COMP_FL_OFFLOAD)) ||
 		    (strm_fe(s)->comp && (strm_fe(s)->comp->flags & COMP_FL_OFFLOAD))) {
-			http_remove_header(htx, &ctx);
 			ctx.blk = NULL;
 			while (http_find_header(htx, ist("Accept-Encoding"), &ctx, 1))
 				http_remove_header(htx, &ctx);
