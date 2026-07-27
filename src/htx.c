@@ -1185,7 +1185,6 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
 	if (room < len)
 		len = room;
 
-append_data:
 	htx_change_blk_value_len(htx, tailblk, sz+len);
 
 	BUG_ON((int32_t)htx->tail_addr < 0);
