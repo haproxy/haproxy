@@ -1389,6 +1389,11 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	}
 
   leave:
+	/* the buffer was marked as full by htx_from_buf() above, it must be
+	 * updated back, especially on the HTTP/1.0 path where the HTX message
+	 * was left untouched and empty.
+	 */
+	htx_to_buf(htx, &res->buf);
 	free_trash_chunk(value);
 	return ret;
 
