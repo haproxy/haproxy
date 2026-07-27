@@ -820,14 +820,18 @@ static inline int htx_set_eom(struct htx *htx)
  */
 static inline int htx_copy_msg(struct htx *htx, const struct buffer *msg)
 {
-	/* The destination HTX message is allocated and empty, we can do a raw copy */
-	if (htx_is_empty(htx) && htx_free_space(htx)) {
+	struct htx *htx_msg = htxbuf(msg);
+
+	/* The destination HTX message is empty and the message to append has
+	 * has the same size, we can do a raw copy.
+	 */
+	if (htx_is_empty(htx) && htx->size == htx_msg->size) {
 		memcpy(htx, msg->area, msg->size);
 		return 1;
 	}
 
-	/* Otherwise, we need to append the HTX message */
-	return htx_append_msg(htx, htxbuf(msg));
+	/* Otherwise, we need to append the HTX message, block per block */
+	return htx_append_msg(htx, htx_msg);
 }
 
 /* Remove all blocks except headers. Trailers will also be removed too. */
