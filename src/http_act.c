@@ -635,6 +635,7 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 		cap |= SMP_VAL_BE_HRQ_HDR;
 	if (!parse_logformat_string(args[cur_arg + 1], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
 		regex_free(rule->arg.http.re);
+		rule->arg.http.re = NULL; /* release_http_action() would free it again */
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -1803,6 +1804,7 @@ static enum act_parse_ret parse_http_replace_header(const char **args, int *orig
 	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.http.fmt, LOG_OPT_HTTP, cap, err)) {
 		istfree(&rule->arg.http.str);
 		regex_free(rule->arg.http.re);
+		rule->arg.http.re = NULL; /* release_http_action() would free it again */
 		return ACT_RET_PRS_ERR;
 	}
 
