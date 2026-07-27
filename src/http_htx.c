@@ -791,8 +791,11 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
 		start--;
 		len++;
 	}
-	/* Update the block content and its len */
-	memmove(start, start+len, v.len-len);
+	/* Update the block content and its len. Only the bytes located after the
+	 * removed part must be moved, so the offset of <start> inside the value
+	 * must be taken into account.
+	 */
+	memmove(start, start+len, istend(v) - (start+len));
 	htx_change_blk_value_len(htx, blk, v.len-len);
 
 	/* Finally update the ctx */
