@@ -456,6 +456,10 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 	if (!rule)
 		goto out_of_memory;
 	rule->cond = cond;
+	rule->type = type;
+	rule->code = code;
+	rule->flags = flags;
+	LIST_INIT(&rule->list);
 	lf_expr_init(&rule->rdr_fmt);
 
 	if (!use_fmt) {
@@ -478,7 +482,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 			cap |= (dir ? SMP_VAL_FE_HRS_HDR : SMP_VAL_FE_HRQ_HDR);
 		if (curproxy->cap & PR_CAP_BE)
 			cap |= (dir ? SMP_VAL_BE_HRS_HDR : SMP_VAL_BE_HRQ_HDR);
-		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
+		if (!(rule->type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
 			if (!parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP, cap, errmsg)) {
 				goto err;
 			}
@@ -500,6 +504,8 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		else if (cookie_set == 2) { // set-cookie-fmt
 			int cap = 0;
 
+			rule->flags |= REDIRECT_FLAG_COOKIE_FMT;
+
 			lf_expr_init(&rule->cookie.fmt);
 			curproxy->conf.args.ctx = ARGC_RDR;
 			if (curproxy->cap & PR_CAP_FE)
@@ -512,8 +518,6 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 			if (!parse_logformat_string(trash.area, curproxy, &rule->cookie.fmt, LOG_OPT_HTTP, cap, errmsg)) {
 				goto err;
 			}
-
-			flags |= REDIRECT_FLAG_COOKIE_FMT;
 		}
 		else { // clear-cookie
 			rule->cookie.str = istalloc(cookie_len+20);
@@ -523,10 +527,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 			istcat(&rule->cookie.str, ist2("; path=/; Max-Age=0;", 20), cookie_len+21);
 		}
 	}
-	rule->type = type;
-	rule->code = code;
-	rule->flags = flags;
-	LIST_INIT(&rule->list);
+
 	return rule;
 
  missing_arg:
