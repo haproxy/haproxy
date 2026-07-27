@@ -540,9 +540,12 @@ static void reset_refs(union ref *refs, long count)
 /* Compresses <ilen> bytes from <in> into <out> according to RFC1951. The
  * output result may be up to 5 bytes larger than the input for each 65535
  * nput bytes, to which 2 extra bytes may be added to send the last chunk due
- * to BFINAL+EOB encoding (10 bits) when <more> is not set. The caller is
- * responsible for ensuring there is enough room in the output buffer for this.
- * The amount of output bytes is returned, and no CRC is computed.
+ * to BFINAL+EOB encoding (10 bits) when <more> is not set. This is a property
+ * of the whole stream, not of each call: since up to 31 bits are retained in
+ * the queue from one call to the next, a single call may emit up to 5 bytes
+ * more than its own share, which the following ones will not emit. The caller
+ * is responsible for ensuring there is enough room in the output buffer for
+ * this. The amount of output bytes is returned, and no CRC is computed.
  */
 long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsigned char *in, long ilen, int more)
 {
