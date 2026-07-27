@@ -1214,7 +1214,7 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct buffer *tmp = get_trash_chunk();
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
-	struct htx_blk *tailblk = NULL;
+	uint32_t data_ofs = 0; /* used to rollback on error */
 	struct http_hdr list[global.tune.max_http_hdr * 2];
 	unsigned int flags = HTX_SL_F_NONE;
 	struct ist status = IST_NULL;
@@ -1274,7 +1274,7 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 	BUG_ON(!b_size(appbuf)); /* TODO */
 	htx = htx_from_buf(appbuf);
-	tailblk = htx_get_tail_blk(htx);
+	data_ofs = htx->data;
 	/* Only handle one HEADERS frame at a time. Thus if HTX buffer is too
 	 * small, it happens solely from a single frame and the only option is
 	 * to close the stream.
@@ -1465,8 +1465,15 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
  out:
 	if (appbuf) {
-		if ((ssize_t)len < 0)
-			htx_truncate_blk(htx, tailblk);
+		if ((ssize_t)len < 0) {
+			/* Rollback the partial conversion. Note that a pointer on
+			 * the tail block cannot be used for this because it encodes
+			 * a block position and adding blocks may compact the block
+			 * table, so rely on the amount of data that was present
+			 * before the conversion instead.
+			 */
+			htx_truncate(htx, data_ofs);
+		}
 		htx_to_buf(htx, appbuf);
 	}
 
@@ -1492,7 +1499,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct buffer *appbuf = NULL;
 	struct htx *htx = NULL;
 	struct htx_sl *sl;
-	struct htx_blk *tailblk = NULL;
+	uint32_t data_ofs = 0; /* used to rollback on error */
 	struct http_hdr list[global.tune.max_http_hdr * 2];
 	int hdr_idx, ret;
 	const char *ctl;
@@ -1523,7 +1530,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 	BUG_ON(!b_size(appbuf)); /* TODO */
 	htx = htx_from_buf(appbuf);
-	tailblk = htx_get_tail_blk(htx);
+	data_ofs = htx->data;
 
 	if (!h3s->data_len) {
 		/* Notify that no body is present. This can only happens if
@@ -1640,8 +1647,15 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
  out:
 	/* HTX may be non NULL if error before previous htx_to_buf(). */
 	if (appbuf) {
-		if ((ssize_t)len < 0)
-			htx_truncate_blk(htx, tailblk);
+		if ((ssize_t)len < 0) {
+			/* Rollback the partial conversion. Note that a pointer on
+			 * the tail block cannot be used for this because it encodes
+			 * a block position and adding blocks may compact the block
+			 * table, so rely on the amount of data that was present
+			 * before the conversion instead.
+			 */
+			htx_truncate(htx, data_ofs);
+		}
 		htx_to_buf(htx, appbuf);
 	}
 
