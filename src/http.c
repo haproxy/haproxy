@@ -539,9 +539,9 @@ void http_status_del_range(long *array, uint low, uint high)
 }
 
 /* Returns the ist string corresponding to port part (without ':') in the host
- * <host>, IST_NULL if no ':' is found or an empty IST if there is no digit. In
- * the last case, the result is the original ist trimmed to 0. So be sure to test
- * the result length before doing any pointer arithmetic.
+ * <host>, IST_NULL if <host> is empty or if no ':' is found, or an empty IST if
+ * there is no digit. In the last case, the result is the original ist trimmed to
+ * 0. So be sure to test the result length before doing any pointer arithmetic.
 */
 struct ist http_get_host_port(const struct ist host)
 {
@@ -549,6 +549,13 @@ struct ist http_get_host_port(const struct ist host)
 
 	start = istptr(host);
 	end = istend(host);
+	if (start == end) {
+		/* empty (or unset) host, nothing to look for. This must be
+		 * tested first, otherwise the loop below would leave <ptr> on
+		 * <end> and the test on ':' would read out of the string.
+		 */
+		return IST_NULL;
+	}
 	for (ptr = end; ptr > start && isdigit((unsigned char)*--ptr););
 
 	/* no port found */
