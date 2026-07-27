@@ -207,6 +207,12 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 	BUG_ON(check && (s || chn));
 	if (!s || !chn) {
 		if (check) {
+			/* The check input buffer only contains an HTX message for
+			 * an HTTP check.
+			 */
+			if (!IS_HTX_SC(check->sc))
+				return NULL;
+
 			htx = htxbuf(&check->bi);
 
 			/* Analyse not yet started */
