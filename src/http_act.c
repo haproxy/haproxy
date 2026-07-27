@@ -2356,9 +2356,11 @@ static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, s
 			cap |= SMP_VAL_BE_HRS_HDR;
 	}
 
-	/* key pattern */
+	/* key pattern. Note that <arg.map.ref> must be reset once released,
+	 * otherwise release_http_map() would free it a second time.
+	 */
 	if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.key, LOG_OPT_NONE, cap, err)) {
-		free(rule->arg.map.ref);
+		ha_free(&rule->arg.map.ref);
 		return ACT_RET_PRS_ERR;
 	}
 
@@ -2366,7 +2368,7 @@ static enum act_parse_ret parse_http_set_map(const char **args, int *orig_arg, s
 		/* value pattern for set-map only */
 		cur_arg++;
 		if (!parse_logformat_string(args[cur_arg], px, &rule->arg.map.value, LOG_OPT_NONE, cap, err)) {
-			free(rule->arg.map.ref);
+			ha_free(&rule->arg.map.ref);
 			return ACT_RET_PRS_ERR;
 		}
 	}
