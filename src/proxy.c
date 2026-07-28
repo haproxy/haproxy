@@ -2564,10 +2564,9 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		if (newsrv->use_ssl == 1 || newsrv->check.use_ssl == 1 ||
 		    (newsrv->check.tcpcheck->flags & TCPCHK_FL_USE_SSL) ||
 		    ((newsrv->flags & SRV_F_DEFSRV_USE_SSL) && newsrv->use_ssl != 1)) {
+			/* QUIC servers are also updated here. */
 			if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv)
 				cfgerr += xprt_get(XPRT_SSL)->prepare_srv(newsrv);
-			else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->prepare_srv)
-				cfgerr += xprt_get(XPRT_QUIC)->prepare_srv(newsrv);
 		}
 
 		/* In HTTP only, if the SNI is not set and we can rely on the

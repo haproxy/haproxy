@@ -265,8 +265,11 @@ static struct xprt_ops ssl_quic = {
 	.start    = qc_xprt_start,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
-	.prepare_srv = ssl_sock_prepare_srv_ctx,
-	.destroy_srv = ssl_sock_free_srv_ctx,
+
+	/* These callbacks are only called through XPRT_SSL even for QUIC servers. */
+	.prepare_srv = NULL,
+	.destroy_srv = NULL,
+
 	.get_alpn = qc_get_alpn,
 	.get_ssl_sock_ctx = qc_get_ssl_sock_ctx,
 	.dump_info = qc_xprt_dump_info,

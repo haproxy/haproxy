@@ -3234,10 +3234,9 @@ void srv_free_params(struct server *srv)
 	}
 	free(srv->tmpl_info.prefix);
 
+	/* QUIC servers are also updated here. */
 	if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
 		xprt_get(XPRT_SSL)->destroy_srv(srv);
-	else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->destroy_srv)
-		xprt_get(XPRT_QUIC)->destroy_srv(srv);
 
 	while (!LIST_ISEMPTY(&srv->pp_tlvs)) {
 		srv_tlv = LIST_ELEM(srv->pp_tlvs.n, struct srv_pp_tlv_list *, list);
@@ -6692,12 +6691,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	if (srv->use_ssl == 1 || (srv->check.tcpcheck->flags & TCPCHK_FL_USE_SSL) ||
 	    srv->check.use_ssl == 1) {
+		/* QUIC servers are also updated here. */
 		if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
 			if (xprt_get(XPRT_SSL)->prepare_srv(srv))
-				goto out;
-		}
-		else if (xprt_get(XPRT_QUIC) && xprt_get(XPRT_QUIC)->prepare_srv) {
-			if (xprt_get(XPRT_QUIC)->prepare_srv(srv))
 				goto out;
 		}
 	}
