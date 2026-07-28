@@ -1344,7 +1344,8 @@ void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk *
 
 /* Append the HTX message <src> to the HTX message <dst>. It returns 1 on
  * success and 0 on error.  All the message or nothing is copied. If an error
- * occurred, all blocks from <src> already appended to <dst> are truncated.
+ * occurred, all blocks from <src> already appended to <dst> are truncated. On
+ * success, the EOM flag is set on <dst> if also set on <src>.
  */
 int htx_append_msg(struct htx *dst, const struct htx *src)
 {
@@ -1365,7 +1366,7 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 		newblk->info = blk->info;
 		htx_memcpy(htx_get_blk_ptr(dst, newblk), htx_get_blk_ptr(src, blk), blksz);
 	}
-
+	dst->flags |= (src->flags & HTX_FL_EOM);
 	return 1;
 
   error:
