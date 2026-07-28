@@ -356,7 +356,7 @@ static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
 		return 0;
 
 	ret = encode_chunk(trash->area, trash->area + trash->size, '%',
-			   encode_map, &smp->data.u.str);
+			   encode_map, &smp->data.u.str, 0);
 	if (ret == NULL || *ret != '\0')
 		return 0;
 	trash->data = ret - trash->area;

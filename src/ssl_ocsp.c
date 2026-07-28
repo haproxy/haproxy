@@ -820,7 +820,7 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 		b64buf->data = base64_ret;
 
 		ret = encode_chunk((char*)b_stop(req_url), b_orig(req_url) + b_size(req_url), '%',
-		                   query_encode_map, b64buf);
+		                   query_encode_map, b64buf, 0);
 		if (ret && *ret == '\0') {
 			req_url->data = ret - b_orig(req_url);
 			errcode = 0;

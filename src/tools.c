@@ -2036,8 +2036,9 @@ int addr_is_local(const struct netns_entry *ns,
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)
  * prefixed by <escape>, and will store the result between <start> (included)
  * and <stop> (excluded), and will always terminate the string with a '\0'
- * before <stop>. If bytes are missing between <start> and <stop>, then the
- * conversion will be incomplete and truncated.
+ * before <stop>. If bytes are missing between <start> and <stop>, if
+ * <truncate> is non zero, then the conversion will be incomplete and
+ * truncated. Otherwise an error is returned.
  * The input string must also be zero-terminated.
  *
  * Return the address of the \0 character, or NULL on error
@@ -2045,7 +2046,7 @@ int addr_is_local(const struct netns_entry *ns,
 const char hextab[16] __nonstring = "0123456789ABCDEF";
 char *encode_string(char *start, char *stop,
 		    const char escape, const long *map,
-		    const char *string)
+		    const char *string, int truncate)
 {
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
@@ -2053,8 +2054,11 @@ char *encode_string(char *start, char *stop,
 			if (!ha_bit_test((unsigned char)(*string), map))
 				*start++ = *string;
 			else {
-				if (start + 3 >= stop)
-					break;
+				if (start + 3 >= stop) {
+					if (truncate)
+						break;
+					goto error;
+				}
 				*start++ = escape;
 				*start++ = hextab[(*string >> 4) & 15];
 				*start++ = hextab[*string & 15];
@@ -2064,6 +2068,7 @@ char *encode_string(char *start, char *stop,
 		*start = '\0';
 		return start;
 	}
+  error:
 	return NULL;
 }
 
@@ -2072,8 +2077,8 @@ char *encode_string(char *start, char *stop,
  * <chunk> instead of a string.
  */
 char *encode_chunk(char *start, char *stop,
-		    const char escape, const long *map,
-		    const struct buffer *chunk)
+		   const char escape, const long *map,
+		   const struct buffer *chunk, int truncate)
 {
 	char *str = chunk->area;
 	char *end = chunk->area + chunk->data;
@@ -2084,8 +2089,11 @@ char *encode_chunk(char *start, char *stop,
 			if (!ha_bit_test((unsigned char)(*str), map))
 				*start++ = *str;
 			else {
-				if (start + 3 >= stop)
-					break;
+				if (start + 3 >= stop) {
+					if (truncate)
+						break;
+					goto error;
+				}
 				*start++ = escape;
 				*start++ = hextab[(*str >> 4) & 15];
 				*start++ = hextab[*str & 15];
@@ -2095,6 +2103,7 @@ char *encode_chunk(char *start, char *stop,
 		*start = '\0';
 		return start;
 	}
+  error:
 	return NULL;
 }
 
