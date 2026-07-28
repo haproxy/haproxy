@@ -18,13 +18,22 @@
 #include <haproxy/pipe-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/thread.h>
+#include <haproxy/tinfo.h>
 
 
 DECLARE_STATIC_TYPED_POOL(pool_head_pipe, "pipe", struct pipe);
 
-struct pipe *pipes_live = NULL; /* pipes which are still ready to use */
-
-__decl_spinlock(pipes_lock); /* lock used to protect pipes list */
+/* The pools of pipes which are still ready to use, one per thread group:
+ * with per-thread-group FD tables, a pipe's FDs are only valid within the
+ * kernel table of the group that created it, so free pipes must never
+ * travel across groups. With shared FD tables any pipe is usable by any
+ * thread, so only the first pool is used then. The spinlocks rely on
+ * being zero-initialized.
+ */
+static struct {
+	struct pipe *live;        /* pipes which are still ready to use */
+	__decl_thread(HA_SPINLOCK_T lock); /* lock used to protect the list */
+} pipe_pools[MAX_TGROUPS] __attribute__((aligned(64)));
 
 static THREAD_LOCAL int local_pipes_free = 0;  /* #cache objects   */
 static THREAD_LOCAL struct pipe *local_pipes = NULL;
@@ -39,6 +48,7 @@ struct pipe *get_pipe()
 {
 	struct pipe *ret = NULL;
 	int pipefd[2];
+	int grp;
 
 	ret = local_pipes;
 	if (likely(ret)) {
@@ -49,12 +59,14 @@ struct pipe *get_pipe()
 		goto out;
 	}
 
-	if (likely(pipes_live)) {
-		HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
-		ret = pipes_live;
+	grp = (global.tune.options & GTUNE_NO_TG_FD_SHARING) ? tgid - 1 : 0;
+
+	if (likely(pipe_pools[grp].live)) {
+		HA_SPIN_LOCK(PIPES_LOCK, &pipe_pools[grp].lock);
+		ret = pipe_pools[grp].live;
 		if (likely(ret))
-			pipes_live = ret->next;
-		HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
+			pipe_pools[grp].live = ret->next;
+		HA_SPIN_UNLOCK(PIPES_LOCK, &pipe_pools[grp].lock);
 		if (ret) {
 			HA_ATOMIC_DEC(&pipes_free);
 			HA_ATOMIC_INC(&pipes_used);
@@ -107,6 +119,8 @@ void kill_pipe(struct pipe *p)
  */
 void put_pipe(struct pipe *p)
 {
+	int grp;
+
 	if (unlikely(p->data)) {
 		kill_pipe(p);
 		return;
@@ -119,10 +133,12 @@ void put_pipe(struct pipe *p)
 		goto out;
 	}
 
-	HA_SPIN_LOCK(PIPES_LOCK, &pipes_lock);
-	p->next = pipes_live;
-	pipes_live = p;
-	HA_SPIN_UNLOCK(PIPES_LOCK, &pipes_lock);
+	grp = (global.tune.options & GTUNE_NO_TG_FD_SHARING) ? tgid - 1 : 0;
+
+	HA_SPIN_LOCK(PIPES_LOCK, &pipe_pools[grp].lock);
+	p->next = pipe_pools[grp].live;
+	pipe_pools[grp].live = p;
+	HA_SPIN_UNLOCK(PIPES_LOCK, &pipe_pools[grp].lock);
  out:
 	HA_ATOMIC_INC(&pipes_free);
 	HA_ATOMIC_DEC(&pipes_used);
