@@ -89,6 +89,12 @@ static struct sockaddr_storage *ocsp_update_dst;
 #ifndef OPENSSL_NO_OCSP
 int ocsp_ex_index = -1;
 
+/* Also protects the content of certificate_ocsp responses against
+ * concurrent updates (stapling callback vs response update), so it
+ * must exist whenever the stapling callback is built.
+ */
+__decl_thread(HA_SPINLOCK_T ocsp_tree_lock);
+
 int ssl_sock_get_ocsp_arg_kt_index(int evp_keytype)
 {
 	switch (evp_keytype) {
@@ -119,6 +125,7 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	EVP_PKEY *ssl_pkey;
 	int key_type;
 	int index;
+	int resp_len;
 
 	TRACE_ENTER(SSL_EV_CONN_STAPLING, conn);
 
@@ -173,26 +180,36 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 
 	}
 
+	/* The response can be updated concurrently (see
+	 * ssl_sock_load_ocsp_response()), so its content must be accessed
+	 * under the OCSP lock, like ssl_get_ocspresponse_detail() does.
+	 */
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	if (!ocsp ||
 	    !ocsp->response.area ||
 	    !ocsp->response.data) {
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		TRACE_ERROR("Missing OCSP response", SSL_EV_CONN_STAPLING, conn, ssl);
 		goto error;
 	}
 	if (ocsp->expire < date.tv_sec) {
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		TRACE_ERROR("Expired OCSP response", SSL_EV_CONN_STAPLING, conn, ssl);
 		goto error;
 	}
 
 	ssl_buf = OPENSSL_malloc(ocsp->response.data);
 	if (!ssl_buf) {
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		TRACE_ERROR("Allocation failure", SSL_EV_CONN_STAPLING, conn);
 		goto error;
 	}
 
 
-	memcpy(ssl_buf, ocsp->response.area, ocsp->response.data);
-	SSL_set_tlsext_status_ocsp_resp(ssl, (unsigned char*)ssl_buf, ocsp->response.data);
+	resp_len = ocsp->response.data;
+	memcpy(ssl_buf, ocsp->response.area, resp_len);
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+	SSL_set_tlsext_status_ocsp_resp(ssl, (unsigned char*)ssl_buf, resp_len);
 
 	if (counters) {
 		HA_ATOMIC_INC(&counters->ocsp_staple);
@@ -222,8 +239,6 @@ error:
 #if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 
 struct eb_root cert_ocsp_tree = EB_ROOT_UNIQUE;
-
-__decl_thread(HA_SPINLOCK_T ocsp_tree_lock);
 
 struct eb_root ocsp_update_tree = EB_ROOT; /* updatable ocsp responses sorted by next_update in absolute time */
 
@@ -379,15 +394,21 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 	}
 
-	/* According to comments on "chunk_dup", the
-	   previous chunk buffer will be freed */
+	/* The response can be read concurrently by the stapling callback
+	 * (ssl_sock_ocsp_stapling_cbk()), so it must be swapped under the
+	 * OCSP lock. According to comments on "chunk_dup", the previous
+	 * chunk buffer will be freed.
+	 */
+	HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
 	if (!chunk_dup(&ocsp->response, ocsp_response)) {
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		memprintf(err, "OCSP response: Memory allocation error");
 		goto out;
 	}
 
 #ifdef HAVE_ASN1_TIME_TO_TM
 	if (ASN1_TIME_to_tm(nextupd, &nextupd_tm) == 0) {
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
 		goto out;
 	}
@@ -395,11 +416,13 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 #else
 	expire = asn1_generalizedtime_to_epoch(nextupd) - OCSP_MAX_RESPONSE_TIME_SKEW;
 	if (expire < 0) {
+		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
 		goto out;
 	}
 	ocsp->expire = expire;
 #endif
+	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 
 	if (ocsp->expire < date.tv_sec) {
 		memprintf(err, "OCSP single response: no longer valid. Must be valid during at least %ds.", OCSP_MAX_RESPONSE_TIME_SKEW);
