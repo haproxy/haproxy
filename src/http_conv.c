@@ -340,11 +340,11 @@ static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
 		*private)
 {
 	enum encode_type enc_type;
-	struct buffer *trash = get_trash_chunk_sz(smp->data.u.str.data);
+	struct buffer *chk = get_trash_chunk_sz(smp->data.u.str.data);
 	long *encode_map;
 	char *ret;
 
-	if (!trash)
+	if (!chk)
 		return 0;
 
 	enc_type = args->data.sint;
@@ -354,12 +354,12 @@ static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
 	else
 		return 0;
 
-	ret = encode_chunk(trash->area, trash->area + trash->size, '%',
+	ret = encode_chunk(chk->area, chk->area + chk->size, '%',
 			   encode_map, &smp->data.u.str, 0);
 	if (ret == NULL || *ret != '\0')
 		return 0;
-	trash->data = ret - trash->area;
-	smp->data.u.str = *trash;
+	chk->data = ret - chk->area;
+	smp->data.u.str = *chk;
 	return 1;
 }
 
