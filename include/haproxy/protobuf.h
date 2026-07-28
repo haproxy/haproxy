@@ -541,6 +541,8 @@ static inline int protobuf_field_lookup(const struct arg *arg_p, struct sample *
 			return 0;
 
 		p = &protobuf_parser_defs[wire_type];
+		if (!p->skip)
+			return 0;
 		/* If it is a length-delimited block (e.g., sub-message),
 		 * read its size.
 		 * Buffer overflow check (vlen > *len).
