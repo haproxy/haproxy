@@ -5143,9 +5143,17 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		}
 	}
 
-	/* The QUIC server xprt has already been set. */
-	if (srv->use_ssl == 1 && !srv_is_quic(srv))
-		srv->xprt = &ssl_sock;
+	if (srv->use_ssl == 1) {
+#ifdef USE_QUIC
+		if (srv_is_quic(srv)) {
+			mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+			srv->xprt = xprt_get(XPRT_QUIC);
+			quic_transport_params_init(&srv->quic_params, 0);
+		}
+		else
+#endif
+			srv->xprt = &ssl_sock;
+	}
 
 	if (srv->ssl_ctx.client_crt) {
 		const int create_if_none = srv->flags & SRV_F_DYNAMIC ? 0 : 1;
