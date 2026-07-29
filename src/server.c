@@ -7794,7 +7794,15 @@ static void srv_close_idle_conns(struct server *srv)
 		for (cleaned_tree = conn_trees; *cleaned_tree; ++cleaned_tree) {
 			while ((conn = ceb64_item_first(*cleaned_tree, hash_node.node,
 							hash_node.key, struct connection))) {
-				if (conn->ctrl->ctrl_close)
+				/*
+				 * Make sure we only close our own fds. If the
+				 * connection was owned by another thread group,
+				 * it should be closed already as all those
+				 * threads exited already.
+				 */
+				if (conn->ctrl->ctrl_close &&
+				    (!(global.tune.options & GTUNE_NO_TG_FD_SHARING) ||
+				     ha_thread_info[i].tgid == tgid))
 					conn->ctrl->ctrl_close(conn);
 				conn_delete_from_tree(conn, i);
 			}
