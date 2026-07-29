@@ -1970,6 +1970,7 @@ static int debug_parse_cli_trace(char **args, char *payload, struct appctx *appc
 /* CLI state for "debug dev fd" */
 struct dev_fd_ctx {
 	int start_fd;
+	int hdr_done;
 };
 
 /* CLI parser for the "debug dev fd" command. The current FD to restart from is
@@ -2005,6 +2006,19 @@ static int debug_iohandler_fd(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	thread_isolate();
+
+	/* thread groups may have their own FD tables, and even their own view
+	 * of the process's FDs, so let's always indicate which group the dump
+	 * is seen from.
+	 */
+	if (!ctx->hdr_done) {
+		chunk_printf(&trash, "# current tgid: %u\n", tgid);
+		if (applet_putchk(appctx, &trash) == -1) {
+			ret = 0;
+			goto leave;
+		}
+		ctx->hdr_done = 1;
+	}
 
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
@@ -2163,6 +2177,7 @@ static int debug_iohandler_fd(struct appctx *appctx)
 		}
 	}
 
+ leave:
 	thread_release();
 	return ret;
 }
