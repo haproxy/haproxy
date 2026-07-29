@@ -2805,6 +2805,21 @@ static int resolvers_finalize_config(void)
 		t->process   = process_resolvers;
 		t->context   = resolvers;
 		resolvers->t = t;
+
+		/*
+		 * Make sure we run those tasks on the same thread that
+		 * takes care of those resolvers, as it will create the
+		 * socket, and with separate file descriptors tables for
+		 * each thread group, we want to make sure we will
+		 * run on a thread that can actually use them.
+		 */
+		list_for_each_entry(ns, &resolvers->nameservers, list) {
+			if (ns->stream) {
+				task_set_thread(ns->stream->task_req, t->tid);
+				task_set_thread(ns->stream->task_rsp, t->tid);
+				task_set_thread(ns->stream->task_idle, t->tid);
+			}
+		}
 		task_wakeup(t, TASK_WOKEN_INIT);
 	}
 
