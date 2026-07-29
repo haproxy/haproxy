@@ -2429,6 +2429,24 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 
+	/*
+	 * Make sure we have a usable file descriptor. When each thread
+	 * group has its own file descriptor tables, we can't just assume
+	 * we can use the current listener, so find a more fitting one if
+	 * needed.
+	 */
+	if (li && (global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+	    li->rx.bind_tgroup != tgid) {
+		struct listener *l2;
+
+		list_for_each_entry(l2, &li->bind_conf->listeners, by_bind) {
+			if (l2->rx.bind_tgroup == tgid) {
+				li = l2;
+				break;
+			}
+		}
+	}
+
 	pos = dgram->buf;
 	end = pos + dgram->len;
 	do {
@@ -2458,7 +2476,8 @@ int quic_dgram_parse(struct quic_dgram *dgram, struct quic_conn *from_qc,
 			pkt->flags |= QUIC_FL_RX_PACKET_DGRAM_FIRST;
 
 		quic_rx_packet_refinc(pkt);
-		if (quic_rx_pkt_parse(from_qc, pkt, pos, end, dgram, o))
+		if (quic_rx_pkt_parse(from_qc, pkt, pos, end, dgram,
+		                      li ? &li->obj_type : o))
 			goto next;
 
 		/* Search quic-conn instance for first packet of the datagram.
