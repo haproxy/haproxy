@@ -193,6 +193,8 @@ void reset_usermsgs_ctx(void)
 static void generate_usermsgs_ctx_str(void)
 {
 	struct usermsgs_ctx *ctx = &usermsgs_ctx;
+	struct server *srv;
+	const char *srv_id;
 	void *area;
 	int ret;
 
@@ -219,10 +221,12 @@ static void generate_usermsgs_ctx_str(void)
 
 		switch (obj_type(ctx->obj)) {
 		case OBJ_TYPE_SERVER:
+			srv = __objt_server(ctx->obj);
+			srv_id = srv->id ? srv->id : srv->tmpl_info.prefix;
 			ret = snprintf(b_tail(&ctx->str), b_room(&ctx->str),
-			               "'server %s/%s' : ",
-			               __objt_server(ctx->obj)->proxy->id,
-			               __objt_server(ctx->obj)->id);
+			               "'%s %s/%s' : ",
+			               srv->id ? "server" : "server-template",
+			               srv->proxy->id, srv_id);
 			b_add(&ctx->str, MIN(ret, b_room(&ctx->str)));
 			break;
 
