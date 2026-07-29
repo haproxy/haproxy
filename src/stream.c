@@ -3474,6 +3474,8 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	struct connection *conn;
 	struct appctx *tmpctx;
 	uint64_t request_ts;
+	uint strm_tgid = ha_thread_info[strm->task->tid].tgid;
+	const struct fdtab *strm_fdtab = ha_tgroup_ctx[strm_tgid - 1].fdtab;
 
 	pfx = pfx ? pfx : "";
 
@@ -3697,12 +3699,13 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		              obj_base_ptr(conn->target));
 
 		chunk_appendf(buf,
-		              "%s      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
+		              "%s      flags=0x%08x fd=%u/%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
 		              conn->flags,
+		              strm_tgid,
 		              conn_fd(conn),
-		              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
-		              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
-			      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
+		              conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].state : 0,
+		              conn_fd(conn) >= 0 ? !!(strm_fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
+			      conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].thread_mask: 0);
 	}
 	else if ((tmpctx = sc_appctx(scf)) != NULL) {
 		chunk_appendf(buf,
@@ -3758,12 +3761,13 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		              obj_base_ptr(conn->target));
 
 		chunk_appendf(buf,
-		              "%s      flags=0x%08x fd=%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
+		              "%s      flags=0x%08x fd=%u/%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
 		              conn->flags,
+		              strm_tgid,
 		              conn_fd(conn),
-		              conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].state : 0,
-		              conn_fd(conn) >= 0 ? !!(fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
-			      conn_fd(conn) >= 0 ? fdtab[conn->handle.fd].thread_mask: 0);
+		              conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].state : 0,
+		              conn_fd(conn) >= 0 ? !!(strm_fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
+			      conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].thread_mask: 0);
 	}
 	else if ((tmpctx = sc_appctx(scb)) != NULL) {
 		chunk_appendf(buf,
@@ -4216,8 +4220,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 					TICKS_TO_MS(1000)) : "");
 
 		conn = sc_conn(curr_strm->scf);
-		chunk_appendf(&trash," scf=[%d,%1xh,fd=%d",
-			      curr_strm->scf->state, curr_strm->scf->flags, conn_fd(conn));
+		chunk_appendf(&trash," scf=[%d,%1xh,fd=%u/%d",
+			      curr_strm->scf->state, curr_strm->scf->flags,
+			      ha_thread_info[curr_strm->task->tid].tgid, conn_fd(conn));
 		chunk_appendf(&trash, ",rex=%s",
 			      sc_ep_rcv_ex(curr_strm->scf) ?
 			      human_time(TICKS_TO_MS(sc_ep_rcv_ex(curr_strm->scf) - now_ms),
@@ -4228,8 +4233,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 					 TICKS_TO_MS(1000)) : "");
 
 		conn = sc_conn(curr_strm->scb);
-		chunk_appendf(&trash, " scb=[%d,%1xh,fd=%d",
-			      curr_strm->scb->state, curr_strm->scb->flags, conn_fd(conn));
+		chunk_appendf(&trash, " scb=[%d,%1xh,fd=%u/%d",
+			      curr_strm->scb->state, curr_strm->scb->flags,
+			      ha_thread_info[curr_strm->task->tid].tgid, conn_fd(conn));
 		chunk_appendf(&trash, ",rex=%s",
 			      sc_ep_rcv_ex(curr_strm->scb) ?
 			      human_time(TICKS_TO_MS(sc_ep_rcv_ex(curr_strm->scb) - now_ms),
