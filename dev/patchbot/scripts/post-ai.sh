@@ -228,6 +228,21 @@ function gen_state(i) {
   return "";
 }
 
+// Tells whether line <i> carries reviewers' notes, be they stored on the
+// server or only typed locally and not saved yet. These are the lines the
+// "O" checkbox keeps when unchecked, the point being to re-read at a glance
+// what was commented so far. The verdicts are deliberately ignored here:
+// they are routinely adjusted on misqualified patches, so taking them into
+// account would leave far too many lines and drown the annotated ones.
+function is_edited(i) {
+  var el;
+
+  if (ref_notes[i])
+    return true;
+  el = document.getElementById("in_" + i);
+  return !!(note_mode[i] && el && el.value.trim());
+}
+
 // captures the bot's verdicts once the table is fully loaded: they preset
 // both the original and the reference states. After a reload, the radios
 // (and thus the local state) may differ from the bot's verdicts since the
@@ -619,11 +634,17 @@ function updt_table(line) {
   var u = document.getElementById("sh_u").checked;
   var w = document.getElementById("sh_w").checked;
   var y = document.getElementById("sh_y").checked;
-  var tn = 0, tu = 0, tw = 0, ty = 0;
+  var o = document.getElementById("sh_o").checked;
+  var tn = 0, tu = 0, tw = 0, ty = 0, to = 0, te = 0;
   var bn = 0, bu = 0, bw = 0, by = 0;
-  var i, el;
+  var i, el, ed;
 
   for (i = 1; i < nb_patches; i++) {
+    ed = is_edited(i);
+    if (ed)
+      te++;
+    else
+      to++;
     if (document.getElementById("bt_" + i + "_n").checked) {
       tn++;
       if (bkp[i])
@@ -632,7 +653,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_N";
-      el.style.display = n && (b || !bkp[i]) && i >= review ? "" : "none";
+      el.style.display = n && (b || !bkp[i]) && (o || ed) && i >= review ? "" : "none";
     }
     else if (document.getElementById("bt_" + i + "_u").checked) {
       tu++;
@@ -642,7 +663,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_U";
-      el.style.display = u && (b || !bkp[i]) && i >= review ? "" : "none";
+      el.style.display = u && (b || !bkp[i]) && (o || ed) && i >= review ? "" : "none";
     }
     else if (document.getElementById("bt_" + i + "_w").checked) {
       tw++;
@@ -652,7 +673,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_W";
-      el.style.display = w && (b || !bkp[i]) && i >= review ? "" : "none";
+      el.style.display = w && (b || !bkp[i]) && (o || ed) && i >= review ? "" : "none";
     }
     else if (document.getElementById("bt_" + i + "_y").checked) {
       ty++;
@@ -662,7 +683,7 @@ function updt_table(line) {
         continue;
       el = document.getElementById("tr_" + i);
       el.style.backgroundColor = "$BG_Y";
-      el.style.display = y && (b || !bkp[i]) && i >= review ? "" : "none";
+      el.style.display = y && (b || !bkp[i]) && (o || ed) && i >= review ? "" : "none";
     }
     else {
       // bug
@@ -677,6 +698,8 @@ function updt_table(line) {
   document.getElementById("cnt_u").innerText = tu;
   document.getElementById("cnt_w").innerText = tw;
   document.getElementById("cnt_y").innerText = ty;
+  document.getElementById("cnt_o").innerText = to;
+  document.getElementById("cnt_ed").innerText = te;
 
   document.getElementById("cnt_bn").innerText = bn;
   document.getElementById("cnt_bu").innerText = bu;
@@ -728,12 +751,16 @@ function updt(line,value) {
   updt_save_btn();
 }
 
-function show_only(b,n,u,w,y) {
+// selects the categories to show; <o> is optional and defaults to showing
+// the lines without notes, so that the counters' links keep listing
+// everything they count.
+function show_only(b,n,u,w,y,o) {
     document.getElementById("sh_b").checked = !!b;
     document.getElementById("sh_n").checked = !!n;
     document.getElementById("sh_u").checked = !!u;
     document.getElementById("sh_w").checked = !!w;
     document.getElementById("sh_y").checked = !!y;
+    document.getElementById("sh_o").checked = (o === undefined) || !!o;
     document.getElementById("show_all").checked = true;
     updt(0,"r");
 }
@@ -794,7 +821,9 @@ echo -n " <span style='background-color:$BG_N'><input type='checkbox' onclick='u
 echo -n " <span style='background-color:$BG_U'><input type='checkbox' onclick='updt_table(0);' id='sh_u' checked />U (<span id='cnt_u'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_W'><input type='checkbox' onclick='updt_table(0);' id='sh_w' checked />W (<span id='cnt_w'>0</span>)</span> "
 echo -n " <span style='background-color:$BG_Y'><input type='checkbox' onclick='updt_table(0);' id='sh_y' checked />Y (<span id='cnt_y'>0</span>)</span> "
-echo -n "</big/></big><br/>(B=show backported, N=no/drop, U=uncertain, W=wait/next, Y=yes/pick"
+echo -n " <span><input type='checkbox' onclick='updt_table(0);' id='sh_o' checked />O (<span id='cnt_o'>0</span>)</span> "
+echo -n "</big/></big><br/>(B=show backported, N=no/drop, U=uncertain, W=wait/next, Y=yes/pick,"
+echo -n " O=original notes; uncheck to see only the <span id='cnt_ed'>0</span> edited ones"
 echo ")<P/>"
 
 echo "<TABLE COLS=5 BORDER=1 CELLSPACING=0 CELLPADDING=3>"
@@ -899,13 +928,16 @@ for patch in "${PATCHES[@]}"; do
 
         # the div is the dedicated container for the shared reviewers' notes,
         # filled by full replacement (never appended to) by the JS; the
-        # hidden input receives the user's own note to be pushed on save
+        # hidden input receives the user's own note to be pushed on save.
+        # A note being typed already makes its line count as annotated, so
+        # the table is refreshed on input as well, otherwise the annotated
+        # lines counter would lag behind the keystrokes.
         echo -n "<TD>$resp<div class='notes' id='notes_$seq_num'></div>"
         if [ -n "$VERSION" ]; then
             echo -n "<a href='#' onclick='add_note($seq_num); return false;' id='ln_add_$seq_num' title='Add a shared note to this commit'><small>[add note]</small></a>"
             echo -n " <a href='#' onclick='edit_note($seq_num); return false;' id='ln_edit_$seq_num' style='display:none' title='Edit or delete the whole note'><small>[edit note]</small></a>"
             echo -n " <a href='#' onclick='cancel_note($seq_num); return false;' id='ln_cancel_$seq_num' style='display:none' title='Abort this note edition'><small>[cancel]</small></a>"
-            echo -n " <input type='text' id='in_$seq_num' maxlength='500' size='80' style='display:none' oninput='updt_save_btn();' />"
+            echo -n " <input type='text' id='in_$seq_num' maxlength='500' size='80' style='display:none' oninput='updt_save_btn(); updt_table($seq_num);' />"
         fi
         echo -n "</TD>"
         echo "</TR>"

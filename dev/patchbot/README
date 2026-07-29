@@ -475,10 +475,19 @@ Note that control characters (0x00-0x1F, 0x7F) are automatically removed from
 notes during updates, except for line feed (0x0A) which is replaced with a
 space (0x20).
 
-In addition, in order to improve readability, the top of the table shows 4
-buttons allowing to show/hide each category. For example, when trying to focus
-only on "uncertain" and "wait", it can make sense to hide "N" and "Y" and click
-"Y" or "N" on the displayed ones until there is none anymore.
+In addition, in order to improve readability, the top of the table shows a
+series of checkboxes allowing to show/hide each category. For example, when
+trying to focus only on "uncertain" and "wait", it can make sense to hide "N"
+and "Y" and click "Y" or "N" on the displayed ones until there is none anymore.
+The last one, "O", stands for "original notes" and covers the lines nobody has
+commented yet. Unchecking it leaves only the annotated ones, which is the
+quickest way to re-read what was said so far, or to check what was added since
+the last visit once the shared state was retrieved. Their number is reported in
+the caption below the checkboxes, as it is otherwise hard to figure out. A line
+counts as annotated as soon as notes are attached to it, and also while a note
+is being typed on it, so that a pending note never hides itself. The verdicts
+are not taken into account, on purpose: they are routinely adjusted on
+misqualified patches, which would leave far too many lines to be of any use.
 
 In order to reduce the risk of missing a misqualified patch, those marked "BUG"
 or "DOC" are displayed in bold even if tagged "No". It has been shown to be
