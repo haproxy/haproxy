@@ -384,8 +384,14 @@ static inline int conn_get_src(struct connection *conn)
 	if (conn->ctrl->proto_type != PROTO_TYPE_STREAM)
 		goto fail;
 
-	/* most other socket-based stream protocols will use their socket family's functions */
+	/* most other socket-based stream protocols will use their socket
+	 * family's functions. With per-thread-group FD tables however, the
+	 * FD may belong to a connection of another group, its number is only
+	 * usable within that group.
+	 */
 	if (conn->ctrl->fam->get_src && !(conn->flags & CO_FL_FDLESS) &&
+	    (!(global.tune.options & GTUNE_NO_TG_FD_SHARING) ||
+	     fdtab[conn->handle.fd].owner == conn) &&
 	    conn->ctrl->fam->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
 	                        sizeof(*conn->src),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) != -1)
@@ -424,6 +430,8 @@ static inline int conn_get_dst(struct connection *conn)
 
 	/* most other socket-based stream protocols will use their socket family's functions */
 	if (conn->ctrl->fam->get_dst && !(conn->flags & CO_FL_FDLESS) &&
+	    (!(global.tune.options & GTUNE_NO_TG_FD_SHARING) ||
+	     fdtab[conn->handle.fd].owner == conn) &&
 	    conn->ctrl->fam->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
 	                        sizeof(*conn->dst),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) != -1)
