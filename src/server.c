@@ -2890,6 +2890,8 @@ void srv_settings_init(struct server *srv)
 	srv->check.rise = DEF_RISETIME;
 	srv->check.fall = DEF_FALLTIME;
 	srv->check.port = 0;
+	/* Automatically activate check-reuse-pool for rhttp@ servers. */
+	srv->check.reuse_pool = srv->flags & SRV_F_RHTTP ? 1 : 0;
 
 	srv->agent.inter = DEF_CHKINTR;
 	srv->agent.fastinter = 0;
@@ -3797,8 +3799,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			}
 			else {
 				newsrv->flags |= SRV_F_RHTTP;
-				/* Automatically activate check-reuse-pool for rhttp@ servers. */
-				newsrv->check.reuse_pool = 1;
 			}
 		}
 
