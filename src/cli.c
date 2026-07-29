@@ -1841,7 +1841,7 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 	if (*args[arg] == '!' || *args[arg] == '-')
 		ctx->show_mask = CLI_SHOWFD_F_ANY;
 
-	while (*args[arg] && !isdigit((uchar)*args[arg])) {
+	while (*args[arg] && !isdigit((uchar)*args[arg]) && *args[arg] != '/') {
 		uint flag = 0, inv = 0;
 		c = args[arg];
 		while (*c) {
