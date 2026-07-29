@@ -7374,6 +7374,14 @@ default-server [from <origin>] [param*]
   Example :
         default-server inter 1000 weight 13
 
+  Multiple default-server lines can be specified in the same backend with each
+  new line completing the previous one. This set of options can be reset by
+  using the "from none" keyword value.
+
+  A default-server with no parameter set will automatically be purged after
+  parsing. As such, a final "default-server from none" statement will be
+  sufficient to release this unused memory.
+
   See also: "server" and section 5 about server options
 
 
@@ -18188,9 +18196,17 @@ its settings.
 
 from <origin>
   Preinitialize the server settings by copying values from another server or
-  default-server instance.
+  default-server instance. This keyword is positional : it must be specified
+  before any other server settings.
 
   Here is the list of the supported values for the "from" keyword :
+  - none
+      resets all settings to the documented defaults. This prevents a server
+      defined in the configuration from automatically reusing a default-server
+      instance. This is already the default behavior for dynamically created
+      servers. This value is also directly useful on a default-server line,
+      to reset its set of options to their documented values, before eventually
+      configuring new settings.
 
 The currently supported server settings are the following ones. Note that all
 these settings are supported both by "server" and "default-server" keywords,

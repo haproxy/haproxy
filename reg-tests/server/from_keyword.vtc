@@ -30,12 +30,28 @@ haproxy h1 -conf {
 		default-server inter 5s
 
 		server srvconf1 ${s1_addr}:${s1_port}
+		server srvconf2 ${s1_addr}:${s1_port} from none
+
+		# reset the default-server
+		default-server from none
+		server srvconf3 ${s1_addr}:${s1_port}
+
+		# configure new default-server settings used for dynamic servers
+		default-server weight 10
 } -start
 
 haproxy h1 -cli {
 	# static server uses by default the default-server
 	send "get weight be/srvconf1"
 	expect ~ "10 \\(initial 10\\)"
+
+	# from none keyword
+	send "get weight be/srvconf2"
+	expect ~ "1 \\(initial 1\\)"
+
+	# check from none on default-server
+	send "get weight be/srvconf3"
+	expect ~ "1 \\(initial 1\\)"
 }
 
 # dynamic servers

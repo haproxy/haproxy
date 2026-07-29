@@ -3942,6 +3942,9 @@ static int _srv_parse_from(struct server *srv, char **args, int *cur_arg,
 			err_code |= ERR_FATAL | ERR_ALERT;
 			goto out;
 		}
+		else if (strcmp(args[*cur_arg + 1], "none") == 0) {
+			*from = NULL;
+		}
 		else {
 			ha_alert("invalid '%s' value for 'from' keyword.\n", args[*cur_arg + 1]);
 			err_code |= ERR_FATAL | ERR_ALERT;
