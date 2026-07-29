@@ -3000,8 +3000,12 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 			srv->check.tcpcheck = tcpcheck;
 	}
 
-	if (!(srv->flags & SRV_F_RHTTP))
-		srv->check.reuse_pool = src->check.reuse_pool;
+	/* For rHTTP check-reuse-pool is forcefully set. Duplicate the source
+	 * value in other cases as expected.
+	 */
+	srv->check.reuse_pool = srv->flags & SRV_F_RHTTP ?
+	                        1 : src->check.reuse_pool;
+
 	if (src->check.pool_conn_name)
 		srv->check.pool_conn_name = strdup(src->check.pool_conn_name);
 	/* Note: 'flags' field has potentially been already initialized. */
