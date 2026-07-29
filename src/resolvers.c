@@ -2680,7 +2680,16 @@ static void resolvers_destroy(struct resolvers *resolvers)
 		free(ns->id);
 		free((char *)ns->conf.file);
 		if (ns->dgram) {
-			if (ns->dgram->conn.t.sock.fd != -1) {
+			/* with per-thread-group FD tables, the socket belongs
+			 * to the group of the resolvers task's thread; if it
+			 * is not ours, it was already closed by the kernel
+			 * when the last thread of that group exited, and its
+			 * number is not valid in this thread's tables.
+			 */
+			if (ns->dgram->conn.t.sock.fd != -1 &&
+			    (!(global.tune.options & GTUNE_NO_TG_FD_SHARING) ||
+			     (resolvers->t &&
+			      ha_thread_info[resolvers->t->tid].tgid == tgid))) {
 				fd_delete(ns->dgram->conn.t.sock.fd);
 				close(ns->dgram->conn.t.sock.fd);
 			}
