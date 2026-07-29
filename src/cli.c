@@ -1870,7 +1870,7 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 		ctx->show_mask = CLI_SHOWFD_F_ANY;
 
 	if (*args[arg]) {
-		c = strchr(args[2], '/');
+		c = strchr(args[arg], '/');
 		if (c) {
 			/* We allow the forms "<tgid>/" and "/<fd>" where the missing
 			 * value is considered a wildcard. So the first form means
@@ -1879,10 +1879,10 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 			 * that the tgid is parsed but ignored for now - this code
 			 * will require changes once we split fd tables.
 			 */
-			if (c == args[2]) {
+			if (c == args[arg]) {
 				ctx->tgid = -1;
 			} else {
-				ctx->tgid = atoi(args[2]);
+				ctx->tgid = atoi(args[arg]);
 				if (ctx->tgid <= 0 || ctx->tgid > MAX_TGROUPS)
 					return cli_err(appctx, "Invalid TGID.\n");
 			}
@@ -1892,7 +1892,7 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 				ctx->show_one = 1;
 			}
 		} else {
-			ctx->fd = atoi(args[2]);
+			ctx->fd = atoi(args[arg]);
 			ctx->show_one = 1;
 		}
 	}
