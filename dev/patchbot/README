@@ -410,9 +410,9 @@ Using the HTML output is a bit rustic but efficient. The interface is split in
     buttons, the user is free to change this selection. A simple reload done
     by Ctrl-R will usually preserve user changes because only the document
     defines them (radio buttons, input boxes). But a full reload (Ctrl-Shift-R)
-    will lose the user's choices that were not saved to the server. In any case
-    the shared states are not retrieved by a full reload, the user has to click
-    on "Get Updates" to retrieve them. When changing a selection, the line's
+    will lose the user's choices that were not saved to the server. In this
+    case the shared states are retrieved by the automatic update performed on
+    load, or by clicking on "Get Updates". When changing a selection, the line's
     background changes to match a similar color tone, allowing to visually
     spot preselected patches.
 
@@ -432,9 +432,13 @@ Using the HTML output is a bit rustic but efficient. The interface is split in
 When the shared review persistence is deployed, two buttons also appear at the
 top right of the page:
 
-  - "Get updates" retrieves the current shared state from the server. Nothing
-    is ever fetched automatically, not even when the page loads: it's up to
-    the user to click when they want to synchronize. Lines the user has not
+  - "Get updates" retrieves the current shared state from the server. This is
+    also done once automatically when the page loads, since forgetting to
+    click before starting a review is too easy; that automatic attempt is
+    given 2 seconds and is then silently abandoned, so that a page opened
+    from a place which cannot reach the server (or while it is down) is never
+    delayed nor broken, the button remaining the way to retry. Nothing else
+    is ever fetched behind the user's back. Lines the user has not
     touched are updated to reflect the shared verdicts; lines the user has
     already changed locally keep their local value (which will overwrite the
     shared one on the next save, this is intentional: last opinion wins,

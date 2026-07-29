@@ -167,8 +167,9 @@ var branch = '$VERSION';
 // server last told us, on top of which the user's edits sit; it starts
 // equal to the original and is only advanced by "Get updates" and by a
 // successful save. The local state is the DOM itself (the checked radios),
-// there is no separate copy. Nothing is fetched automatically: the user
-// explicitly clicks "Get updates" to retrieve the shared state.
+// there is no separate copy. The reference is fetched once at page load and
+// on each "Get updates" click; it is never pushed to nor fetched from the
+// server behind the user's back while reviewing.
 var orig = [];
 var ref_state = [];
 var ref_notes = [];
@@ -183,6 +184,14 @@ var cidmap = {};
 // update proving an exact match, or an explicit cancel.
 var note_mode = [];
 var note_base = [];
+
+// Timeout in milliseconds of the automatic update performed at page load.
+// It exists only so that an unreachable server (the page is also read from
+// places which cannot reach it) delays nothing: the load-time fetch is a
+// convenience, the user did not ask for it, hence it must never make the
+// page look stuck. The manual "Get updates" has no timeout: there the user
+// explicitly asked and is willing to wait.
+var autofetch_ms = 2000;
 
 // SDBM hash (h = c + h * 65599) of a string's UTF-8 bytes, as 8 hex chars;
 // the concurrency token sent with a note replacement. Must match the
@@ -368,8 +377,12 @@ function apply_ref(list) {
   updt_save_btn();
 }
 
-// "Get updates" button: fetches the current shared state from the server
-function fetch_ref() {
+// "Get updates" button: fetches the current shared state from the server.
+// Also called once at page load with <auto> set, in which case the request
+// is aborted after autofetch_ms and its failure is reported as a hint to
+// use the button rather than as an error.
+function fetch_ref(auto) {
+  var ctl = null, tmo = 0;
   var i, el;
 
   if (!branch)
@@ -389,11 +402,26 @@ function fetch_ref() {
       cancel_note(i);
   }
 
-  sync_msg("fetching...");
-  fetch(cgi_url + "?branch=" + branch)
+  if (auto && typeof AbortController != "undefined") {
+    ctl = new AbortController();
+    tmo = setTimeout(function() { ctl.abort(); }, autofetch_ms);
+  }
+
+  sync_msg(auto ? "getting updates..." : "fetching...");
+  fetch(cgi_url + "?branch=" + branch, ctl ? { signal: ctl.signal } : {})
     .then(function(r) { if (!r.ok) throw 0; return r.json(); })
-    .then(function(list) { apply_ref(list); sync_msg("reference updated"); })
-    .catch(function() { sync_msg("fetch failed (server unreachable?)"); });
+    .then(function(list) {
+      if (tmo)
+        clearTimeout(tmo);
+      apply_ref(list);
+      sync_msg("reference updated");
+    })
+    .catch(function() {
+      if (tmo)
+        clearTimeout(tmo);
+      sync_msg(auto ? "no updates retrieved (server unreachable?), use Get updates" :
+                      "fetch failed (server unreachable?)");
+    });
 }
 
 // shows/hides the per-line note links according to the edition mode and to
@@ -972,4 +1000,11 @@ echo "<H3>Output:</H3>"
 echo "<textarea cols=120 rows=10 id='output'></textarea>"
 echo "<P/>"
 echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; init_review(); init_ref(); updt_table(0); updt_output();</script>"
+# the shared state is fetched right away so that a page left open or reloaded
+# always shows the current review; forgetting to click "Get updates" is far
+# too easy. It is only a time-boxed attempt (see autofetch_ms), the button
+# remains the way to retry when the server is not reachable.
+if [ -n "$VERSION" ]; then
+	echo "<script type='text/javascript'>fetch_ref(1);</script>"
+fi
 echo "</BODY></HTML>"
