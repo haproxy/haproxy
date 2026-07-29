@@ -2953,6 +2953,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 		srv->addr = src->addr;
 		srv->addr_type = src->addr_type;
 		srv->svc_port = src->svc_port;
+		srv->alt_proto = src->alt_proto;
 	}
 
 	srv->pp_opts = src->pp_opts;
