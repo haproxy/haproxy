@@ -1107,6 +1107,31 @@ static int hld_be_reuse_conn(struct connection **conn, int64_t *hash,
 	return ret;
 }
 
+/* Schedule <urs> user, depending on <rate> conn/req rate value */
+static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
+{
+	uint32_t max, wait;
+	struct hld_thr_info *ti = &thrs_info[tid];
+	uint32_t maxusrs = ti->maxusrs;
+
+	if (throttle) {
+		maxusrs = mul32hi(maxusrs, throttle);
+		maxusrs = maxusrs ? maxusrs : 1;
+	}
+
+	if (ti->curusrs < maxusrs && throttle)
+		max = 0;
+	else if (throttle)
+		max = (mul32hi(rate, throttle) + arg_thrd - 1) / arg_thrd;
+	else
+		max = (rate + arg_thrd - 1) / arg_thrd;
+
+	max = max ? max : 1;
+	wait = hld_next_event_delay(&ti->req_rate, max,
+	                            ti->curusrs - ti->cur_req, date);
+	task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(wait)));
+}
+
 /* haload stream task handler */
 struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 {
@@ -1304,26 +1329,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		}
 	}
 	else {
-		uint32_t max, wait;
-		uint32_t maxusrs = thrs_info[tid].maxusrs;
-
-		if (throttle) {
-			maxusrs = mul32hi(maxusrs, throttle);
-			maxusrs = maxusrs ? maxusrs : 1;
-		}
-
-		if (thrs_info[tid].curusrs < maxusrs && throttle)
-			max = 0;
-		else if (throttle)
-			max = (mul32hi(arg_rate, throttle) + arg_thrd - 1) / arg_thrd;
-		else
-			max = (arg_rate + arg_thrd - 1) / arg_thrd;
-
-		max = max ? max : 1;
-		wait =
-			hld_next_event_delay(&thrs_info[tid].req_rate, max,
-			                     thrs_info[tid].curusrs - thrs_info[tid].cur_req, date);
-		task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(wait)));
+		hld_usr_schedule(usr, arg_rate);
 	}
 
 	goto leave;
