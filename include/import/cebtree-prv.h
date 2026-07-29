@@ -508,7 +508,20 @@ union ceb_key_storage {
  * key_ptr, and pxor64 will be used internally.
  * The support for duplicates is advertised by ret_is_dup not being null; it
  * will be filled on return with an indication whether the node belongs to a
- * duplicate list or not.
+ * duplicate list or not. Since a node's two roles are only distinguished by the
+ * path followed to reach it, that detection needs the descent to land on the
+ * leaf itself, and to remember via <is_leaf> that it was reached through a leaf
+ * pointer which is not its own. This constrains the "pure lookup" shortcuts
+ * below, which stop as soon as a matching key is found instead of walking down
+ * to the leaf, and it does so differently depending on the key type:
+ *   - for arrays and strings the shortcut jumps to the matching branch, which
+ *     for a duplicate list is its last element, so it may still be taken as
+ *     long as that branch is already a leaf, and <is_leaf> is then updated ;
+ *   - for ints the shortcut stops on the matching node itself, which is the
+ *     dual-role node, i.e. the *first* element of a duplicate list. That's
+ *     what exactly what _ceb_lookup() must return so it remains usable there,
+ *     but not for CEB_WM_KNX/CEB_WM_KPR which need the last element in order
+ *     to walk the list.
  */
 static inline __attribute__((always_inline))
 struct ceb_node *_ceb_descend(struct ceb_root **root,
@@ -705,10 +718,14 @@ struct ceb_node *_ceb_descend(struct ceb_root **root,
 				}
 
 				/* for pure lookups, no need to go down the leaf
-				 * if we've found the key.
+				 * if we've found the key. The duplicate walks
+				 * are excluded as they need the last element
+				 * of the list.
 				 */
 				if (!ret_root && !ret_lpside && !ret_lparent &&
-				    !ret_gpside && !ret_gparent && !ret_back) {
+				    !ret_gpside && !ret_gparent && !ret_back &&
+				    (!ret_is_dup ||
+				     (meth != CEB_WM_KNX && meth != CEB_WM_KPR))) {
 					if (key_u32 == k->u32)
 						break;
 				}
@@ -739,10 +756,14 @@ struct ceb_node *_ceb_descend(struct ceb_root **root,
 				}
 
 				/* for pure lookups, no need to go down the leaf
-				 * if we've found the key.
+				 * if we've found the key. The duplicate walks
+				 * are excluded as they need the last element
+				 * of the list.
 				 */
 				if (!ret_root && !ret_lpside && !ret_lparent &&
-				    !ret_gpside && !ret_gparent && !ret_back) {
+				    !ret_gpside && !ret_gparent && !ret_back &&
+				    (!ret_is_dup ||
+				     (meth != CEB_WM_KNX && meth != CEB_WM_KPR))) {
 					if (key_u64 == k->u64)
 						break;
 				}
@@ -773,10 +794,14 @@ struct ceb_node *_ceb_descend(struct ceb_root **root,
 				}
 
 				/* for pure lookups, no need to go down the leaf
-				 * if we've found the key.
+				 * if we've found the key. The duplicate walks
+				 * are excluded as they need the last element
+				 * of the list.
 				 */
 				if (!ret_root && !ret_lpside && !ret_lparent &&
-				    !ret_gpside && !ret_gparent && !ret_back) {
+				    !ret_gpside && !ret_gparent && !ret_back &&
+				    (!ret_is_dup ||
+				     (meth != CEB_WM_KNX && meth != CEB_WM_KPR))) {
 					if ((uintptr_t)key_ptr == (uintptr_t)node)
 						break;
 				}
@@ -808,16 +833,21 @@ struct ceb_node *_ceb_descend(struct ceb_root **root,
 				}
 
 				/* for pure lookups, no need to go down the leaf
-				 * if we've found the key.
+				 * if we've found the key, provided that we land
+				 * on a leaf when duplicates are being detected.
 				 */
 				if (!ret_root && !ret_lpside && !ret_lparent &&
 				    !ret_gpside && !ret_gparent && !ret_back) {
-					if (llen == key_u64 << 3) {
+					if ((llen == key_u64 << 3) && (lnl || !ret_is_dup)) {
+						if (ln != node)
+							is_leaf = lnl;
 						node = ln;
 						plen = llen;
 						break;
 					}
-					if (rlen == key_u64 << 3) {
+					if ((rlen == key_u64 << 3) && (rnl || !ret_is_dup)) {
+						if (rn != node)
+							is_leaf = rnl;
 						node = rn;
 						plen = rlen;
 						break;
@@ -846,16 +876,21 @@ struct ceb_node *_ceb_descend(struct ceb_root **root,
 				}
 
 				/* for pure lookups, no need to go down the leaf
-				 * if we've found the key.
+				 * if we've found the key, provided that we land
+				 * on a leaf when duplicates are being detected.
 				 */
 				if (!ret_root && !ret_lpside && !ret_lparent &&
 				    !ret_gpside && !ret_gparent && !ret_back) {
-					if ((ssize_t)llen < 0) {
+					if ((ssize_t)llen < 0 && (lnl || !ret_is_dup)) {
+						if (ln != node)
+							is_leaf = lnl;
 						node = ln;
 						plen = llen;
 						break;
 					}
-					if ((ssize_t)rlen < 0) {
+					if ((ssize_t)rlen < 0 && (rnl || !ret_is_dup)) {
+						if (rn != node)
+							is_leaf = rnl;
 						node = rn;
 						plen = rlen;
 						break;
