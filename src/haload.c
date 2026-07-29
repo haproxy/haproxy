@@ -61,6 +61,7 @@ struct hld_thr_info {
 	uint64_t *ttfb_pct;          // counts per ttfb value for percentile
 	uint64_t *ttlb_pct;          // counts per ttlb value for percentile
 	uint64_t tot_sc[5];          // total status codes on this thread: 1xx,2xx,3xx,4xx,5xx
+	struct task *rate_task;      // task used when <arg_rate> is set
 	__attribute__((aligned(64))) union { } __pad;
 };
 
@@ -78,7 +79,6 @@ struct hld_usr {
 };
 
 struct hld_thr_info *thrs_info;
-static struct task **hld_rate_tasks;
 
 struct list hld_hdrs = LIST_HEAD_INIT(hld_hdrs);
 struct proxy hld_proxy;
@@ -1819,41 +1819,18 @@ void sigint_handler(int sig)
 /* Deallocate the thread information structs */
 static void hld_dealloc_thrs_info(void)
 {
-	free(thrs_info);
-	thrs_info = NULL;
-}
-
-/* Deallocate the array of conn rate tasks */
-static void hld_dealloc_rate_task(void)
-{
 	int i;
 
-	if (!hld_rate_tasks)
+	if (!thrs_info)
 		return;
 
 	for (i = 0; i < arg_thrd; i++) {
-		task_destroy(hld_rate_tasks[i]);
-		hld_rate_tasks[i] = NULL;
+		task_destroy(thrs_info[i].rate_task);
+		thrs_info[i].rate_task = NULL;
 	}
 
-	ha_free(hld_rate_tasks);
-}
-
-/* Allocate all thread information structs */
-static int hld_alloc_thrs_info(void)
-{
-	int i;
-
-	thrs_info = calloc(arg_thrd, sizeof(*thrs_info));
-	if (!thrs_info) {
-		ha_alert("failed to alloct threads information array.\n");
-		return 0;
-	}
-
-	for (i = 0; i < arg_thrd; i++)
-		thrs_info[i].maxusrs = (arg_usr + i) / arg_thrd;
-
-	return 1;
+	free(thrs_info);
+	thrs_info = NULL;
 }
 
 /* Thread task launched to handle the connection and request rate */
@@ -1898,11 +1875,46 @@ static struct task *hld_rate_task(struct task *t, void *context, unsigned int st
 		HA_ATOMIC_DEC(&running_tasks);
 		t->expire = TICK_ETERNITY;
 		task_destroy(t);
-		hld_rate_tasks[tid] = NULL;
+		thrs_info[tid].rate_task = NULL;
 		t = NULL;
 	}
 
 	return t;
+}
+
+/* Allocate all thread information structs */
+static int hld_alloc_thrs_info(void)
+{
+	int i, ret = 0;
+
+	thrs_info = calloc(arg_thrd, sizeof(*thrs_info));
+	if (!thrs_info) {
+		ha_alert("failed to alloct threads information array.\n");
+		goto out;
+	}
+
+	for (i = 0; i < arg_thrd; i++) {
+		thrs_info[i].maxusrs = (arg_usr + i) / arg_thrd;
+		if (arg_rate) {
+			struct task *t;
+
+			t = task_new_on(i);
+			if (!t) {
+				ha_alert("could not allocate a new task for req rate\n");
+				goto out;
+			}
+
+			t->process = hld_rate_task;
+			t->expire = TICK_ETERNITY;
+			task_wakeup(t, TASK_WOKEN_INIT);
+			thrs_info[i].rate_task = t;
+			HA_ATOMIC_INC(&running_tasks);
+		}
+	}
+
+	ret = 1;
+ out:
+	return ret;
 }
 
 static int hld_init(void)
@@ -1943,32 +1955,6 @@ static int hld_init(void)
 		goto err;
 	}
 
-	if (arg_rate) {
-		int i;
-
-		hld_rate_tasks = calloc(arg_thrd, sizeof(*hld_rate_tasks));
-		if (!hld_rate_tasks) {
-			ha_alert("could not allocate arg rate tasks\n");
-			goto err;
-		}
-
-		for (i = 0; i < arg_thrd; i++) {
-			struct task *t;
-
-			t = task_new_on(i);
-			if (!t) {
-				ha_alert("could not allocate a new thread task\n");
-				goto err;
-			}
-
-			hld_rate_tasks[i] = t;
-			t->process = hld_rate_task;
-			t->expire = TICK_ETERNITY;
-			task_wakeup(t, TASK_WOKEN_INIT);
-			HA_ATOMIC_INC(&running_tasks);
-		}
-	}
-
 	mtask.t->process = mtask_cb;
 	mtask.t->state |= TASK_RT;
 	mtask.t->expire = TICK_ETERNITY;
@@ -1989,7 +1975,7 @@ static int hld_init(void)
 	ha_free(&errmsg);
 	return ret;
  err:
-	hld_dealloc_rate_task();
+	hld_dealloc_thrs_info();
 	goto leave;
 }
 REGISTER_POST_CHECK(hld_init);
