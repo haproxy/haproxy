@@ -106,6 +106,7 @@ struct show_env_ctx {
 struct show_fd_ctx {
 	int fd;          /* first FD to show, -1=wildcard */
 	int tgid;        /* 0=unspecified, -1=wildcard, >0=specific tgid */
+	int cur_tgid;    /* thread group being dumped (1-based), 0=not started */
 	int show_one;    /* stop after showing one FD */
 	uint show_mask;  /* CLI_SHOWFD_F_xxx */
 };
@@ -1485,9 +1486,34 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	struct show_fd_ctx *fdctx = appctx->svcctx;
 	uint match = fdctx->show_mask;
 	int fd = fdctx->fd;
+	const struct fdtab *tab;
+	const struct polled_mask *pmsk;
+	int grp, last_grp;
 	int ret = 1;
 
 	chunk_reset(&trash);
+
+	/* With per-thread-group FD tables, each thread group has its own
+	 * table: a specific tgid only dumps that group's table, while both
+	 * the wildcard and the unspecified forms visit all the groups in
+	 * turn. With a shared table, all the groups' tables alias the same
+	 * one, so a single pass is always enough and the requested tgid
+	 * makes no difference.
+	 */
+	if (fdctx->tgid > 0)
+		grp = last_grp = fdctx->tgid;
+	else if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
+		grp = 1;
+		last_grp = global.nbtgroups;
+	}
+	else
+		grp = last_grp = 1;
+
+	if (fdctx->cur_tgid)
+		grp = fdctx->cur_tgid;
+
+	tab = ha_tgroup_ctx[grp - 1].fdtab;
+	pmsk = ha_tgroup_ctx[grp - 1].polled_mask;
 
 	/* isolate the threads once per round. We're limited to a buffer worth
 	 * of output anyway, it cannot last very long.
@@ -1512,7 +1538,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		int is_back = 0;
 		int suspicious = 0;
 
-		fdt = fdtab[fd];
+		fdt = tab[fd];
 
 		/* When DEBUG_FD is set, we also report closed FDs that have a
 		 * non-null event count to detect stuck ones.
@@ -1541,7 +1567,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		}
 #if defined(USE_QUIC)
 		else if (fdt.iocb == quic_conn_sock_fd_iocb) {
-			qc = fdtab[fd].owner;
+			qc = fdt.owner;
 			li = qc ? qc->li : NULL;
 			sv = qc ? (qc->conn ? objt_server(qc->conn->target) : NULL) : NULL;
 			xprt_ctx   = qc ? qc->xprt_ctx : NULL;
@@ -1553,7 +1579,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			 */
 		}
 		else if (fdt.iocb == quic_lstnr_sock_fd_iocb) {
-			li = objt_listener(fdtab[fd].owner);
+			li = objt_listener(fdt.owner);
 		}
 #endif
 		else if (fdt.iocb == sock_accept_iocb)
@@ -1592,8 +1618,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.refc_tgid >> 4) & 0xffff,
 			     (fdt.refc_tgid) & 0xffff,
 			     fdt.thread_mask, fdt.update_mask,
-			     polled_mask[fd].poll_recv,
-			     polled_mask[fd].poll_send,
+			     pmsk[fd].poll_recv,
+			     pmsk[fd].poll_send,
 			     fdt.owner,
 			     fdt.generation,
 			     fdt.nb_takeover,
@@ -1682,22 +1708,39 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			chunk_appendf(&trash, ")");
 
 #ifdef DEBUG_FD
-		chunk_appendf(&trash, " evcnt=%u", fdtab[fd].event_count);
-		if (fdtab[fd].event_count >= 1000000)
+		chunk_appendf(&trash, " evcnt=%u", fdt.event_count);
+		if (fdt.event_count >= 1000000)
 			suspicious = 1;
 #endif
 		chunk_appendf(&trash, "%s\n", suspicious ? " !" : "");
 
 		if (applet_putchk(appctx, &trash) == -1) {
 			fdctx->fd = fd;
+			fdctx->cur_tgid = grp;
 			ret = 0;
-			break;
+			goto end;
 		}
 	skip:
-		if (fdctx->show_one)
-			break;
+		if (fdctx->show_one) {
+			/* for the "/<fd>" wildcard form, show the same FD in
+			 * the next group's table.
+			 */
+			if (grp >= last_grp)
+				break;
+			grp++;
+			tab = ha_tgroup_ctx[grp - 1].fdtab;
+			pmsk = ha_tgroup_ctx[grp - 1].polled_mask;
+			continue;
+		}
 
 		fd++;
+		if (fd >= global.maxsock && grp < last_grp) {
+			/* this group's table is done, proceed with the next one */
+			grp++;
+			tab = ha_tgroup_ctx[grp - 1].fdtab;
+			pmsk = ha_tgroup_ctx[grp - 1].polled_mask;
+			fd = 0;
+		}
 	}
 
  end:
@@ -1875,15 +1918,13 @@ static int cli_parse_show_fd(char **args, char *payload, struct appctx *appctx, 
 			/* We allow the forms "<tgid>/" and "/<fd>" where the missing
 			 * value is considered a wildcard. So the first form means
 			 * "show me all the fds belonging to <tgid>", while the second
-			 * one means "show the fd <fd> for each thread group". Note
-			 * that the tgid is parsed but ignored for now - this code
-			 * will require changes once we split fd tables.
+			 * one means "show the fd <fd> for each thread group".
 			 */
 			if (c == args[arg]) {
 				ctx->tgid = -1;
 			} else {
 				ctx->tgid = atoi(args[arg]);
-				if (ctx->tgid <= 0 || ctx->tgid > MAX_TGROUPS)
+				if (ctx->tgid <= 0 || ctx->tgid > global.nbtgroups)
 					return cli_err(appctx, "Invalid TGID.\n");
 			}
 			c++;
