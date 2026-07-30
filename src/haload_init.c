@@ -181,9 +181,10 @@ int hld_url_cfg_path_exist(struct hld_url_cfg *u, const char *path)
  * of paths attaached to the URL.
  * Return the URL if succeeded, NULL if not.
  */
-static struct hld_url_cfg *hld_alloc_url(char *url)
+static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
+                                         char *alpn_param, int h2c_param)
 {
-	int ssl = 0, is_quic = 0;
+	int ssl = 0;
 	char *addr = NULL, *raw_addr = NULL, *path = NULL;
 	struct hld_url_cfg *hld_url_cfg = NULL;
 	struct hld_url_cfg *purl;
@@ -202,11 +203,10 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 		addr = url + 8;
 #endif
 	}
-	else if (strncmp(url, "quic://",  7) == 0) {
+	else if (is_quic) {
 #if defined(USE_QUIC)
 		ssl = 1;
 		addr = url + 7;
-		is_quic = 1;
 #else
 		ha_warning("QUIC support not compiled in. Rebuild with USE_QUIC=1.\n");
 		goto err;
@@ -229,7 +229,10 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 	for (purl = hld_url_cfgs; purl; purl = purl->next) {
 		if (purl->is_quic == is_quic && purl->ssl == ssl &&
-		    strcmp(purl->raw_addr, addr) == 0 && strcmp(purl->alpn, alpn) == 0) {
+		    purl->h2c == h2c_param &&
+		    strcmp(purl->raw_addr, addr) == 0 &&
+		    ((!purl->alpn && !alpn_param) ||
+		     (purl->alpn && alpn_param && strcmp(purl->alpn, alpn_param) == 0))) {
 			if (hld_url_cfg_path_exist(purl, path)) {
 				free(path);
 				ha_warning("'%s' URL already exists. Skipped...\n", url);
@@ -284,11 +287,11 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 
 	hld_url_cfg->ssl = ssl;
 	hld_url_cfg->is_quic = is_quic;
-	hld_url_cfg->h2c = h2c;
+	hld_url_cfg->h2c = h2c_param;
 	hld_url_cfg->addr = addr;
 	hld_url_cfg->raw_addr = raw_addr;
-	if (alpn) {
-		hld_url_cfg->alpn = strdup(alpn);
+	if (alpn_param) {
+		hld_url_cfg->alpn = strdup(alpn_param);
 		if (!hld_url_cfg->alpn) {
 			ha_warning("Could not allocate alpn.\n");
 			goto err;
@@ -313,8 +316,8 @@ static struct hld_url_cfg *hld_alloc_url(char *url)
 	    !hld_add_opt_to_buf(&opts_buf, "curves", tls_curves))
 		goto err;
 
-	if (alpn && !h2c &&
-	    !hld_add_opt_to_buf(&opts_buf, "alpn", alpn))
+	if (alpn_param && !h2c_param &&
+	    !hld_add_opt_to_buf(&opts_buf, "alpn", alpn_param))
 		goto err;
 
 	if (!hbuf_is_null(&opts_buf))
@@ -631,9 +634,13 @@ void haproxy_init_args(int argc, char **argv)
 				hld_usage(progname, argc);
 		}
 		else {
+			int is_quic;
 			struct hld_url_cfg *url;
 
-			url = hld_alloc_url(*argv);
+			is_quic = strncmp(*argv, "quic://", 7) == 0;
+			url = hld_alloc_url(*argv, is_quic,
+			                    is_quic ? "h3" : alpn,
+			                    is_quic ? 0 : h2c);
 			if (!url) {
 				ha_alert("could not parse a new URL\n");
 				goto leave;
