@@ -1891,6 +1891,7 @@ The following keywords are supported in the "global" section :
    - tune.events.max-events-at-once
    - tune.fail-alloc
    - tune.fd.edge-triggered
+   - tune.fd.tables
    - tune.h1.be.glitches-threshold
    - tune.h1.fe.glitches-threshold
    - tune.h1.zero-copy-fwd-recv
@@ -4305,6 +4306,14 @@ tune.fd.edge-triggered { on | off }  [ EXPERIMENTAL ]
   reduce the number of epoll_ctl() calls and slightly improve performance in
   certain scenarios. This is still experimental, it may result in frozen
   connections if bugs are still present, and is disabled by default.
+
+tune.fd.tables { shared | per-thread-group }  [ EXPERIMENTAL ]
+  Decide if the file descriptor tables are shared by everybody (shared), or
+  if there is one per thread group (per-thread-group). Having one table per
+  thread group can give a good performance boost with enough threads and
+  thread groups, as there is a lot of contention on the kernel file descriptor
+  tables.
+  The default is "shared".
 
 tune.glitches.kill.cpu-usage <number>
   Sets the minimum CPU usage between 0 and 100, at which connections showing
