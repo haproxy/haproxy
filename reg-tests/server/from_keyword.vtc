@@ -61,4 +61,10 @@ haproxy h1 -cli {
 	expect ~ "New server registered."
 	send "get weight be/srvdyn1"
 	expect ~ "1 \\(initial 1\\)"
+
+	# reuse default-server for a dynamic server insertion
+	send "add server be/srvdyn2 ${s1_addr}:${s1_port} from be:"
+	expect ~ "New server registered."
+	send "get weight be/srvdyn2"
+	expect ~ "10 \\(initial 10\\)"
 }

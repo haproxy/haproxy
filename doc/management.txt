@@ -1809,8 +1809,11 @@ add server <backend>/<server> [args]*
   restriction is put on the backend which must used a dynamic load-balancing
   algorithm. A subset of keywords from the server config file statement can be
   used to configure the server behavior (see "add server help" to list them).
-  Also note that no settings will be reused from an hypothetical
-  'default-server' statement in the same backend.
+
+  By default, 'default-server' is ignored by a dynamically created server.
+  However, it is possible to use the 'from' server positional keyword to
+  explicitely preset the settings of the newly created server from a
+  default-server instance.
 
   Currently a dynamic server is statically initialized with the "none"
   init-addr method. This means that no resolution will be undertaken if a FQDN

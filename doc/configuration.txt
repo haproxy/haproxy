@@ -18227,6 +18227,14 @@ from <origin>
       servers. This value is also directly useful on a default-server line,
       to reset its set of options to their documented values, before eventually
       configuring new settings.
+  - be:[<bename>]
+      instructs to reuse the settings from the final state of the designated
+      backend's default-server resulting from the processing of all its unnamed
+      default-server directives. If no backend is specified, the parent proxy
+      of the currently configured server is selected : this is the default
+      behavior for servers defined in the configuration file. This empty value
+      is mostly useful for dynamic servers created on the CLI which by default
+      ignore any default-server, which is equivalent to the "none" value.
 
 The currently supported server settings are the following ones. Note that all
 these settings are supported both by "server" and "default-server" keywords,

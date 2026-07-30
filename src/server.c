@@ -3948,6 +3948,22 @@ static int _srv_parse_from(struct server *srv, char **args, int *cur_arg,
 		else if (strcmp(args[*cur_arg + 1], "none") == 0) {
 			*from = NULL;
 		}
+		else if (strncmp(args[*cur_arg + 1], "be:", 3) == 0) {
+			struct ist be_name = istadv(ist(args[*cur_arg + 1]), 3);
+			struct proxy *px = curproxy;
+
+			if (istlen(be_name)) {
+				px = proxy_be_by_name(istptr(be_name));
+				if (!px) {
+					ha_alert("from: unknown backend instance '%s'.\n",
+					         istptr(be_name));
+					err_code = ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+
+			*from = px->defsrv;
+		}
 		else {
 			ha_alert("invalid '%s' value for 'from' keyword.\n", args[*cur_arg + 1]);
 			err_code |= ERR_FATAL | ERR_ALERT;
