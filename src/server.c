@@ -3449,13 +3449,14 @@ int srv_configure_auto_sni(struct server *srv, int *err_code, char **err)
  * This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  *
- * Returns the number of servers successfully allocated,
- * 'srv' template included.
+ * A mask of errors is returned. ERR_FATAL is set if the parsing should be
+ * interrupted.
  */
 static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 {
-	int i;
-	struct server *newsrv;
+	int err_code = ERR_NONE, i = 0;
+	struct server *newsrv = NULL;
+	char *msg = NULL;
 
 	/* Set the first server's ID. */
 	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
@@ -3464,8 +3465,11 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 	/* then create other servers from this one */
 	for (i = srv->tmpl_info.nb_low + 1; i <= srv->tmpl_info.nb_high; i++) {
 		newsrv = new_server(px);
-		if (!newsrv)
-			goto err;
+		if (!newsrv) {
+			ha_alert("out of memory.\n");
+			err_code = ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		newsrv->conf.file = strdup(srv->conf.file);
 		newsrv->conf.line = srv->conf.line;
@@ -3473,8 +3477,11 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		srv_settings_cpy(newsrv, srv, 1);
 		srv_prepare_for_resolution(newsrv, srv->hostname);
 
-	        if (server_parse_exprs(newsrv, px, NULL))
-			goto err;
+	        if ((err_code = server_parse_exprs(newsrv, px, &msg))) {
+			ha_alert("failed to parse auto SNI expression: %s", msg);
+			ha_free(&msg);
+			goto out;
+		}
 
 		/* append to list of servers available to receive an hostname */
 		if (newsrv->srvrq)
@@ -3486,18 +3493,8 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, newsrv);
 	}
 
-	return i - srv->tmpl_info.nb_low;
-
- err:
-	if (newsrv)  {
-		release_sample_expr(newsrv->ssl_ctx.sni);
-		free_check(&newsrv->agent);
-		free_check(&newsrv->check);
-		MT_LIST_DELETE(&newsrv->global_list);
-		srv_detach(newsrv);
-	}
-	srv_drop(newsrv);
-	return i - srv->tmpl_info.nb_low;
+ out:
+	return err_code;
 }
 
 /* Ensure server config will work with effective proxy mode
@@ -4128,7 +4125,9 @@ int parse_server(const char *file, int linenum, char **args,
 	}
 
 	if (parse_flags & SRV_PARSE_TEMPLATE) {
-		_srv_parse_tmpl_init(newsrv, curproxy);
+		err_code |= _srv_parse_tmpl_init(newsrv, curproxy);
+		if (err_code & ERR_FATAL)
+			goto out;
 	}
 	else if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
 		cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, newsrv);
