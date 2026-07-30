@@ -78,6 +78,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/resource.h>
 #include <sys/uio.h>
@@ -94,12 +95,14 @@
 #include <haproxy/global.h>
 #include <haproxy/log.h>
 #include <haproxy/port_range.h>
+#include <haproxy/thread.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
 
 
 THREAD_LOCAL struct fdtab *fdtab = NULL;  /* array of all the file descriptors */
 static struct fdtab *_fdtab;
+static size_t fdtab_alloc_size;  /* size of the mmap() area backing _fdtab, for munmap() */
 THREAD_LOCAL struct polled_mask *polled_mask = NULL;  /* Array for the polled_mask of each fd */
 static struct polled_mask *_polled_mask;
 int totalconn;                  /* total # of terminated sessions */
@@ -1215,24 +1218,39 @@ static void free_pollers_per_thread()
  */
 int init_pollers()
 {
+	size_t fdtab_stride;
 	int p;
 	struct poller *bp;
 	int nbfdtab;
+	ulong page_size;
 
 
 	if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
 		nbfdtab = global.nbtgroups;
 	} else
 		nbfdtab = 1;
-	/* always provide an aligned fdtab */
-	if ((_fdtab = ha_aligned_zalloc(64, array_size_or_fail(global.maxsock, nbfdtab * sizeof(*fdtab)))) == NULL) {
+	page_size = sysconf(_SC_PAGESIZE);
+	/* Always provide an aligned fdtab, allocated with mmap() and not
+	 * with a zeroing allocator on purpose: the pages must only be
+	 * faulted in when they are first written, from each group's CPUs,
+	 * so that the kernel's first-touch placement keeps every group's
+	 * table local to its own NUMA node (see below and
+	 * setup_extra_threads()). Each thread group's table starts on a
+	 * page boundary, so that no page is shared between two groups.
+	 */
+	fdtab_stride = (array_size_or_fail(global.maxsock, sizeof(*fdtab)) + page_size - 1) & ~(page_size - 1);
+	fdtab_alloc_size = array_size_or_fail(nbfdtab, fdtab_stride);
+	_fdtab = mmap(NULL, fdtab_alloc_size, PROT_READ | PROT_WRITE,
+	              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (_fdtab == MAP_FAILED) {
+		_fdtab = NULL;
 		ha_alert("Not enough memory to allocate %d entries for fdtab!\n", global.maxsock);
 		goto fail_tab;
 	}
 
 	for (p = 0; p < global.nbtgroups; p++) {
 		if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
-			ha_tgroup_ctx[p].fdtab = (void *)((char *)(void *)_fdtab + p * global.maxsock * sizeof(*fdtab));
+			ha_tgroup_ctx[p].fdtab = (void *)((char *)(void *)_fdtab + p * fdtab_stride);
 		} else
 			ha_tgroup_ctx[p].fdtab = _fdtab;
 	}
@@ -1240,7 +1258,14 @@ int init_pollers()
 	 * Immediately set the fdtab for our thread, as we'll need it soon
 	 */
 	fdtab = ha_tgroup_ctx[0].fdtab;
-	vma_set_name(_fdtab, global.maxsock * sizeof(*fdtab) * nbfdtab, "fd", "fdtab");
+
+	/* The boot thread is thread 1 of group 0: bind it to group 0's CPUs
+	 * before any FD is inserted, so that its writes are what place group
+	 * 0's table on that group's NUMA node. The other groups' tables are
+	 * placed when they are copied, see setup_extra_threads().
+	 */
+	thread_bind_to_cpu_map(0, 0);
+	vma_set_name(_fdtab, fdtab_alloc_size, "fd", "fdtab");
 
 	if ((_polled_mask = calloc(global.maxsock, nbfdtab * sizeof(*polled_mask))) == NULL) {
 		ha_alert("Not enough memory to allocate %d entries for polled_mask!\n", global.maxsock);
@@ -1295,7 +1320,7 @@ redo:
 	free(_polled_mask);
 	_polled_mask = polled_mask = NULL;
  fail_polledmask:
-	ha_aligned_free(_fdtab);
+	munmap(_fdtab, fdtab_alloc_size);
 	_fdtab = fdtab = NULL;
  fail_tab:
 	return 0;
@@ -1319,7 +1344,7 @@ void deinit_pollers() {
 	/* free the backing areas, not the (possibly per-group) thread-local
 	 * pointers which may not point to the start of the allocations.
 	 */
-	ha_aligned_free(_fdtab);
+	munmap(_fdtab, fdtab_alloc_size);
 	_fdtab = fdtab = NULL;
 	ha_free(&_polled_mask);
 	polled_mask = NULL;

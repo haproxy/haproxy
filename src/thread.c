@@ -281,19 +281,28 @@ void setup_extra_threads(void *(*handler)(void *))
 	/* the startup thread will be thread 1 */
 	ha_pthread[0] = pthread_self();
 
+	/* The FD tables were allocated with mmap() and are still unfaulted
+	 * (see init_pollers()): copy each extra group's table now, when it
+	 * holds the FDs common to all groups, with the boot thread bound to
+	 * that group's CPUs so that the kernel's first-touch placement keeps
+	 * it local to the group's NUMA node. The boot thread is finally
+	 * bound back to its own group's CPUs, as init_pollers() had set.
+	 */
+	if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
+		for (i = 1; i < global.nbtgroups; i++) {
+			thread_bind_to_cpu_map(i, 0);
+			memcpy(ha_tgroup_ctx[i].fdtab, ha_tgroup_ctx[0].fdtab,
+			       global.maxsock * sizeof(*fdtab));
+		}
+	}
+	thread_bind_to_cpu_map(0, 0);
+
 	/* Create one initial thread for each extra thread group. These will
 	 * each be responsible for creating their own extra threads. The first
 	 * group's initial thread is the current thread.
 	 */
 	for (i = 1; i < global.nbtgroups; i++) {
 		ha_tgroup_info[i].start = handler;
-		/*
-		 * Copy the fdtab to the new thread group, it should contain
-		 * file descriptors that are common to all thread groups
-		 */
-		if (global.tune.options & GTUNE_NO_TG_FD_SHARING)
-			memcpy(ha_tgroup_ctx[i].fdtab, ha_tgroup_ctx[0].fdtab,
-			       global.maxsock * sizeof(*fdtab));
 		pthread_create(&ha_pthread[ha_tgroup_info[i].base], NULL, &start_extra_tgroup_threads, &ha_tgroup_info[i]);
 	}
 
