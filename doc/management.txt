@@ -1813,7 +1813,8 @@ add server <backend>/<server> [args]*
   By default, 'default-server' is ignored by a dynamically created server.
   However, it is possible to use the 'from' server positional keyword to
   explicitely preset the settings of the newly created server from another
-  server or a default-server instance, either named or unnamed.
+  server or a default-server instance, either named or unnamed. The additional
+  command "show default-server" lists the available entries.
 
   Currently a dynamic server is statically initialized with the "none"
   init-addr method. This means that no resolution will be undertaken if a FQDN
@@ -3064,6 +3065,11 @@ show cache
   5. number of blocks used for the object
   6. number of transactions using the entry
   7. expiration time, can be negative if already expired
+
+show default-server [<backend>]
+  Dump the list of default-server instances still present in a backend after
+  configuration parsing. These instances can be referenced via the server
+  keyword from during "add server".
 
 show dev
   This command is meant to centralize some information that HAProxy developers

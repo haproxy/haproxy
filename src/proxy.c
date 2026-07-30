@@ -92,7 +92,7 @@ unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then
 
 unsigned int dynpx_next_id = 0; /* lowest ID assigned to dynamic proxies */
 
-/* CLI context used during "show backend" */
+/* CLI context used during "show backend" and "show default-server" */
 struct show_be_ctx {
 	struct proxy *px;
 	struct watcher px_watch; /* watcher to automatically update px pointer on backend deletion */
@@ -4423,6 +4423,75 @@ struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
 	return px;
 }
 
+/* Parser for "show default-server [<backend>] command.
+ * Returns 0 unless a requested backend is unknown.
+ */
+static int cli_parse_show_default_server(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct show_be_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	/* Watch proxies list as backends may be deleted during iteration. No
+	 * need to watch for servers as default-server instances cannot be
+	 * removed.
+	 */
+	watcher_init(&ctx->px_watch, &ctx->px, offsetof(struct proxy, watcher_list));
+
+	/* check if a backend name has been provided */
+	if (*args[2]) {
+		ctx->px = proxy_be_by_name(args[2]);
+		if (!ctx->px)
+			return cli_err(appctx, "Can't find backend.\n");
+	}
+	else {
+		/* Only attach the watcher if full iteration is requested. */
+		watcher_attach(&ctx->px_watch, main_proxies_first());
+	}
+
+	return 0;
+}
+
+/* Handler for "show default-server [<backend>] command.
+ * Returns 1 on completion or 0 to yield due to output blocked.
+ */
+static int cli_io_handler_show_default_server(struct appctx *appctx)
+{
+	struct show_be_ctx *ctx = appctx->svcctx;
+	struct server *defsrv;
+	int prefix;
+
+	for (; ctx->px; watcher_next(&ctx->px_watch, main_proxies_next(ctx->px))) {
+		chunk_reset(&trash);
+		prefix = 1;
+
+		/* servers are only in backends */
+		if ((ctx->px->cap & PR_CAP_BE) && !(ctx->px->cap & PR_CAP_INT)) {
+			/* Dump unnamed default-server if allocated. */
+			if (ctx->px->defsrv) {
+				chunk_appendf(&trash, "* %s\n", ctx->px->id);
+				prefix = 0;
+			}
+
+			/* Dump named default-server instances. */
+			for (defsrv = cebuis_item_first(&ctx->px->defsrv_by_name, conf.name_node, id, struct server);
+			     defsrv; defsrv = cebuis_item_next(&ctx->px->defsrv_by_name, conf.name_node, id, defsrv)) {
+				chunk_appendf(&trash, "%s %s/%s\n",
+				              prefix ? "*" : " ", ctx->px->id, defsrv->id);
+				prefix = 0;
+			}
+
+			if (STRESS_RUN1(applet_putchk_stress(appctx, &trash) == -1,
+			                applet_putchk(appctx, &trash) == -1)) {
+				return 0;
+			}
+		}
+
+		/* Watcher is not attached if a specific backend has been requested. */
+		if (!watcher_is_attached(&ctx->px_watch))
+			break;
+	}
+
+	return 1;
+}
 
 /* parse a "show servers [state|conn]" CLI line, returns 0 if it wants to start
  * the dump or 1 if it stops immediately. If an argument is specified, it will
@@ -5453,6 +5522,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "enable", "frontend",  NULL },                  "enable frontend <frontend>              : re-enable specific frontend",                                    cli_parse_enable_frontend, NULL, NULL },
 	{ { "publish", "backend",  NULL },                  "publish backend <backend>               : mark backend as ready for traffic",                              cli_parse_publish_backend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL },          "set maxconn frontend <frontend> <value> : change a frontend's maxconn setting",                            cli_parse_set_maxconn_frontend, NULL },
+	{ { "show", "default-server", NULL },               "show default-server [<backend>]         : list default-server instances in all or a single backend",       cli_parse_show_default_server, cli_io_handler_show_default_server, },
 	{ { "show","servers", "conn",  NULL },              "show servers conn [<backend>]           : dump server connections status (all or for a single backend)",   cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show","servers", "state",  NULL },             "show servers state [<backend>]          : dump volatile server information (all or for a single backend)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL },                      "show backend                            : list backends in the current running config", NULL,              cli_io_handler_show_backend },

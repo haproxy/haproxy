@@ -54,6 +54,11 @@ haproxy h1 -conf {
 		# define new settings on named default-server
 		default-server name other weight 5
 		server srvconf7 ${s1_addr}:${s1_port} from srv:other
+
+	backend be_defempty
+		default-server check
+		# reset default-server will be purged on post parsing
+		default-server from none
 } -start
 
 haproxy h1 -cli {
@@ -104,4 +109,12 @@ haproxy h1 -cli {
 	expect ~ "New server registered."
 	send "get weight be/srvdyn3"
 	expect ~ "5 \\(initial 5\\)"
+}
+
+haproxy h1 -cli {
+	send "show default-server"
+	expect ~  "\\* be\n  be/other"
+
+	send "show default-server"
+	expect !~ "be_defempty"
 }

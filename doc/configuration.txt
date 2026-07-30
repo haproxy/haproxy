@@ -4237,7 +4237,8 @@ tune.defaults.purge [<element[,...]>]
 
   Default-server instances are kept in memory after parsing as they may be
   reused for dynamic servers added at runtime. Similarly, named defaults
-  proxies sections are preserved as dynamic backends rely on them.
+  proxies sections are preserved as dynamic backends rely on them. The command
+  "show default-server" may be used to list them.
 
   This may consume a noticeable amount of memory if the number of default
   instances is important. It's possible to reclaim this memory after the
@@ -7415,7 +7416,8 @@ default-server [name <name>] [from <origin>] [param*]
   keyword. An unnamed default-server with no parameter set will automatically
   be purged after parsing. As such, a final "default-server from none"
   statement will be sufficient to release this unused memory, regardless of the
-  global setting.
+  global setting. It is possible to list the preserved instances via the
+  command "show default-server".
 
   See also: "server", section 5 about server options and global
     "tune.defaults.purge" option
