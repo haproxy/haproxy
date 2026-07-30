@@ -817,13 +817,15 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 #ifdef USE_ECH
 	if (bind_conf->ssl_conf.ech_filedir) {
 		int loaded = 0;
+		char *ech_err = NULL;
 
-		if (load_echkeys(ctx, bind_conf->ssl_conf.ech_filedir, &loaded) != 1) {
+		if (load_echkeys(ctx, bind_conf->ssl_conf.ech_filedir, &loaded, &ech_err) != 1) {
 			cfgerr += 1;
-			ha_alert("Proxy '%s': failed to load ECH key s from %s for '%s' at [%s:%d].\n",
+			ha_alert("Proxy '%s': failed to load ECH keys from %s for '%s' at [%s:%d]: %s.\n",
 			         bind_conf->frontend->id, bind_conf->ssl_conf.ech_filedir,
-			         bind_conf->arg, bind_conf->file, bind_conf->line);
+			         bind_conf->arg, bind_conf->file, bind_conf->line, ech_err);
 		}
+		ha_free(&ech_err);
 	}
 #endif
 
