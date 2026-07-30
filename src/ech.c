@@ -103,6 +103,11 @@ ignore_entry:
 	}
 	if (OSSL_ECHSTORE_num_keys(es, loaded) != 1)
 		goto end;
+	if (*loaded == 0) {
+		memprintf(err, "%sno ECH key file in '%s' contains a usable private key",
+		          err && *err ? *err : "", dirname);
+		goto end;
+	}
 	if (1 != SSL_CTX_set1_echstore(ctx, es))
 		goto end;
 	rv = 1;
