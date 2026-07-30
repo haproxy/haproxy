@@ -1346,7 +1346,10 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	/* Note that the user task will release all the expired streams
 	 * attached to it.
 	 */
-	task_wakeup(usr->task, TASK_WOKEN_IO);
+	if (!arg_rate)
+		task_wakeup(usr->task, TASK_WOKEN_IO);
+	else
+		hld_usr_schedule(usr, arg_rate);
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
 	t = NULL;
