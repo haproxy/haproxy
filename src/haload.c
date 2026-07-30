@@ -1598,7 +1598,6 @@ static inline struct hld_usr *hld_new_usr(int nreqs, int tid)
 		url->tot_rconn_done = 0;
 		url->tot_rconn_sent = 0;
 		url->mreqs = arg_mreqs;
-		url->flags = 0;
 		url->cfg = cfg;
 		url->next = usr->urls;
 		usr->urls = url;

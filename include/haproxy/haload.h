@@ -29,7 +29,6 @@ struct hld_url_cfg {
 
 struct hld_url {
 	int mreqs;
-	int flags;
 	uint64_t tot_req;
 	uint64_t tot_rconn_done;
 	uint64_t tot_rconn_sent;
