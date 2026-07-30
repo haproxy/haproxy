@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <import/ist.h>
@@ -968,6 +969,10 @@ void rx_xfer_drain(uint grp)
 		cmsg = CMSG_FIRSTHDR(&msg);
 		if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS)
 			memcpy(&fd, CMSG_DATA(cmsg), sizeof(int));
+
+		/* platforms with no MSG_CMSG_CLOEXEC get it set by hand */
+		if (!MSG_CMSG_CLOEXEC && fd >= 0)
+			fcntl(fd, F_SETFD, FD_CLOEXEC);
 
 		if (ret != sizeof(xmsg) || fd < 0) {
 			if (fd >= 0)

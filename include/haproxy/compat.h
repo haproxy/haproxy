@@ -150,6 +150,14 @@ typedef struct { } empty_t;
 #define MSG_DONTWAIT	0
 #endif
 
+/*
+ * Not every OS defines MSG_CMSG_CLOEXEC, so get a fallback version, to
+ * be tested when using it.
+ */
+#ifndef MSG_CMSG_CLOEXEC
+#define MSG_CMSG_CLOEXEC	0
+#endif
+
 /* Only Linux defines MSG_MORE */
 #ifndef MSG_MORE
 #define MSG_MORE	0
