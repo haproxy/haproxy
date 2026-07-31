@@ -3470,7 +3470,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		goto out;
 	}
 
-	if ((other = server_find_by_name(px, srv->id))) {
+	if ((other = server_find_by_name2(px, srv->id))) {
 		ha_alert("another server named '%s' was already defined at line %d, please use a distinct name.\n",
 		         srv->id, other->conf.line);
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -3512,7 +3512,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 			goto out;
 		}
 
-		if ((other = server_find_by_name(px, newsrv->id))) {
+		if ((other = server_find_by_name2(px, newsrv->id))) {
 			ha_alert("another server named '%s' was already defined at line %d, please use a distinct name.\n",
 			         newsrv->id, other->conf.line);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3774,7 +3774,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 				goto out;
 			}
 
-			if ((other = server_find_by_name(curproxy, newsrv->id))) {
+			if ((other = server_find_by_name2(curproxy, newsrv->id))) {
 				ha_alert("another server named '%s' was already defined at line %d, please use a distinct name.\n",
 				         args[1], other->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -4350,6 +4350,21 @@ struct server *server_find_by_name(struct proxy *px, const char *name)
 		return NULL;
 
 	return cebuis_item_lookup(&px->conf.used_server_name, conf.name_node, id, name, struct server);
+}
+
+/* Equivalent to server_find_by_name() excepts it also lookup in the named
+ * default-server tree.
+ */
+struct server *server_find_by_name2(struct proxy *px, const char *name)
+{
+	struct server *srv;
+
+	srv = server_find_by_name(px, name);
+	if (srv)
+		return srv;
+
+	return cebuis_item_lookup(&px->defsrv_by_name, conf.name_node, id, name,
+	                          struct server);
 }
 
 /*
@@ -5743,7 +5758,7 @@ static const char *srv_update_server_name(struct server *srv, const char *new_na
 	/* re-check for name conflict under isolation — another rename or
 	 * add server could have raced before we isolated.
 	 */
-	if (server_find_by_name(be, new_name)) {
+	if (server_find_by_name2(be, new_name)) {
 		thread_release();
 		free(dup);
 		return "A server with the same name already exists in this backend.\n";
@@ -6553,7 +6568,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	/*
 	 * If a server with the same name is found, reject the new one.
 	 */
-	if (server_find(be, sv_name)) {
+	if (server_find_by_name2(be, sv_name)) {
 		thread_release();
 		cli_err(appctx, "Already exists a server with the same name in backend.\n");
 		return 1;
