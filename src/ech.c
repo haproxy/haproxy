@@ -30,15 +30,33 @@ struct show_ech_ctx {
 	} state;                       /* phase of the current dump */
 };
 
+#if defined(OPENSSL_IS_AWSLC)
+typedef SSL_ECH_KEYS ech_store;
+#else
 typedef OSSL_ECHSTORE ech_store;
+#endif
 
 /* load one ECH key file <filename> into <store>.
  * Returns 1 on success, 0 on error, with a reason appended to *err.
  */
 static int ech_store_load_file(ech_store *store, const char *filename, char **err)
 {
-	BIO *in;
-	int rv;
+#if defined(OPENSSL_IS_AWSLC)
+	/* AWS-LC has no PEM-file ECH key loader of its own: parse the
+	 * "PRIVATE KEY" PEM block holding the raw HPKE private key and the
+	 * "ECHCONFIG" PEM block holding the raw ECHConfig ourselves, and add
+	 * them to <store>.
+	 */
+	BIO *in = NULL;
+	EVP_PKEY *pkey = NULL;
+	unsigned char *cfg_data = NULL;
+	size_t cfg_len = 0;
+	unsigned char priv_key[EVP_HPKE_MAX_PRIVATE_KEY_LENGTH];
+	size_t priv_key_len = 0;
+	EVP_HPKE_KEY hpke_key;
+	int rv = 0;
+
+	EVP_HPKE_KEY_zero(&hpke_key);
 
 	in = BIO_new_file(filename, "r");
 	if (!in) {
@@ -46,6 +64,95 @@ static int ech_store_load_file(ech_store *store, const char *filename, char **er
 		 * crypto library's error queue rather than leaving it in
 		 * errno; load_echkeys() drains that queue into *err.
 		 */
+		memprintf(err, "%sunable to open ECH key file '%s'",
+		          err && *err ? *err : "", filename);
+		goto end;
+	}
+
+	/* read every PEM block in the file and keep the private key and the
+	 * ECHConfigList wherever each happens to appear; the first match of
+	 * each type wins.
+	 */
+	while (1) {
+		char *pem_name = NULL, *pem_header = NULL;
+		unsigned char *pem_data = NULL;
+		long pem_len = 0;
+		const unsigned char *p;
+
+		if (!PEM_read_bio(in, &pem_name, &pem_header, &pem_data, &pem_len))
+			break;
+
+		if (!pkey && strcmp(pem_name, "PRIVATE KEY") == 0) {
+			p = pem_data;
+			pkey = d2i_AutoPrivateKey(NULL, &p, pem_len);
+			if (pkey && EVP_PKEY_id(pkey) == EVP_PKEY_X25519) {
+				priv_key_len = sizeof(priv_key);
+				if (!EVP_PKEY_get_raw_private_key(pkey, priv_key, &priv_key_len))
+					priv_key_len = 0;
+			}
+		} else if (!cfg_data && strcmp(pem_name, "ECHCONFIG") == 0 && pem_len > 2) {
+			/* the "ECHCONFIG" PEM block holds a full ECHConfigList: a
+			 * 2-byte length prefix followed by one ECHConfig.
+			 * SSL_ECH_KEYS_add() wants the bare ECHConfig, so check
+			 * that the prefix matches the block's length, then
+			 * strip it off in place and take ownership of the buffer.
+			 */
+			size_t list_len = ((size_t)pem_data[0] << 8) | pem_data[1];
+
+			if (list_len == (size_t)pem_len - 2) {
+				memmove(pem_data, pem_data + 2, list_len);
+				cfg_data = pem_data;
+				cfg_len = list_len;
+				pem_data = NULL;
+			}
+		}
+
+		OPENSSL_free(pem_name);
+		OPENSSL_free(pem_header);
+		OPENSSL_free(pem_data);
+
+		/* we got a pkey and an echconfig */
+		if (pkey && cfg_data)
+			break;
+	}
+
+	if (!cfg_data) {
+		memprintf(err, "%s'%s': no valid \"ECHCONFIG\" PEM block found",
+		          err && *err ? *err : "", filename);
+		goto end;
+	}
+	if (priv_key_len == 0) {
+		memprintf(err, "%s'%s': no usable X25519 \"PRIVATE KEY\" PEM block found",
+		          err && *err ? *err : "", filename);
+		goto end;
+	}
+
+	if (!EVP_HPKE_KEY_init(&hpke_key, EVP_hpke_x25519_hkdf_sha256(),
+	                       priv_key, priv_key_len)) {
+		memprintf(err, "%s'%s': unable to initialize the HPKE key",
+		          err && *err ? *err : "", filename);
+		goto end;
+	}
+
+	if (!SSL_ECH_KEYS_add(store, 1 /* is_retry_config */, cfg_data, cfg_len, &hpke_key)) {
+		memprintf(err, "%s'%s': ECHConfig rejected by SSL_ECH_KEYS_add()",
+		          err && *err ? *err : "", filename);
+		goto end;
+	}
+
+	rv = 1;
+end:
+	EVP_HPKE_KEY_cleanup(&hpke_key);
+	EVP_PKEY_free(pkey);
+	OPENSSL_free(cfg_data);
+	BIO_free_all(in);
+	return rv;
+#else
+	BIO *in;
+	int rv;
+
+	in = BIO_new_file(filename, "r");
+	if (!in) {
 		memprintf(err, "%sunable to open ECH key file '%s'",
 		          err && *err ? *err : "", filename);
 		return 0;
@@ -56,6 +163,7 @@ static int ech_store_load_file(ech_store *store, const char *filename, char **er
 		          err && *err ? *err : "", filename);
 	BIO_free_all(in);
 	return rv;
+#endif
 }
 
 /* allocate a new, empty ech_store.
@@ -63,14 +171,22 @@ static int ech_store_load_file(ech_store *store, const char *filename, char **er
  */
 static ech_store *ech_store_new(void)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return SSL_ECH_KEYS_new();
+#else
 	return OSSL_ECHSTORE_new(NULL, NULL);
+#endif
 }
 
 /* release <store>. <store> may be NULL.
  */
 static void ech_store_free(ech_store *store)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	SSL_ECH_KEYS_free(store);
+#else
 	OSSL_ECHSTORE_free(store);
+#endif
 }
 
 /* install <store> as the active ECH configuration on <ctx>.
@@ -78,7 +194,11 @@ static void ech_store_free(ech_store *store)
  */
 static int ech_store_set_ctx(SSL_CTX *ctx, ech_store *store)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return SSL_CTX_set1_ech_keys(ctx, store) == 1;
+#else
 	return SSL_CTX_set1_echstore(ctx, store) == 1;
+#endif
 }
 
 /*
@@ -136,6 +256,9 @@ ignore_entry:
 		          err && *err ? *err : "", dirname);
 		goto end;
 	}
+#if !defined(OPENSSL_IS_AWSLC)
+	/* only relevant with OpenSSL, ech_store_load_file() requires a private
+	 * key in each file */
 	if (!OSSL_ECHSTORE_num_keys(es, loaded))
 		goto end;
 	if (*loaded == 0) {
@@ -143,6 +266,7 @@ ignore_entry:
 		          err && *err ? *err : "", dirname);
 		goto end;
 	}
+#endif
 	if (!ech_store_set_ctx(ctx, es))
 		goto end;
 	rv = 1;
@@ -165,6 +289,7 @@ end:
 	return rv;
 }
 
+#if !defined(OPENSSL_IS_AWSLC)
 /* find a named SSL_CTX, returns 1 if found
  *
  * <name> should be in the format "frontend/@<filename>:<linenum>"
@@ -210,6 +335,7 @@ static int cli_find_ech_specific_ctx(const char *name, SSL_CTX **sctx)
 	}
 	return 0;
 }
+#endif /* !OPENSSL_IS_AWSLC */
 
 /* parsing function for 'show ssl ech [echfile]' */
 static int cli_parse_show_ech(char **args, char *payload,
@@ -220,6 +346,9 @@ static int cli_parse_show_ech(char **args, char *payload,
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
+#if defined(OPENSSL_IS_AWSLC)
+	return cli_err(appctx, "'show ssl ech' is not supported when built with AWS-LC\n");
+#else
 
 	/* no parameter, shows only file list */
 	if (*args[3]) {
@@ -241,10 +370,15 @@ static int cli_parse_show_ech(char **args, char *payload,
 	}
 
 	return 0;
+#endif /* OPENSSL_IS_AWSLC */
 }
 
 static void cli_print_ech_info(SSL_CTX *ctx, struct buffer *trash)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return;
+#else
+
 	int oi_ind, oi_cnt = 0;
 	OSSL_ECHSTORE *es = NULL;
 	BIO *out = NULL;
@@ -293,6 +427,7 @@ end:
 	BIO_free(out);
 	OSSL_ECHSTORE_free(es);
 	return;
+#endif /* !OPENSSL_IS_AWSLC */
 }
 
 /*
@@ -377,6 +512,9 @@ end:
 /* add ssl ech <name> <pemesni> */
 static int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, void *private)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return cli_err(appctx, "'add ssl ech' is not supported when built with AWS-LC\n");
+#else
 	SSL_CTX *sctx = NULL;
 	char success_message[ECH_SUCCESS_MSG_MAX];
 	OSSL_ECHSTORE *es = NULL;
@@ -402,11 +540,15 @@ static int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, 
 	snprintf(success_message, ECH_SUCCESS_MSG_MAX,
 	         "added a new ECH config to %s", args[3]);
 	return cli_msg(appctx, LOG_INFO, success_message);
+#endif /* OPENSSL_IS_AWSLC */
 }
 
 /* set ssl ech <name> <pemesni> */
 static int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, void *private)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return cli_err(appctx, "'set ssl ech' is not supported when built with AWS-LC\n");
+#else
 	SSL_CTX *sctx = NULL;
 	char success_message[ECH_SUCCESS_MSG_MAX];
 	OSSL_ECHSTORE *es = NULL;
@@ -432,11 +574,15 @@ static int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, 
 	snprintf(success_message, ECH_SUCCESS_MSG_MAX,
 	         "set new ECH configs for %s", args[3]);
 	return cli_msg(appctx, LOG_INFO, success_message);
+#endif /* OPENSSL_IS_AWSLC */
 }
 
 /* del ssl ech <name> [<age-in-secs>] */
 static int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, void *private)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return cli_err(appctx, "'del ssl ech' is not supported when built with AWS-LC\n");
+#else
 	SSL_CTX *sctx = NULL;
 	time_t age = 0;
 	char success_message[ECH_SUCCESS_MSG_MAX];
@@ -466,6 +612,7 @@ static int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, 
 		snprintf(success_message, ECH_SUCCESS_MSG_MAX,
 		         "deleted ECH configs older than %ld seconds from %s", age, args[3]);
 	return cli_msg(appctx, LOG_INFO, success_message);
+#endif /* OPENSSL_IS_AWSLC */
 }
 
 
@@ -499,6 +646,9 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
  */
 int conn_get_ech_status(struct connection *conn, struct buffer *buf)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return 0;
+#else
 	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 	char *sni_ech = NULL;
 	char *sni_clr = NULL;
@@ -522,11 +672,15 @@ int conn_get_ech_status(struct connection *conn, struct buffer *buf)
 	OPENSSL_free(sni_ech);
 	OPENSSL_free(sni_clr);
 	return 1;
+#endif /* OPENSSL_IS_AWSLC */
 }
 
 /* If ECH succeeded, return the outer SNI value seen */
 int conn_get_ech_outer_sni(struct connection *conn, struct buffer *buf)
 {
+#if defined(OPENSSL_IS_AWSLC)
+	return 0;
+#else
 	struct ssl_sock_ctx *ctx = conn_get_ssl_sock_ctx(conn);
 	char *sni_ech = NULL;
 	char *sni_clr = NULL;
@@ -539,6 +693,7 @@ int conn_get_ech_outer_sni(struct connection *conn, struct buffer *buf)
 	OPENSSL_free(sni_ech);
 	OPENSSL_free(sni_clr);
 	return 1;
+#endif /* OPENSSL_IS_AWSLC */
 }
 
 static int bind_parse_ech(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)

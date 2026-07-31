@@ -1890,7 +1890,8 @@ add ssl ech <bind> <payload>
 
   Necessitates an OpenSSL version that supports ECH, and HAProxy must be
   compiled with USE_ECH=1. This command is only supported on a CLI connection
-  running in experimental mode (see "experimental-mode on").
+  running in experimental mode (see "experimental-mode on"). Not available
+  when HAProxy is built with AWS-LC.
 
   See also "show ssl ech" and "ech" in the Section 5.1 of the configuration
   manual.
@@ -2233,7 +2234,8 @@ del ssl ech <bind>
 
   Necessitates an OpenSSL version that supports ECH, and HAProxy must be
   compiled with USE_ECH=1. This command is only supported on a CLI connection
-  running in experimental mode (see "experimental-mode on").
+  running in experimental mode (see "experimental-mode on"). Not available
+  when HAProxy is built with AWS-LC.
 
   See also "show ssl ech", "add ssl ech" and "ech" in the Section 5.1 of the
   configuration manual.
@@ -2856,7 +2858,8 @@ set ssl ech <bind> <payload>
 
   Necessitates an OpenSSL version that supports ECH, and HAProxy must be
   compiled with USE_ECH=1. This command is only supported on a CLI connection
-  running in experimental mode (see "experimental-mode on").
+  running in experimental mode (see "experimental-mode on"). Not available
+  when HAProxy is built with AWS-LC.
 
   See also "show ssl ech", "add ssl ech" and "ech" in the Section 5.1 of the
   configuration manual.
@@ -4027,7 +4030,8 @@ show ssl ech [<name>]
   Necessitates an OpenSSL version that supports ECH, and HAProxy must be
   compiled with USE_ECH=1.
   This command is only supported on a CLI connection running in experimental
-  mode (see "experimental-mode on").
+  mode (see "experimental-mode on"). Not available when HAProxy is built with
+  AWS-LC.
 
   See also "ech" in the Section 5.1 of the configuration manual.
 

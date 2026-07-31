@@ -17470,7 +17470,11 @@ ech <dir> [ EXPERIMENTAL ]
   "expose-experimental-directives" option in the global section.
   It also necessitates an OpenSSL version that supports ECH
   ( https://github.com/openssl/openssl/tree/feature/ech), and HAProxy must be
-  compiled with USE_ECH=1. The ECH API of AWS-LC is not supported.
+  compiled with USE_ECH=1.
+
+  AWS-LC is also supported, with a lighter implementation: runtime ECH store
+  management ("show/add/set/del ssl ech" on the CLI) and ECH status/outer-SNI
+  reporting are not available in that case.
 
   Example:
     $ openssl ech -public_name foobar.com -out /etc/haproxy/echkeydir/foobar.com.ech
