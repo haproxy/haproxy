@@ -3365,22 +3365,13 @@ static int _srv_parse_tmpl_range(struct server *srv, const char *arg,
 	return 0;
 }
 
-/* Parse as much as possible such a range string argument: low[-high]
- * Set <nb_low> and <nb_high> values so that they may be reused by this loop
- * for(int i = nb_low; i <= nb_high; i++)... with nb_low >= 1.
- *
- * This function is first intended to be used through parse_server to
- * initialize a new server on startup.
- *
- * Fails if 'low' < 0 or 'high' is present and not higher than 'low'.
- * Returns 0 if succeeded, -1 if not.
+/* Generate a server ID from <prefix> and <nb>. Used for server-template.
+ * Returns a newly allocated string or NULL.
  */
-static inline void _srv_parse_set_id_from_prefix(struct server *srv,
-                                                 const char *prefix, int nb)
+static inline char *server_set_id_from_prefix(const char *prefix, int nb)
 {
 	chunk_printf(&trash, "%s%d", prefix, nb);
-	free(srv->id);
-	srv->id = strdup(trash.area);
+	return strdup(trash.area);
 }
 
 /* Parse the sni and pool-conn-name expressions. Returns 0 on success and non-zero on
@@ -3459,7 +3450,14 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 	char *msg = NULL;
 
 	/* Set the first server's ID. */
-	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
+	srv->id = server_set_id_from_prefix(srv->tmpl_info.prefix,
+	                                    srv->tmpl_info.nb_low);
+	if (!srv->id) {
+		ha_alert("out of memory");
+		err_code = ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
 	cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, srv);
 
 	/* then create other servers from this one */
@@ -3488,7 +3486,12 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 			LIST_APPEND(&newsrv->srvrq->attached_servers, &newsrv->srv_rec_item);
 
 		/* Set this new server ID. */
-		_srv_parse_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
+		newsrv->id = server_set_id_from_prefix(srv->tmpl_info.prefix, i);
+		if (!newsrv->id) {
+			ha_alert("out of memory");
+			err_code = ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, newsrv);
 	}
