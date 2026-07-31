@@ -3740,10 +3740,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		if (parse_flags & SRV_PARSE_DYNAMIC)
 			newsrv->flags |= SRV_F_DYNAMIC;
 
-		/* Note: for a server template, its id is its prefix.
-		 * This is a temporary id which will be used for server allocations to come
-		 * after parsing.
-		 */
 		if (!(parse_flags & SRV_PARSE_TEMPLATE))
 			newsrv->id = strdup(args[1]);
 		else
