@@ -30,6 +30,57 @@ struct show_ech_ctx {
 	} state;                       /* phase of the current dump */
 };
 
+typedef OSSL_ECHSTORE ech_store;
+
+/* load one ECH key file <filename> into <store>.
+ * Returns 1 on success, 0 on error, with a reason appended to *err.
+ */
+static int ech_store_load_file(ech_store *store, const char *filename, char **err)
+{
+	BIO *in;
+	int rv;
+
+	in = BIO_new_file(filename, "r");
+	if (!in) {
+		/* BIO_new_file() records the fopen() failure reason in the
+		 * crypto library's error queue rather than leaving it in
+		 * errno; load_echkeys() drains that queue into *err.
+		 */
+		memprintf(err, "%sunable to open ECH key file '%s'",
+		          err && *err ? *err : "", filename);
+		return 0;
+	}
+	rv = (OSSL_ECHSTORE_read_pem(store, in, OSSL_ECH_FOR_RETRY) == 1);
+	if (!rv)
+		memprintf(err, "%sunable to load ECH key file '%s'",
+		          err && *err ? *err : "", filename);
+	BIO_free_all(in);
+	return rv;
+}
+
+/* allocate a new, empty ech_store.
+ * Returns the new store, or NULL on error.
+ */
+static ech_store *ech_store_new(void)
+{
+	return OSSL_ECHSTORE_new(NULL, NULL);
+}
+
+/* release <store>. <store> may be NULL.
+ */
+static void ech_store_free(ech_store *store)
+{
+	OSSL_ECHSTORE_free(store);
+}
+
+/* install <store> as the active ECH configuration on <ctx>.
+ * Returns 1 on success, 0 on error.
+ */
+static int ech_store_set_ctx(SSL_CTX *ctx, ech_store *store)
+{
+	return SSL_CTX_set1_echstore(ctx, store) == 1;
+}
+
 /*
  * load any key files called <name>.ech we find in the named
  * directory
@@ -41,11 +92,11 @@ int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded, char **err)
 	int rv = 0, i, nrv = 0, somekeyworked = 0;
 	char *den = NULL, *last4 = NULL, privname[PATH_MAX];
 	size_t elen = 0, nlen = 0;
-	OSSL_ECHSTORE *es;
+	ech_store *es;
 
 	ERR_clear_error();
 
-	es = OSSL_ECHSTORE_new(NULL, NULL);
+	es = ech_store_new();
 	if (es == NULL)
 		goto end;
 	nrv = scandir(dirname, &de_list, 0, alphasort);
@@ -60,10 +111,6 @@ int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded, char **err)
 		den = de->d_name;
 		nlen = strlen(den);
 		if (nlen > 4) {
-			BIO *in = NULL;
-			int load_failed = 1;
-			const int is_retry_config = OSSL_ECH_FOR_RETRY;
-
 			last4 = den + nlen - 4;
 			if (strncmp(last4, ".ech", 4))
 				goto ignore_entry;
@@ -73,25 +120,12 @@ int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded, char **err)
 			if (stat(privname, &thestat) != 0) {
 				memprintf(err, "%sunable to stat ECH key file '%s': %s",
 				          err && *err ? *err : "", privname, strerror(errno));
-				goto failed;
-			}
-			if ((in = BIO_new_file(privname, "r")) == NULL) {
-				memprintf(err, "%sunable to open ECH key file '%s': %s",
-				          err && *err ? *err : "", privname, strerror(errno));
-				goto failed;
-			}
-			if (OSSL_ECHSTORE_read_pem(es, in, is_retry_config) != 1) {
-				memprintf(err, "%sunable to load ECH key file '%s'",
-				          err && *err ? *err : "", privname);
-				goto failed;
-			}
-			load_failed = 0;
-			somekeyworked++;
-failed:
-			BIO_free_all(in);
-			/* a ".ech" file is expected to be valid; fail immediately */
-			if (load_failed)
 				goto end;
+			}
+			/* a ".ech" file is expected to be valid; fail immediately */
+			if (!ech_store_load_file(es, privname, err))
+				goto end;
+			somekeyworked++;
 		}
 ignore_entry:
 		;
@@ -102,21 +136,21 @@ ignore_entry:
 		          err && *err ? *err : "", dirname);
 		goto end;
 	}
-	if (OSSL_ECHSTORE_num_keys(es, loaded) != 1)
+	if (!OSSL_ECHSTORE_num_keys(es, loaded))
 		goto end;
 	if (*loaded == 0) {
 		memprintf(err, "%sno ECH key file in '%s' contains a usable private key",
 		          err && *err ? *err : "", dirname);
 		goto end;
 	}
-	if (1 != SSL_CTX_set1_echstore(ctx, es))
+	if (!ech_store_set_ctx(ctx, es))
 		goto end;
 	rv = 1;
 end:
 	for (i = 0; i < nrv; i++)
 		free(de_list[i]);
 	free(de_list);
-	OSSL_ECHSTORE_free(es);
+	ech_store_free(es);
 	if (!rv) {
 		unsigned long ret;
 
