@@ -3740,10 +3740,22 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		if (parse_flags & SRV_PARSE_DYNAMIC)
 			newsrv->flags |= SRV_F_DYNAMIC;
 
-		if (!(parse_flags & SRV_PARSE_TEMPLATE))
+		if (!(parse_flags & SRV_PARSE_TEMPLATE)) {
 			newsrv->id = strdup(args[1]);
-		else
+			if (!newsrv->id) {
+				ha_alert("out of memory.\n");
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+		}
+		else {
 			newsrv->tmpl_info.prefix = strdup(args[1]);
+			if (!newsrv->tmpl_info.prefix) {
+				ha_alert("out of memory.\n");
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+		}
 
 		/* several ways to check the port component :
 		 *  - IP    => port=+0, relative (IPv4 only)
