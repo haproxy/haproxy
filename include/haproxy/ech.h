@@ -3,7 +3,13 @@
 # define _HAPROXY_ECH_H
 #ifdef USE_ECH
 
-#include <openssl/ech.h>
+#include <haproxy/openssl-compat.h>
+
+# if defined(OPENSSL_IS_AWSLC)
+#  include <openssl/hpke.h>
+# else
+#  include <openssl/ech.h>
+# endif
 
 int load_echkeys(SSL_CTX *ctx, char *dirname, int *loaded, char **err);
 int conn_get_ech_status(struct connection *conn, struct buffer *buf);
