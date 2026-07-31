@@ -2495,32 +2495,6 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			break;
 	}
 
-	/* Check that no server name conflicts. This causes trouble in the stats.
-	 * We only emit an error for the first conflict affecting each server,
-	 * in order to avoid combinatory explosion if all servers have the same
-	 * name. Since servers names are stored in a tree before landing here,
-	 * we simply have to check for the current server's duplicates to spot
-	 * conflicts.
-	 */
-	list_for_each_entry(newsrv, &px->servers, el_px) {
-		struct server *other_srv;
-
-		/* Note: internal servers are not always registered and
-		 * they do not conflict.
-		 */
-		if (!ceb_intree(&newsrv->conf.name_node))
-			continue;
-
-		if ((other_srv = cebis_item_prev_dup(&px->conf.used_server_name, conf.name_node, id, newsrv))) {
-			ha_alert("parsing [%s:%d] : %s '%s', another server named '%s' was already defined at line %d, please use distinct names.\n",
-			         newsrv->conf.file, newsrv->conf.line,
-			         proxy_type_str(px), px->id,
-			         newsrv->id, other_srv->conf.line);
-			cfgerr++;
-			continue;
-		}
-	}
-
 	/* assign automatic UIDs to servers which don't have one yet */
 	next_id = 1;
 	list_for_each_entry(newsrv, &px->servers, el_px) {

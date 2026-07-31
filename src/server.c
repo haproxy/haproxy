@@ -3446,7 +3446,7 @@ int srv_configure_auto_sni(struct server *srv, int *err_code, char **err)
 static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 {
 	int err_code = ERR_NONE, i = 0;
-	struct server *newsrv = NULL;
+	struct server *newsrv = NULL, *other;
 	char *msg = NULL;
 
 	/* Set the first server's ID. */
@@ -3455,6 +3455,13 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 	if (!srv->id) {
 		ha_alert("out of memory");
 		err_code = ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	if ((other = server_find_by_name(px, srv->id))) {
+		ha_alert("another server named '%s' was already defined at line %d, please use a distinct name.\n",
+		         srv->id, other->conf.line);
+		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
 
@@ -3490,6 +3497,13 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		if (!newsrv->id) {
 			ha_alert("out of memory");
 			err_code = ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if ((other = server_find_by_name(px, newsrv->id))) {
+			ha_alert("another server named '%s' was already defined at line %d, please use a distinct name.\n",
+			         newsrv->id, other->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
@@ -3665,7 +3679,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
                            struct proxy *curproxy,
                            int parse_flags)
 {
-	struct server *newsrv = NULL;
+	struct server *newsrv = NULL, *other;
 	const char *err = NULL;
 	int err_code = 0;
 	char *fqdn = NULL;
@@ -3745,6 +3759,13 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			if (!newsrv->id) {
 				ha_alert("out of memory.\n");
 				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
+			if ((other = server_find_by_name(curproxy, newsrv->id))) {
+				ha_alert("another server named '%s' was already defined at line %d, please use a distinct name.\n",
+				         args[1], other->conf.line);
+				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 		}
