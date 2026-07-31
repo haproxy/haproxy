@@ -777,6 +777,14 @@ function updt(line,value) {
   updt_table(line);
   updt_output();
   updt_save_btn();
+  if (value == "r")
+    updt_url();
+}
+
+// a "Show" checkbox was clicked: redraw and republish the view in the URL
+function updt_show() {
+  updt_table(0);
+  updt_url();
 }
 
 // selects the categories to show; <o> is optional and defaults to showing
@@ -813,6 +821,87 @@ function init_review() {
   }
 }
 
+// the letters of the "Show" checkboxes, in the order they appear in the URL
+// fragment; each one designates the checkbox of id "sh_" plus that letter.
+var show_boxes = "bnuwyo";
+
+// Reflects the current view (the shown categories and the first line to
+// review) into the URL fragment, so that the address bar always holds a link
+// reproducing exactly what is displayed and which can be sent to a coworker
+// as-is. The history entry is replaced and never pushed: nothing is reloaded
+// nor scrolled, the listing does not even blink, and leaving the page still
+// takes a single click on "back".
+function updt_url() {
+  var show = "";
+  var i;
+
+  if (!window.history || !history.replaceState)
+    return;
+
+  for (i = 0; i < show_boxes.length; i++)
+    if (document.getElementById("sh_" + show_boxes.charAt(i)).checked)
+      show += show_boxes.charAt(i);
+
+  // browsers may refuse to touch the history of a page loaded from a local
+  // file (opaque origin). The fragment is then just not maintained, which
+  // affects nothing else, hence the silent catch.
+  try {
+    history.replaceState(null, "", "#show=" + show +
+                         "&start=" + (review ? review : "all"));
+  } catch (e) {
+  }
+}
+
+// Applies the view settings possibly passed in the URL fragment: "show" holds
+// the letters of the categories to display, the missing ones being hidden,
+// and "start" is the first line to review, either "all" or a line number.
+// Both are optional and anything not understood is ignored, so that an old or
+// hand-edited link degrades to the page's defaults instead of breaking. A
+// fragment element without "=" is left alone as well, which preserves the
+// ability to point at a commit id. Only the state is set here, the caller
+// redraws.
+function apply_url() {
+  var args = location.hash.substring(1).split("&");
+  var i, j, eq, key, val, num, el;
+
+  for (i = 0; i < args.length; i++) {
+    eq = args[i].indexOf("=");
+    if (eq < 0)
+      continue;
+    key = args[i].substring(0, eq);
+    val = args[i].substring(eq + 1);
+    if (key == "show") {
+      for (j = 0; j < show_boxes.length; j++)
+        document.getElementById("sh_" + show_boxes.charAt(j)).checked =
+          val.indexOf(show_boxes.charAt(j)) >= 0;
+    }
+    else if (key == "start") {
+      if (val == "all") {
+        document.getElementById("show_all").checked = true;
+        review = 0;
+      }
+      else {
+        num = parseInt(val, 10);
+        el = document.getElementById("rv_" + num);
+        if (el) {
+          el.checked = true;
+          review = num;
+        }
+      }
+    }
+  }
+}
+
+// Pasting a link into a tab which already shows the page only changes the
+// fragment, and the browser reloads nothing: apply it by hand or nothing
+// would happen at all. replaceState() does not trigger this event, so the
+// updates emitted above cannot loop back here.
+window.addEventListener("hashchange", function() {
+  apply_url();
+  updt_table(0);
+  updt_output();
+});
+
 // -->
 </script>
 </HEAD>
@@ -844,12 +933,12 @@ echo -n "<td style='background-color:$BG_Y'><a href='#' onclick='show_only(0,0,0
 echo -n "<td>total: <span id='cnt_nbt'>0</span></td>"
 echo "</tr></table><P/>"
 echo -n "<big><big>Show:"
-echo -n " <span style='background-color:$BG_B'><input type='checkbox' onclick='updt_table(0);' id='sh_b' checked />B (${#bkp[*]})</span> "
-echo -n " <span style='background-color:$BG_N'><input type='checkbox' onclick='updt_table(0);' id='sh_n' checked />N (<span id='cnt_n'>0</span>)</span> "
-echo -n " <span style='background-color:$BG_U'><input type='checkbox' onclick='updt_table(0);' id='sh_u' checked />U (<span id='cnt_u'>0</span>)</span> "
-echo -n " <span style='background-color:$BG_W'><input type='checkbox' onclick='updt_table(0);' id='sh_w' checked />W (<span id='cnt_w'>0</span>)</span> "
-echo -n " <span style='background-color:$BG_Y'><input type='checkbox' onclick='updt_table(0);' id='sh_y' checked />Y (<span id='cnt_y'>0</span>)</span> "
-echo -n " <span><input type='checkbox' onclick='updt_table(0);' id='sh_o' checked />O (<span id='cnt_o'>0</span>)</span> "
+echo -n " <span style='background-color:$BG_B'><input type='checkbox' onclick='updt_show();' id='sh_b' checked />B (${#bkp[*]})</span> "
+echo -n " <span style='background-color:$BG_N'><input type='checkbox' onclick='updt_show();' id='sh_n' checked />N (<span id='cnt_n'>0</span>)</span> "
+echo -n " <span style='background-color:$BG_U'><input type='checkbox' onclick='updt_show();' id='sh_u' checked />U (<span id='cnt_u'>0</span>)</span> "
+echo -n " <span style='background-color:$BG_W'><input type='checkbox' onclick='updt_show();' id='sh_w' checked />W (<span id='cnt_w'>0</span>)</span> "
+echo -n " <span style='background-color:$BG_Y'><input type='checkbox' onclick='updt_show();' id='sh_y' checked />Y (<span id='cnt_y'>0</span>)</span> "
+echo -n " <span><input type='checkbox' onclick='updt_show();' id='sh_o' checked />O (<span id='cnt_o'>0</span>)</span> "
 echo -n "</big/></big><br/>(B=show backported, N=no/drop, U=uncertain, W=wait/next, Y=yes/pick,"
 echo -n " O=original notes; uncheck to see only the <span id='cnt_ed'>0</span> edited ones"
 echo ")<P/>"
@@ -999,7 +1088,7 @@ echo "<P/>"
 echo "<H3>Output:</H3>"
 echo "<textarea cols=120 rows=10 id='output'></textarea>"
 echo "<P/>"
-echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; init_review(); init_ref(); updt_table(0); updt_output();</script>"
+echo "<script type='text/javascript'>nb_patches=$seq_num; review=$review; init_review(); apply_url(); init_ref(); updt_table(0); updt_output();</script>"
 # the shared state is fetched right away so that a page left open or reloaded
 # always shows the current review; forgetting to click "Get updates" is far
 # too easy. It is only a time-boxed attempt (see autofetch_ms), the button

@@ -493,6 +493,24 @@ is being typed on it, so that a pending note never hides itself. The verdicts
 are not taken into account, on purpose: they are routinely adjusted on
 misqualified patches, which would leave far too many lines to be of any use.
 
+The state of these checkboxes and the first line to review are also maintained
+in the URL fragment, which is updated on the fly as they are clicked, without
+ever reloading the page nor adding entries to the browsing history. The address
+bar hence always holds a link reproducing exactly what is displayed, that can
+be copy-pasted to a coworker to point them at a specific set of patches. Its
+format is:
+
+   <url-of-the-page>#show=<letters>&start=<line>
+
+where <letters> is the concatenation of the letters of the categories to show
+(any subset of "bnuwyo", the missing ones being hidden), and <line> is either
+"all" or the number of the first line to review, as displayed in the first
+column. Both elements are optional and independent, and anything that is not
+understood is silently ignored, so that a link produced by an older version, a
+truncated one, or one pointing to a line which does not exist anymore just
+falls back to the page's defaults. Pasting such a link into a tab which
+already shows the page applies it immediately, without reloading either.
+
 In order to reduce the risk of missing a misqualified patch, those marked "BUG"
 or "DOC" are displayed in bold even if tagged "No". It has been shown to be
 sufficient to catch the eye when scrolling and encouraging to re-visit them.
