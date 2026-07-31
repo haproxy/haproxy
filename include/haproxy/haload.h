@@ -7,6 +7,21 @@
 #include <haproxy/server-t.h>
 #include <haproxy/task-t.h>
 
+#define HLD_HAS_HTTP_VER_0   (1U << HLD_HTTP_VER_0)
+#define HLD_HAS_HTTP_VER_1   (1U << HLD_HTTP_VER_1)
+#define HLD_HAS_HTTP_VER_2   (1U << HLD_HTTP_VER_2)
+#define HLD_HAS_HTTP_VER_3   (1U << HLD_HTTP_VER_3)
+
+enum hld_http_ver {
+	HLD_HTTP_VER_0,
+	HLD_HTTP_VER_1,
+	HLD_HTTP_VER_2,
+	HLD_HTTP_VER_3,
+	/* Do not add more enum below */
+	HLD_HTTP_VER_MAX,
+};
+
+
 struct hld_path {
 	char *path;
 	struct hld_path *next;
@@ -16,6 +31,7 @@ struct hld_url_cfg {
 	int ssl;
 	int is_quic;
 	int h2c;
+	enum hld_http_ver http_ver;
 	char *addr;
 	char *raw_addr; // used only to set the host header value
 	char *srv_opts;
@@ -67,4 +83,5 @@ extern int arg_usr;
 extern int arg_thrd;
 extern int arg_wait;
 
+extern unsigned int hld_ver_flags;
 #endif /* _HAPROXY_HALOAD_H */

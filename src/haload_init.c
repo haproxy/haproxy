@@ -23,6 +23,8 @@ static void  hld_usage(char *name, int argc)
 		"        -e               stop upon first connection error\n"
 		"        -h(0|1|2|2c|3)   use h0 (hq-interop for QUIC), h1, h2, h2c or h3 (QUIC/TCP) protocols (*)\n"
 		"        -(0|1|2|2c|3)    same as above (*)\n"
+		"        -hs              show HTTP status codes distribution\n"
+		"        -hsv             show HTTP status codes distribution ((global + per HTTP version)\n"
 		"        -l               enable long output format; double for raw values\n"
 		"        -m <streams>     maximum concurrent streams (1)\n"
 		"        -n <reqs>        maximum total requests (-1)\n"
@@ -41,7 +43,6 @@ static void  hld_usage(char *name, int argc)
 		"        --defaults <str> add a string to default section\n"
 		"        --global <str>   add a string to global section\n"
 		"        --server <opts>  set server <opt> options as defined for \"server\" haproxy keyword\n"
-		"        --show-status-codes show HTTP status codes distribution\n"
 		"        --traces         enable the traces for all the HTTP protocols\n"
 		"SSL options:\n"
 		"        --tls-ciphers <ciphers>       for TLS1.2 and below (*)\n"
@@ -182,7 +183,8 @@ int hld_url_cfg_path_exist(struct hld_url_cfg *u, const char *path)
  * Return the URL if succeeded, NULL if not.
  */
 static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
-                                         char *alpn_param, int h2c_param)
+                                         char *alpn_param, int h2c_param,
+                                         enum hld_http_ver http_ver)
 {
 	int ssl = 0;
 	char *addr = NULL, *raw_addr = NULL, *path = NULL;
@@ -288,6 +290,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
 	hld_url_cfg->ssl = ssl;
 	hld_url_cfg->is_quic = is_quic;
 	hld_url_cfg->h2c = h2c_param;
+	hld_url_cfg->http_ver = http_ver;
 	hld_url_cfg->addr = addr;
 	hld_url_cfg->raw_addr = raw_addr;
 	if (alpn_param) {
@@ -395,6 +398,7 @@ void haproxy_init_args(int argc, char **argv)
 	struct hbuf gbuf = HBUF_NULL; // "global" section
 	struct hbuf tbuf = HBUF_NULL; // "traces" section
 	struct hbuf dbuf = HBUF_NULL; // "default" section
+	int http_ver = HLD_HTTP_VER_1;
 
 	if (argc <= 1)
 		hld_usage(progname, argc);
@@ -422,6 +426,7 @@ void haproxy_init_args(int argc, char **argv)
 	argc--; argv++;
 
 	while (argc > 0) {
+
 		if (**argv == '-') {
 			char *opt = *argv + 1;
 
@@ -460,9 +465,6 @@ void haproxy_init_args(int argc, char **argv)
 					free(srv_opts);
 					srv_opts = strdup(opt);
 				}
-				else if (strcmp(opt, "show-status-codes") == 0) {
-					arg_hscd = 1;
-				}
 				else if (strcmp(opt, "tls-ciphers") == 0) {
 					argv++, argc--;
 					if ((argc <= 0 || **argv == '-'))
@@ -497,27 +499,32 @@ void haproxy_init_args(int argc, char **argv)
 			         strcmp(opt, "h0") == 0) {
 				alpn = "hq-interop";
 				h2c = 0;
+				http_ver = HLD_HTTP_VER_0;
 			}
 			else if (strcmp(opt, "1") == 0 ||
 			         strcmp(opt, "h1") == 0) {
 				alpn = "http/1.1";
 				h2c = 0;
+				http_ver = HLD_HTTP_VER_1;
 			}
 			else if (strcmp(opt, "2") == 0 ||
 			         strcmp(opt, "h2") == 0) {
 				alpn = "h2";
 				h2c = 0;
+				http_ver = HLD_HTTP_VER_2;
 			}
 			else if (strcmp(opt, "2c") == 0 ||
 			         strcmp(opt, "h2c") == 0) {
 				alpn = NULL;
 				h2c = 1;
+				http_ver = HLD_HTTP_VER_2;
 			}
 			else if (strcmp(opt, "3") == 0 ||
 			         strcmp(opt, "h3") == 0) {
 #if defined(USE_QUIC)
 				alpn = "h3";
 				h2c = 0;
+				http_ver = HLD_HTTP_VER_3;
 #else
 				ha_warning("QUIC support not compiled in. Rebuild with USE_QUIC=1.\n");
 				goto leave;
@@ -533,6 +540,12 @@ void haproxy_init_args(int argc, char **argv)
 					hld_usage(progname, argc);
 
 				arg_serr = 1;
+			}
+			else if (strcmp(opt, "hs") == 0) {
+				arg_hscd = 1;
+			}
+			else if (strcmp(opt, "hsv") == 0) {
+				arg_hscd = 2;
 			}
 			else if (*opt == 'l') {
 				arg_long++;
@@ -638,15 +651,19 @@ void haproxy_init_args(int argc, char **argv)
 			struct hld_url_cfg *url;
 
 			is_quic = strncmp(*argv, "quic://", 7) == 0;
+			if (is_quic)
+				http_ver = HLD_HTTP_VER_3;
+			hld_ver_flags |= (1 << http_ver);
 			url = hld_alloc_url(*argv, is_quic,
 			                    is_quic ? "h3" : alpn,
-			                    is_quic ? 0 : h2c);
+			                    is_quic ? 0 : h2c, http_ver);
 			if (!url) {
 				ha_alert("could not parse a new URL\n");
 				goto leave;
 			}
 
-
+			/* default version flag value */
+			http_ver = HLD_HTTP_VER_3;
 		}
 
 		argv++; argc--;

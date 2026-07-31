@@ -61,6 +61,8 @@ struct hld_thr_info {
 	uint64_t *ttfb_pct;          // counts per ttfb value for percentile
 	uint64_t *ttlb_pct;          // counts per ttlb value for percentile
 	uint64_t tot_sc[5];          // total status codes on this thread: 1xx,2xx,3xx,4xx,5xx
+	uint64_t vtot_sc[HLD_HTTP_VER_MAX][5]; // by version total status codes
+	                                       // on this thread: 1xx,2xx,3xx,4xx,5xx
 	struct task *rate_task;      // task used when <arg_rate> is set
 	__attribute__((aligned(64))) union { } __pad;
 };
@@ -108,6 +110,7 @@ int all_usr_stop_asap; // all users must stop as soon as possible
 int usr_tid;
 int usr_cnt;           // user counter incremented by <mtask> main task
 int running_tasks;     // tasks counter for the users and for the conn rate
+unsigned int hld_ver_flags; // flags to identify the HTTP versions used
 
 char *hld_args[MAX_LINE_ARGS + 1];
 
@@ -570,15 +573,23 @@ void hld_summary(void)
 {
 	int th;
 	uint64_t cur_conn, tot_conn, tot_req, tot_err, tot_rcvd, bytes;
-	uint64_t tot_ttfb, tot_ttlb, tot_fbs, tot_lbs, tot_sc[5];
+	uint64_t tot_ttfb, tot_ttlb, tot_fbs, tot_lbs, tot_sc[5], vtot_sc[HLD_HTTP_VER_MAX][5];
 	static uint64_t prev_totc, prev_totr, prev_totb;
-	static uint64_t prev_ttfb, prev_ttlb, prev_fbs, prev_lbs, prev_sc[5];
+	static uint64_t prev_ttfb, prev_ttlb, prev_fbs, prev_lbs, prev_sc[5],
+	                prev_vsc[HLD_HTTP_VER_MAX][5];
 	static struct timeval prev_date = TV_UNSET;
 	double interval;
 
 	cur_conn = tot_conn = tot_req = tot_err = tot_rcvd = 0;
 	tot_ttfb = tot_ttlb = tot_fbs = tot_lbs = 0;
-	tot_sc[0] = tot_sc[1] = tot_sc[2] = tot_sc[3] = tot_sc[4] = 0;
+	if (arg_hscd)
+		tot_sc[0] = tot_sc[1] = tot_sc[2] = tot_sc[3] = tot_sc[4] = 0;
+	if (arg_hscd == 2) {
+		int v;
+
+		for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++)
+			vtot_sc[v][0] = vtot_sc[v][1] = vtot_sc[v][2] = vtot_sc[v][3] = vtot_sc[v][4] = 0;
+	}
 
 	for (th = 0; th < arg_thrd; th++) {
 		cur_conn += HA_ATOMIC_LOAD(&thrs_info[th].curconn);
@@ -590,11 +601,29 @@ void hld_summary(void)
 		tot_ttlb += HA_ATOMIC_LOAD(&thrs_info[th].tot_ttlb);
 		tot_fbs  += HA_ATOMIC_LOAD(&thrs_info[th].tot_fbs);
 		tot_lbs  += HA_ATOMIC_LOAD(&thrs_info[th].tot_lbs);
-		tot_sc[0]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[0]);
-		tot_sc[1]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[1]);
-		tot_sc[2]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[2]);
-		tot_sc[3]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[3]);
-		tot_sc[4]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[4]);
+		if (arg_hscd) {
+			tot_sc[0]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[0]);
+			tot_sc[1]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[1]);
+			tot_sc[2]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[2]);
+			tot_sc[3]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[3]);
+			tot_sc[4]+= HA_ATOMIC_LOAD(&thrs_info[th].tot_sc[4]);
+		}
+		if (arg_hscd == 2) {
+			int v;
+
+			for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++) {
+				if (!(hld_ver_flags & (1U << v)))
+				    continue;
+
+				vtot_sc[v][0]+= HA_ATOMIC_LOAD(&thrs_info[th].vtot_sc[v][0]);
+				vtot_sc[v][1]+= HA_ATOMIC_LOAD(&thrs_info[th].vtot_sc[v][1]);
+				vtot_sc[v][2]+= HA_ATOMIC_LOAD(&thrs_info[th].vtot_sc[v][2]);
+				vtot_sc[v][3]+= HA_ATOMIC_LOAD(&thrs_info[th].vtot_sc[v][3]);
+				vtot_sc[v][4]+= HA_ATOMIC_LOAD(&thrs_info[th].vtot_sc[v][4]);
+			}
+		}
+
+
 	}
 
 	if (tv_isset(&prev_date))
@@ -658,12 +687,28 @@ void hld_summary(void)
 
 	/* status codes distribution */
 	if (arg_hscd)
-		printf("%3llu %3llu %3llu %3llu %3llu ",
+		printf("%3llu %3llu %3llu %3llu %3llu",
 		       (unsigned long long)(tot_sc[0] - prev_sc[0]),
 		       (unsigned long long)(tot_sc[1] - prev_sc[1]),
 		       (unsigned long long)(tot_sc[2] - prev_sc[2]),
 		       (unsigned long long)(tot_sc[3] - prev_sc[3]),
 		       (unsigned long long)(tot_sc[4] - prev_sc[4]));
+	if (arg_hscd == 2) {
+		int v;
+
+		for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++) {
+			if (!(hld_ver_flags & (1U << v)))
+				continue;
+
+			printf("     %3llu %3llu %3llu %3llu %3llu",
+			       (unsigned long long)(vtot_sc[v][0] - prev_vsc[v][0]),
+			       (unsigned long long)(vtot_sc[v][1] - prev_vsc[v][1]),
+			       (unsigned long long)(vtot_sc[v][2] - prev_vsc[v][2]),
+			       (unsigned long long)(vtot_sc[v][3] - prev_vsc[v][3]),
+			       (unsigned long long)(vtot_sc[v][4] - prev_vsc[v][4]));
+		}
+
+	}
 
 	putchar('\n');
 	fflush(stdout);
@@ -675,11 +720,24 @@ void hld_summary(void)
 	prev_lbs  = tot_lbs;
 	prev_ttfb = tot_ttfb;
 	prev_ttlb = tot_ttlb;
-	prev_sc[0]= tot_sc[0];
-	prev_sc[1]= tot_sc[1];
-	prev_sc[2]= tot_sc[2];
-	prev_sc[3]= tot_sc[3];
-	prev_sc[4]= tot_sc[4];
+	if (arg_hscd) {
+		prev_sc[0]= tot_sc[0];
+		prev_sc[1]= tot_sc[1];
+		prev_sc[2]= tot_sc[2];
+		prev_sc[3]= tot_sc[3];
+		prev_sc[4]= tot_sc[4];
+	}
+	if (arg_hscd == 2) {
+		int v;
+
+		for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++) {
+			prev_vsc[v][0] = vtot_sc[v][0];
+			prev_vsc[v][1] = vtot_sc[v][1];
+			prev_vsc[v][2] = vtot_sc[v][2];
+			prev_vsc[v][3] = vtot_sc[v][3];
+			prev_vsc[v][4] = vtot_sc[v][4];
+		}
+	}
 	prev_date = hld_now;
 }
 
@@ -768,6 +826,17 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 				   "    err  cps  rps  bps   ttfb");
 		if (arg_hscd)
 			printf(" 1xx 2xx 3xx 4xx 5xx");
+		if (arg_hscd == 2) {
+			int i;
+
+			for (i = 0 ; i < 4; i++) {
+				if (!(hld_ver_flags & (1 << i)))
+					continue;
+				printf("   (h%d)1xx 2xx 3xx 4xx 5xx", i);
+			}
+		}
+
+
 		putchar('\n');
 	}
 
@@ -1011,7 +1080,11 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 			TRACE_PRINTF(TRACE_LEVEL_PROTO, HLD_STRM_EV_RX, hs, 0, 0, 0,
 			             "HTTP status: %d cur_read=%d",
 			             status, (int)cur_read);
-			thrs_info[tid].tot_sc[status * 41 / 4096 - 1]++;
+			if (arg_hscd)
+				thrs_info[tid].tot_sc[status * 41 / 4096 - 1]++;
+			if (arg_hscd == 2) {
+				thrs_info[tid].vtot_sc[hs->url->cfg->http_ver][status * 41 / 4096 - 1]++;
+			}
 			if (hs->url->tot_req > 1 || !arg_accu) {
 				ttfb = tv_us(tv_diff(&hs->req_date, &date));
 				thrs_info[tid].tot_fbs++;
@@ -1451,6 +1524,8 @@ static inline void hld_usr_release(struct hld_usr **usr)
 	task_destroy((*usr)->task);
 	session_free((*usr)->sess);
 	ha_free(usr);
+
+	TRACE_LEAVE(HLD_EV_USR_TASK);
 }
 
 static struct task *hld_usr_task(struct task *t, void *context, unsigned int state)
