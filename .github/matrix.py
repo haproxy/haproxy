@@ -283,6 +283,15 @@ def main(ref_name):
             if ssl == "BORINGSSL=yes" or "QUICTLS" in ssl or "LIBRESSL" in ssl or "WOLFSSL" in ssl or "AWS_LC" in ssl or openssl_supports_quic:
                 flags.append("USE_QUIC=1")
 
+            supports_ech = False
+            try:
+              supports_ech = "AWS_LC" in ssl or version.Version(ssl.split("OPENSSL_VERSION=",1)[1]) >= version.Version("4.0")
+            except:
+              pass
+
+            if supports_ech:
+                flags.append("USE_ECH=1")
+
             matrix.append(
                 {
                     "name": "{}, {}, ssl={}".format(os, CC, clean_ssl(ssl)),
