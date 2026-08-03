@@ -3432,6 +3432,16 @@ int srv_configure_auto_sni(struct server *srv, int *err_code, char **err)
 	return 0;
 }
 
+/* Insert <srv> server into <px> proxy name tree. Caller must ensure the name
+ * is unique prior to this.
+ */
+static void _srv_register_name(struct server *srv, struct proxy *px)
+{
+	struct server *node __maybe_unused;
+	node = cebuis_item_insert(&px->conf.used_server_name, conf.name_node, id, srv);
+	BUG_ON(srv != node);
+}
+
 /* Initialize as much as possible servers from <srv> server template.
  * Note that a server template is a special server with
  * a few different parameters than a server which has
@@ -3465,7 +3475,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		goto out;
 	}
 
-	cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, srv);
+	_srv_register_name(srv, curproxy);
 
 	/* then create other servers from this one */
 	for (i = srv->tmpl_info.nb_low + 1; i <= srv->tmpl_info.nb_high; i++) {
@@ -3507,7 +3517,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 			goto out;
 		}
 
-		cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, newsrv);
+		_srv_register_name(newsrv, curproxy);
 	}
 
  out:
@@ -4154,7 +4164,7 @@ int parse_server(const char *file, int linenum, char **args,
 			goto out;
 	}
 	else if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
-		cebis_item_insert(&curproxy->conf.used_server_name, conf.name_node, id, newsrv);
+		_srv_register_name(newsrv, curproxy);
 	}
 
 	/* If the server id is fixed, insert it in the proxy used_id tree.
@@ -4205,7 +4215,7 @@ struct server *server_find_by_name(struct proxy *px, const char *name)
 	if (!px)
 		return NULL;
 
-	return cebis_item_lookup(&px->conf.used_server_name, conf.name_node, id, name, struct server);
+	return cebuis_item_lookup(&px->conf.used_server_name, conf.name_node, id, name, struct server);
 }
 
 /*
@@ -5610,9 +5620,9 @@ static const char *srv_update_server_name(struct server *srv, const char *new_na
 	old_name = srv->id;
 
 	/* re-index in the name tree */
-	cebis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
+	cebuis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
 	srv->id = dup;
-	cebis_item_insert(&be->conf.used_server_name, conf.name_node, id, srv);
+	_srv_register_name(srv, be);
 
 	/* publish rename event with both old and new names */
 	{
@@ -6561,7 +6571,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	/* insert the server in the backend trees */
 	server_index_id(be, srv);
-	cebis_item_insert(&be->conf.used_server_name, conf.name_node, id, srv);
+	_srv_register_name(srv, be);
 	/* addr_key could be NULL if FQDN resolution is postponed (ie: add server from cli) */
 	if (srv->addr_key)
 		cebuis_item_insert(&be->used_server_addr, addr_node, addr_key, srv);
@@ -6791,7 +6801,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 	/* remove srv from addr_node tree */
 	ceb32_item_delete(&be->conf.used_server_id, conf.puid_node, puid, srv);
-	cebis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
+	cebuis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
 	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
 
 	/* remove srv from idle_node tree for idle conn cleanup */
