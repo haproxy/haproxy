@@ -1609,7 +1609,7 @@ int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *
 {
 	__label__ out_free, out_err;
 	char *s = NULL;
-	char *c;
+	const char *c;
 	int ret_val;
 
 	memset(mask, 0, sizeof(*mask));
@@ -1660,7 +1660,7 @@ int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *
 int str62net(const char *str, struct in6_addr *addr, unsigned char *mask)
 {
 	char *s = NULL;
-	char *c;
+	const char *c;
 	int ret_val = 0;
 	char *err;
 	unsigned long len = 128;
