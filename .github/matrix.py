@@ -238,7 +238,6 @@ def main(ref_name):
 
         ssl_versions = [
             "stock",
-            "OPENSSL_VERSION=1.0.2u",
             "OPENSSL_VERSION=1.1.1s",
             "OPENSSL_VERSION=3.5.1",
             "QUICTLS_VERSION=OpenSSL_1_1_1w-quic1",
