@@ -1608,32 +1608,33 @@ void len2mask6(int len, struct in6_addr *addr)
 int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *mask)
 {
 	__label__ out_free, out_err;
-	char *c, *s;
+	char *s = NULL;
+	char *c;
 	int ret_val;
-
-	s = strdup(str);
-	if (!s)
-		return 0;
 
 	memset(mask, 0, sizeof(*mask));
 	memset(addr, 0, sizeof(*addr));
 
-	if ((c = strrchr(s, '/')) != NULL) {
-		*c++ = '\0';
-		/* c points to the mask */
-		if (!str2mask(c, mask))
+	if ((c = strrchr(str, '/')) != NULL) {
+		/* we have a mask */
+		if (!str2mask(c + 1, mask))
+			goto out_err;
+
+		s = my_strndup(str, c - str);
+		if (!s)
 			goto out_err;
 	}
 	else {
 		mask->s_addr = ~0U;
 	}
-	if (!inet_pton(AF_INET, s, addr)) {
+
+	if (!inet_pton(AF_INET, s ? s : str, addr)) {
 		struct hostent *he;
 
 		if (!resolve)
 			goto out_err;
 
-		if ((he = gethostbyname(s)) == NULL) {
+		if ((he = gethostbyname(s ? s : str)) == NULL) {
 			goto out_err;
 		}
 		else
@@ -1658,30 +1659,28 @@ int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *
  */
 int str62net(const char *str, struct in6_addr *addr, unsigned char *mask)
 {
-	char *c, *s;
+	char *s = NULL;
+	char *c;
 	int ret_val = 0;
 	char *err;
 	unsigned long len = 128;
 
-	s = strdup(str);
-	if (!s)
-		return 0;
-
 	memset(mask, 0, sizeof(*mask));
 	memset(addr, 0, sizeof(*addr));
 
-	if ((c = strrchr(s, '/')) != NULL) {
-		*c++ = '\0'; /* c points to the mask */
-		if (!*c)
+	if ((c = strrchr(str, '/')) != NULL) {
+		len = strtoul(c + 1, &err, 10);
+		if (!c[1] || (err && *err) || (unsigned)len > 128)
 			goto out_free;
 
-		len = strtoul(c, &err, 10);
-		if ((err && *err) || (unsigned)len > 128)
+		s = my_strndup(str, c - str);
+		if (!s)
 			goto out_free;
 	}
+
 	*mask = len; /* OK we have a valid mask in <len> */
 
-	if (!inet_pton(AF_INET6, s, addr))
+	if (!inet_pton(AF_INET6, s ? s : str, addr))
 		goto out_free;
 
 	ret_val = 1;
