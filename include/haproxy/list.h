@@ -272,6 +272,12 @@ static __inline void watcher_init(struct watcher *w, void *pptr, size_t attach_o
 	w->off = attach_off;
 }
 
+/* Returns true if <w> is currently tracking a target else false. */
+static __inline int watcher_is_attached(const struct watcher *w)
+{
+	return MT_LIST_INLIST(&w->el);
+}
+
 /* Tracks <target> via <w> watcher. Invalid if <w> is already attached. */
 static __inline void watcher_attach(struct watcher *w, void *target)
 {
