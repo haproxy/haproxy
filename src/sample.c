@@ -3213,8 +3213,22 @@ found:
 static int sample_conv_param_check(struct arg *arg, struct sample_conv *conv,
                                    const char *file, int line, char **err)
 {
+	if (arg[1].type == ARGT_STR && arg[1].data.str.data == 4 &&
+	    strncmp(arg[1].data.str.area, "0x", 2) == 0) {
+		/* 0x can be decoded */
+		char *err = NULL;
+		int i = strtol(arg[1].data.str.area, &err, 0);
+
+		if (!err || !*err) {
+			arg[1].data.str.area[0] = i;
+			arg[1].data.str.data = 1;
+			return 1;
+		}
+		/* otherwise fall back to the error message */
+	}
+
 	if (arg[1].type == ARGT_STR && arg[1].data.str.data != 1) {
-		memprintf(err, "Delimiter must be exactly 1 character.");
+		memprintf(err, "Delimiter must be either exactly 1 character, or 0xHH for an ASCII code .");
 		return 0;
 	}
 

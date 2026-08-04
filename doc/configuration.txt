@@ -22587,7 +22587,12 @@ param(<name>[,<delim>])
   where parameters are delimited by <delim>, which defaults to "&", and the name
   and value of the parameter are separated by a "=". If there is no "=" and
   value before the end of the parameter segment, it is treated as equivalent to
-  a value of an empty string.
+  a value of an empty string. The delimiter must be either a single character,
+  or it can be the hexadecimal encoding of the delimiter's ASCII code in the
+  form "0xHH" (either upper or lower case). The hex form may sometimes be
+  needed to represent a NUL character or more generally control characters that
+  cannot be expressed in the configuration, and that can be found in request
+  bodies (see req.body).
 
   This can be useful for extracting parameters from a query string, or possibly
   a x-www-form-urlencoded body. In particular, `query,param(<name>)` can be used

@@ -24,7 +24,7 @@ haproxy h1 -conf {
 
 	### requests
 	http-request set-var(txn.query) query
-	http-response set-header Found %[var(txn.query),param(test)] if { var(txn.query),param(test) -m found }
+	http-response set-header Found %[var(txn.query),param(test)] if { var(txn.query),param(test,0x26) -m found }
 
 	default_backend be
 
