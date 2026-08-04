@@ -1766,7 +1766,9 @@ add backend <name> from <defproxy> [mode <mode>] [guid <guid>]
 
   All named default proxies can be used, given that they validate the same
   inheritance rules applied during configuration parsing. There is some
-  exceptions though, for example when the mode is neither TCP nor HTTP.
+  exceptions though, for example when the mode is neither TCP nor HTTP. The
+  available default proxy instances can be listed via the "show defaults"
+  additional command.
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
@@ -3070,6 +3072,11 @@ show default-server [<backend>]
   Dump the list of default-server instances still present in a backend after
   configuration parsing. These instances can be referenced via the server
   keyword from during "add server".
+
+show defaults
+  Dump the list of named defaults proxies instances still present after
+  configuration parsing. These instances can be reused with "add backend"
+  command to serve as configuration for the newly created proxy.
 
 show dev
   This command is meant to centralize some information that HAProxy developers

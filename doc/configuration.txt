@@ -4238,7 +4238,7 @@ tune.defaults.purge [<element[,...]>]
   Default-server instances are kept in memory after parsing as they may be
   reused for dynamic servers added at runtime. Similarly, named defaults
   proxies sections are preserved as dynamic backends rely on them. The command
-  "show default-server" may be used to list them.
+  "show default-server" and "show defaults" may be used to list them.
 
   This may consume a noticeable amount of memory if the number of default
   instances is important. It's possible to reclaim this memory after the
@@ -5939,7 +5939,8 @@ timeouts) but can quickly become confusing to follow.
 
 By default, named defaults sections are preserved after configuration parsing.
 This allows to reuse them for dynamic backends creation. This behavior can be
-changed globally via "tune.defaults.purge" keyword.
+changed globally via "tune.defaults.purge" keyword. It is possible to list the
+preserved instances via the command "show defaults".
 
 All proxy names must be formed from upper and lower case letters, digits,
 '-' (dash), '_' (underscore) , '.' (dot) and ':' (colon). ACL names are

@@ -59,6 +59,9 @@ haproxy h1 -cli {
 	send "add backend be2 from def mode http"
 	expect ~ "New backend registered."
 
+	send "show defaults"
+	expect ~ "def\ndef_http"
+
 	send "add backend be from def_http"
 	expect ~ "New backend registered."
 

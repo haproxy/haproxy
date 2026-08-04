@@ -92,7 +92,7 @@ unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then
 
 unsigned int dynpx_next_id = 0; /* lowest ID assigned to dynamic proxies */
 
-/* CLI context used during "show backend" and "show default-server" */
+/* CLI context used during "show backend" and "show default-server/defaults" */
 struct show_be_ctx {
 	struct proxy *px;
 	struct watcher px_watch; /* watcher to automatically update px pointer on backend deletion */
@@ -4493,6 +4493,34 @@ static int cli_io_handler_show_default_server(struct appctx *appctx)
 	return 1;
 }
 
+/* Handler for "show defaults" command. */
+static int cli_io_handler_show_defaults(struct appctx *appctx)
+{
+	struct show_be_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (!ctx->px) {
+		/* No need to use ctx <px_watch> as defaults proxies cannot be removed at runtime. */
+		ctx->px = !LIST_ISEMPTY(&defaults_list) ?
+		  LIST_ELEM(defaults_list.n, struct proxy *, el) : NULL;
+	}
+
+	while (ctx->px) {
+		chunk_reset(&trash);
+		chunk_appendf(&trash, "%s\n", ctx->px->id);
+
+		if (STRESS_RUN1(applet_putchk_stress(appctx, &trash) == -1,
+		                applet_putchk(appctx, &trash) == -1)) {
+			return 0;
+		}
+
+		if (ctx->px->el.n == &defaults_list)
+			break;
+		ctx->px = LIST_ELEM(ctx->px->el.n, struct proxy *, el);
+	}
+
+	return 1;
+}
+
 /* parse a "show servers [state|conn]" CLI line, returns 0 if it wants to start
  * the dump or 1 if it stops immediately. If an argument is specified, it will
  * reserve a show_srv_ctx context and set the proxy pointer into ->px, its ID
@@ -5523,6 +5551,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "publish", "backend",  NULL },                  "publish backend <backend>               : mark backend as ready for traffic",                              cli_parse_publish_backend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL },          "set maxconn frontend <frontend> <value> : change a frontend's maxconn setting",                            cli_parse_set_maxconn_frontend, NULL },
 	{ { "show", "default-server", NULL },               "show default-server [<backend>]         : list default-server instances in all or a single backend",       cli_parse_show_default_server, cli_io_handler_show_default_server, },
+	{ { "show", "defaults", NULL },                     "show defaults                           : list all proxies defaults sections",                             NULL, cli_io_handler_show_defaults },
 	{ { "show","servers", "conn",  NULL },              "show servers conn [<backend>]           : dump server connections status (all or for a single backend)",   cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show","servers", "state",  NULL },             "show servers state [<backend>]          : dump volatile server information (all or for a single backend)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL },                      "show backend                            : list backends in the current running config", NULL,              cli_io_handler_show_backend },
