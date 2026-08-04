@@ -4620,7 +4620,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 	}
 
 	for (; ctx->px; watcher_next(&ctx->px_watch, main_proxies_next(ctx->px))) {
-		curproxy = appctx->svcctx;
+		curproxy = ctx->px;
 
 		/* looking for non-internal backends only */
 		if ((curproxy->cap & (PR_CAP_BE|PR_CAP_INT)) != PR_CAP_BE)
