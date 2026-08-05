@@ -169,7 +169,7 @@ struct debug_count {
 
 /* report a bug on stderr */
 void complain(int *counter, const char *msg, int taint);
-void ha_backtrace_to_stderr(void);
+void ha_backtrace_to_stderr(int hint);
 
 /* Let's make DEBUG_STRESS equal to zero if not set or not valid, or to
  * 1 if set. This way it is always set and should be easy to use in "if ()"
@@ -279,17 +279,9 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 #endif
 
 #define __ABORT_NOW(file, line, ...) do {				\
-		extern ssize_t write(int, const void *, size_t);	\
-		extern size_t strlen(const char *s);			\
-		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", 1); \
-		ha_backtrace_to_stderr();				\
-		msg = "\n"						\
-		      "Hint: when reporting this bug to developers, please check if a core file was\n" \
-		      "      produced, open it with 'gdb', issue 'bt' to produce a backtrace for the\n" \
-		      "      current thread only, then join it with the bug report.\n"; \
-		DISGUISE(write(2, msg, strlen(msg)));			\
+		ha_backtrace_to_stderr(1);				\
 		abort_with_line(__LINE__);				\
 	} while (0)
 
@@ -405,7 +397,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
-			ha_backtrace_to_stderr();			\
+			ha_backtrace_to_stderr(0);			\
 	} while (0)
 
 /* This one is equivalent except that it only emits the message once by
@@ -433,7 +425,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
-			ha_backtrace_to_stderr();			\
+			ha_backtrace_to_stderr(0);			\
 	} while (0)
 
 

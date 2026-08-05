@@ -289,15 +289,25 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 	ha_sigmask(SIG_SETMASK, &old_mask, NULL);
 }
 
-/* dump a backtrace of current thread's stack to stderr. */
-void ha_backtrace_to_stderr(void)
+/* dump a backtrace of current thread's stack to stderr. Displays the hint about
+ * the core if hint & 1.
+ */
+void ha_backtrace_to_stderr(int hint)
 {
 	char area[8192];
 	struct buffer b = b_make(area, sizeof(area), 0, 0);
+	const char *msg;
 
 	ha_dump_backtrace(&b, "  ", 4);
 	if (b.data)
 		DISGUISE(write(2, b.area, b.data));
+	if (hint & 1) {
+		msg = "\n"
+		      "Hint: when reporting this bug to developers, please check if a core file was\n"
+		      "      produced, open it with 'gdb', issue 'bt' to produce a backtrace for the\n"
+		      "      current thread only, then join it with the bug report.\n";
+		DISGUISE(write(2, msg, strlen(msg)));
+	}
 }
 
 /* Dumps some known information about the current thread into its dump buffer,
