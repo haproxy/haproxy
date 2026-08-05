@@ -7409,10 +7409,13 @@ default-server [name <name>] [from <origin>] [param*]
   completing the previous one. This set of options can be reset by using the
   "from none" keyword value.
 
-  An unnamed default-server with no parameter set will automatically be purged
-  after parsing. As such, a final "default-server from none" statement will be
-  sufficient to release this unused memory, regardless of the global setting
-  "tune.defaults.purge" value.
+  By default, all default-server named and unnamed are preserved after
+  configuration parsing. This allows to reuse them for dynamic servers
+  creation. This behavior can be changed globally via "tune.defaults.purge"
+  keyword. An unnamed default-server with no parameter set will automatically
+  be purged after parsing. As such, a final "default-server from none"
+  statement will be sufficient to release this unused memory, regardless of the
+  global setting.
 
   See also: "server", section 5 about server options and global
     "tune.defaults.purge" option
