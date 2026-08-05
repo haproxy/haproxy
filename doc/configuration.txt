@@ -5936,6 +5936,10 @@ of defaults sections. This can be convenient to establish certain configuration
 profiles to carry groups of default settings (e.g. TCP vs HTTP or short vs long
 timeouts) but can quickly become confusing to follow.
 
+By default, named defaults sections are preserved after configuration parsing.
+This allows to reuse them for dynamic backends creation. This behavior can be
+changed globally via "tune.defaults.purge" keyword.
+
 All proxy names must be formed from upper and lower case letters, digits,
 '-' (dash), '_' (underscore) , '.' (dot) and ':' (colon). ACL names are
 case-sensitive, which means that "www" and "WWW" are two different proxies.
