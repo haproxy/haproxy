@@ -49,9 +49,15 @@ client c1 -connect ${h1_feS_sock} {
 } -run
 
 haproxy h1 -cli {
-	# non existent backend
-	send "add backend be from def"
+	# non existent defaults
+	send "add backend be from unknown"
+	expect ~ "Cannot find default proxy 'unknown'."
+
+	# defaults instance without mode set
+	send "add backend be2 from def"
 	expect ~ "Mode is required"
+	send "add backend be2 from def mode http"
+	expect ~ "New backend registered."
 
 	send "add backend be from def_http"
 	expect ~ "New backend registered."
