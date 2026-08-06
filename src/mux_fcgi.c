@@ -1328,7 +1328,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		/* Decode the path. it must first be copied to keep the URI
 		 * untouched.
 		 */
-		chunk_istcat(params->p, path);
+		if (!chunk_istcat(params->p, path))
+			goto error;
 		path.ptr = b_tail(params->p) - path.len;
 		len = url_decode(ist0(path), 0);
 		if (len < 0)
@@ -1380,10 +1381,15 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		 */
 		if (istlen(fconn->app->index) && params->scriptname.ptr[len-1] == '/') {
 			struct ist sn = params->scriptname;
+			char *ptr = b_tail(params->p);
 
-			params->scriptname = ist2(b_tail(params->p), len+fconn->app->index.len);
-			chunk_istcat(params->p, sn);
-			chunk_istcat(params->p, fconn->app->index);
+			/* both appends must succeed, otherwise scriptname would
+			 * advertise more bytes than what was really stored.
+			 */
+			if (!chunk_istcat(params->p, sn) ||
+			    !chunk_istcat(params->p, fconn->app->index))
+				goto error;
+			params->scriptname = ist2(ptr, len + fconn->app->index.len);
 		}
 	}
 
