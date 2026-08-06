@@ -405,6 +405,13 @@ static int decrypt_cek_aeskw(struct buffer *cek, struct buffer *decrypted_cek, s
 	EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
 #endif
 
+	/* <crypt_alg> comes from the token's JOSE header, so the attacker picks
+	 * the key size while the secret is operator-provided: refuse to run if
+	 * the secret is shorter than what the cipher will read.
+	 */
+	if (b_data(secret) < EVP_CIPHER_key_length(cipher))
+		goto end;
+
 	iv_size = EVP_CIPHER_iv_length(cipher);
 	iv = alloc_trash_chunk();
 	if (!iv)

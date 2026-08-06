@@ -335,6 +335,13 @@ int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, i
 	if (!ctx)
 		goto err;
 
+	/* The key size may be dictated by the input (e.g. the "alg" field of a
+	 * JWE token), so make sure the configured key is large enough for the
+	 * selected cipher, otherwise OpenSSL would read past its end.
+	 */
+	if (b_data(key) < key_size / 8)
+		goto err;
+
 	switch(key_size) {
 	case 128:
 		sample_conv_aes_init(decrypt, ctx, (gcm ? EVP_aes_128_gcm() : EVP_aes_128_cbc()),
