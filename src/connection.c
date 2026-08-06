@@ -2357,7 +2357,8 @@ static int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct
 	if (srv->pp_opts & SRV_PP_V2_CRC32C) {
 		uint32_t zero_crc32c = 0;
 
-		if ((buf_len - ret) < sizeof(struct tlv))
+		/* make sure the whole TLV fits, not just its header */
+		if ((buf_len - ret) < sizeof(struct tlv) + sizeof(zero_crc32c))
 			return 0;
 		tlv_crc32c_p = (void *)((struct tlv *)&buf[ret])->value;
 		ret += make_tlv(&buf[ret], (buf_len - ret), PP2_TYPE_CRC32C, sizeof(zero_crc32c), (const char *)&zero_crc32c);
