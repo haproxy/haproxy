@@ -4591,7 +4591,8 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		len = sz - l;
 	}
 
-	ret = _hlua_channel_insert(chn, L, ist2(str, len), offset);
+	/* <l> bytes were already sent by a previous pass, resume from there */
+	ret = _hlua_channel_insert(chn, L, ist2(str + l, len), offset);
 	if (ret == -1) {
 		lua_pop(L, 1);
 		lua_pushinteger(L, -1);
