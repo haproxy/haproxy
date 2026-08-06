@@ -3862,7 +3862,8 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 
 					ctx.value = ist2(val_beg, val_end - val_beg);
 				        ctx.lws_before = ctx.lws_after = 0;
-					http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen), 0);
+					if (!http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen), 0))
+						goto rewrite_err;
 					delta     = srv->cklen - (val_end - val_beg);
 					sliding   = (ctx.value.ptr - val_beg);
 					hdr_beg  += sliding;
@@ -3880,7 +3881,8 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 					int sliding, delta;
 					ctx.value = ist2(val_beg, 0);
 				        ctx.lws_before = ctx.lws_after = 0;
-					http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen + 1), 0);
+					if (!http_replace_header_value(htx, &ctx, ist2(srv->cookie, srv->cklen + 1), 0))
+						goto rewrite_err;
 					delta     = srv->cklen + 1;
 					sliding   = (ctx.value.ptr - val_beg);
 					hdr_beg  += sliding;
@@ -3899,6 +3901,13 @@ static void http_manage_server_side_cookies(struct stream *s, struct channel *re
 			 */
 		}
 	}
+	return;
+
+ rewrite_err:
+	if (s->be_tgcounters)
+		_HA_ATOMIC_INC(&s->be_tgcounters->failed_rewrites);
+	if (s->sess->fe_tgcounters)
+		_HA_ATOMIC_INC(&s->sess->fe_tgcounters->failed_rewrites);
 }
 
 /*
