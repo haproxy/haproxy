@@ -2456,7 +2456,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 {
 	struct buffer *dbuf;
 	struct buffer tag;
-	size_t ret;
+	size_t ret, i;
 
 	TRACE_ENTER(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm);
 	dbuf = &fconn->dbuf;
@@ -2476,6 +2476,11 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		goto fail;
 	fconn->drl -= ret;
 	TRACE_PROTO("FCGI STDERR record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm, 0, (size_t[]){ret});
+
+	for (i = 0; i < ret; i++) {
+		if (iscntrl((unsigned char)trash.area[i]))
+			trash.area[i] = '.';
+	}
 
 	trash.area[ret]   = '\n';
 	trash.area[ret+1] = '\0';
