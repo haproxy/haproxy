@@ -91,6 +91,36 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "", arg0);
 }
 
+/* Bounds the ring geometry read from a file's header to the real file's limits
+ * so that truncated files can stil be used in best effort mode.
+ */
+static void bound_ring_geometry(size_t mapsize, size_t ofs,
+                                size_t *size, size_t *head, size_t *tail)
+{
+	size_t avail = (ofs < mapsize) ? mapsize - ofs : 0;
+
+	if (*size > avail) {
+		fprintf(stderr, "Note: ring size (%llu) larger than the %llu bytes left in the "
+			"file, bounding it to the file (truncated dump?).\n",
+			(unsigned long long)*size, (unsigned long long)avail);
+		*size = avail;
+	}
+
+	if (*size && *head >= *size) {
+		fprintf(stderr, "Note: head (%llu) outside of the %llu bytes storage, "
+			"restarting from the beginning.\n",
+			(unsigned long long)*head, (unsigned long long)*size);
+		*head = 0;
+	}
+
+	if (tail && *tail > *size) {
+		fprintf(stderr, "Note: tail (%llu) outside of the %llu bytes storage, "
+			"bounding it to the end of the storage.\n",
+			(unsigned long long)*tail, (unsigned long long)*size);
+		*tail = *size;
+	}
+}
+
 /* dump a ring represented in a pre-initialized buffer, starting from offset
  * <ofs> and with flags <flags>
  */
@@ -100,8 +130,16 @@ int dump_ring_as_buf(struct buffer buf, size_t ofs, int flags)
 	size_t len, cnt;
 	const char *blk1 = NULL, *blk2 = NULL, *p;
 	size_t len1 = 0, len2 = 0, bl;
+	int truncated;
+
+	if (!buf.size) {
+		fprintf(stderr, "Note: no ring storage left in this file, nothing to dump.\n");
+		return 0;
+	}
 
 	while (1) {
+		truncated = 0;
+
 		if (ofs >= buf.size) {
 			fprintf(stderr, "FATAL error at %d\n", __LINE__);
 			return 1;
@@ -126,9 +164,21 @@ int dump_ring_as_buf(struct buffer buf, size_t ofs, int flags)
 				break;
 			cnt += len;
 
-			if (msg_len + ofs + cnt + 1 > buf.data) {
-				fprintf(stderr, "FATAL error at %d\n", __LINE__);
-				return 1;
+			if (msg_len > buf.data || ofs + cnt + 1 > buf.data - msg_len) {
+				/* gracefully handled truncated files in which messages
+				 * wrap beyond the file size.
+				 */
+				static int warned = 0;
+				if (ofs + cnt >= buf.data)
+					break;
+				msg_len = buf.data - (ofs + cnt);
+				if (!warned) {
+					fprintf(stderr, "Note: incomplete message at offset %llu, dumping "
+						"its first %llu byte(s) and stopping.\n",
+						(unsigned long long)ofs, (unsigned long long)msg_len);
+					warned;
+				}
+				truncated = 1;
 			}
 
 			len = b_getblk_nc(&buf, &blk1, &len1, &blk2, &len2, ofs + cnt, msg_len);
@@ -164,6 +214,9 @@ int dump_ring_as_buf(struct buffer buf, size_t ofs, int flags)
 			putchar('\n');
 
 			ofs += cnt + msg_len;
+
+			if (truncated)
+				break;
 		}
 
 		if (!(flags & RING_WF_WAIT_MODE))
@@ -178,8 +231,9 @@ int dump_ring_as_buf(struct buffer buf, size_t ofs, int flags)
 /* This function dumps all events from the ring <ring> from offset <ofs> and
  * with flags <flags>.
  */
-int dump_ring_v1(struct ring_v1 *ring, size_t ofs, int flags)
+int dump_ring_v1(struct ring_v1 *ring, size_t mapsize, size_t ofs, int flags)
 {
+	size_t size, head, data, area_ofs;
 	struct buffer buf;
 
 	/* Explanation: the storage area in the writing process starts after
@@ -191,9 +245,23 @@ int dump_ring_v1(struct ring_v1 *ring, size_t ofs, int flags)
 	 * descriptor matching that area.
 	 */
 
-	/* Now make our own buffer pointing to that area */
-	buf = b_make(((void *)ring + (((long)ring->buf.area) & 4095)),
-		     ring->buf.size, ring->buf.head, ring->buf.data);
+	/* Now make our own buffer pointing to that area, bounded to what the
+	 * file really holds.
+	 */
+	area_ofs = ((unsigned long)ring->buf.area) & 4095;
+	size     = ring->buf.size;
+	head     = ring->buf.head;
+	data     = ring->buf.data;
+
+	bound_ring_geometry(mapsize, area_ofs, &size, &head, NULL);
+	if (data > size) {
+		fprintf(stderr, "Note: data length (%llu) larger than the %llu bytes storage, "
+			"bounding it.\n",
+			(unsigned long long)data, (unsigned long long)size);
+		data = size;
+	}
+
+	buf = b_make((void *)ring + area_ofs, size, head, data);
 
 	return dump_ring_as_buf(buf, ofs, flags);
 }
@@ -201,7 +269,7 @@ int dump_ring_v1(struct ring_v1 *ring, size_t ofs, int flags)
 /* This function dumps all events from the ring <ring> from offset <ofs> and
  * with flags <flags>.
  */
-int dump_ring_v2(struct ring_v2 *ring, size_t ofs, int flags)
+int dump_ring_v2(struct ring_v2 *ring, size_t mapsize, size_t ofs, int flags)
 {
 	size_t size, head, tail, data;
 	struct buffer buf;
@@ -215,10 +283,14 @@ int dump_ring_v2(struct ring_v2 *ring, size_t ofs, int flags)
 	 * to dump.
 	 */
 
-	/* Now make our own buffer pointing to that area */
+	/* Now make our own buffer pointing to that area, bounded to what the
+	 * file really holds. <data> is derived from the indexes so it must only
+	 * be computed once these have been bounded.
+	 */
 	size = ring->size;
 	head = ring->head;
 	tail = ring->tail & ~RING_TAIL_LOCK;
+	bound_ring_geometry(mapsize, ring->rsvd, &size, &head, &tail);
 	data = (head <= tail ? 0 : size) + tail - head;
 	buf = b_make((void *)ring + ring->rsvd, size, head, data);
 	return dump_ring_as_buf(buf, ofs, flags);
@@ -227,7 +299,7 @@ int dump_ring_v2(struct ring_v2 *ring, size_t ofs, int flags)
 /* This function dumps all events from the ring <ring> from offset <ofs> and
  * with flags <flags>.
  */
-int dump_ring_v2a(struct ring_v2a *ring, size_t ofs, int flags)
+int dump_ring_v2a(struct ring_v2a *ring, size_t mapsize, size_t ofs, int flags)
 {
 	size_t size, head, tail, data;
 	struct buffer buf;
@@ -241,10 +313,14 @@ int dump_ring_v2a(struct ring_v2a *ring, size_t ofs, int flags)
 	 * to dump.
 	 */
 
-	/* Now make our own buffer pointing to that area */
+	/* Now make our own buffer pointing to that area, bounded to what the
+	 * file really holds. <data> is derived from the indexes so it must only
+	 * be computed once these have been bounded.
+	 */
 	size = ring->size;
 	head = ring->head;
 	tail = ring->tail & ~RING_TAIL_LOCK;
+	bound_ring_geometry(mapsize, ring->rsvd, &size, &head, &tail);
 	data = (head <= tail ? 0 : size) + tail - head;
 	buf = b_make((void *)ring + ring->rsvd, size, head, data);
 	return dump_ring_as_buf(buf, ofs, flags);
@@ -294,15 +370,17 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	/* Truncated files are handled as v1 */
 	if (((struct ring_v2 *)ring)->rsvd < 4096 && // not a pointer (v1), must be ringv2's rsvd
-	    ((struct ring_v2 *)ring)->rsvd + ((struct ring_v2 *)ring)->size == statbuf.st_size) {
+	    ((struct ring_v2 *)ring)->rsvd < statbuf.st_size &&
+	    ((struct ring_v2 *)ring)->rsvd + ((struct ring_v2 *)ring)->size >= statbuf.st_size) {
 		if (((struct ring_v2 *)ring)->rsvd < 192)
-			return dump_ring_v2(ring, 0, 0);
+			return dump_ring_v2(ring, statbuf.st_size, 0, 0);
 		else
-			return dump_ring_v2a(ring, 0, 0); // thread-aligned version
+			return dump_ring_v2a(ring, statbuf.st_size, 0, 0); // thread-aligned version
 	}
 	else
-		return dump_ring_v1(ring, 0, 0);
+		return dump_ring_v1(ring, statbuf.st_size, 0, 0);
 }
 
 
