@@ -407,6 +407,12 @@ int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, i
 	size = out->data;
 
 	if (decrypt && gcm) {
+		/* the tag length is provided by the caller, hence often by the
+		 * input itself; OpenSSL happily verifies tags as short as one
+		 * byte, so require the full length that the encrypt path emits.
+		 */
+		if (b_data(aead_tag) != 16)
+			goto err;
 		if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, b_data(aead_tag), b_orig(aead_tag)))
 			goto err;
 	}
