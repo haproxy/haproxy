@@ -4225,15 +4225,8 @@ tune.comp.maxlevel <number>
   Each stream using compression initializes the compression algorithm with
   this value. The default value is 1.
 
-tune.defaults.purge [<element[,...]>]
+tune.defaults.purge [{ all | none | <element[,...]> }]
   Define what default instances to purge after configuration parsing.
-
-  The elements to be purged are defined by a comma-delimited list of tokens.
-  The currently supported entries are :
-    - "proxies" to purge "defaults" sections
-    - "servers" to purge "default-server" instances
-
-  If the list is empty, only proxies "defaults" sections will be purged.
 
   Default-server instances are kept in memory after parsing as they may be
   reused for dynamic servers added at runtime. Similarly, named defaults
@@ -4248,8 +4241,22 @@ tune.defaults.purge [<element[,...]>]
   cannot be copied by their referencing proxies (e.g. TCP/HTTP rules or
   tcpcheck ruleset) will be preserved, regardless of the global purge setting.
 
+  Here are the values supported as argument :
+  - "all" to purge "defaults" sections and "default-server" instances
+  - "none" to keep these elements, which is also the default behavior when the
+    setting is absent
+
+  Alternatively, a comma-delimited list of tokens can be used for fine-grained
+  control. The currently supported entries are :
+    - "proxies" to purge "defaults" sections
+    - "servers" to purge "default-server" instances
+
+  If no argument is specified, only proxies "defaults" sections will be purged.
+
   Example:
       # reclaim the maximum memory possible
+      # both syntax are equivalent
+      tune.defaults.purge all
       tune.defaults.purge proxies,servers
 
       # purge proxies defaults sections

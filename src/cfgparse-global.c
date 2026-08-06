@@ -1435,20 +1435,35 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 	else if (strcmp(args[0], "tune.defaults.purge") == 0) {
 		if (args[1]) {
 			struct ist arg = ist(args[1]);
-			do {
-				struct ist token = istsplit(&arg, ',');
+			/* First check exclusive values "all" and "none". */
+			if (isteq(arg, ist("all"))) {
+				global.tune.options |= GTUNE_PURGE_DEFAULTS|GTUNE_PURGE_DEF_SRV;
+			}
+			else if (isteq(arg, ist("none"))) {
+				global.tune.options &= ~(GTUNE_PURGE_DEFAULTS|GTUNE_PURGE_DEF_SRV);
+			}
+			else {
+				/* Treat argument value as a comma separated list. */
+				do {
+					struct ist token = istsplit(&arg, ',');
 
-				if (isteq(token, ist("proxies"))) {
-					global.tune.options |= GTUNE_PURGE_DEFAULTS;
-				}
-				else if (isteq(token, ist("servers"))) {
-					global.tune.options |= GTUNE_PURGE_DEF_SRV;
-				}
-				else {
-					memprintf(err, "'%s' unknown directive '%s'.", args[0], ist0(token));
-					return -1;
-				}
-			} while (istlen(arg));
+					if (isteq(token, ist("proxies"))) {
+						global.tune.options |= GTUNE_PURGE_DEFAULTS;
+					}
+					else if (isteq(token, ist("servers"))) {
+						global.tune.options |= GTUNE_PURGE_DEF_SRV;
+					}
+					else if (isteq(token, ist("all")) ||
+					         isteq(token, ist("none"))) {
+						memprintf(err, "'%s' value '%s' is exclusive.", args[0], ist0(token));
+						return -1;
+					}
+					else {
+						memprintf(err, "'%s' unknown directive '%s'.", args[0], ist0(token));
+						return -1;
+					}
+				} while (istlen(arg));
+			}
 		}
 		else {
 			/* default value if no argument : purge defaults proxies. */
