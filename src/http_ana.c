@@ -2550,7 +2550,14 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 				if (ptr != NULL)
 					sep = ((ptr+1 != b_tail(chunk)) ? '&' : '\0');
 
+				/* On the response path the request may already have
+				 * been forwarded and its start line released, in
+				 * which case there is no query-string to preserve.
+				 */
 				sl = http_get_stline(htx);
+				if (!sl)
+					break;
+
 				parser = http_uri_parser_init(htx_sl_req_uri(sl));
 				path = http_parse_path(&parser);
 				ptr = istptr(path);
