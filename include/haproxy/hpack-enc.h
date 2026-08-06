@@ -202,10 +202,9 @@ static inline int hpack_encode_str_status(struct buffer *out, unsigned int statu
 /* Tries to encode a :method pseudo-header with the method in <meth>, which
  * also exists as a string in <str>, into the aligned buffer <out>. Returns
  * non-zero on success or 0 on failure (buffer full). The caller is responsible
- * for ensuring that the string matches <meth>, that it's smaller than 127
- * bytes, and that the buffer is aligned. If <meth> is unknown then using
- * HTTP_METH_OTHER will lead to the string being encoded as a literal. It's
- * inlined because it's easily optimizable.
+ * for ensuring that the string matches <meth> and that the buffer is aligned.
+ * If <meth> is unknown then using HTTP_METH_OTHER will lead to the string
+ * being encoded as a literal. It's inlined because it's easily optimizable.
  */
 static inline int hpack_encode_method(struct buffer *out, enum http_meth_t meth, struct ist str)
 {
@@ -213,18 +212,19 @@ static inline int hpack_encode_method(struct buffer *out, enum http_meth_t meth,
 		out->area[out->data++] = 0x82; // indexed field : idx[02]=(":method", "GET")
 	else if (out->data < out->size && meth == HTTP_METH_POST)
 		out->area[out->data++] = 0x83; // indexed field : idx[03]=(":method", "POST")
-	else
+	else if (str.len < 127)
 		return hpack_encode_short_idx(out, 2, str); // name=":method" (idx 2)
+	else
+		return hpack_encode_long_idx(out, 2, str); // name=":method" (idx 2)
 	return 1;
 }
 
 /* Tries to encode a :scheme pseudo-header with the scheme in <scheme>, into
  * the aligned buffer <out>. Returns non-zero on success or 0 on failure
  * (buffer full). Only "http" and "https" are recognized and handled as indexed
- * values, others are turned into short literals. The caller is responsible for
- * ensuring that the scheme is smaller than 127 bytes, and that the buffer is
- * aligned. Normally the compiler will detect constant strings in the comparison
- * if the code remains inlined.
+ * values, others are turned into literals. The caller is responsible for
+ * ensuring that the buffer is aligned. Normally the compiler will detect
+ * constant strings in the comparison if the code remains inlined.
  */
 static inline int hpack_encode_scheme(struct buffer *out, struct ist scheme)
 {
@@ -232,8 +232,10 @@ static inline int hpack_encode_scheme(struct buffer *out, struct ist scheme)
 		out->area[out->data++] = 0x87; // indexed field : idx[07]=(":scheme", "https")
 	else if (out->data < out->size && isteq(scheme, ist("http")))
 		out->area[out->data++] = 0x86; // indexed field : idx[06]=(":scheme", "http")
-	else
+	else if (scheme.len < 127)
 		return hpack_encode_short_idx(out, 6, scheme); // name=":scheme" (idx 6)
+	else
+		return hpack_encode_long_idx(out, 6, scheme); // name=":scheme" (idx 6)
 	return 1;
 }
 
