@@ -5047,6 +5047,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	int i;
 	__X509_NAME_CONST__ X509_NAME *cert_subject;
 	char *str;
+	int len;
 
 	if (ok == 0)
 		return ok;
@@ -5096,11 +5097,17 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 			GENERAL_NAME *name = sk_GENERAL_NAME_value(alt_names, i);
 			if (name->type == GEN_DNS) {
 #if HA_OPENSSL_VERSION_NUMBER < 0x00907000L
-				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.ia5) >= 0) {
+				if ((len = ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.ia5)) >= 0) {
 #else
-				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
+				if ((len = ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName)) >= 0) {
 #endif
-					ok = ssl_sock_srv_hostcheck(str, servername);
+					/* the hostname matcher works on a NUL
+					 * terminated string, so a name carrying
+					 * an embedded NUL must be rejected or it
+					 * would match its truncated form.
+					 */
+					if (strlen(str) == len)
+						ok = ssl_sock_srv_hostcheck(str, servername);
 					OPENSSL_free(str);
 				}
 			}
@@ -5114,8 +5121,10 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 		__X509_NAME_CONST__ X509_NAME_ENTRY *entry = X509_NAME_get_entry(cert_subject, i);
 		__X509_NAME_CONST__ ASN1_STRING *value;
 		value = X509_NAME_ENTRY_get_data(entry);
-		if (ASN1_STRING_to_UTF8((unsigned char **)&str, value) >= 0) {
-			ok = ssl_sock_srv_hostcheck(str, servername);
+		if ((len = ASN1_STRING_to_UTF8((unsigned char **)&str, value)) >= 0) {
+			/* see above about embedded NULs */
+			if (strlen(str) == len)
+				ok = ssl_sock_srv_hostcheck(str, servername);
 			OPENSSL_free(str);
 		}
 	}
