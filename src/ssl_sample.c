@@ -1275,6 +1275,86 @@ out:
 	return ret;
 }
 
+#ifdef HAVE_CERTIFICATEPOLICIES
+/* string, returns a comma separated list of the OIDs found in the
+ * "Certificate Policies" X509v3 extension of the certificate presented by
+ * the client. If the optional <oid> argument is given, instead of building
+ * the list, it only reports whether this specific policy OID is present,
+ * which allows the "found" match method to be used to take decisions based
+ * on it, eg: "http-request deny unless { ssl_c_policies(0.4.0.1862.1.4) -m found }"
+ * (id-etsi-qcp-legal-qscd, i.e. the certificate's private key is held in a
+ * QSCD).
+ */
+static int
+smp_fetch_ssl_c_policies(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	CERTIFICATEPOLICIES *policies;
+	X509 *crt = NULL;
+	int ret = 0;
+	int filter = (args[0].type == ARGT_STR && args[0].data.str.data > 0);
+	struct buffer *smp_trash;
+	struct connection *conn;
+	SSL *ssl;
+	int i;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	crt = ssl_sock_get_peer_certificate(ssl);
+	if (!crt)
+		goto out;
+
+	policies = X509_get_ext_d2i(crt, NID_certificate_policies, NULL, NULL);
+	if (!policies)
+		goto out;
+
+	smp_trash = get_trash_chunk();
+
+	for (i = 0; i < sk_POLICYINFO_num(policies); i++) {
+		POLICYINFO *policy = sk_POLICYINFO_value(policies, i);
+		char oid_str[128];
+		int len;
+
+		len = OBJ_obj2txt(oid_str, sizeof(oid_str), policy->policyid, 1);
+		if (len <= 0 || len >= sizeof(oid_str))
+			continue;
+
+		if (filter) {
+			if ((size_t)len != args[0].data.str.data ||
+			    memcmp(oid_str, args[0].data.str.area, len) != 0)
+				continue;
+			chunk_appendf(smp_trash, "%s", oid_str);
+			break;
+		}
+
+		if (smp_trash->data)
+			chunk_appendf(smp_trash, ", ");
+		chunk_appendf(smp_trash, "%s", oid_str);
+	}
+
+	sk_POLICYINFO_pop_free(policies, POLICYINFO_free);
+
+	if (smp_trash->data) {
+		smp->flags = SMP_F_VOL_SESS;
+		smp->data.type = SMP_T_STR;
+		smp->data.u.str = *smp_trash;
+		ret = 1;
+	}
+out:
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	if (crt)
+		X509_free(crt);
+	return ret;
+}
+#endif /* HAVE_CERTIFICATEPOLICIES */
+
 /* string, returns notbefore date in ASN1_UTCTIME format.
  * The 5th keyword char is used to know if SSL_get_certificate or SSL_get_peer_certificate
  * should be use.
@@ -2765,6 +2845,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_notbefore",        smp_fetch_ssl_x_notbefore,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#ifdef HAVE_CERTIFICATEPOLICIES
+	{ "ssl_c_policies",         smp_fetch_ssl_c_policies,     ARG1(0,STR),         NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#endif
 #ifdef HAVE_SSL_get0_verified_chain
 	{ "ssl_c_r_dn",             smp_fetch_ssl_r_dn,           ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif

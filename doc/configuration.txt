@@ -25978,6 +25978,7 @@ ssl_c_i_dn([<entry>[,<occ>[,<format>]]])           string
 ssl_c_key_alg                                      string
 ssl_c_notafter                                     string
 ssl_c_notbefore                                    string
+ssl_c_policies([<oid>])                            string
 ssl_c_r_dn([<entry>[,<occ>[,<format>]]])           string
 ssl_c_s_dn([<entry>[,<occ>[,<format>]]])           string
 ssl_c_san                                          string
@@ -26378,6 +26379,26 @@ ssl_c_notbefore : string
   Returns the start date presented by the client as a formatted string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
+
+ssl_c_policies([<oid>]) : string
+  When the incoming connection was made over an SSL/TLS transport layer, and
+  a client certificate was provided, returns a comma separated list of the
+  OIDs found in the "Certificate Policies" X509v3 extension of this
+  certificate.
+
+  If the optional <oid> argument is given, in its numeric dotted form (eg:
+  "0.4.0.1862.1.4"), the fetch does not build the list anymore and instead
+  only checks whether this specific policy OID is present among the
+  certificate's policies. In that case it only returns a sample when the OID
+  is found, which makes it convenient to use with the "found" match method to
+  take a decision based on the presence of a given certificate policy.
+
+  Note: not supported by wolfSSL.
+
+  Example:
+
+    acl qualified_qscd ssl_c_policies(0.4.0.1862.1.4) -m found
+    http-request deny unless qualified_qscd
 
 ssl_c_r_dn([<entry>[,<occ>[,<format>]]]) : string
   When the incoming connection was made over an SSL/TLS transport layer, and is

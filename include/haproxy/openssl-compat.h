@@ -154,6 +154,11 @@ enum ssl_encryption_level_t {
 #define HAVE_SSL_get0_verified_chain
 #endif
 
+/* wolfSSL does not provide the CERTIFICATEPOLICIES API */
+#if !defined(USE_OPENSSL_WOLFSSL)
+#define HAVE_CERTIFICATEPOLICIES
+#endif
+
 #if defined(SSL_OP_NO_ANTI_REPLAY) || defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 #define HAVE_SSL_0RTT
 #endif
