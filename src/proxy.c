@@ -4493,6 +4493,13 @@ static int cli_io_handler_show_default_server(struct appctx *appctx)
 	return 1;
 }
 
+/* release handler for "show default-server" */
+static void cli_io_release_show_default_server(struct appctx *appctx)
+{
+	struct show_be_ctx *ctx = appctx->svcctx;
+	watcher_detach(&ctx->px_watch);
+}
+
 /* Handler for "show defaults" command. */
 static int cli_io_handler_show_defaults(struct appctx *appctx)
 {
@@ -5573,7 +5580,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "enable", "frontend",  NULL },                  "enable frontend <frontend>              : re-enable specific frontend",                                    cli_parse_enable_frontend, NULL, NULL },
 	{ { "publish", "backend",  NULL },                  "publish backend <backend>               : mark backend as ready for traffic",                              cli_parse_publish_backend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL },          "set maxconn frontend <frontend> <value> : change a frontend's maxconn setting",                            cli_parse_set_maxconn_frontend, NULL },
-	{ { "show", "default-server", NULL },               "show default-server [<backend>]         : list default-server instances in all or a single backend",       cli_parse_show_default_server, cli_io_handler_show_default_server, },
+	{ { "show", "default-server", NULL },               "show default-server [<backend>]         : list default-server instances in all or a single backend",       cli_parse_show_default_server, cli_io_handler_show_default_server, cli_io_release_show_default_server, },
 	{ { "show", "defaults", NULL },                     "show defaults                           : list all proxies defaults sections",                             NULL, cli_io_handler_show_defaults },
 	{ { "show","servers", "conn",  NULL },              "show servers conn [<backend>]           : dump server connections status (all or for a single backend)",   cli_parse_show_servers, cli_io_handler_servers_state, cli_io_release_show_servers, },
 	{ { "show","servers", "state",  NULL },             "show servers state [<backend>]          : dump volatile server information (all or for a single backend)", cli_parse_show_servers, cli_io_handler_servers_state, cli_io_release_show_servers, },
