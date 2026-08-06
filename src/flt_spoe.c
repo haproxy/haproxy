@@ -589,6 +589,11 @@ static struct appctx *spoe_create_appctx(struct spoe_context *ctx)
  out_free_appctx:
 	appctx_free_on_early_error(appctx);
  out_free_spoe_appctx:
+	/* the context must not be left pointing to the applet we're about to
+	 * release, the caller still uses it on the error path.
+	 */
+	if (ctx->spoe_appctx == spoe_appctx)
+		ctx->spoe_appctx = NULL;
 	pool_free(pool_head_spoe_appctx, spoe_appctx);
  out_error:
 	send_log(&agent->fe, LOG_EMERG, "SPOE: [%s] failed to create SPOE applet\n", agent->id);
