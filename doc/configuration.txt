@@ -4788,6 +4788,9 @@ tune.listener.multi-queue { on | fair | off }
   using "off" for troubleshooting, or for situations where connections are
   short-lived and it is estimated that the operating system already provides a
   good enough distribution. The default is "on".
+  Please not that when tune.fd.tables is set to "per-thread-group",
+  connections will only be load-balanced across threads of a same thread
+  group.
 
 tune.lua.bool-sample-conversion { normal | pre-3.1-bug }
   Explicitly tell haproxy how haproxy sample objects should be handled when
