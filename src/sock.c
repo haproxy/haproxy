@@ -482,7 +482,7 @@ int sock_get_old_sockets(const char *unixsocket)
 	int fd_nb;
 	int got_fd = 0;
 	int cur_fd = 0;
-	size_t maxoff = 0, curoff = 0;
+	size_t maxoff = 0, curoff = 0, tmpbuf_sz;
 
 	if (strncmp("sockpair@", unixsocket, strlen("sockpair@")) == 0) {
 		/* sockpair for master-worker usage */
@@ -579,10 +579,22 @@ int sock_get_old_sockets(const char *unixsocket)
 
 	msghdr.msg_control = cmsgbuf;
 	msghdr.msg_controllen = CMSG_SPACE(sizeof(int)) * MAX_SEND_FD;
-	iov.iov_len = MAX_SEND_FD * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int));
+	tmpbuf_sz = (size_t)fd_nb * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int));
 
 	do {
 		int ret3;
+
+		/* never let the peer write more than what was allocated for the
+		 * announced number of FDs.
+		 */
+		iov.iov_len = MAX_SEND_FD * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int));
+		if (iov.iov_len > tmpbuf_sz - curoff)
+			iov.iov_len = tmpbuf_sz - curoff;
+
+		if (!iov.iov_len) {
+			ha_warning("Received more data than expected while receiving sockets\n");
+			goto out;
+		}
 
 		iov.iov_base = tmpbuf + curoff;
 
