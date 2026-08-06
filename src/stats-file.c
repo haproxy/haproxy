@@ -766,8 +766,8 @@ static void shm_stats_file_preload(void)
 
 		obj_tgid = HA_ATOMIC_LOAD(&curr_obj->tgid);
 
-		/* ignore object if greater than our max tgid */
-		if (obj_tgid <= global.nbtgroups &&
+		/* ignore object if tgid greater than our max tgid (or null) */
+		if (obj_tgid && obj_tgid <= global.nbtgroups &&
 		    (node = guid_lookup(curr_obj->guid))) {
 			switch (*node->obj_type) {
 				case OBJ_TYPE_LISTENER:
