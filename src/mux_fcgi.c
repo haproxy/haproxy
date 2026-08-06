@@ -1108,7 +1108,8 @@ static struct fcgi_strm *fcgi_stconn_new(struct fcgi_conn *fconn, struct stconn 
 
   out:
 	TRACE_DEVEL("leaving on error", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
-	fcgi_strm_destroy(fstrm);
+	if (fstrm)
+		fcgi_strm_destroy(fstrm);
 	return NULL;
 }
 
