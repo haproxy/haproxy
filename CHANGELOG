@@ -1,6 +1,165 @@
 ChangeLog :
 ===========
 
+2026/08/06 : 3.5-dev4
+    - CLEANUP: mux_quic: remove unused prototype
+    - BUG/MEDIUM: proxy: protect "show errors" against backend deletion
+    - MINOR: proxy: stress "show errors" handler
+    - BUG/MINOR: haload: fix use-after-free upon updating task expiration
+    - BUG/MINOR: haload: set default thread count to 1
+    - BUG/MINOR: haload: fix display glitches by flushing stdout in summary
+    - MINOR: haload: add rate limiting support using -R option
+    - MINOR: log: use curproxy during config parsing
+    - MINOR: config: define wrapper for proxies loop during check config
+    - MINOR: log: convert list to standard doubly linked one
+    - MINOR: sink: convert list to standard doubly linked one
+    - MINOR: proxy: centralize proxies_list insert during config parsing
+    - MINOR: proxy: define proxies_list iteration functions
+    - MAJOR: proxy: convert proxies_list to a doubly linked struct list
+    - OPTIM/MEDIUM: proxy: avoid main proxies list reordering on startup
+    - CLEANUP: proxy/config: clean up after proxies list conversion
+    - MINOR: proxy: rename proxies list to all_proxies
+    - BUG/MEDIUM: ssl: Spell HAVE_VANILLA_OPENSSL correctly
+    - BUG/MEDIUM: ssl: Handle non-application data record while splicing
+    - MEDIUM: ssl: Add a way to rate-limit TLSv1.3 KeyUpdate
+    - DOC: ssl: Document tune.ssl.keyupdate-rate-limit
+    - BUG/MEDIUM: ssl: Put CO_ER_SSL_KEYUPDATE at the right place
+    - BUILD: ssl: Do not use SSL3_MT_KEY_UPDATE, hardcode 24 instead
+    - MINOR: server: rename global servers_list to all_servers
+    - MINOR: server: do not return next server on srv_drop()
+    - MINOR: proxy: define server list iteration functions
+    - MAJOR: proxy: convert server list to a doubly linked struct list
+    - OPTIM/MEDIUM: proxy/server: avoid server list reordering on startup
+    - OPTIM: tools: keep a cache of recent localtime() and gmtime()
+    - DEBUG: fd: catch access attempts to closed FDs
+    - MINOR: halog: Add reusable function to extract the value of header captures
+    - CLEANUP: halog: Clean up naming for variables related to `-hdr` processing
+    - MINOR: halog: Add support filtering on header capture values using -hdr-match
+    - REORG: h1-htx: Move h1 headers map in h1-htx
+    - BUG/MEDIUM: mux-h1: Always adjust case for all outgoing headers as expected
+    - MINOR: mux-h1: Lower the case for Sec-Websocket-* headers when manually added
+    - MINOR: mux-h1: Use htx version to send default low-level errors
+    - BUG/MINOR: haload: fix CPU topology detection by omitting forced "nbthread"
+    - CLEANUP: haload: use <arg_thrd> instead of <global.nbthread> where applicable
+    - BUG/MINOR: http-htx: fix the length moved when removing a header value
+    - BUG/MEDIUM: http-fetch: don't parse a non-HTTP check buffer as an HTX message
+    - BUG/MEDIUM: http-fetch: reject a negative capture id in capture.{req,res}.hdr
+    - BUG/MINOR: http-fetch: fix a NULL channel dereference in smp_fetch_body()
+    - BUG/MINOR: http: fix an out-of-bounds read in http_get_host_port() on empty host
+    - BUG/MINOR: http-htx: check the trash allocation in http_scheme_based_normalize()
+    - BUG/MINOR: h1: report the right error position on authority/host mismatch
+    - BUG/MINOR: h2: don't use a block pointer to roll back a partial HTX conversion
+    - BUG/MINOR: h3: don't use a block pointer to roll back a partial HTX conversion
+    - BUG/MINOR: http-ana: fix a one-byte over-read in the client-side cookie parser
+    - CLEANUP: htx: remove the unreachable "append_data" label in htx_reserve_max_data()
+    - CLEANUP: flt-comp: remove a no-op http_remove_header() call
+    - BUG/MINOR: http-act: fix a double free of the regex on a rule parsing error
+    - BUG/MINOR: http-act: fix a double free of the map reference on a parsing error
+    - BUG/MINOR: http-act: restore the response buffer state in the early-hint action
+    - BUG/MINOR: http-act: work on a copy of the sample in del-headers-bin
+    - BUG/MINOR: http-act: reject a negative capture id in the capture actions
+    - CLEANUP: http-conv: index the captures array with hdr->index in the converters
+    - BUG/MINOR: http-htx: check the strdup() of the "lf-string" http reply argument
+    - BUG/MEDIUM: tools: make string encoding possible to fail instead of truncating
+    - CLEANUP: http-conv: Remove useless enc_type init to ENC_QUERY
+    - CLEANUP: http-conf: rename local trash variable
+    - BUG/MINOR: htx: Perform raw copy for messages of same size in htx_copy_msg()
+    - BUG/MINOR: htx: Transfer HTX_FL_EOM flag on success in htx_append_msg()
+    - BUG/MINOR: http-rules: fix release of a failed "set-cookie-fmt" redirect rule
+    - BUG/MINOR: slz: do not read past the end of the input around the match loop
+    - CLEANUP: slz: fix the documented worst case size of flush() and finish()
+    - BUG/MINOR: slz: use the exact switch cost for the last literals of a block
+    - BUG/MEDIUM: slz: bound the bits wasted by the 9-bit literals
+    - BUG/MINOR: slz: do not append a block to an already finished stream
+    - BUG/MINOR: slz: fix the adler32 accumulators signedness on 32-bit
+    - BUG/MINOR: slz: avoid undefined shifts when building the word byte by byte
+    - CLEANUP: slz: clarify that the size promise applies to the stream, not to a call
+    - BUG/MEDIUM: peers: check the available room before encoding dict values
+    - BUG/MEDIUM: sample: reject the deprecated protobuf group wire types
+    - BUG/MAJOR: ssl/ocsp: lock the OCSP response around reads in the stapling callback
+    - MINOR: server: improve parsing error for server-template
+    - BUG/MINOR: server: fix QUIC on server-template
+    - BUG/MINOR: server: duplicate server alt_proto in srv_settings_cpy()
+    - MINOR: server: ensure check-reuse-pool is init in srv_settings_init()
+    - BUG/MINOR: server: fix check reuse-pool in srv_settings_cpy()
+    - IMPORT: cebtree: private: fix the duplicate detection in the lookup shortcut
+    - BUG/MINOR: cli: use the current argument to parse the FD spec in "show fd"
+    - BUG/MINOR: cli: do not reject the "/<fd>" form of "show fd"
+    - CLEANUP: haload: embed rate_task into hld_thr_info structure
+    - CLEANUP: haload: factor out user scheduling into hld_usr_schedule()
+    - BUG/MINOR: haload: fix rate limit bypass during stream errors
+    - MEDIUM: fd: Remove fdinfo
+    - MEDIUM: fd: Make it possible to have one fdtab per thread-group
+    - MEDIUM: pollers: Allow one polled_mask per thread group
+    - MEDIUM: pollers: Create the poller pipes before we create the thread
+    - MEDIUM: listeners: Don't always balance connections across thread groups
+    - MEDIUM: backend: Do not always allow takeover across thread groups
+    - MEDIUM: listener: Properly handle unshared fd tables between tgroups
+    - MEDIUM: cli: Transfer sockets with unshared file descriptor tables
+    - MEDIUM: pollers: Only allow epoll when each tgroup has its fd table
+    - MEDIUM: pipes: Have one pool of free pipes per thread group
+    - MINOR: cli: Make "show fd" aware of per-thread-group FD tables
+    - MINOR: debug: Report the current tgid in "debug dev fd"
+    - MINOR: cli: Report the tgid along the FD in "show sess"
+    - MEDIUM: dns: Stick the TCP nameserver tasks to the resolvers' thread
+    - MEDIUM: server: Do not close other thread groups' connections at deinit
+    - MEDIUM: resolvers: Do not close another thread group's socket at deinit
+    - MEDIUM: quic: Do not use another thread group's listener FD
+    - MINOR: connection: Do not retrieve src/dst on another thread group's FD
+    - MEDIUM: fd: Add the tune.fd.tables option
+    - BUILD: listener: Fix the build on platforms without MSG_CMSG_CLOEXEC
+    - DOC: config: Document the tune.fd.tables option
+    - BUG/MINOR: ech: propagate error from load_echkeys()
+    - BUG/MINOR: ech: reject an ECH store with no usable private key
+    - BUG/MEDIUM: counters: preserve shared.tg pointer on 'clear counters all'
+    - MINOR: counters: add max-only reset helpers and use them for clear counters
+    - MINOR: server: add 'clear counters server <backend>/<server>' CLI command
+    - REGTESTS: stats: add test for 'clear counters server'
+    - DOC: management: document 'clear counters server'
+    - BUG/MEDIUM: filter: Disable auto-close on channel during TCP payload filtering
+    - CLEANUP: haload: drop unused flags field from struct hld_url
+    - BUG/MINOR: haload: fix stale global variables affecting URL allocations
+    - MINOR: haload: support HTTP status code by version
+    - DEV: patchbot: add an "O" filter to hide original lines without new notes
+    - DEV: patchbot: retrieve the shared state on page load, with a timeout
+    - DEV: patchbot: support passing the page settings in the URL fragment
+    - OPTIM: pattern: try literal IPv6 parsing before DNS resolution in pat_parse_ip
+    - OPTIM: tools/str2net: only duplicate the string when a slash is present
+    - BUILD: tools: fix C23 incompatible strrchr usage
+    - CLEANUP: server: remove wrong comments about server-template ID
+    - MINOR: errors: further improve parsing error for server-template
+    - BUG/MINOR: server: check strdup return value on server ID
+    - MINOR: server: do not ignore errors during server-template init
+    - BUG/MINOR: server: check strdup return on server-template ID generation
+    - MINOR: server: detect name conflict earlier during parsing
+    - MINOR: server: treat proxy server tree as without duplicate
+    - BUG/MINOR: ech: fix label at end of compound statement
+    - MINOR: ech: introduce an ech_store type and helpers in load_echkeys()
+    - MEDIUM: ech: implement a lighter ECH feature for AWS-LC
+    - CI: github: add USE_ECH=1 in OpenSSL and AWS-LC jobs
+    - DOC: stop supporting OpenSSL version < 1.1.1
+    - CI: github: remove OpenSSL 1.0.2 job
+    - BUG/MINOR: proxy: fix default-server leak on post-parsing cleanup
+    - MINOR: proxy: implement unpublished backend keyword
+    - MINOR: server: define _srv_parse_from() for server "from" keyword
+    - MINOR: server: implement "from none"
+    - MINOR: proxy: keep default-server unless empty setting
+    - MINOR: proxy: extend global tune.defaults.purge for default-server
+    - MEDIUM: server: implement from be:
+    - MINOR: server: set default-server id to NULL
+    - MEDIUM: proxy: implement named default-server
+    - MINOR: server: prevent name collision with a default-server
+    - MEDIUM: server: implement "from srv:"
+    - CLEANUP: xprt_quic: remove dead callbacks prepare_srv/destroy_srv
+    - MINOR: sample: make the param converter support control characters
+    - DOC: explain better that named defaults are preserved
+    - DOC: better explain that default-server are now preserved
+    - BUG/MINOR: proxy: fix "show backend"
+    - MINOR: list: define watcher_is_attached()
+    - MINOR: proxy: implement "show default-server"
+    - MINOR: proxy: complete "add backend" reg-test
+    - MINOR: proxy: implement "show defaults"
+
 2026/07/22 : 3.5-dev3
     - BUILD: haload: Increase a buffer size so that gcc will stop complaining
     - BUILD: task: Fix build when no 8B CAS is available at all
