@@ -328,6 +328,7 @@ int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, i
 	EVP_CIPHER_CTX *ctx = NULL;
 	int size;
 	int ret;
+	int outlen = 0;
 	size_t blksize;
 
 	ctx = EVP_CIPHER_CTX_new();
@@ -395,15 +396,16 @@ int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, i
 		goto err;
 
 	if (aad && b_data(aad)) {
-		if (!sample_conv_aes_update(decrypt, ctx, NULL, (int*)&out->data,
+		if (!sample_conv_aes_update(decrypt, ctx, NULL, &outlen,
 		                            (unsigned char*)b_orig(aad), (int)b_data(aad)))
 			goto err;
 	}
 
 	if (!sample_conv_aes_update(decrypt, ctx, (unsigned char*)b_orig(out),
-	                            (int*)&out->data, (unsigned char*)b_orig(data), (int)b_data(data)))
+	                            &outlen, (unsigned char*)b_orig(data), (int)b_data(data)))
 		goto err;
 
+	out->data = outlen;
 	size = out->data;
 
 	if (decrypt && gcm) {
@@ -418,11 +420,11 @@ int aes_process(struct buffer *data, struct buffer *nonce, struct buffer *key, i
 	}
 
 	ret = sample_conv_aes_final(decrypt, ctx, (unsigned char*)out->area + out->data,
-	                            (int *)&out->data);
+	                            &outlen);
 	if (ret <= 0)
 		goto err;
 
-	out->data += size;
+	out->data = (size_t)outlen + size;
 
 	if (!decrypt && gcm) {
 		if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, b_orig(aead_tag)))
