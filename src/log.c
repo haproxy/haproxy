@@ -2314,7 +2314,9 @@ static char *_lf_encode_bytes(char *start, char *stop,
 	}
 
 	if (start < stop) {
-		stop--; /* reserve one byte for the final '\0' */
+		stop--; /* reserve one byte for the final '\0' as encoding functions
+			 * will try to use all available space
+			 */
 
 		if ((ctx->options & LOG_OPT_ENCODE_CBOR) && !ctx->in_text) {
 			/* start indefinite-length cbor byte string or text */
@@ -2430,7 +2432,10 @@ static inline char *_lf_text_len(char *dst, const char *src,
 			 */
 			len = strnlen2(src, len);
 
-			ret = cbor_encode_text(&ctx->encode.cbor, dst, dst + size, src, len);
+			/* cbor_encode_text() doesn't append terminating NULL
+			 * byte, we must reserve 1 byte for that.
+			 */
+			ret = cbor_encode_text(&ctx->encode.cbor, dst, dst + size - 1, src, len);
 			if (ret == NULL)
 				return NULL;
 			len = ret - dst;
@@ -3546,7 +3551,7 @@ const char sess_set_cookie[] = "NPDIRU67";	/* No set-cookie, Set-cookie found an
 #define LOG_CBOR_BYTE(x) do {                                          \
 			ret = _lf_cbor_encode_byte(&ctx->encode.cbor,  \
 			                           tmplog,             \
-			                           dst + maxsize,      \
+			                           dst + maxsize - 1,  \
 			                           (x));               \
 			if (ret == NULL)                               \
 				goto out;                              \
@@ -3567,7 +3572,7 @@ const char sess_set_cookie[] = "NPDIRU67";	/* No set-cookie, Set-cookie found an
 				_x[0] = (x);                                   \
 				ret = cbor_encode_text(&ctx->encode.cbor,      \
 				                       tmplog,                 \
-				                       dst + maxsize,          \
+				                       dst + maxsize - 1,      \
 				                       _x, sizeof(_x));        \
 				if (ret == NULL)                               \
 					goto out;                              \
@@ -4139,7 +4144,7 @@ size_t sess_build_logline_orig(struct session *sess, struct stream *s,
 			}
 			else if (ctx->options & LOG_OPT_ENCODE_CBOR) {
 				ret = cbor_encode_text(&ctx->encode.cbor, tmplog,
-				                       dst + maxsize, tmp->name,
+				                       dst + maxsize - 1, tmp->name,
 				                       strlen(tmp->name));
 				if (ret == NULL)
 					goto out;
