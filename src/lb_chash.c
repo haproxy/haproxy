@@ -501,6 +501,7 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	struct server *srv, *avoided;
 	struct eb32_node *node, *stop, *avoided_node;
 	struct eb_root *root;
+	int wrapped = 0;
 
 	srv = avoided = NULL;
 	avoided_node = NULL;
@@ -525,8 +526,16 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
 		if (node)
 			node = eb32_next(node);
-		if (!node)
+		if (!node) {
+			/* Reaching the end of the tree twice means that <stop>
+			 * does not belong to <root> (e.g. active servers found
+			 * from .last when only backup usable). So let's count
+			 * wraps to avoid looping forever.
+			 */
+			if (wrapped++)
+				break;
 			node = eb32_first(root);
+		}
 
 		p->lbprm.chash.last = node;
 		if (!node) {
