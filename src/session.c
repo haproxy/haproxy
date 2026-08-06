@@ -398,6 +398,15 @@ int session_accept_fd(struct connection *cli_conn)
 	/* SESS_FL_RELEASE_LI must not be set here as listener_release() is
 	 * called manually for all errors.
 	 */
+	if (cli_conn->mux) {
+		/* This is a reverse connection; session_free() will destroy it
+		 * and release cli_conn as well, that's why we cannot factor
+		 * the session_free() call and exit early.
+		 */
+		session_free(sess);
+		goto out_release_listener;
+	}
+
 	session_free(sess);
 
  out_free_conn:
@@ -411,6 +420,7 @@ int session_accept_fd(struct connection *cli_conn)
 
 	/* Mux is already initialized for active reversed connection. */
 	conn_release(cli_conn);
+ out_release_listener:
 	listener_release(l);
 	return ret;
 }
