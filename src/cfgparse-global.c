@@ -1492,6 +1492,7 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 		}
 	}
 	else if (strcmp(args[0], "tune.takeover-other-tg-connections") == 0) {
+		ha_warning("parsing [%s:%d]: '%s' is deprecated and will be removed in version 3.7. Please use 'tune.idle-pool.shared\n", file, line, args[0]);
 		if (*(args[1]) == 0) {
 			memprintf(err, "'%s' expects 'none', 'restricted', or 'full'", args[0]);
 			return -1;
