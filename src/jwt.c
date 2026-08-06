@@ -421,9 +421,10 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 			store = ckchs_lookup(ctx->key);
 			if (store) {
 				if (store->conf.jwt) {
+					/* Note: X509_get_pubkey() already returns an
+					 * owned reference, don't take another one!
+					 */
 					pubkey = X509_get_pubkey(store->data->cert);
-					if (pubkey)
-						EVP_PKEY_up_ref(pubkey);
 				} else
 					retval = JWT_VRFY_UNAVAIL_CERT;
 			}
