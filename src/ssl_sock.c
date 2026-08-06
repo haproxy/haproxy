@@ -1816,9 +1816,15 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		 * reference right now. */
 		certs = X509_STORE_CTX_get1_chain(x_store);
 		if (certs) {
+			X509 *prev_crt = client_crt;
+
 			client_crt = sk_X509_value(certs, 0);
 			if (client_crt) {
 				X509_up_ref(client_crt);
+				/* release the reference possibly stored by a
+				 * previous call at another depth.
+				 */
+				X509_free(prev_crt);
 				SSL_set_ex_data(ssl, ssl_client_crt_ref_index, client_crt);
 			}
 			sk_X509_pop_free(certs, X509_free);
