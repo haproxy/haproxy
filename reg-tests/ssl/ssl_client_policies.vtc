@@ -1,0 +1,8 @@
+#REGTEST_TYPE=devel
+
+varnishtest "Test the ssl_c_policies sample fetch"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev4)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1) && !ssllib_name_startswith(wolfSSL)'"
+
+setenv VTC_SOCK_TYPE stream
+include ${testdir}/ssl_client_policies.vtci

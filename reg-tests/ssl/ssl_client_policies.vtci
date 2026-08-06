@@ -1,0 +1,67 @@
+#REGTEST_TYPE=devel
+
+varnishtest "Test the ssl_c_policies sample fetch"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev4)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1) && !ssllib_name_startswith(wolfSSL)'"
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        tune.ssl.capture-buffer-size 1
+        crt-base ${testdir}
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none crt ${testdir}/certs/client_policies.pem
+
+    listen ssl-lst
+        mode http
+
+        acl policy_present ssl_c_policies(0.4.0.1862.1.4) -m found
+        acl policy_absent  ssl_c_policies(1.2.3.4.5.6.7.8.9.99) -m found
+
+        http-response add-header x-ssl-policies %[ssl_c_policies]
+        http-response set-header x-ssl-policy-present yes if policy_present
+        http-response set-header x-ssl-policy-absent  yes if policy_absent
+
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca_policies.crt verify optional crt-ignore-err all
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-policies == "0.4.0.1862.1.4, 1.2.3.4.5.6.7.8.9.1"
+    expect resp.http.x-ssl-policy-present == "yes"
+    expect resp.http.x-ssl-policy-absent == "<undef>"
+} -run
