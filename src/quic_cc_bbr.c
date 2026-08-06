@@ -1470,7 +1470,8 @@ uint bbr_pacing_inter(const struct quic_cc *cc)
 	struct bbr *bbr = quic_cc_priv(cc);
 	struct quic_cc_path *p = container_of(cc, struct quic_cc_path, cc);
 
-	return p->mtu * 1000000000 / bbr->pacing_rate;
+	/* the rate may be truncated down to zero for very low bandwidths */
+	return p->mtu * 1000000000 / (bbr->pacing_rate ? bbr->pacing_rate : 1);
 }
 
 /* Return the pacing burst size in datagrams */
