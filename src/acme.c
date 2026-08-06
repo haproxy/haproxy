@@ -1272,8 +1272,8 @@ static void acme_del_challenge_map(const char *map, const char *challenge)
 {
 	struct pat_ref *ref;
 
-	/* when no map configured, return without error */
-	if (!map)
+	/* no map configured, or no challenge token was retrieved */
+	if (!map || !challenge)
 		return;
 
 	ref = pat_ref_lookup(map);
