@@ -505,8 +505,15 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 	uint bucket;
 	size_t len;
 
-	if (t->type == SMP_T_STR)
+	if (t->type == SMP_T_STR) {
 		len = key->key_len + 1 < t->key_size ? key->key_len : t->key_size - 1;
+		/* the stored key is NUL-terminated, so all the other bucket
+		 * computations stop at the first NUL. Do the same here or an
+		 * embedded NUL would yield two different buckets for a same
+		 * entry.
+		 */
+		len = strnlen2(key->key, len);
+	}
 	else
 		len = t->key_size;
 
@@ -780,8 +787,11 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 	if (!key)
 		return NULL;
 
-	if (table->type == SMP_T_STR)
+	if (table->type == SMP_T_STR) {
 		len = key->key_len + 1 < table->key_size ? key->key_len : table->key_size - 1;
+		/* see stktable_lookup_key() about the NUL truncation */
+		len = strnlen2(key->key, len);
+	}
 	else
 		len = table->key_size;
 
