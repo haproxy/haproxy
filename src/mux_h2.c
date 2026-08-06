@@ -7111,6 +7111,7 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 		 * from rfc 8441.
 		 */
 		struct ist scheme = { };
+		struct ist at;
 
 		if (uri.ptr[0] != '/' && uri.ptr[0] != '*') {
 			/* the URI seems to start with a scheme */
@@ -7130,6 +7131,11 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 					auth.len++;
 
 				uri = istadv(uri, auth.len);
+
+				/* RFC9113#8.3.1: :authority must not carry the deprecated userinfo */
+				at = istfind(auth, '@');
+				if (istlen(at))
+					auth = istadv(at, 1);
 			}
 		}
 
