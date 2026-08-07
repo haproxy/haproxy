@@ -335,6 +335,8 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		else							\
 			msg = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
 		complain(&__match_count_##line, msg, crash);		\
+		if (_HA_ATOMIC_LOAD(&__match_count_##line) > 1)		\
+			break;						\
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
