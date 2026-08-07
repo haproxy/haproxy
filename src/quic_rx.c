@@ -669,6 +669,7 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 	struct quic_cstream *cstream = qel->cstream;
 	struct ncbmbuf *ncbuf = &qel->cstream->rx.ncbuf;
 	uint64_t off_rel;
+	ncb_sz_t data;
 
 	TRACE_ENTER(QUIC_EV_CONN_PRSHPKT, qc);
 
@@ -718,8 +719,22 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 	                    crypto_frm->len, NCB_ADD_OVERWRT);
 	BUG_ON(ncb_ret != NCB_RET_OK);
 
+	data = ncbmb_data(ncbuf, 0);
 	/* Reschedule with TASK_HEAVY if CRYPTO data ready for decoding. */
-	if (ncbmb_data(ncbuf, 0)) {
+	if (data) {
+		/* Reject CRYPTO content in case of wrapping. This ensures
+		 * there is no read of out-of-bound read by the SSL stack in
+		 * ha_quic_ossl_crypto_recv_rcd()/qc_ssl_provide_all_quic_data().
+		 * TODO implement proper support for CRYPTO wrapping.
+		 */
+		if (ncbmb_head(ncbuf) + data >= ncbmb_wrap(ncbuf)) {
+			TRACE_ERROR("unsupported wrapping CRYPTO frames", QUIC_EV_CONN_PRSHPKT, qc);
+			COUNT_IF(1, "connection closed on unsupported wrapping CRYPTO content");
+			quic_set_connection_close(qc, quic_err_transport(QC_ERR_CRYPTO_BUFFER_EXCEEDED));
+			quic_free_ncbuf(ncbuf);
+			goto err;
+		}
+
 		HA_ATOMIC_OR(&qc->wait_event.tasklet->state, TASK_HEAVY);
 		tasklet_wakeup(qc->wait_event.tasklet);
 	}
