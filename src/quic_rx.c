@@ -2062,6 +2062,19 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				goto drop;
 			}
 
+			/* RFC 9000 17.2.5.2. Handling a Retry Packet
+			 *
+			 * A client MUST accept and process at most one Retry packet for each
+			 * connection attempt. After the client has received and processed an
+			 * Initial or Retry packet from the server, it MUST discard any
+			 * subsequent Retry packets that it receives.
+			 */
+			if (qc->retry_token) {
+				TRACE_PROTO("Drop duplicate Retry packet",
+				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+				goto drop_silent;
+			}
+
 			if (!quic_retry_packet_check(qc, pkt, beg, end, pos, &qc->retry_token_len))
 				/* TODO: should close the connection? */
 				goto drop;
