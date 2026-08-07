@@ -352,11 +352,8 @@ void _fd_delete_orphan(int fd)
 		 * to figure out what the port was.
 		 */
 		BUG_ON(getsockname(fd, (struct sockaddr *)&sa, &addrlen) != 0);
-		if (sa.ss_family == AF_INET)
-			port = ((struct sockaddr_in *)&sa)->sin_port;
-		else if (sa.ss_family == AF_INET6)
-			port = ((struct sockaddr_in6 *)&sa)->sin6_port;
-		else
+		port = get_host_port(&sa);
+		if (!port)
 			ABORT_NOW();
 		port_range_release_port(fdtab[fd].owner, port);
 	}
