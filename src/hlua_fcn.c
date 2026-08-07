@@ -3203,6 +3203,25 @@ int hlua_listable_patref_pairs_iterator(lua_State *L)
 	return _hlua_listable_patref_pairs_iterator(L, LUA_OK, 0);
 }
 
+/* ensure proper cleanup for listable_patref_pairs */
+int hlua_listable_patref_pairs_gc(lua_State *L)
+{
+	struct hlua_patref_iterator_context *ctx;
+
+	ctx = lua_touserdata(L, 1);
+
+	/* we need to make sure that bref is unlinked even if the
+	 * iterator was interrupted (ie: "break" from the loop), else the
+	 * patref iterator element may still be accessed while it is no
+	 * longer in memory scope (this can lead to invalid reads as well
+	 * as pat_ref_elt list corruption).
+	 */
+	HA_RWLOCK_WRLOCK(PATREF_LOCK, &ctx->ref->ptr->lock);
+	LIST_DEL_INIT(&ctx->bref.users);
+	HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ctx->ref->ptr->lock);
+	return 0;
+}
+
 /* init the iterator context, return iterator function
  * with context as closure. The only argument is a
  * patref list object.
@@ -3215,6 +3234,12 @@ int hlua_listable_patref_pairs(lua_State *L)
 	ref = hlua_checkudata(L, 1, class_patref_ref);
 
 	ctx = lua_newuserdata(L, sizeof(*ctx));
+
+	/* add gc metamethod to the newly created userdata */
+	lua_newtable(L);
+	hlua_class_function(L, "__gc", hlua_listable_patref_pairs_gc);
+	lua_setmetatable(L, -2);
+
 	ctx->ref = ref;
 	LIST_INIT(&ctx->bref.users);
 
