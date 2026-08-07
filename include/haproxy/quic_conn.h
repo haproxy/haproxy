@@ -50,6 +50,7 @@
 #include <haproxy/quic_rx.h>
 #include <haproxy/quic_tune.h>
 #include <haproxy/mux_quic.h>
+#include <haproxy/stress.h>
 
 #include <openssl/rand.h>
 
@@ -156,7 +157,8 @@ static inline struct ncbmbuf *quic_get_ncbuf(struct ncbmbuf *ncbuf)
 		return NULL;
 
 	*ncbuf = ncbmb_make(buf.area, buf.size, 0);
-	ncbmb_init(ncbuf, 0);
+	STRESS_RUN5(ncbmb_init(ncbuf, ncbmb_size(ncbuf) - 256),
+	            ncbmb_init(ncbuf, 0));
 
 	return ncbuf;
 }
