@@ -437,9 +437,9 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			msg ="\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n" __VA_ARGS__ "\n"; \
 		else							\
 			msg = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
-		complain(&__match_count_##line, msg, crash);		\
-		if (_HA_ATOMIC_LOAD(&__match_count_##line) > 1)		\
+		if (_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1))	\
 			break;						\
+		complain(NULL, msg, crash);				\
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
