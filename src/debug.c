@@ -1022,6 +1022,19 @@ int debug_parse_cli_check(char **args, char *payload, struct appctx *appctx, voi
 	return 1;
 }
 
+/* parse a "debug dev abort" command. It always returns 1.
+ * Note: we make sure not to make the function static so that it appears in the trace.
+ */
+int debug_parse_cli_abort(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	_HA_ATOMIC_INC(&debug_commands_issued);
+	ABORT_NOW("This was triggered on purpose from the CLI 'debug dev abort' command.");
+	return 1;
+}
+
 /* parse a "debug dev close" command. It always returns 1. */
 static int debug_parse_cli_close(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -3081,6 +3094,7 @@ static struct cli_kw_list cli_kws = {{ },{
 #if !defined(USE_OBSOLETE_LINKER)
 	{{ "debug", "counters", NULL },        "debug counters [?|all|bug|cnt|chk|glt]* : dump/reset rare event counters",          debug_parse_cli_counters, debug_iohandler_counters, NULL, NULL, 0 },
 #endif
+	{{ "debug", "dev", "abort", NULL },    "debug dev abort                         : call ABORT_NOW() and possibly crash",     debug_parse_cli_abort, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "bug", NULL },      "debug dev bug                           : call BUG_ON() and crash",                 debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "check", NULL },    "debug dev check                         : call CHECK_IF() and possibly crash",      debug_parse_cli_check, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "close", NULL },    "debug dev close  <fd> [hard]            : close this file descriptor",              debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
