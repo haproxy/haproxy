@@ -968,12 +968,16 @@ void ha_stuck_warning(void)
 /* Complain with message <msg> on stderr with a '\n' at the begin and at the
  * end. Depending on the fatality, and type of the event in <details>, a
  * different prefix will be appended. Then the event type may result in some
- * taining of the process to happen.
+ * taining of the process to happen. If the string contains an RS char (\x1e)
+ * then it's used as a delimiter: the main message stops there, and what
+ * follows is a new line that will be appended after another LF (normally it's
+ * used to give extra info to the user about the issue's location).
  */
 void complain(uint details, const char *msg)
 {
 	struct iovec iovec[10];
 	const char *pfx;
+	const char *rs;
 	int vec = 0;
 
 	iovec[vec].iov_base = "\n";
@@ -1008,9 +1012,25 @@ void complain(uint details, const char *msg)
 		vec++;
 	}
 
+	/* make rs point either to the RS or to \0 */
+	rs = strchr(msg, '\x1e');
+	if (!rs)
+		rs = msg + strlen(msg);
+
 	iovec[vec].iov_base = (char *)msg;
-	iovec[vec].iov_len  = strlen(msg);
+	iovec[vec].iov_len  = rs - msg;
 	vec++;
+
+	if (*rs) {
+		/* there's an extra string */
+		iovec[vec].iov_base = "\n";
+		iovec[vec].iov_len  = 1;
+		vec++;
+
+		iovec[vec].iov_base = (char *)rs + 1;
+		iovec[vec].iov_len  = strlen(rs + 1);
+		vec++;
+	}
 
 	iovec[vec].iov_base = "\n";
 	iovec[vec].iov_len  = 1;

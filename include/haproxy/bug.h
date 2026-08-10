@@ -412,7 +412,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #define __BUG_ON(cond, file, line, details, sfx, ...) do {		\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
-			msg = "\"" #cond "\" matched at " file ":" #line "" sfx "\n" __VA_ARGS__; \
+			msg = "\"" #cond "\" matched at " file ":" #line "" sfx "\x1e" __VA_ARGS__; \
 		else							\
 			msg = "\"" #cond "\" matched at " file ":" #line "" sfx; \
 		complain(details, msg);					\
@@ -438,7 +438,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		static int __match_count_##line;			\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
-			msg = "\"" #cond "\" matched at " file ":" #line "" sfx "\n" __VA_ARGS__; \
+			msg = "\"" #cond "\" matched at " file ":" #line "" sfx "\x1e" __VA_ARGS__; \
 		else							\
 			msg = "\"" #cond "\" matched at " file ":" #line "" sfx; \
 		if (_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1))	\
