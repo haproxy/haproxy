@@ -2699,13 +2699,21 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 					shctx_wrlock(shctx);
 					if (detached)
 						cache_row_reattach(cache, entry_block);
-					entry_block = block_ptr(sec_entry);
 					/* Same as for the primary entry above: retain
 					 * this one under the lock that detaches its
-					 * row.
+					 * row, and only if that row was not recycled
+					 * while we were looking the entry up. An
+					 * incomplete or stripped entry is a miss
+					 * anyway, it was just detected further down.
 					 */
-					retain_entry(sec_entry);
-					shctx_row_detach(shctx, entry_block);
+					if ((sec_entry->flags & CACHE_EF_COMPLETE) &&
+					    !(sec_entry->flags & CACHE_EF_STRIPPED)) {
+						entry_block = block_ptr(sec_entry);
+						retain_entry(sec_entry);
+						shctx_row_detach(shctx, entry_block);
+					}
+					else
+						sec_entry = NULL;
 					shctx_wrunlock(shctx);
 				}
 				res = sec_entry;
