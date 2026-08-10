@@ -322,7 +322,8 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 /* This macro adds a pass counter at the line where it's declared. It can be
  * used by the various BUG_ON, COUNT_IF etc flavors. The condition is only
  * passed for the sake of being turned into a string; the caller is expected
- * to have already verified it.
+ * to have already verified it. The descripton and optional comments are
+ * delimited by \x1e (record separator).
  */
 #define __DBG_COUNT(_cond, _file, _line, _type, ...) do {			\
 		static struct debug_count __dbg_cnt_##_line HA_SECTION("dbg_cnt") \
@@ -333,8 +334,8 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			.type = _type,						\
 			.desc = (sizeof("" #_cond) > 1) ?			\
 				  (sizeof("" __VA_ARGS__) > 1) ?		\
-				  "\"" #_cond "\" [" __VA_ARGS__ "]" :		\
-				  "\"" #_cond "\"" :				\
+				  "" #_cond "\x1e" __VA_ARGS__ :		\
+				  "" #_cond :					\
 				"" __VA_ARGS__,					\
 			.count = 0,						\
 		};								\

@@ -2567,6 +2567,7 @@ static int debug_iohandler_counters(struct appctx *appctx)
 	chunk_printf(&trash, "Count     Type Location function(): \"condition\" [comment]\n");
 	for (ptr = ctx->start; ptr != ctx->stop; ptr++) {
 		const char *p, *name;
+		const char *rs; /* record separator */
 
 		if (ctx->types && !(ctx->types & (1 << ptr->type)))
 			continue;
@@ -2579,11 +2580,21 @@ static int debug_iohandler_counters(struct appctx *appctx)
 				name = p + 1;
 		}
 
+		/* make rs point either to the RS or to \0 */
+		rs = strchr(ptr->desc, '\x1e');
+		if (!rs)
+			rs = ptr->desc + strlen(ptr->desc);
+
 		if (ptr->type < DBG_COUNTER_TYPES)
-			chunk_appendf(&trash, "%-10u %3s %s:%d %s()%s%s%s\n",
+			chunk_appendf(&trash,
+				      "%-10u %3s %s:%d %s()" // cnt, type, name, line, func
+				      "%s%.*s%s%s%s%s%s\n", // \" <desc> \", ...
 				      ptr->count, bug_type[ptr->type],
 				      name, ptr->line, ptr->func,
-				      *ptr->desc ? ": " : "", ptr->desc,
+				      *ptr->desc ? ": \"" : "",
+				      (uint)(rs - ptr->desc), ptr->desc, /* .*s: first part */
+				      *ptr->desc ? "\"" : "",
+				      *rs ? " [" : "", *rs ? rs + 1 : "", *rs ? "]" : "", /* opt comment */
 				      (ptr->type == DBG_COUNT_IF && !debug_enable_counters) ? " (stopped)" : "");
 
 		if (applet_putchk(appctx, &trash) == -1) {
@@ -2708,6 +2719,12 @@ static int init_debug()
 		for (ptr = &__start_dbg_cnt; ptr < &__stop_dbg_cnt; ptr++) {
 			for (p = ptr->desc; *p; p++) {
 				if (*p < 0x20 || *p >= 0x7f) {
+					/* \x1E (record separator) is used as the delimiter between
+					 * description and comments. It may only appear once and may
+					 * not appear at the end of the string.
+					 */
+					if (*p == '\x1e' && *(p + 1) && !strchr(p + 1, '\x1e'))
+						continue;
 					ha_warning("Invalid character 0x%02x at position %d in description string at %s:%d %s()\n",
 						   (uchar)*p, (int)(p - ptr->desc), ptr->file, ptr->line, ptr->func);
 					ret = ERR_WARN;
