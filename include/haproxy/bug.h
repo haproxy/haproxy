@@ -409,12 +409,18 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		1; /* let's return the true condition */			\
 	}) : 0)
 
+/* This is called by _BUG_ON() and _BUG_ON_ONCE() to handle the event. */
 #define __BUG_ON(cond, file, line, type, details, ...) do {		\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			msg = "\"" #cond "\" matched at " file ":" #line "\x1e" __VA_ARGS__; \
 		else							\
 			msg = "\"" #cond "\" matched at " file ":" #line; \
+		if (type == DBG_BUG_ONCE) {                             \
+			static int __match_count_##line;                \
+			if (_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1)) \
+				break;                                  \
+		}                                                       \
 		complain(details, msg);					\
 		if (details & DBG_DET_FAT_FATL)				\
 			ABORT_NOW();					\
@@ -430,26 +436,9 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #define _BUG_ON_ONCE(cond, file, line, details, ...)				\
 	(void)(unlikely(cond) ? ({						\
 		__DBG_COUNT(cond, file, line, DBG_BUG_ONCE, __VA_ARGS__); 	\
-		__BUG_ON_ONCE(cond, file, line, DBG_BUG_ONCE, details, __VA_ARGS__); \
+		__BUG_ON(cond, file, line, DBG_BUG_ONCE, details, __VA_ARGS__); \
 		1; /* let's return the true condition */			\
 	}) : 0)
-
-#define __BUG_ON_ONCE(cond, file, line, type, details, ...) do {	\
-		static int __match_count_##line;			\
-		const char *msg;					\
-		if (sizeof("" __VA_ARGS__) > 1)				\
-			msg = "\"" #cond "\" matched at " file ":" #line "\x1e" __VA_ARGS__; \
-		else							\
-			msg = "\"" #cond "\" matched at " file ":" #line; \
-		if (_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1))	\
-			break;						\
-		complain(details, msg);					\
-		if (details & DBG_DET_FAT_FATL)				\
-			ABORT_NOW();					\
-		else if (details & DBG_DET_FAT_WARN)			\
-			ha_backtrace_to_stderr(0);			\
-	} while (0)
-
 
 /* DEBUG_STRICT enables/disables runtime checks on condition <cond>
  * DEBUG_STRICT_ACTION indicates the level of verification on the rules when
