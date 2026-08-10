@@ -21,6 +21,7 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -964,13 +965,30 @@ void ha_stuck_warning(void)
 	DISGUISE(write(2, buf.area, buf.data));
 }
 
-/* Complain with message <msg> on stderr. <details> is only
- * checked on DBG_DET_TYP_BUG, and will taint the process either for a
- * bug or warn.
+/* Complain with message <msg> on stderr with a '\n' at the begin and at the
+ * end. Depending on the fatality, and type of the event in <details>, a
+ * different prefix will be appended. Then the event type may result in some
+ * taining of the process to happen.
  */
 void complain(uint details, const char *msg)
 {
-	DISGUISE(write(2, msg, strlen(msg)));
+	struct iovec iovec[10];
+	int vec = 0;
+
+	iovec[vec].iov_base = "\n";
+	iovec[vec].iov_len  = 1;
+	vec++;
+
+	iovec[vec].iov_base = (char *)msg;
+	iovec[vec].iov_len  = strlen(msg);
+	vec++;
+
+	iovec[vec].iov_base = "\n";
+	iovec[vec].iov_len  = 1;
+	vec++;
+
+	DISGUISE(writev(2, iovec, vec));
+
 	if (details & (DBG_DET_TYP_BUG|DBG_DET_TYP_ABT))
 		mark_tainted(TAINTED_BUG);
 	else if (details & DBG_DET_TYP_WRN)
