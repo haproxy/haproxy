@@ -27191,7 +27191,10 @@ req.ssl_alpn : string
   request buffer and not to the contents deciphered via an SSL data layer, so
   this will not work with "bind" lines having the "ssl" option. This is useful
   in ACL to make a routing decision based upon the ALPN preferences of a TLS
-  client, like in the example below. See also "ssl_fc_alpn".
+  client, like in the example below. See also "ssl_fc_alpn". This fetch only
+  analyzes the first ClientHello message found in the request buffer, see the
+  "req.ssl_sni" keyword documentation for more details about the implications
+  of this limitation (HelloRetryRequest, Renegotiation, Encrypted Client Hello).
 
   Examples :
      # Wait for a client hello for at most 5 seconds
@@ -27206,7 +27209,11 @@ req.ssl_cipherlist binary
   only applies to raw contents found in the request buffer and not to contents
   deciphered via an SSL data layer, so this will not work with "bind" lines
   having the "ssl" option. Refer to "ssl_fc_cipherlist_bin" which is the SSL
-  bind equivalent that can be used when the "ssl" option is specified.
+  bind equivalent that can be used when the "ssl" option is specified. This
+  fetch only analyzes the first ClientHello message found in the request
+  buffer, see the "req.ssl_sni" keyword documentation for more details about
+  the implications of this limitation (HelloRetryRequest, Renegotiation,
+  Encrypted Client Hello).
 
   Examples :
     # Wait for a client hello for at most 5 seconds
@@ -27222,7 +27229,10 @@ req.ssl_ec_ext : boolean
   certificate and to use RSA for all others, on the same IP address. Note that
   this only applies to raw contents found in the request buffer and not to
   contents deciphered via an SSL data layer, so this will not work with "bind"
-  lines having the "ssl" option.
+  lines having the "ssl" option. This fetch only analyzes the first
+  ClientHello message found in the request buffer, see the "req.ssl_sni"
+  keyword documentation for more details about the implications of this
+  limitation (HelloRetryRequest, Renegotiation, Encrypted Client Hello).
 
 req.ssl_hello_type : integer
 req_ssl_hello_type : integer (deprecated)
@@ -27232,7 +27242,11 @@ req_ssl_hello_type : integer (deprecated)
   contents found in the request buffer and not to contents deciphered via an
   SSL data layer, so this will not work with "bind" lines having the "ssl"
   option. This is mostly used in ACL to detect presence of an SSL hello message
-  that is supposed to contain an SSL session ID usable for stickiness.
+  that is supposed to contain an SSL session ID usable for stickiness. This
+  fetch only analyzes the first ClientHello message found in the request
+  buffer, see the "req.ssl_sni" keyword documentation for more details about
+  the implications of this limitation (HelloRetryRequest, Renegotiation,
+  Encrypted Client Hello).
 
 req.ssl_keyshare_groups binary
   Return the binary format of the list of cryptographic parameters for key exchange
@@ -27240,7 +27254,10 @@ req.ssl_keyshare_groups binary
   is part of the ClientHello message and is the final client hello extension. Note
   that this only applies to raw contents found in the request buffer and not to
   contents deciphered via an  SSL data layer, so this will not work with "bind"
-  lines having the "ssl" option.
+  lines having the "ssl" option. This fetch only analyzes the first ClientHello
+  message found in the request buffer, see the "req.ssl_sni" keyword
+  documentation for more details about the implications of this limitation
+  (HelloRetryRequest, Renegotiation, Encrypted Client Hello).
 
   Examples :
     # Wait for a client hello for at most 5 seconds
@@ -27256,7 +27273,10 @@ req.ssl_sigalgs binary
   buffer and not to contents deciphered via an SSL data layer, so this will not
   work with "bind" lines having the "ssl" option. Refer to "ssl_fc_sigalgs_bin"
   which is the SSL bind equivalent that can be used when the "ssl" option is
-  specified.
+  specified. This fetch only analyzes the first ClientHello message found in
+  the request buffer, see the "req.ssl_sni" keyword documentation for more
+  details about the implications of this limitation (HelloRetryRequest,
+  Renegotiation, Encrypted Client Hello).
 
   Examples :
     # Wait for a client hello for at most 5 seconds
@@ -27276,11 +27296,30 @@ req_ssl_sni : string (deprecated)
   implicit TLS based protocols like HTTPS (443), IMAPS (993), SMTPS (465),
   however it will not work for explicit TLS based protocols, like SMTP (25/587)
   or IMAP (143). SNI normally contains the name of the host the client tries to
-  connect to (for recent browsers). SNI is useful for allowing or denying access
-  to certain hosts when SSL/TLS is used by the client. This test was designed to
-  be used with TCP request content inspection. If content switching is needed,
-  it is recommended to first wait for a complete client hello (type 1), like in
-  the example below. See also "ssl_fc_sni".
+  connect to (for recent browsers). This test was designed to be used with TCP
+  request content inspection. If content switching is needed, it is
+  recommended to first wait for a complete client hello (type 1), like in the
+  example below. See also "ssl_fc_sni". Beware that, for the reasons detailed
+  below (HelloRetryRequest, Renegotiation, Encrypted Client Hello), the value
+  returned by this fetch is not reliable enough to be used alone for allowing
+  or denying access to certain hosts.
+
+  This fetch only parses the first ClientHello message found in the request
+  buffer. If the client sends several ClientHello messages within the same
+  TCP stream, for instance because the server requested a HelloRetryRequest
+  (HRR) as part of TLS 1.3, or because the client initiates a TLS
+  renegotiation (which sends a new ClientHello later in the same TCP stream,
+  possibly carrying a different SNI), only the SNI carried by that very first
+  ClientHello will be returned, the content of any subsequent ClientHello
+  will be ignored.
+
+  When Encrypted Client Hello (ECH) is used, the ClientHello seen on the wire
+  is only the "Outer" ClientHello, which embeds the real, encrypted "Inner"
+  ClientHello. The SNI extracted by this fetch in that case is the one from
+  the Outer ClientHello, which is a decoy SNI and not the actual host the
+  client intends to reach. This fetch is currently not able to decrypt nor
+  analyze the Inner ClientHello, so it must not be relied upon to make
+  routing or access control decisions when ECH is in use.
 
   ACL derivatives :
     req.ssl_sni : exact string match
@@ -27301,7 +27340,10 @@ req.ssl_st_ext : integer
   "bind" lines having the "ssl" option. This can for example be used to detect
   whether the client sent a SessionTicket or not and stick it accordingly, if
   no SessionTicket then stick on SessionID or don't stick as there's no server
-  side state is there when SessionTickets are in use.
+  side state is there when SessionTickets are in use. This fetch only analyzes
+  the first ClientHello message found in the request buffer, see the
+  "req.ssl_sni" keyword documentation for more details about the implications
+  of this limitation (HelloRetryRequest, Renegotiation, Encrypted Client Hello).
 
 req.ssl_supported_groups binary
   Returns the binary form of the list of supported groups supported by the client
@@ -27310,7 +27352,10 @@ req.ssl_supported_groups binary
   contents found in the request buffer and not to contents deciphered via an SSL
   data layer, so this will not  work with "bind" lines having the "ssl" option.
   Refer to "ssl_fc_eclist_bin" which is the SSL bind equivalent that can be used
-  when the "ssl" option is specified.
+  when the "ssl" option is specified. This fetch only analyzes the first
+  ClientHello message found in the request buffer, see the "req.ssl_sni"
+  keyword documentation for more details about the implications of this
+  limitation (HelloRetryRequest, Renegotiation, Encrypted Client Hello).
 
   Examples :
     # Wait for a client hello for at most 5 seconds
@@ -27329,7 +27374,10 @@ req_ssl_ver : integer (deprecated)
   buffer and not to contents deciphered via an SSL data layer, so this will not
   work with "bind" lines having the "ssl" option. The ACL version of the test
   matches against a decimal notation in the form MAJOR.MINOR (e.g. 3.1). This
-  fetch is mostly used in ACL.
+  fetch is mostly used in ACL. This fetch only analyzes the first ClientHello
+  message found in the request buffer, see the "req.ssl_sni" keyword
+  documentation for more details about the implications of this limitation
+  (HelloRetryRequest, Renegotiation, Encrypted Client Hello).
 
   ACL derivatives :
     req.ssl_ver : decimal match
