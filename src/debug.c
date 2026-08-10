@@ -973,11 +973,40 @@ void ha_stuck_warning(void)
 void complain(uint details, const char *msg)
 {
 	struct iovec iovec[10];
+	const char *pfx;
 	int vec = 0;
 
 	iovec[vec].iov_base = "\n";
 	iovec[vec].iov_len  = 1;
 	vec++;
+
+	pfx = NULL;
+	if (details & DBG_DET_TYP_ABT)
+		pfx = "ABORT at ";
+	else if (details & DBG_DET_FAT_FATL)
+		pfx = "FATAL: ";
+	else if (details & DBG_DET_FAT_WARN)
+		pfx = "WARNING: ";
+
+	if (pfx) {
+		iovec[vec].iov_base = (char *)pfx;
+		iovec[vec].iov_len  = strlen(pfx);
+		vec++;
+	}
+
+	pfx = NULL;
+	if (details & DBG_DET_TYP_BUG)
+		pfx = "bug condition ";
+	else if (details & DBG_DET_TYP_WRN)
+		pfx = "warn condition ";
+	else if (details & DBG_DET_TYP_CHK)
+		pfx = "check condition ";
+
+	if (pfx) {
+		iovec[vec].iov_base = (char *)pfx;
+		iovec[vec].iov_len  = strlen(pfx);
+		vec++;
+	}
 
 	iovec[vec].iov_base = (char *)msg;
 	iovec[vec].iov_len  = strlen(msg);
