@@ -2601,12 +2601,18 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		struct appctx *appctx;
 		int detached = 0;
 
-		retain_entry(res);
-
 		entry_block = block_ptr(res);
 		shctx_wrlock(shctx);
 		if (res->expire > date.tv_sec &&
 		    (res->flags & CACHE_EF_COMPLETE) && !(res->flags & CACHE_EF_STRIPPED)) {
+			/* Retaining the entry and detaching its row must happen
+			 * under the same shctx lock: until the row is detached it
+			 * is still in the avail list, and reserving a row does not
+			 * take the cache lock. A row recycled between the lookup
+			 * and this lock no longer has CACHE_EF_COMPLETE, cleared
+			 * by cache_free_blocks() under this same lock.
+			 */
+			retain_entry(res);
 			shctx_row_detach(shctx, entry_block);
 			detached = 1;
 		} else {
@@ -2649,7 +2655,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 						cache_strip_entry(shctx, res, hint_buf);
 				}
 			}
-			release_entry(cache_tree, res, 0);
+			/* Nothing was retained on this path. */
 			res = NULL;
 		}
 		shctx_wrunlock(shctx);
@@ -2690,11 +2696,15 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 				else if (sec_entry != res) {
 					/* The wrong row was added to the hot list. */
 					release_entry(cache_tree, res, 0);
-					retain_entry(sec_entry);
 					shctx_wrlock(shctx);
 					if (detached)
 						cache_row_reattach(cache, entry_block);
 					entry_block = block_ptr(sec_entry);
+					/* Same as for the primary entry above: retain
+					 * this one under the lock that detaches its
+					 * row.
+					 */
+					retain_entry(sec_entry);
 					shctx_row_detach(shctx, entry_block);
 					shctx_wrunlock(shctx);
 				}
