@@ -417,7 +417,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		complain(NULL, msg, details);				\
 		if (details & DBG_DET_FAT_FATL)				\
 			ABORT_NOW();					\
-		else							\
+		else if (details & DBG_DET_FAT_WARN)			\
 			ha_backtrace_to_stderr(0);			\
 	} while (0)
 
@@ -445,7 +445,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		complain(NULL, msg, details);				\
 		if (details & DBG_DET_FAT_FATL)				\
 			ABORT_NOW();					\
-		else							\
+		else if (details & DBG_DET_FAT_WARN)			\
 			ha_backtrace_to_stderr(0);			\
 	} while (0)
 

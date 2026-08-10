@@ -977,7 +977,7 @@ void complain(int *counter, const char *msg, uint details)
 	DISGUISE(write(2, msg, strlen(msg)));
 	if (details & (DBG_DET_TYP_BUG|DBG_DET_TYP_ABT))
 		mark_tainted(TAINTED_BUG);
-	else
+	else if (details & DBG_DET_TYP_WRN)
 		mark_tainted(TAINTED_WARN);
 }
 
