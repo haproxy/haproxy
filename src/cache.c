@@ -2678,27 +2678,27 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		 * to find the actual entry we want (if it exists). */
 		if (res && res->secondary_key_signature) {
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
+				struct cache_entry *to_release = NULL;
+				struct shared_block *to_reattach = NULL;
+
 				cache_rdlock(cache_tree);
 				sec_entry = get_secondary_entry(cache_tree, res,
 				                                s->txn.http->cache_hash,
 				                                s->txn.http->cache_secondary_hash,
 				                                0);
 				if (!sec_entry) {
-					/* Secondary key miss: release the retained primary entry
-					 * and reattach the detached row before returning.
+					/* Secondary key miss: the retained primary entry
+					 * has to be released and its row handed back, but
+					 * not from here, see below.
 					 */
-					release_entry(cache_tree, res, 0);
-					shctx_wrlock(shctx);
-					if (detached)
-						cache_row_reattach(cache, entry_block);
-					shctx_wrunlock(shctx);
+					to_release = res;
+					to_reattach = detached ? block_ptr(res) : NULL;
 				}
 				else if (sec_entry != res) {
 					/* The wrong row was added to the hot list. */
-					release_entry(cache_tree, res, 0);
+					to_release = res;
+					to_reattach = detached ? block_ptr(res) : NULL;
 					shctx_wrlock(shctx);
-					if (detached)
-						cache_row_reattach(cache, entry_block);
 					/* Same as for the primary entry above: retain
 					 * this one under the lock that detaches its
 					 * row, and only if that row was not recycled
@@ -2718,6 +2718,29 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 				}
 				res = sec_entry;
 				cache_rdunlock(cache_tree);
+
+				/* release_entry() with needs_locking = 0 means the
+				 * caller already holds the cache write lock, because
+				 * dropping the last reference removes the entry from
+				 * the tree. Called under the read lock as it used to
+				 * be, it let a removal run while other threads walked
+				 * the same tree. Do it here instead, out of the
+				 * read-locked section.
+				 *
+				 * The row is handed back only after the reference has
+				 * been dropped: a row that returns to the avail list
+				 * while a reference is still held on its entry can be
+				 * recycled by another thread, and the release would
+				 * then touch blocks that hold a response body.
+				 */
+				if (to_release) {
+					release_entry(cache_tree, to_release, 1);
+					if (to_reattach) {
+						shctx_wrlock(shctx);
+						cache_row_reattach(cache, to_reattach);
+						shctx_wrunlock(shctx);
+					}
+				}
 			}
 			else {
 				release_entry(cache_tree, res, 1);
