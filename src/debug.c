@@ -966,15 +966,16 @@ void ha_stuck_warning(void)
 
 /* Complain with message <msg> on stderr. If <counter> is not NULL, it is
  * atomically incremented, and the message is only printed when the counter
- * was zero, so that the message is only printed once. <taint> is only checked
- * on bit 1, and will taint the process either for a bug (2) or warn (0).
+ * was zero, so that the message is only printed once. <details> is only
+ * checked on DBG_DET_TYP_BUG, and will taint the process either for a
+ * bug or warn.
  */
-void complain(int *counter, const char *msg, int taint)
+void complain(int *counter, const char *msg, uint details)
 {
 	if (counter && _HA_ATOMIC_FETCH_ADD(counter, 1))
 		return;
 	DISGUISE(write(2, msg, strlen(msg)));
-	if (taint & 2)
+	if (details & (DBG_DET_TYP_BUG|DBG_DET_TYP_ABT))
 		mark_tainted(TAINTED_BUG);
 	else
 		mark_tainted(TAINTED_WARN);
