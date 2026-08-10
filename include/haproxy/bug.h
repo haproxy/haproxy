@@ -168,7 +168,7 @@ struct debug_count {
 #endif
 
 /* report a bug on stderr */
-void complain(int *counter, const char *msg, uint details);
+void complain(uint details, const char *msg);
 void ha_backtrace_to_stderr(int hint);
 
 /* Let's make DEBUG_STRESS equal to zero if not set or not valid, or to
@@ -301,7 +301,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 
 #define __ABORT_NOW(file, line, ...) do {				\
 		if (sizeof("" __VA_ARGS__) > 1)				\
-			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", DBG_FATL_ABT); \
+			complain(DBG_FATL_ABT, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n"); \
 		ha_backtrace_to_stderr(1);				\
 		abort_with_line(__LINE__);				\
 	} while (0)
@@ -414,7 +414,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			msg ="\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n" __VA_ARGS__ "\n"; \
 		else							\
 			msg = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
-		complain(NULL, msg, details);				\
+		complain(details, msg);					\
 		if (details & DBG_DET_FAT_FATL)				\
 			ABORT_NOW();					\
 		else if (details & DBG_DET_FAT_WARN)			\
@@ -442,7 +442,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			msg = "\n" pfx "condition \"" #cond "\" matched at " file ":" #line "" sfx "\n"; \
 		if (_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1))	\
 			break;						\
-		complain(NULL, msg, details);				\
+		complain(details, msg);					\
 		if (details & DBG_DET_FAT_FATL)				\
 			ABORT_NOW();					\
 		else if (details & DBG_DET_FAT_WARN)			\
