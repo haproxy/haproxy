@@ -967,9 +967,9 @@ void ha_stuck_warning(void)
 
 /* Complain with message <msg> on stderr with a '\n' at the begin and at the
  * end. Depending on the fatality, and type of the event in <details>, a
- * different prefix will be appended. Then the event type may result in some
- * taining of the process to happen. If the string contains an RS char (\x1e)
- * then it's used as a delimiter: the main message stops there, and what
+ * different prefix and suffix will be appended. Then the event type may result
+ * in some taining of the process to happen. If the string contains an RS char
+ * (\x1e) then it's used as a delimiter: the main message stops there, and what
  * follows is a new line that will be appended after another LF (normally it's
  * used to give extra info to the user about the issue's location).
  */
@@ -1020,6 +1020,18 @@ void complain(uint details, const char *msg)
 	iovec[vec].iov_base = (char *)msg;
 	iovec[vec].iov_len  = rs - msg;
 	vec++;
+
+	/* suffixes may be printed for warning-level */
+	if (details & DBG_DET_FAT_WARN) {
+		pfx = NULL;
+		if (details & DBG_DET_TYP_BUG)
+			pfx = " (not crashing but process is untrusted now, please report to developers)";
+		else
+			pfx = " (please report to developers)";
+		iovec[vec].iov_base = (char *)pfx;
+		iovec[vec].iov_len  = strlen(pfx);
+		vec++;
+	}
 
 	if (*rs) {
 		/* there's an extra string */

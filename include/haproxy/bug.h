@@ -393,7 +393,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #define COUNT_GLITCH(...) _COUNT_GLITCH(__FILE__, __LINE__, __VA_ARGS__)
 
 /* This is the generic low-level macro dealing with conditional warnings and
- * bugs. The caller decides whether to crash or not and what suffix to pass.
+ * bugs. The caller decides whether to crash or not.
  * The macro returns the boolean value of the condition as an int for the case
  * where it wouldn't die. The <details> flag is made of:
  *  - details & DBG_DET_FAT_FATL: crash yes/no;
@@ -402,19 +402,19 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
  * on a second line after the condition message, to give a bit more context
  * about the problem.
  */
-#define _BUG_ON(cond, file, line, details, sfx, ...)				\
+#define _BUG_ON(cond, file, line, details, ...)					\
 	(void)(unlikely(cond) ? ({						\
 		__DBG_COUNT(cond, file, line, DBG_BUG, __VA_ARGS__); 		\
-		__BUG_ON(cond, file, line, details, sfx, __VA_ARGS__);		\
+		__BUG_ON(cond, file, line, details, __VA_ARGS__);		\
 		1; /* let's return the true condition */			\
 	}) : 0)
 
-#define __BUG_ON(cond, file, line, details, sfx, ...) do {		\
+#define __BUG_ON(cond, file, line, details, ...) do {			\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
-			msg = "\"" #cond "\" matched at " file ":" #line "" sfx "\x1e" __VA_ARGS__; \
+			msg = "\"" #cond "\" matched at " file ":" #line "\x1e" __VA_ARGS__; \
 		else							\
-			msg = "\"" #cond "\" matched at " file ":" #line "" sfx; \
+			msg = "\"" #cond "\" matched at " file ":" #line; \
 		complain(details, msg);					\
 		if (details & DBG_DET_FAT_FATL)				\
 			ABORT_NOW();					\
@@ -427,20 +427,20 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
  * certain unexpected conditions in field. Later on, in cores it will be
  * possible to verify these counters.
  */
-#define _BUG_ON_ONCE(cond, file, line, details, sfx, ...)			\
+#define _BUG_ON_ONCE(cond, file, line, details, ...)				\
 	(void)(unlikely(cond) ? ({						\
 		__DBG_COUNT(cond, file, line, DBG_BUG_ONCE, __VA_ARGS__); 	\
-		__BUG_ON_ONCE(cond, file, line, details, sfx, __VA_ARGS__);	\
+		__BUG_ON_ONCE(cond, file, line, details, __VA_ARGS__);		\
 		1; /* let's return the true condition */			\
 	}) : 0)
 
-#define __BUG_ON_ONCE(cond, file, line, details, sfx, ...) do {		\
+#define __BUG_ON_ONCE(cond, file, line, details, ...) do {		\
 		static int __match_count_##line;			\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
-			msg = "\"" #cond "\" matched at " file ":" #line "" sfx "\x1e" __VA_ARGS__; \
+			msg = "\"" #cond "\" matched at " file ":" #line "\x1e" __VA_ARGS__; \
 		else							\
-			msg = "\"" #cond "\" matched at " file ":" #line "" sfx; \
+			msg = "\"" #cond "\" matched at " file ":" #line; \
 		if (_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1))	\
 			break;						\
 		complain(details, msg);					\
@@ -466,27 +466,27 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #if defined(DEBUG_STRICT) && (DEBUG_STRICT > 0)
 # if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
 /* Lowest level: BUG_ON() warns, WARN_ON() warns, CHECK_IF() warns */
-#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_BUG,   " (not crashing but process is untrusted now, please report to developers)", __VA_ARGS__)
-#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_WRN,  " (please report to developers)", __VA_ARGS__)
-#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, " (please report to developers)", __VA_ARGS__)
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_BUG, __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_WRN, __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION == 1)
 /* default level: BUG_ON() crashes, WARN_ON() warns, CHECK_IF() warns */
-#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG,     "", __VA_ARGS__)
-#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_WRN,  " (please report to developers)", __VA_ARGS__)
-#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, " (please report to developers)", __VA_ARGS__)
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_WRN, __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION == 2)
 /* Stricter level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() warns */
-#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG,     "", __VA_ARGS__)
-#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_WRN,    "", __VA_ARGS__)
-#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, " (please report to developers)", __VA_ARGS__)
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_WRN, __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() crashes */
-#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG,     "", __VA_ARGS__)
-#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_WRN,    "", __VA_ARGS__)
-#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_FATL_CHK,   "", __VA_ARGS__)
+#  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
+#  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_WRN, __VA_ARGS__)
+#  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_FATL_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else /* DEBUG_STRICT not defined below */
@@ -509,18 +509,18 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #if defined(DEBUG_STRICT) && (DEBUG_STRICT > 1)
 # if defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION < 1)
 /* Lowest level: BUG_ON() warns, CHECK_IF() warns */
-#  define BUG_ON_HOT(cond, ...)   _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_BUG,   " (not crashing but process is untrusted now, please report to developers)", __VA_ARGS__)
-#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, " (please report to developers)", __VA_ARGS__)
+#  define BUG_ON_HOT(cond, ...)   _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_BUG, __VA_ARGS__)
+#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION < 3)
 /* default level: BUG_ON() crashes, CHECK_IF() warns */
-#  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG,     "", __VA_ARGS__)
-#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, " (please report to developers)", __VA_ARGS__)
+#  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
+#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, CHECK_IF() crashes */
-#  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG,     "", __VA_ARGS__)
-#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_FATL_CHK,   "", __VA_ARGS__)
+#  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
+#  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_FATL_CHK, __VA_ARGS__)
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else /* DEBUG_STRICT <= 1 below */
