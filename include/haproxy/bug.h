@@ -362,10 +362,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		};								\
 		HA_WEAK(__start_dbg_cnt);					\
 		HA_WEAK(__stop_dbg_cnt);					\
-		_HA_ATOMIC_INC(&__dbg_cnt_##_line.count);			\
-		if (_type != DBG_BUG_ONCE ||					\
-		    ({ static int __match_count_##_line;			\
-		       !_HA_ATOMIC_FETCH_ADD(&__match_count_##_line, 1); })) {	\
+		if (!_HA_ATOMIC_FETCH_ADD(&__dbg_cnt_##_line.count, 1) || _type != DBG_BUG_ONCE) { \
 			const char *msg =					\
 				(sizeof("" __VA_ARGS__) > 1) ?			\
 					"\"" #_cond "\" matched at " _file ":" #_line "\x1e" __VA_ARGS__ : \
