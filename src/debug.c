@@ -1094,7 +1094,7 @@ static void _complain(uint details, const char *msg, struct debug_count *dbg)
 }
 
 /* the exported function */
-void complain(uint details, const char *msg)
+eliminate_tail_calls void complain(uint details, const char *msg)
 {
 	_complain(details, msg, NULL);
 
@@ -1106,7 +1106,7 @@ void complain(uint details, const char *msg)
 }
 
 /* the same, for use with a debug_count struct */
-void complain_with_dbg(struct debug_count *dbg)
+eliminate_tail_calls void complain_with_dbg(struct debug_count *dbg)
 {
 	if (_HA_ATOMIC_FETCH_ADD(&dbg->count, 1) && dbg->type == DBG_BUG_ONCE)
 		return;
