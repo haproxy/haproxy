@@ -397,7 +397,7 @@ static inline uint8_t rbit5(uint8_t v)
                        state->crc_flush = 0;                        \
                        index = 0;                                   \
                }                                                    \
-               if (state->crc_flush >= CRC_BLOCK) {                 \
+               while (state->crc_flush >= CRC_BLOCK) {              \
                        uslz_update_crc(state, out_base + index - state->crc_flush, CRC_BLOCK); \
                        state->crc_flush -= CRC_BLOCK;               \
                }                                                    \

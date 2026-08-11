@@ -233,8 +233,11 @@ struct uslz_stream {
 	enum uslz_stream_state state;         /* parsing state, USLZ_ST_* */
 
 	uint32_t crc;                         /* current crc value for the stream */
-	short crc_flush;                      /* byte counter to know when to perform
-	                                       * the next crc computing batch
+	int crc_flush;                        /* number of bytes decoded but not
+	                                       * checksummed yet. Must be wider than
+	                                       * the output buffer since a single
+	                                       * stored block copy can add up to a
+	                                       * full buffer at once.
 	                                       */
 	uint16_t flags;                       /* USLZ_FL_* flags */
 	unsigned int counter;                 /* generic counter */
