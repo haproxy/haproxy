@@ -370,7 +370,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			if (_details & (DBG_DET_FAT_FATL|DBG_DET_FAT_WARN)) 	\
 				ha_backtrace_to_stderr(!!(_details & DBG_DET_FAT_FATL)); \
 			if (_details & DBG_DET_FAT_FATL)			\
-				ABORT_NOW();					\
+				abort_with_line(__LINE__);			\
 		}								\
 	}
 
@@ -430,7 +430,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			if (details & (DBG_DET_FAT_FATL|DBG_DET_FAT_WARN)) \
 				ha_backtrace_to_stderr(!!(details & DBG_DET_FAT_FATL));	\
 			if (details & DBG_DET_FAT_FATL)			\
-				ABORT_NOW();				\
+				abort_with_line(__LINE__);		\
 		}							\
 	}
 
