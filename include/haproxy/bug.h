@@ -416,16 +416,15 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			msg = "\"" #cond "\" matched at " file ":" #line "\x1e" __VA_ARGS__; \
 		else							\
 			msg = "\"" #cond "\" matched at " file ":" #line; \
-		if (type == DBG_BUG_ONCE) {                             \
-			static int __match_count_##line;                \
-			if (_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1)) \
-				break;                                  \
-		}                                                       \
-		complain(details, msg);					\
-		if (details & DBG_DET_FAT_FATL)				\
-			ABORT_NOW();					\
-		else if (details & DBG_DET_FAT_WARN)			\
-			ha_backtrace_to_stderr(0);			\
+		if (type != DBG_BUG_ONCE ||				\
+		    ({ static int __match_count_##line;			\
+		       !_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1); })) { \
+			complain(details, msg);				\
+			if (details & DBG_DET_FAT_FATL)			\
+				ABORT_NOW();				\
+			else if (details & DBG_DET_FAT_WARN)		\
+				ha_backtrace_to_stderr(0);		\
+		}							\
 	} while (0)
 
 /* This one is equivalent except that it only emits the message once by
