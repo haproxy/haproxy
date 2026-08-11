@@ -1,0 +1,52 @@
+varnishtest "Basic decompression test"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(SLZ)'"
+
+feature ignore_unknown_macro
+
+server s1 {
+        # client c1 - request 1
+        rxreq
+        expect req.url == "/c1"
+        expect req.http.content-encoding == "<undef>"
+	expect req.body == "haproxy request"
+        txresp \
+          -hdr "Content-Encoding: gzip" \
+	  -gzipbody "haproxy response"
+} -start
+
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+   listen decomp-http
+	mode http
+        bind "fd@${decomp_http}"
+	decompression algo-req gzip
+	decompression mode-req always
+	decompression algo-res gzip
+	decompression mode-res always
+
+	filter decomp-req
+	filter decomp-res
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_decomp_http_sock} {
+        # 1. send compressed http and go through both request and response decompression on the proxy
+        txreq -url "/c1" \
+          -hdr "User-Agent: Mozilla/4" \
+          -gzipbody "haproxy request"
+        rxresp
+        expect resp.status == 200
+	expect resp.body == "haproxy response"
+} -run
