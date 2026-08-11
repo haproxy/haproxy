@@ -200,8 +200,8 @@ uint32_t slz_adler32_by1(uint32_t crc, const unsigned char *buf, int len)
  */
 uint32_t slz_adler32_block(uint32_t crc, const unsigned char *buf, long len)
 {
-	long s1 = crc & 0xffff;
-	long s2 = (crc >> 16);
+	unsigned long s1 = crc & 0xffff;
+	unsigned long s2 = (crc >> 16);
 	long blk;
 	long n;
 
