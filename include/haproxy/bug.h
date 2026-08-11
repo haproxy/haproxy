@@ -40,6 +40,8 @@
 #define DPRINTF(x...)
 #endif
 
+void ha_backtrace_to_stderr(void);
+
 /* Let's make DEBUG_STRESS equal to zero if not set or not valid, or to
  * 1 if set. This way it is always set and should be easy to use in "if ()"
  * statements without requiring ifdefs, while remaining compatible with
@@ -56,8 +58,6 @@
 # undef DEBUG_STRICT_ACTION
 # define DEBUG_STRICT_ACTION 3 // enable crash on match
 #endif
-
-#define DUMP_TRACE() do { extern void ha_backtrace_to_stderr(void); ha_backtrace_to_stderr(); } while (0)
 
 /* First, let's try to handle some arch-specific crashing methods. We prefer
  * the macro to the function because when opening the core, the debugger will
@@ -146,7 +146,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", 1); \
-		DUMP_TRACE();						\
+		ha_backtrace_to_stderr();				\
 		msg = "\n"						\
 		      "Hint: when reporting this bug to developers, please check if a core file was\n" \
 		      "      produced, open it with 'gdb', issue 'bt' to produce a backtrace for the\n" \
@@ -164,7 +164,7 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			complain(NULL, "\nABORT at " file ":" #line ": " __VA_ARGS__ "\n", 1); \
-		DUMP_TRACE();						\
+		ha_backtrace_to_stderr();				\
 		msg = "\n"						\
 		      "Hint: when reporting this bug to developers, please check if a core file was\n" \
 		      "      produced, open it with 'gdb', issue 'bt' to produce a backtrace for the\n" \
@@ -312,7 +312,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
-			DUMP_TRACE();					\
+			ha_backtrace_to_stderr();			\
 	} while (0)
 
 /* This one is equivalent except that it only emits the message once by
@@ -340,7 +340,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		if (crash & 1)						\
 			ABORT_NOW();					\
 		else							\
-			DUMP_TRACE();					\
+			ha_backtrace_to_stderr();			\
 	} while (0)
 
 
