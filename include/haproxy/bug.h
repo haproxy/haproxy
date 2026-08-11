@@ -303,8 +303,6 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 #define __ABORT_NOW(file, line, ...) do {				\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			complain(DBG_FATL_ABT, file ":" #line ": " __VA_ARGS__); \
-		if (sizeof("" __VA_ARGS__) > 1)				\
-			ha_backtrace_to_stderr(1);			\
 		abort_with_line(__LINE__);				\
 	} while (0)
 
@@ -365,13 +363,9 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		};								\
 		HA_WEAK(__start_dbg_cnt);					\
 		HA_WEAK(__stop_dbg_cnt);					\
-		if (!_HA_ATOMIC_FETCH_ADD(&__dbg_cnt_##_line.count, 1) || _type != DBG_BUG_ONCE) { \
-			complain_with_dbg(&__dbg_cnt_##_line);			\
-			if (_details & (DBG_DET_FAT_FATL|DBG_DET_FAT_WARN)) 	\
-				ha_backtrace_to_stderr(!!(_details & DBG_DET_FAT_FATL)); \
-			if (_details & DBG_DET_FAT_FATL)			\
-				abort_with_line(__LINE__);			\
-		}								\
+		complain_with_dbg(&__dbg_cnt_##_line);				\
+		if (_details & DBG_DET_FAT_FATL)				\
+			abort_with_line(__LINE__);				\
 	}
 
 /* Matrix for DEBUG_COUNTERS:
@@ -427,8 +421,6 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		    ({ static int __match_count_##line;			\
 		       !_HA_ATOMIC_FETCH_ADD(&__match_count_##line, 1); })) { \
 			complain(details, msg);				\
-			if (details & (DBG_DET_FAT_FATL|DBG_DET_FAT_WARN)) \
-				ha_backtrace_to_stderr(!!(details & DBG_DET_FAT_FATL));	\
 			if (details & DBG_DET_FAT_FATL)			\
 				abort_with_line(__LINE__);		\
 		}							\

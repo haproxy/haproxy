@@ -1097,12 +1097,26 @@ static void _complain(uint details, const char *msg, struct debug_count *dbg)
 void complain(uint details, const char *msg)
 {
 	_complain(details, msg, NULL);
+
+	/* we may have to emit a backtrace on FATL/WARN.
+	 * This must be the last statement for a tail jump.
+	 */
+	if (details & (DBG_DET_FAT_FATL|DBG_DET_FAT_WARN))
+		ha_backtrace_to_stderr(!!(details & DBG_DET_FAT_FATL));
 }
 
 /* the same, for use with a debug_count struct */
 void complain_with_dbg(struct debug_count *dbg)
 {
+	if (_HA_ATOMIC_FETCH_ADD(&dbg->count, 1) && dbg->type == DBG_BUG_ONCE)
+		return;
 	_complain(dbg->details, NULL, dbg);
+
+	/* we may have to emit a backtrace on FATL/WARN.
+	 * This must be the last statement for a tail jump.
+	 */
+	if (dbg->details & (DBG_DET_FAT_FATL|DBG_DET_FAT_WARN))
+		ha_backtrace_to_stderr(!!(dbg->details & DBG_DET_FAT_FATL));
 }
 
 /* parse a "debug dev exit" command. It always returns 1, though it should never return. */
