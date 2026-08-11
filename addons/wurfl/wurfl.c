@@ -413,11 +413,13 @@ static void ha_wurfl_deinit(void)
 
 	list_for_each_entry_safe(wi, wi2, &global_wurfl.information_list, list) {
 		LIST_DELETE(&wi->list);
+		free(wi->data.name);
 		free(wi);
 	}
 
 	list_for_each_entry_safe(wp, wp2, &global_wurfl.patch_file_list, list) {
 		LIST_DELETE(&wp->list);
+		free(wp->patch_file_path);
 		free(wp);
 	}
 
