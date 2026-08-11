@@ -382,40 +382,54 @@ static inline uint8_t rbit5(uint8_t v)
 	} while (0)
 
 
-/* PUT* macro enable to push either 1 or N bytes at once in the output
- * buffer while taking all the required measures to update pointers
- * and stream state. _PUT_UPDT() is used to maintain these states. The
- * variables are from inner parts of uslz_decode_block().
+/* Output is emitted through the <out> pointer, which walks the output ring
+ * from <out_base> to <out_end>. Rather than updating one counter per emitted
+ * byte, all the bookkeeping is deferred to a single "checkpoint", only
+ * reached when <out> meets <out_lim>. <out_lim> is the closest of the three
+ * points where something actually has to be done:
+ *   - the end of the ring, where <out> must wrap back to <out_base> ;
+ *   - the end of the current checksum batch (<crc_ptr> + CRC_BLOCK) ;
+ *   - the point where the decoded block fills the caller's buffer.
+ * As a result, emitting a byte costs a store and a pointer increment, and
+ * the emitting loops only have to compare <out> against <out_lim>, which
+ * they have to do anyway to know when to stop. The counters are then only
+ * updated once every CRC_BLOCK bytes at most.
+ *
+ * <crc_ptr> points to the first byte not checksummed yet and doubles as the
+ * position of the last checkpoint, so <out> - <crc_ptr> is the number of
+ * bytes emitted since then.
  */
-#define _PUT_UPDT(len) do {                                         \
-               dec_bsize += len;                                    \
-               dec_total += len;                                    \
-               index += len;                                        \
-               state->crc_flush += len;                             \
-               if (__builtin_expect(index == out_max, 0)) {         \
-                       uslz_update_crc(state, out_base + index - state->crc_flush, state->crc_flush); \
-                       state->crc_flush = 0;                        \
-                       index = 0;                                   \
-               }                                                    \
-               while (state->crc_flush >= CRC_BLOCK) {              \
-                       uslz_update_crc(state, out_base + index - state->crc_flush, CRC_BLOCK); \
-                       state->crc_flush -= CRC_BLOCK;               \
-               }                                                    \
-               if (distance_avail < out_max)                        \
-                       distance_avail += len;                       \
-        } while (0)
 
-/* puts 8-bit value <byte> */
-#define PUT8(byte)  do {                                            \
-               out_base[index] = byte;                              \
-               _PUT_UPDT(1);                                        \
-        } while (0)
+/* recomputes <out_lim> for the current position. Valid at any time, not just
+ * right after a checkpoint, since it accounts for the bytes still pending in
+ * the current checksum batch.
+ */
+#define SET_OUT_LIM() do {                                          \
+		unsigned long __room = out_max - 1 - dec_bsize;      \
+		                                                    \
+		out_lim = out_end;                                  \
+		if ((unsigned long)(out_end - crc_ptr) > CRC_BLOCK)  \
+			out_lim = crc_ptr + CRC_BLOCK;              \
+		if ((unsigned long)(out_lim - out) > __room)         \
+			out_lim = out + __room;                     \
+	} while (0)
 
-/* puts <len> bytes from <in_ptr> */
-#define PUTBLK(in_ptr, len) do {                                    \
-               memmove(out_base + index, in_ptr, len);              \
-               _PUT_UPDT(len);                                      \
-        } while (0)
+/* Propagates the bytes emitted since the last checkpoint to the stream
+ * counters and to the checksum. Used by all the return paths, so that on the
+ * next call the ring position is exactly dec_total % out_max with nothing
+ * left pending.
+ */
+#define SYNC_OUT() do {                                             \
+		len = out - crc_ptr;                                \
+		uslz_update_crc(state, crc_ptr, len);               \
+		state->dec_bsize = dec_bsize + len;                 \
+		state->dec_total = dec_total + len;                 \
+	} while (0)
+
+/* where to resume after a checkpoint */
+#define R_SYMBOL 0
+#define R_MATCH  1
+#define R_UNCOMP 2
 
 #define CASE_STATE(s)  case USLZ_ST_##s: goto state_##s
 
@@ -431,17 +445,30 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 	const unsigned char *in_ptr = state->in_ptr;
 	const unsigned char *in_top = state->in_top;
 	unsigned char *out_base  = state->out_base;
+	unsigned long out_max = state->out_max;
+	unsigned char *out_end = out_base + out_max;
+	/* dec_total and dec_bsize are only up to date as of the last
+	 * checkpoint; the bytes emitted since then are counted by
+	 * <out> - <crc_ptr>.
+	 */
 	unsigned long dec_total = state->dec_total;
 	unsigned long dec_bsize = state->dec_bsize;
-	unsigned long out_max = state->out_max;
+	unsigned char *out = out_base + dec_total % out_max;
+	unsigned char *crc_ptr = out;
+	unsigned char *out_lim;
 	uint64_t bit_accum = state->bit_accum;
 	unsigned char num_bits = state->num_bits;
-	unsigned long distance_avail = state->distance_avail;
-	int index = state->dec_total % out_max;
+	/* whether the ring already wrapped once, i.e. whether the whole
+	 * buffer is valid history for the distances.
+	 */
+	int wrapped = dec_total >= out_max;
+	int resume = R_SYMBOL;
 	unsigned int remain;
 	unsigned int len;
 	unsigned int get_bits;
 	enum uslz_decode_ret err_code;
+
+	SET_OUT_LIM();
 
 	/* If continuing processing from an interrupted block, jump to
 	 * the appropriate location.
@@ -519,31 +546,32 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 
  state_UNCOMPRESSED_DATA:
 		remain = state->len - state->nread;
-		len = remain;
 
-		if (len > out_max - index)
-			len = out_max - index;
+		while (remain) {
+			if (out == out_lim) {
+				resume = R_UNCOMP;
+				goto checkpoint;
+			}
 
-		if (dec_bsize + len > out_max)
-			len = out_max - dec_bsize;
+			if (in_ptr >= in_top)
+				goto out_of_data;
 
-		if (len >= 2 && in_ptr + len <= in_top) {
-			PUTBLK(in_ptr, len);
+			/* copy at most what the input holds and what fits
+			 * before the next checkpoint.
+			 */
+			len = remain;
+
+			if (len > (unsigned long)(out_lim - out))
+				len = out_lim - out;
+
+			if (len > (unsigned long)(in_top - in_ptr))
+				len = in_top - in_ptr;
+
+			memcpy(out, in_ptr, len);
+			out += len;
 			in_ptr += len;
 			state->nread += len;
 			remain -= len;
-		}
-
-		/* finish per byte */
-		while (remain) {
-			if (in_ptr >= in_top)
-				goto out_of_data;
-			if (dec_bsize + 1 > out_max)
-				goto out_of_space;
-			PUT8(*in_ptr);
-			in_ptr += 1;
-			state->nread += 1;
-			remain -= 1;
 		}
 
 		goto decomp_end;
@@ -672,28 +700,18 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 	 */
 
 	while (1) {
-		/* Ensure that the total output has not rolled over to a negative
-		 * value; if it has, return an error.  (The "dec_total" state field
-		 * is unsigned, so a rollover will not cause any improper memory
-		 * accesses, but this check ensures that (1) a caller who treats
-		 * the value as signed will not suffer negative rollover, and (2)
-		 * processing the next symbol will not cause the unsigned offset
-		 * value to roll over to zero.  The interface routines also treat
-		 * a potential negative rollover as an error, so this check will
-		 * not generate any spurious errors).
-		 */
-		if ((long)dec_total < 0) {
-			err_code = USLZ_DECODE_E_UNEXPECTED;
-			goto error_return;
-		}
-
 		state->state = USLZ_ST_READ_SYMBOL;
 		state->huff_index = 0;
 
  state_READ_SYMBOL:
 
-		if (dec_bsize + 1 >= out_max)
-			goto out_of_space;
+		/* the output buffer is either full, at the end of the ring or
+		 * at the end of a checksum batch: sort this out and come back.
+		 */
+		if (__builtin_expect(out == out_lim, 0)) {
+			resume = R_SYMBOL;
+			goto checkpoint;
+		}
 
 		/* Read a compressed symbol from the block. */
 		if (state->block_type != 2) {
@@ -708,7 +726,7 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 		 * with the next code.
 		 */
 		if (state->symbol < 256) {
-			PUT8((uint8_t)state->symbol);
+			*out++ = state->symbol;
 			continue;
 		}
 
@@ -775,85 +793,149 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 		}
 
  state_READ_DISTANCE_RET:
-		/* Ensure that the distance does not exceed the amount of data in
-		 * the output buffer.  If it does, return an error.
-		 */
-		if (distance_avail < state->distance && state) {
-			err_code = USLZ_DECODE_E_DISTANCE;
-			goto error_return;
-		}
-
-		/* Copy bytes from the input buffer to the output buffer.  Since
-		 * the output pointer advances with each byte written, we can
-		 * simply use a constant offset (the value of "distance") from the
+		/* Copy bytes from the history to the output buffer. Since the
+		 * output pointer advances with each byte written, we can simply
+		 * use a constant offset (the value of "distance") from the
 		 * output pointer to retrieve the byte to copy.
 		 */
 		remain = state->repeat_length;
 
-		/* check if there is enough space in the output buffer to
-		 * store repeated symbols, else ask for a drain. Note:
-		 * the output buffer must be at minimum of the size of the
-		 * repeat.
-		 */
-		if (dec_bsize + remain >= out_max) {
-			if (remain > out_max) {
-				/* fatal error, not supported (output buffer too small) */
-				err_code = USLZ_DECODE_E_OUT_BUFFER;
-				goto error_return;
-			}
-			state->state = USLZ_ST_READ_DISTANCE_RET;
-			goto out_of_space;
+		while (1) {
+			const unsigned char *src;
 
-		}
-		/* we try to output as many bytes as possible using PUT* macros */
-		while (remain > 0) {
-			/* repeat symbols are at the end of the buffer (output buffer just wrapped) */
+			if (out == out_lim) {
+				/* the match is emitted in as many chunks as
+				 * needed, so only what remains has to be
+				 * remembered across the checkpoint.
+				 */
+				state->repeat_length = remain;
+				state->state = USLZ_ST_READ_DISTANCE_RET;
+				resume = R_MATCH;
+				goto checkpoint;
+			}
+
 			len = remain;
 
-			if (len > out_max - index)
-				len = out_max - index;
+			if (len > (unsigned long)(out_lim - out))
+				len = out_lim - out;
 
-			/* copy per block */
-			if (len >= 2 && state->distance > (index + len)) {
-				PUTBLK(out_base + (out_max + index - state->distance), len);
-				remain -= len;
+			if (state->distance > (unsigned long)(out - out_base)) {
+				/* The match starts in the upper part of the
+				 * ring, which is only valid history once the
+				 * ring has wrapped at least once. This test
+				 * replaces the former distance_avail counter:
+				 * a distance never exceeds 32K and the ring is
+				 * at least that large, so "have we produced at
+				 * least <distance> bytes" is exactly "has the
+				 * ring wrapped, or is the distance within the
+				 * current position".
+				 */
+				if (!wrapped) {
+					err_code = USLZ_DECODE_E_DISTANCE;
+					goto error_return;
+				}
+
+				src = out + (out_max - state->distance);
+
+				/* stop where the match wraps back to out_base */
+				if (len > (unsigned long)(out_end - src))
+					len = out_end - src;
+
+				/* <src> is at or above <out> here, so copying
+				 * forward always reads the bytes before they
+				 * get overwritten.
+				 */
+				memmove(out, src, len);
+			}
+			else {
+				src = out - state->distance;
+
+				if (state->distance >= len) {
+					/* source and destination don't overlap */
+					memcpy(out, src, len);
+				}
+				else {
+					/* overlapping match: the bytes being
+					 * written are part of the source, they
+					 * have to be replicated one at a time.
+					 */
+					unsigned char *dst = out;
+					unsigned int cnt = len;
+
+					do {
+						*dst++ = *src++;
+					} while (--cnt);
+				}
 			}
 
-			/* finish per byte */
-			while (remain > 0 && state->distance > index) {
-				PUT8(*(out_base + (out_max + index - state->distance)));
-				remain -= 1;
-			}
-
-			/* repeat symbols are just before the current output pointer */
-			len = remain;
-
-			if (len > out_max - index)
-				len = out_max - index;
-
-			/* copy per block */
-			if (len >= 2 && index >= state->distance && state->distance > len) {
-				PUTBLK(out_base + (index - state->distance), len);
-				remain -= len;
-			}
-
-			/* finish per byte */
-			while (remain > 0 && index >= state->distance) {
-				PUT8(*(out_base + (index - state->distance)));
-				remain -= 1;
-			}
+			out += len;
+			remain -= len;
+			if (!remain)
+				break;
 		}
 
 	}  /* End of decompression loop. */
 
+	goto decomp_end;
+
+ checkpoint:
+	/* <out> reached <out_lim>: account for the bytes emitted since the
+	 * last checkpoint, checksum them while they are still hot in the
+	 * cache, wrap the ring if we are at its end, then either report that
+	 * the caller's buffer is full or resume where we left off.
+	 */
+	len = out - crc_ptr;
+	dec_bsize += len;
+	dec_total += len;
+	uslz_update_crc(state, crc_ptr, len);
+
+	if (out == out_end) {
+		out = out_base;
+		wrapped = 1;
+	}
+	crc_ptr = out;
+
+	/* Ensure that the total output has not rolled over to a negative
+	 * value; if it has, return an error.  (The "dec_total" state field
+	 * is unsigned, so a rollover will not cause any improper memory
+	 * accesses, but this check ensures that (1) a caller who treats
+	 * the value as signed will not suffer negative rollover, and (2)
+	 * processing the next symbol will not cause the unsigned offset
+	 * value to roll over to zero.  The interface routines also treat
+	 * a potential negative rollover as an error, so this check will
+	 * not generate any spurious errors).
+	 */
+	if ((long)dec_total < 0) {
+		err_code = USLZ_DECODE_E_UNEXPECTED;
+		goto error_return;
+	}
+
+	/* no more room in the decoded block, ask for a drain. The state to
+	 * resume from was set by whoever jumped here.
+	 */
+	if (dec_bsize + 1 >= out_max)
+		goto out_of_space;
+
+	SET_OUT_LIM();
+
+	if (resume == R_MATCH)
+		goto state_READ_DISTANCE_RET;
+	if (resume == R_UNCOMP)
+		goto state_UNCOMPRESSED_DATA;
+	goto state_READ_SYMBOL;
+
  decomp_end:
 
-	/* success: update stream state with our local state variables before
-	 * returning.
+	/* success: flush the pending checksum and update stream state with our
+	 * local state variables before returning.
 	 */
+	len = out - crc_ptr;
+	uslz_update_crc(state, crc_ptr, len);
+	crc_ptr = out;
+	dec_total += len;
+	dec_bsize += len;
 	state->dec_total = dec_total;
 	state->dec_bsize = dec_bsize;
-	state->distance_avail = distance_avail;
 
 	/* only on the very last return */
 	if ((state->flags & USLZ_FL_FINAL)) {
@@ -869,12 +951,6 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 		state->state = USLZ_ST_CHECK_CKSUM;
 
  state_CHECK_CKSUM:
-		/* checksum what has not been checksummed yet, and clear the
-		 * counter so that resuming here does not do it twice.
-		 */
-		uslz_update_crc(state, out_base + index - state->crc_flush, state->crc_flush);
-		state->crc_flush = 0;
-
 		if ((state->flags & USLZ_FL_ZLIB)) {
 			/* check computed zlib adler checksum against 4 last bytes
 			 * (stored in Big endian).
@@ -944,29 +1020,22 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 
 	/* handle cases of non successful return */
  out_of_data:
-
+	SYNC_OUT();
 	state->in_ptr = in_ptr;
-	state->dec_total = dec_total;
-	state->dec_bsize = dec_bsize;
-	state->distance_avail = distance_avail;
 	state->bit_accum = bit_accum;
 	state->num_bits = num_bits;
 	return USLZ_DECODE_OUT_OF_DATA;
 
  out_of_space:
+	SYNC_OUT();
 	state->in_ptr = in_ptr;
-	state->dec_total = dec_total;
-	state->dec_bsize = dec_bsize;
-	state->distance_avail = distance_avail;
 	state->bit_accum = bit_accum;
 	state->num_bits = num_bits;
 	return USLZ_DECODE_OUT_OF_SPACE;
 
  error_return:
+	SYNC_OUT();
 	state->in_ptr = in_ptr;
-	state->dec_total = dec_total;
-	state->dec_bsize = dec_bsize;
-	state->distance_avail = distance_avail;
 	state->bit_accum = bit_accum;
 	state->num_bits  = num_bits;
 	return err_code;
@@ -1021,7 +1090,6 @@ static int uslz_next_member(struct uslz_stream *state)
 
 	state->flags &= ~(USLZ_FL_GZIP | USLZ_FL_FINAL | USLZ_FL_COMPLETE);
 	state->crc = 0;
-	state->crc_flush = 0;
 	state->bit_accum = 0;
 	state->num_bits = 0;
 	state->state = USLZ_ST_INITIAL;

@@ -235,12 +235,6 @@ struct uslz_stream {
 	enum uslz_stream_state state;         /* parsing state, USLZ_ST_* */
 
 	uint32_t crc;                         /* current crc value for the stream */
-	int crc_flush;                        /* number of bytes decoded but not
-	                                       * checksummed yet. Must be wider than
-	                                       * the output buffer since a single
-	                                       * stored block copy can add up to a
-	                                       * full buffer at once.
-	                                       */
 	uint16_t flags;                       /* USLZ_FL_* flags */
 	unsigned int counter;                 /* generic counter */
 	const unsigned char *in_ptr;          /* pointer to the next byte to read from
@@ -249,7 +243,6 @@ struct uslz_stream {
 	const unsigned char *in_top;          /* pointer to one byte past the last byte
 	                                       * of the input buffer
 	                                       */
-	unsigned int distance_avail;
 	unsigned int distance;
 	unsigned char *out_base;              /* pointer to the beginning of the output
 	                                       * buffer
