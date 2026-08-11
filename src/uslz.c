@@ -1136,24 +1136,24 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 
  gzip_flags:
 			if (state->hdr_detect.gzip_flags & 0x4) {
-				/* gzip FEXTRA set, we need to accumulate 2 bytes to know the
-				 * total FEXTRA field length.
+				/* gzip FEXTRA set: a 2-byte little endian length
+				 * followed by that many bytes to skip. Both the
+				 * length and the payload may be split across any
+				 * number of calls, so XLEN is stashed in the
+				 * header buffer and buf_len counts how many bytes
+				 * of the whole field were consumed so far. That
+				 * way resuming never has to guess: below 2, we
+				 * are still reading XLEN itself, above, we are
+				 * skipping the payload.
+				 *
+				 * Note that XLEN must not be re-read from the
+				 * input on resume; that used to happen when the
+				 * length had been consumed but the payload was
+				 * not fully available, and the first two payload
+				 * bytes were then taken as the length.
 				 */
-				if (!state->hdr_detect.buf_len) {
-					/* go to gzip FEXTRA parsing directly if there is enough data
-					 * to parse it the first time.
-					 */
-					if (state->in_top - state->in_ptr >= 2) {
-						input = state->in_ptr;
-						state->in_ptr += 2;
-						goto enough_gzip_fextra_header;
-					}
-					goto need_more_header; // gzip FEXTRA FLEN is 2 bytes
-				}
+				int xlen;
 
-				/* 2 extra bytes not available on first time, accumulate 2
-				 * bytes in the persistent buffer before going any further.
-				 */
 				while (state->hdr_detect.buf_len < 2) {
 					if (state->in_ptr >= state->in_top)
 						return USLZ_DECODE_OUT_OF_DATA;
@@ -1161,40 +1161,20 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 					state->in_ptr += 1;
 					state->hdr_detect.buf_len += 1;
 				}
-				/* let's exclusively use the persistent buffer now */
-				input = state->hdr_detect.buf;
 
- enough_gzip_fextra_header:
-				{
-					/* xlen is litle endian */
-					int xlen = input[1] << 8 | input[0];
+				/* xlen is little endian */
+				xlen = state->hdr_detect.buf[1] << 8 | state->hdr_detect.buf[0];
 
-					/* we now need to skip XLEN bytes */
-
-					if (!state->hdr_detect.buf_len) {
-						/* go to gzip FEXTRA parsing directly if there is enough data
-						 * to parse it the first time.
-						 */
-						if (state->in_top - state->in_ptr >= xlen) {
-							input = state->in_ptr;
-							state->in_ptr += xlen;
-						}
-						else
-							goto need_more_header; // gzip FEXTRA FLEN is 2 bytes
-					}
-					else {
-						/* use buf_len to count skipped bytes but don't store bytes in the
-						 * buffer.
-						 */
-						while (state->hdr_detect.buf_len < 2 + xlen) {
-							if (state->in_ptr >= state->in_top)
-								return USLZ_DECODE_OUT_OF_DATA;
-							state->in_ptr += 1;
-							state->hdr_detect.buf_len += 1;
-						}
-
-					}
+				/* skip the payload, counting it in buf_len but
+				 * without storing it.
+				 */
+				while (state->hdr_detect.buf_len < 2 + xlen) {
+					if (state->in_ptr >= state->in_top)
+						return USLZ_DECODE_OUT_OF_DATA;
+					state->in_ptr += 1;
+					state->hdr_detect.buf_len += 1;
 				}
+
 				/* all FEXTRA bytes skipped, remove FEXTRA bit */
 				state->hdr_detect.gzip_flags &= ~0x4;
 				state->hdr_detect.buf_len = 0;
