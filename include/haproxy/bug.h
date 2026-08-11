@@ -405,11 +405,11 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #define _BUG_ON(cond, file, line, details, ...)					\
 	(void)(unlikely(cond) ? ({						\
 		__DBG_COUNT(cond, file, line, DBG_BUG, __VA_ARGS__); 		\
-		__BUG_ON(cond, file, line, details, __VA_ARGS__);		\
+		__BUG_ON(cond, file, line, DBG_BUG, details, __VA_ARGS__); 	\
 		1; /* let's return the true condition */			\
 	}) : 0)
 
-#define __BUG_ON(cond, file, line, details, ...) do {			\
+#define __BUG_ON(cond, file, line, type, details, ...) do {		\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			msg = "\"" #cond "\" matched at " file ":" #line "\x1e" __VA_ARGS__; \
@@ -430,11 +430,11 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #define _BUG_ON_ONCE(cond, file, line, details, ...)				\
 	(void)(unlikely(cond) ? ({						\
 		__DBG_COUNT(cond, file, line, DBG_BUG_ONCE, __VA_ARGS__); 	\
-		__BUG_ON_ONCE(cond, file, line, details, __VA_ARGS__);		\
+		__BUG_ON_ONCE(cond, file, line, DBG_BUG_ONCE, details, __VA_ARGS__); \
 		1; /* let's return the true condition */			\
 	}) : 0)
 
-#define __BUG_ON_ONCE(cond, file, line, details, ...) do {		\
+#define __BUG_ON_ONCE(cond, file, line, type, details, ...) do {	\
 		static int __match_count_##line;			\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
