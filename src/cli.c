@@ -787,7 +787,7 @@ static int cli_get_severity_output(struct appctx *appctx)
  * displayed into cli.msg.  If a keyword parser is NULL and an I/O handler is
  * declared, the I/O handler will automatically be used.
  */
-static int cli_process_cmdline(struct appctx *appctx)
+int cli_process_cmdline(struct appctx *appctx)
 {
 	char *args[MAX_CLI_ARGS + 1], *orig, *p, *end, *payload = NULL;
 	char *end_of_cmdline;
