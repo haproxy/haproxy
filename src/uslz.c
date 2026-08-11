@@ -898,15 +898,31 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			}
 		}
 		else if ((state->flags & USLZ_FL_GZIP)) {
-			uint32_t crc32;
+			/* The gzip trailer is 8 bytes: crc32 then isize, both
+			 * little endian. Accumulate all 64 bits before looking
+			 * at anything, so that an interrupted read just resumes
+			 * filling the accumulator and does not have to remember
+			 * how far into the trailer it got. Consuming isize as
+			 * well is what allows a following member to be found.
+			 */
+			while (num_bits < 64) {
+				if (in_ptr >= in_top)
+					goto out_of_data;
+				bit_accum |= (uint64_t)in_ptr[0] << num_bits;
+				in_ptr++;
+				num_bits += 8;
+			}
 
-			/* check computed gzip crc32 checksum against 4 last bytes. */
-			GETBITS(32, crc32);
-
-			if (state->crc != crc32) {
+			if (state->crc != (uint32_t)bit_accum) {
 				err_code = USLZ_DECODE_E_BAD_CRC;
 				goto error_return;
 			}
+
+			/* the upper half is isize, the decoded size of this
+			 * member modulo 2^32; it is consumed but not checked.
+			 */
+			bit_accum = 0;
+			num_bits = 0;
 		}
 
 		/* The trailer has been verified, and only now may the stream
@@ -956,6 +972,62 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 	return err_code;
 }
 
+/* A gzip file is a series of members (rfc1952), which is what "gzip -c a b"
+ * and "cat a.gz b.gz" produce. If <state> just completed a gzip member and
+ * the input continues with another gzip magic, this resets the per-member
+ * state so that decoding can go on, and returns 1. The output ring, the
+ * total decoded size and the drain offset are all preserved, so the members'
+ * contents are simply concatenated as the caller expects. Returns 0 when no
+ * new member starts here, in which case anything left is trailing garbage
+ * and is ignored, as gzip(1) does.
+ */
+static int uslz_next_member(struct uslz_stream *state)
+{
+	if (!(state->flags & USLZ_FL_GZIP))
+		return 0;
+
+	/* Gather the two magic bytes of a possible next member. They may be
+	 * split across calls, and the header buffer cannot be used to hold
+	 * them in the meantime because it shares its storage with the distance
+	 * table, which the member we just finished has overwritten. The bit
+	 * accumulator is free at this point and does survive across calls, so
+	 * it serves as the lookahead.
+	 */
+	while (state->num_bits < 16) {
+		if (state->in_ptr >= state->in_top) {
+			/* Undecided: we cannot tell whether another member
+			 * follows without more data. The stream is reported
+			 * complete, which is what a caller with nothing left to
+			 * send needs, and this is retried on the next call for
+			 * a caller which has more.
+			 */
+			return 0;
+		}
+		state->bit_accum |= (uint64_t)state->in_ptr[0] << state->num_bits;
+		state->in_ptr += 1;
+		state->num_bits += 8;
+	}
+
+	if ((state->bit_accum & 0xFFFF) != 0x8B1F)
+		return 0; // trailing garbage, the stream really ended
+
+	/* Hand the magic over to the format detection, which knows how to
+	 * accumulate the rest of the header across calls from there.
+	 */
+	state->hdr_detect.buf[0] = 0x1F;
+	state->hdr_detect.buf[1] = 0x8B;
+	state->hdr_detect.buf_len = 2;
+	state->hdr_detect.gzip_flags = 0;
+
+	state->flags &= ~(USLZ_FL_GZIP | USLZ_FL_FINAL | USLZ_FL_COMPLETE);
+	state->crc = 0;
+	state->crc_flush = 0;
+	state->bit_accum = 0;
+	state->num_bits = 0;
+	state->state = USLZ_ST_INITIAL;
+	return 1;
+}
+
 /**
  * decompress stream of data encoded using rfc1950 (zlib), rfc1952(gzip) or
  * rfc1951 (raw) format with "deflate" algorithm.
@@ -991,6 +1063,15 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
  *     The returned CRC value is only valid after the entire stream of data
  *     has been decompressed with success.
  *
+ *     USLZ_DECODE_SUCCESS means the stream is complete as far as the data
+ *     provided so far goes. Since a gzip file is a series of members
+ *     (rfc1952), a caller which still has input left must keep calling: the
+ *     next member will be picked up and its output appended, and success
+ *     will be reported again at its end. Only a caller which knows it has
+ *     nothing left to send may treat the first success as the end of the
+ *     stream. Anything after the last member which is not a gzip magic is
+ *     ignored as trailing garbage, as gzip(1) does.
+ *
  * caller must check return value to check if the call succeeded
  * (USLZ_DECODE_SUCCESS), needs more space (USLZ_DECODE_OUT_OF_SPACE)
  * more input data (USLZ_DECODE_OUT_OF_DATA) or met an error (any other
@@ -1016,6 +1097,13 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 
 	state->in_ptr   = (const unsigned char *)compressed_data;
 	state->in_top   = state->in_ptr + compressed_size;
+
+	/* A previous call may have completed a gzip member while more members
+	 * were still to come; pick the next one up as soon as its magic shows
+	 * up, so that a caller which keeps feeding data gets the whole series.
+	 */
+	if ((state->flags & USLZ_FL_COMPLETE) && !state->dec_bsize)
+		uslz_next_member(state);
 
 	/* pending unconsumed data that must be consumed by the caller before
 	 * handling a new block.
@@ -1061,6 +1149,7 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 	/* first call: auto detect header to known which format is used, then
 	 * init the decompressing state.
 	 */
+ new_member:
 	if (state->state == USLZ_ST_INITIAL) {
 		const unsigned char *input;
 		unsigned int zlib_header;
@@ -1330,6 +1419,13 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 			return USLZ_DECODE_E_UNEXPECTED;
 
 	}
+
+	/* this member is done; if another one follows in the same input, keep
+	 * going rather than reporting a complete stream too early.
+	 */
+	if (uslz_next_member(state))
+		goto new_member;
+
 	if (state->dec_bsize)
 		goto drain;
  end:
