@@ -142,7 +142,7 @@ struct debug_count {
 	const char *desc;
 	uint16_t    line;
 	uint8_t     type;
-	/* one-byte hole here */
+	uint8_t  details;
 	uint32_t   count;
 };
 
@@ -353,6 +353,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			.func = __func__,					\
 			.line = _line,						\
 			.type = _type,						\
+			.details = _details,					\
 			.desc = (sizeof("" #_cond) > 1) ?			\
 				  (sizeof("" __VA_ARGS__) > 1) ?		\
 				  "" #_cond "\x1e" __VA_ARGS__ :		\
