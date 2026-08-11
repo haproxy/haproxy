@@ -971,11 +971,13 @@ void ha_stuck_warning(void)
  * in some taining of the process to happen. If the string contains an RS char
  * (\x1e) then it's used as a delimiter: the main message stops there, and what
  * follows is a new line that will be appended after another LF (normally it's
- * used to give extra info to the user about the issue's location).
+ * used to give extra info to the user about the issue's location). When <dbg>
+ * is non-null, it is used as a source for the message, file, line number, type
+ * etc.
  */
-static void _complain(uint details, const char *msg)
+static void _complain(uint details, const char *msg, struct debug_count *dbg)
 {
-	struct iovec iovec[10];
+	struct iovec iovec[20];
 	const char *pfx;
 	const char *rs;
 	int vec = 0;
@@ -1012,14 +1014,49 @@ static void _complain(uint details, const char *msg)
 		vec++;
 	}
 
-	/* make rs point either to the RS or to \0 */
-	rs = strchr(msg, '\x1e');
-	if (!rs)
-		rs = msg + strlen(msg);
+	if (dbg) {
+		/* Using only <dbg>. <msg> is ignored and may be NULL.
+		 * Make rs point either to the RS or to \0.
+		 * Output format: \" <desc> \" " matched at " <file> ":" <line>
+		 * (7 fields).
+		 */
+		rs = strchr(dbg->desc, '\x1e');
+		if (!rs)
+			rs = dbg->desc + strlen(dbg->desc);
 
-	iovec[vec].iov_base = (char *)msg;
-	iovec[vec].iov_len  = rs - msg;
-	vec++;
+		iovec[vec].iov_base = "\"";
+		iovec[vec].iov_len  = 1;
+		vec++;
+
+		iovec[vec].iov_base = (char *)dbg->desc;
+		iovec[vec].iov_len  = rs - dbg->desc;
+		vec++;
+
+		iovec[vec].iov_base = "\" matched at ";
+		iovec[vec].iov_len  = strlen(iovec[vec].iov_base);
+		vec++;
+
+		iovec[vec].iov_base = (char *)dbg->file;
+		iovec[vec].iov_len  = strlen(iovec[vec].iov_base);
+		vec++;
+
+		iovec[vec].iov_base = ":";
+		iovec[vec].iov_len  = 1;
+		vec++;
+
+		iovec[vec].iov_base = (char *)ultoa(dbg->line);
+		iovec[vec].iov_len  = strlen(iovec[vec].iov_base);
+		vec++;
+	} else {
+		/* Using the <msg> field. Make rs point either to the RS or to \0 */
+		rs = strchr(msg, '\x1e');
+		if (!rs)
+			rs = msg + strlen(msg);
+
+		iovec[vec].iov_base = (char *)msg;
+		iovec[vec].iov_len  = rs - msg;
+		vec++;
+	}
 
 	/* suffixes may be printed for warning-level */
 	if (details & DBG_DET_FAT_WARN) {
@@ -1059,7 +1096,13 @@ static void _complain(uint details, const char *msg)
 /* the exported function */
 void complain(uint details, const char *msg)
 {
-	_complain(details, msg);
+	_complain(details, msg, NULL);
+}
+
+/* the same, for use with a debug_count struct */
+void complain_with_dbg(struct debug_count *dbg)
+{
+	_complain(dbg->details, NULL, dbg);
 }
 
 /* parse a "debug dev exit" command. It always returns 1, though it should never return. */

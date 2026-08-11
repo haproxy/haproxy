@@ -169,6 +169,7 @@ struct debug_count {
 
 /* report a bug on stderr */
 void complain(uint details, const char *msg);
+void complain_with_dbg(struct debug_count *dbg);
 void ha_backtrace_to_stderr(int hint);
 
 /* Let's make DEBUG_STRESS equal to zero if not set or not valid, or to
@@ -364,11 +365,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		HA_WEAK(__start_dbg_cnt);					\
 		HA_WEAK(__stop_dbg_cnt);					\
 		if (!_HA_ATOMIC_FETCH_ADD(&__dbg_cnt_##_line.count, 1) || _type != DBG_BUG_ONCE) { \
-			const char *msg =					\
-				(sizeof("" __VA_ARGS__) > 1) ?			\
-					"\"" #_cond "\" matched at " _file ":" #_line "\x1e" __VA_ARGS__ : \
-					"\"" #_cond "\" matched at " _file ":" #_line;	\
-			complain(_details, msg);				\
+			complain_with_dbg(&__dbg_cnt_##_line);			\
 			if (_details & DBG_DET_FAT_FATL)			\
 				ABORT_NOW();					\
 			else if (_details & DBG_DET_FAT_WARN)			\
