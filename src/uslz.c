@@ -1391,6 +1391,15 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 			goto next_block;
 		}// else raw format without pending bytes
 
+		/* The caller may have imposed an envelope. Refuse a stream
+		 * that does not carry it rather than silently decoding it as
+		 * something else, which for a raw deflate fallback would
+		 * produce garbage instead of an error.
+		 */
+		if (((state->flags & USLZ_FL_EXP_GZIP) && !(state->flags & USLZ_FL_GZIP)) ||
+		    ((state->flags & USLZ_FL_EXP_ZLIB) && !(state->flags & USLZ_FL_ZLIB)))
+			return USLZ_DECODE_E_CORRUPT;
+
 		state->state = USLZ_ST_HEADER;
 	}
 
@@ -1477,6 +1486,51 @@ int uslz_init(struct uslz_stream *state,
 	state->out_base = output_buffer;
 	state->out_max = output_size;
 
+	return 1;
+}
+
+/* Same as uslz_init() but tells the decoder which envelope to expect, instead
+ * of detecting it from the first bytes of the stream. <format> is one of the
+ * SLZ_FMT_* values:
+ *
+ *   SLZ_FMT_DEFLATE  raw deflate (rfc1951). This one cannot be detected: it
+ *                    has no header at all, so it is only ever reached as the
+ *                    fallback when the stream looks like neither gzip nor
+ *                    zlib. A raw stream whose first two bytes happen to form
+ *                    a valid zlib header would be mis-detected, so a caller
+ *                    that knows it is decoding raw deflate should say so.
+ *   SLZ_FMT_GZIP     gzip (rfc1952)
+ *   SLZ_FMT_ZLIB     zlib (rfc1950)
+ *
+ * For the latter two the envelope is still parsed as usual, and the stream is
+ * now rejected with USLZ_DECODE_E_CORRUPT if it does not carry the announced
+ * one. That matters when the format comes from an outside source, for instance
+ * an HTTP Content-Encoding, where accepting a different envelope is wrong.
+ *
+ * Returns 1 on success and 0 on failure, including for an unknown format.
+ */
+int uslz_init_fmt(struct uslz_stream *state, unsigned char *output_buffer,
+                  long output_size, int format)
+{
+	if (!uslz_init(state, output_buffer, output_size))
+		return 0;
+
+	switch (format) {
+	case SLZ_FMT_DEFLATE:
+		/* nothing to detect nor to skip, the first bits are already
+		 * the first block header.
+		 */
+		state->state = USLZ_ST_HEADER;
+		break;
+	case SLZ_FMT_GZIP:
+		state->flags |= USLZ_FL_EXP_GZIP;
+		break;
+	case SLZ_FMT_ZLIB:
+		state->flags |= USLZ_FL_EXP_ZLIB;
+		break;
+	default:
+		return 0;
+	}
 	return 1;
 }
 

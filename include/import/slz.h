@@ -203,6 +203,8 @@ static inline int slz_flush(struct slz_stream *strm, void *buf)
 #define USLZ_FL_ZLIB        0x0002
 #define USLZ_FL_FINAL       0x0004   /* current block is the last one. */
 #define USLZ_FL_COMPLETE    0x0008   /* last block is completely treated, marks end of the decompressed stream */
+#define USLZ_FL_EXP_GZIP    0x0010   /* caller explicitly imposed the gzip envelope */
+#define USLZ_FL_EXP_ZLIB    0x0020   /* caller explicitly imposed the zlib envelope */
 
 
 enum uslz_stream_state {
@@ -348,6 +350,8 @@ enum uslz_decode_ret {
 };
 
 int uslz_init(struct uslz_stream *strm, unsigned char *output_buffer, long output_size);
+int uslz_init_fmt(struct uslz_stream *strm, unsigned char *output_buffer, long output_size,
+                  int format);
 enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
                                  const unsigned char *compressed_data, long compressed_size,
                                  unsigned char **decoded_data, long *decoded_size,
