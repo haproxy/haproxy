@@ -72,7 +72,10 @@ struct slz_stream {
 	uint16_t state; /* one of slz_state */
 	uint8_t level:1; /* 0 = no compression, 1 = compression */
 	uint8_t format:2; /* SLZ_FMT_* */
-	uint8_t unused1; /* unused for now */
+	uint8_t debt;    /* number of bits by which the fixed huffman encoding is
+	                  * currently behind the equivalent stored blocks, see
+	                  * SLZ_MAX_DEBT in slz.c
+	                  */
 	uint32_t crc32;
 	uint32_t ilen;
 };
