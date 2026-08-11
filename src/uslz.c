@@ -1012,8 +1012,14 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 		else
 			*decoded_size = state->dec_bsize;
 
-		if (*decoded_size == 0) {
-			/* wrapping */
+		if (*decoded_size == 0 && state->dec_bsize) {
+			/* the pending block starts at the beginning of the
+			 * ring because the previous drain stopped on its end.
+			 * Note the test on dec_bsize: reaching this point with
+			 * nothing pending (e.g. out of data before a single
+			 * byte could be decoded) must not move dec_bofs, or
+			 * the next drain would report the wrong location.
+			 */
 			state->dec_bofs = 0;
 			*decoded_size = state->dec_bsize;
 		}
