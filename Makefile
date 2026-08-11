@@ -599,7 +599,7 @@ ifneq ($(USE_SPOE:0=),)
 endif
 
 ifneq ($(USE_SLZ:0=),)
-  OPTIONS_OBJS   += src/slz.o
+  OPTIONS_OBJS   += src/slz_common.o src/slz.o src/uslz.o
 endif
 
 ifneq ($(USE_POLL:0=),)
