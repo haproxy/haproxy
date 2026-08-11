@@ -214,7 +214,7 @@ static inline void uslz_update_crc(struct uslz_stream *state, const unsigned cha
  *
  * Returns 1 on success and 0 if more data is needed.
  */
-__attribute__((noinline)) static int bit_accumulate(const unsigned char **in_ptr, const unsigned char *in_top, unsigned char *num_bits, uint64_t *bit_accum)
+static inline int bit_accumulate(const unsigned char **in_ptr, const unsigned char *in_top, unsigned char *num_bits, uint64_t *bit_accum)
 {
 	if (*in_ptr >= in_top)
 		return 0;
@@ -233,7 +233,7 @@ __attribute__((noinline)) static int bit_accumulate(const unsigned char **in_ptr
  *
  * The decoded symbol is stored in <var>.
  */
-__attribute__((noinline)) static int gethuff(unsigned int *huff_index,
+static inline int gethuff(unsigned int *huff_index,
                                              const unsigned char **in_ptr, const unsigned char *in_top,
                                              unsigned char *num_bits, uint64_t *bit_accum,
                                              unsigned int *var, short *table)
@@ -284,7 +284,7 @@ __attribute__((noinline)) static int gethuff(unsigned int *huff_index,
  * As with gethuff(), returns 1 when decoding is complete and 0 if it
  * needs more input data.
  */
-__attribute__((noinline)) static int gethuff_fixed(const unsigned char **in_ptr, const unsigned char *in_top,
+static inline int gethuff_fixed(const unsigned char **in_ptr, const unsigned char *in_top,
                                                    unsigned char *num_bits, uint64_t *bit_accum,
                                                    unsigned int *var)
 {
