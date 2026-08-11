@@ -857,16 +857,23 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 
 	/* only on the very last return */
 	if ((state->flags & USLZ_FL_FINAL)) {
-		state->flags |= USLZ_FL_COMPLETE;
 		/* checksum checks for relevant formats: we use the bit
 		 * accumulator for that purpose since it is not used for
 		 * decoding anymore.
 		 */
 		bit_accum = 0;
 		num_bits = 0;
+		/* the trailer may well not be available yet, in which case we
+		 * have to be able to come back here on the next call.
+		 */
+		state->state = USLZ_ST_CHECK_CKSUM;
 
  state_CHECK_CKSUM:
+		/* checksum what has not been checksummed yet, and clear the
+		 * counter so that resuming here does not do it twice.
+		 */
 		uslz_update_crc(state, out_base + index - state->crc_flush, state->crc_flush);
+		state->crc_flush = 0;
 
 		if ((state->flags & USLZ_FL_ZLIB)) {
 			/* check computed zlib adler checksum against 4 last bytes
@@ -901,6 +908,15 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 				goto error_return;
 			}
 		}
+
+		/* The trailer has been verified, and only now may the stream
+		 * be reported as complete. Doing it before the check meant
+		 * that if the trailer was not available yet, the out of data
+		 * return above would make uslz_decode() see a complete stream
+		 * and return success from its drain path without ever coming
+		 * back here, so the checksum was silently never verified.
+		 */
+		state->flags |= USLZ_FL_COMPLETE;
 	}
 
 	state->in_ptr    = in_ptr;
