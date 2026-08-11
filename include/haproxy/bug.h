@@ -345,6 +345,39 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 	} while (0)
 
 
+/* This is called by _BUG_ON() and _BUG_ON_ONCE() to count and handle the event. */
+#define __BUG_ON(_cond, _file, _line, _type, _details, ...) {			\
+		static struct debug_count __dbg_cnt_##_line HA_SECTION("dbg_cnt") \
+		__attribute__((__used__,__aligned__(sizeof(void*)))) = { 	\
+			.file = _file,						\
+			.func = __func__,					\
+			.line = _line,						\
+			.type = _type,						\
+			.desc = (sizeof("" #_cond) > 1) ?			\
+				  (sizeof("" __VA_ARGS__) > 1) ?		\
+				  "" #_cond "\x1e" __VA_ARGS__ :		\
+				  "" #_cond :					\
+				"" __VA_ARGS__,					\
+			.count = 0,						\
+		};								\
+		HA_WEAK(__start_dbg_cnt);					\
+		HA_WEAK(__stop_dbg_cnt);					\
+		_HA_ATOMIC_INC(&__dbg_cnt_##_line.count);			\
+		if (_type != DBG_BUG_ONCE ||					\
+		    ({ static int __match_count_##_line;			\
+		       !_HA_ATOMIC_FETCH_ADD(&__match_count_##_line, 1); })) {	\
+			const char *msg =					\
+				(sizeof("" __VA_ARGS__) > 1) ?			\
+					"\"" #_cond "\" matched at " _file ":" #_line "\x1e" __VA_ARGS__ : \
+					"\"" #_cond "\" matched at " _file ":" #_line;	\
+			complain(_details, msg);				\
+			if (_details & DBG_DET_FAT_FATL)			\
+				ABORT_NOW();					\
+			else if (_details & DBG_DET_FAT_WARN)			\
+				ha_backtrace_to_stderr(0);			\
+		}								\
+	}
+
 /* Matrix for DEBUG_COUNTERS:
  *    0 : only BUG_ON() and CHECK_IF() are reported (super rare)
  *    1 : COUNT_GLITCH() are also reported (rare)
@@ -387,28 +420,6 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 # define _COUNT_IF(cond, file, line, ...) DISGUISE(unlikely(cond) ? 1 : 0)
 # define _COUNT_GLITCH(file, line, ...) do { } while (0)
 
-#endif /* USE_OBSOLETE_LINKER  */
-
-/* reports a glitch for current file and line, optionally with an explanation */
-#define COUNT_GLITCH(...) _COUNT_GLITCH(__FILE__, __LINE__, __VA_ARGS__)
-
-/* This is the generic low-level macro dealing with conditional warnings and
- * bugs. The caller decides whether to crash or not.
- * The macro returns the boolean value of the condition as an int for the case
- * where it wouldn't die. The <details> flag is made of:
- *  - details & DBG_DET_FAT_FATL: crash yes/no;
- *  - details & DBG_DET_TYP_BUG: taint as bug instead of warn
- * The optional argument must be a single constant string that will be appended
- * on a second line after the condition message, to give a bit more context
- * about the problem.
- */
-#define _BUG_ON(cond, file, line, details, ...)					\
-	(void)(unlikely(cond) ? ({						\
-		__DBG_COUNT(cond, file, line, DBG_BUG, __VA_ARGS__); 		\
-		__BUG_ON(cond, file, line, DBG_BUG, details, __VA_ARGS__); 	\
-		1; /* let's return the true condition */			\
-	}) : 0)
-
 /* This is called by _BUG_ON() and _BUG_ON_ONCE() to handle the event. */
 #define __BUG_ON(cond, file, line, type, details, ...) {		\
 		const char *msg;					\
@@ -427,6 +438,27 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 		}							\
 	}
 
+#endif /* USE_OBSOLETE_LINKER  */
+
+/* reports a glitch for current file and line, optionally with an explanation */
+#define COUNT_GLITCH(...) _COUNT_GLITCH(__FILE__, __LINE__, __VA_ARGS__)
+
+/* This is the generic low-level macro dealing with conditional warnings and
+ * bugs. The caller decides whether to crash or not.
+ * The macro returns the boolean value of the condition as an int for the case
+ * where it wouldn't die. The <details> flag is made of:
+ *  - details & DBG_DET_FAT_FATL: crash yes/no;
+ *  - details & DBG_DET_TYP_BUG: taint as bug instead of warn
+ * The optional argument must be a single constant string that will be appended
+ * on a second line after the condition message, to give a bit more context
+ * about the problem.
+ */
+#define _BUG_ON(cond, file, line, details, ...)					\
+	(void)(unlikely(cond) ? ({						\
+		__BUG_ON(cond, file, line, DBG_BUG, details, __VA_ARGS__); 	\
+		1; /* let's return the true condition */			\
+	}) : 0)
+
 /* This one is equivalent except that it only emits the message once by
  * maintaining a static counter. This may be used with warnings to detect
  * certain unexpected conditions in field. Later on, in cores it will be
@@ -434,7 +466,6 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
  */
 #define _BUG_ON_ONCE(cond, file, line, details, ...)				\
 	(void)(unlikely(cond) ? ({						\
-		__DBG_COUNT(cond, file, line, DBG_BUG_ONCE, __VA_ARGS__); 	\
 		__BUG_ON(cond, file, line, DBG_BUG_ONCE, details, __VA_ARGS__); \
 		1; /* let's return the true condition */			\
 	}) : 0)
