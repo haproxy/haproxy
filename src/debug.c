@@ -973,7 +973,7 @@ void ha_stuck_warning(void)
  * follows is a new line that will be appended after another LF (normally it's
  * used to give extra info to the user about the issue's location).
  */
-void complain(uint details, const char *msg)
+static void _complain(uint details, const char *msg)
 {
 	struct iovec iovec[10];
 	const char *pfx;
@@ -1054,6 +1054,12 @@ void complain(uint details, const char *msg)
 		mark_tainted(TAINTED_BUG);
 	else if (details & DBG_DET_TYP_WRN)
 		mark_tainted(TAINTED_WARN);
+}
+
+/* the exported function */
+void complain(uint details, const char *msg)
+{
+	_complain(details, msg);
 }
 
 /* parse a "debug dev exit" command. It always returns 1, though it should never return. */
