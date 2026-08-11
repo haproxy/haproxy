@@ -1048,18 +1048,24 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 	if (state->state == USLZ_ST_INITIAL) {
 		const unsigned char *input;
 		unsigned int zlib_header;
+		/* First byte of the header in the caller's buffer. The fast
+		 * paths below consume bytes from it before they know whether
+		 * they will be able to complete the header, so they need to be
+		 * able to give them back. Only meaningful while buf_len is 0,
+		 * that is, as long as nothing has been accumulated yet.
+		 */
+		const unsigned char *hdr_start = state->in_ptr;
 
 		input = state->in_ptr;
 
 		if ((state->flags & USLZ_FL_GZIP))
 			goto gzip_flags; // we already know it is gzip, keep parsing
 
-		if (compressed_size > 2 && !state->hdr_detect.buf_len) {
+		if (state->in_top - state->in_ptr > 2 && !state->hdr_detect.buf_len) {
 			/* enough data available in the header on first
 			 * attempt, let's try with the input buffer directly.
 			 */
 			state->in_ptr += 2;
-			compressed_size -= 2;
 			goto detect;
 		}
 
@@ -1084,11 +1090,18 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 				/* go to gzip header parsing directly if there
 				 * is enough data to parse it the first time.
 				 */
-				if (compressed_size >= 8) {
+				if (state->in_top - state->in_ptr >= 8) {
 					state->in_ptr += 8;
-					compressed_size -= 8;
 					goto enough_gzip_header;
 				}
+				/* Not enough data for the 10-byte header. Give
+				 * the two magic bytes consumed above back, so
+				 * that need_more_header accumulates the header
+				 * from its very first byte; otherwise they
+				 * would be dropped and the next call would
+				 * parse the header two bytes too far.
+				 */
+				state->in_ptr = hdr_start;
 				goto need_more_header; // gzip header is 10 bytes min
 			}
 
@@ -1130,10 +1143,9 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 					/* go to gzip FEXTRA parsing directly if there is enough data
 					 * to parse it the first time.
 					 */
-					if (compressed_size >= 2) {
+					if (state->in_top - state->in_ptr >= 2) {
 						input = state->in_ptr;
 						state->in_ptr += 2;
-						compressed_size -= 2;
 						goto enough_gzip_fextra_header;
 					}
 					goto need_more_header; // gzip FEXTRA FLEN is 2 bytes
@@ -1163,10 +1175,9 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 						/* go to gzip FEXTRA parsing directly if there is enough data
 						 * to parse it the first time.
 						 */
-						if (compressed_size >= xlen) {
+						if (state->in_top - state->in_ptr >= xlen) {
 							input = state->in_ptr;
 							state->in_ptr += xlen;
-							compressed_size -= xlen;
 						}
 						else
 							goto need_more_header; // gzip FEXTRA FLEN is 2 bytes
@@ -1257,7 +1268,14 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 			/* rfc1950/zlib starts with initial crc=1 */
 			state->crc = 1;
 			state->flags |= USLZ_FL_ZLIB;
-		} else if (state->hdr_detect.buf_len) {
+		} else if (!state->hdr_detect.buf_len) {
+			/* Raw format detected on the fast path: the two bytes
+			 * consumed above are not a header at all, they are the
+			 * first two bytes of the deflate stream. Give them back
+			 * and let uslz_decode_block() read them normally.
+			 */
+			state->in_ptr = hdr_start;
+		} else {
 			/* raw format, feed back the pending bytes to the stream,
 			 * (should be 2 bytes at most) if stream is invalid it
 			 * will be detected by tinflate_block().
