@@ -753,9 +753,12 @@ int slz_rfc1951_init(struct slz_stream *strm, int level)
  * queue (up to 31 bits when using the 64-bit queue), plus a possible EOB (7
  * bits), plus (BFINAL,BTYPE) (3 bits), which once rounded up to the next byte
  * make 6 bytes, plus 4 bytes for LEN+NLEN, or a total of 10 bytes in the worst
- * case. The number of bytes emitted is returned. It is guaranteed that the
- * queue is empty on return. This may cause some overhead by adding needless
- * 5-byte blocks if called to often.
+ * case. If the stream was already completed by a previous call to encode()
+ * with <more> cleared, the last block is simply terminated and the output
+ * aligned, since nothing may be appended to a finished stream. The number of
+ * bytes emitted is returned. It is guaranteed that the queue is empty on
+ * return. This may cause some overhead by adding needless 5-byte blocks if
+ * called to often.
  */
 int slz_rfc1951_flush(struct slz_stream *strm, unsigned char *buf)
 {
@@ -771,15 +774,26 @@ int slz_rfc1951_flush(struct slz_stream *strm, unsigned char *buf)
 		send_eob(strm);
 	}
 
-	/* send BFINAL according to state, and BTYPE=00 (lit) */
-	enqueue8(strm, (strm->state == SLZ_ST_DONE) ? 1 : 0, 3);
+	if (strm->state == SLZ_ST_DONE) {
+		/* The block we've just terminated was already marked final, so
+		 * the deflate stream is complete and nothing may be appended to
+		 * it: an extra block here would be located past the end of the
+		 * stream and would shift the gzip or zlib trailer that the
+		 * caller is about to emit. Aligning the output is all we have
+		 * to do, and it's all that's left to do for finish() as well.
+		 */
+		flush_bits(strm);
+		return strm->outbuf - buf;
+	}
+
+	/* send BFINAL=0 and BTYPE=00 (lit) */
+	enqueue8(strm, 0, 3);
 	flush_bits(strm);             // emit pending bits
 	copy_32b(strm, 0xFFFF0000U);  // len=0, nlen=~0
 
-	/* Now the queue is empty, EOB was sent, BFINAL might have been sent if
-	 * we completed the last block, and a zero-byte block was sent to byte-
-	 * align the output. The last state reflects all this. Let's just
-	 * return the number of bytes added to the output buffer.
+	/* Now the queue is empty, EOB was sent, and a zero-byte block was sent
+	 * to byte-align the output. The last state reflects all this. Let's
+	 * just return the number of bytes added to the output buffer.
 	 */
 	return strm->outbuf - buf;
 }
