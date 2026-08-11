@@ -442,7 +442,8 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 	strm->outbuf = out;
 
 #ifndef UNALIGNED_FASTER
-	word = ((unsigned char)in[pos] << 8) + ((unsigned char)in[pos + 1] << 16) + ((unsigned char)in[pos + 2] << 24);
+	if (rem >= 4)  // <word> is only used inside the loop below, hence the test for >= 4
+		word = ((unsigned char)in[pos] << 8) + ((unsigned char)in[pos + 1] << 16) + ((unsigned char)in[pos + 2] << 24);
 #endif
 	while (rem >= 4) {
 #ifndef UNALIGNED_FASTER
@@ -626,11 +627,16 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		pos += mlen;
 
 #ifndef UNALIGNED_FASTER
+		/* same as before the loop, this is only used when continuing
+		 * in the loop, so let's use the same condition (rem>=4).
+		 */
+		if (rem >= 4) {
 #ifdef UNALIGNED_LE_OK
-		word = *(uint32_t *)&in[pos - 1];
+			word = *(uint32_t *)&in[pos - 1];
 #else
-		word = ((unsigned char)in[pos] << 8) + ((unsigned char)in[pos + 1] << 16) + ((unsigned char)in[pos + 2] << 24);
+			word = ((unsigned char)in[pos] << 8) + ((unsigned char)in[pos + 1] << 16) + ((unsigned char)in[pos + 2] << 24);
 #endif
+		}
 #endif
 	}
 
