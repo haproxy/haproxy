@@ -875,7 +875,13 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			while (num_bits < 32) {
 				if (in_ptr >= in_top)
 					goto out_of_data;
-				bit_accum |= in_ptr[0] << (24 - num_bits);
+				/* the cast matters: in_ptr[0] is promoted to a
+				 * signed int, so for the first byte, whose
+				 * shift is 24, any value >= 0x80 would become
+				 * negative and be sign-extended over the upper
+				 * half of the 64-bit accumulator.
+				 */
+				bit_accum |= (uint32_t)in_ptr[0] << (24 - num_bits);
 				in_ptr++;
 				num_bits += 8;
 			}
