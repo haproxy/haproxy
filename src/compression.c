@@ -77,6 +77,13 @@ static int comp_rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data,
 static int comp_rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int comp_rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out);
 static int comp_rfc195x_end(struct comp_ctx **comp_ctx);
+static int decomp_uslz_init(struct decomp_ctx **decomp_ctx);
+static int decomp_uslz_gzip_init(struct decomp_ctx **decomp_ctx);
+static int decomp_uslz_deflate_init(struct decomp_ctx **decomp_ctx);
+static int decomp_uslz_raw_deflate_init(struct decomp_ctx **decomp_ctx);
+static int decomp_uslz_stream_new(struct decomp_ctx *decomp_ctx);
+static int decomp_uslz_add_data(struct decomp_ctx *decomp_ctx, const char *in_data, int in_len);
+static int decomp_uslz_end(struct decomp_ctx **decomp_ctx);
 
 #elif defined(USE_ZLIB)
 
@@ -104,6 +111,18 @@ const struct comp_algo comp_algos[] =
 	{ "gzip",         4, "gzip",     4, comp_gzip_init,     comp_deflate_add_data,  comp_deflate_flush,  comp_deflate_finish,  comp_deflate_end },
 #endif /* USE_ZLIB */
 	{ NULL,       0, NULL,          0, NULL ,         NULL,              NULL,           NULL,           NULL }
+};
+
+const struct decomp_algo decomp_algos[] =
+{
+#if defined(USE_SLZ)
+	{ "uslz-auto",   9,  "uslz-auto",   9, decomp_uslz_init,  decomp_uslz_stream_new, decomp_uslz_add_data, NULL,  decomp_uslz_end },
+	{ "deflate",     7,  "deflate",     7, decomp_uslz_deflate_init,  decomp_uslz_stream_new, decomp_uslz_add_data, NULL,  decomp_uslz_end },
+	{ "raw-deflate", 11, "deflate",     7, decomp_uslz_raw_deflate_init,  decomp_uslz_stream_new, decomp_uslz_add_data, NULL,  decomp_uslz_end },
+	{ "gzip",        4,  "gzip",        4, decomp_uslz_gzip_init,  decomp_uslz_stream_new, decomp_uslz_add_data, NULL,  decomp_uslz_end },
+#elif defined(USE_ZLIB)
+#endif /* USE_ZLIB */
+	{ NULL,       0,     NULL,          0, NULL ,                     NULL, NULL, NULL, NULL }
 };
 
 /*
@@ -155,8 +174,28 @@ int comp_append_algo(struct comp_algo **algos, const char *algo)
 	return -1;
 }
 
+int decomp_append_algo(struct decomp_algo **algos, const char *algo)
+{
+	struct decomp_algo *decomp_algo;
+	int i;
+
+	for (i = 0; decomp_algos[i].cfg_name; i++) {
+		if (strcmp(algo, decomp_algos[i].cfg_name) == 0) {
+			decomp_algo = calloc(1, sizeof(*decomp_algo));
+			if (!decomp_algo)
+				return 1;
+			memmove(decomp_algo, &decomp_algos[i], sizeof(struct decomp_algo));
+			decomp_algo->next = *algos;
+			*algos = decomp_algo;
+			return 0;
+		}
+	}
+	return -1;
+}
+
 #if defined(USE_ZLIB) || defined(USE_SLZ)
 DECLARE_STATIC_TYPED_POOL(pool_comp_ctx, "comp_ctx", struct comp_ctx);
+DECLARE_STATIC_TYPED_POOL(pool_decomp_ctx, "decomp_ctx", struct decomp_ctx);
 
 /*
  * Alloc the comp_ctx
@@ -190,6 +229,25 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 }
 
 /*
+ * Alloc the decomp_ctx
+ */
+static inline __maybe_unused int init_decomp_ctx(struct decomp_ctx **decomp_ctx)
+{
+	*decomp_ctx = pool_alloc(pool_decomp_ctx);
+	if (*decomp_ctx == NULL)
+		return -1;
+
+#if defined(USE_SLZ)
+	(*decomp_ctx)->fmt = SLZ_FMT_NONE;
+#endif
+	(*decomp_ctx)->drain_len = 0;
+	(*decomp_ctx)->drain = NULL;
+	(*decomp_ctx)->flags = 0;
+
+	return 0;
+}
+
+/*
  * Dealloc the comp_ctx
  */
 static inline int deinit_comp_ctx(struct comp_ctx **comp_ctx)
@@ -206,8 +264,21 @@ static inline int deinit_comp_ctx(struct comp_ctx **comp_ctx)
 #endif
 	return 0;
 }
-#endif
 
+/*
+ * Dealloc the decomp_ctx
+ */
+static inline __maybe_unused int deinit_decomp_ctx(struct decomp_ctx **decomp_ctx)
+{
+	if (!*decomp_ctx)
+		return 0;
+
+	pool_free(pool_decomp_ctx, *decomp_ctx);
+	*decomp_ctx = NULL;
+	return 0;
+}
+
+#endif
 
 /****************************
  **** Identity algorithm ****
@@ -395,6 +466,101 @@ static int comp_rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 static int comp_rfc195x_end(struct comp_ctx **comp_ctx)
 {
 	deinit_comp_ctx(comp_ctx);
+	return 0;
+}
+
+/* SLZ's auto deflate (supports RFC1950, 51 and 52).
+ * Returns < 0 on error.
+ */
+static int decomp_uslz_init(struct decomp_ctx **decomp_ctx)
+{
+	if (init_decomp_ctx(decomp_ctx) < 0)
+		return -1;
+
+	return 0;
+}
+
+/* only accept zlib deflate (rfc1950 stream) */
+static int decomp_uslz_deflate_init(struct decomp_ctx **decomp_ctx)
+{
+	if (decomp_uslz_init(decomp_ctx) < 0)
+		return -1;
+
+	(*decomp_ctx)->fmt = SLZ_FMT_ZLIB;
+
+	return 0;
+}
+
+/* only accept gzip (rfc1952 stream) */
+static int decomp_uslz_gzip_init(struct decomp_ctx **decomp_ctx)
+{
+	if (decomp_uslz_init(decomp_ctx) < 0)
+		return -1;
+
+	(*decomp_ctx)->fmt = SLZ_FMT_GZIP;
+
+	return 0;
+}
+
+/* only accept raw deflate stream (rfc1951 stream) */
+static int decomp_uslz_raw_deflate_init(struct decomp_ctx **decomp_ctx)
+{
+	if (decomp_uslz_init(decomp_ctx) < 0)
+		return -1;
+
+	(*decomp_ctx)->fmt = SLZ_FMT_DEFLATE;
+
+	return 0;
+}
+
+static int decomp_uslz_stream_new(struct decomp_ctx *decomp_ctx)
+{
+	if (decomp_ctx->fmt == SLZ_FMT_NONE) {
+		if (!uslz_init(&decomp_ctx->state, (unsigned char *)decomp_ctx->out_buf, sizeof(decomp_ctx->out_buf)))
+			return -1;
+	}
+	else if (!uslz_init_fmt(&decomp_ctx->state, (unsigned char *)decomp_ctx->out_buf, sizeof(decomp_ctx->out_buf), decomp_ctx->fmt))
+		return -1;
+
+	return 0;
+}
+
+/* Return the size of consumed data or -1. The output buffer is unused at this
+ * point, we only keep a reference to the input data or a copy of them if the
+ * reference is already used.
+ */
+static int decomp_uslz_add_data(struct decomp_ctx *decomp_ctx, const char *in_data, int in_len)
+{
+	unsigned char *decoded = NULL;
+	long decoded_len = 0;
+	long consumed = 0;
+	enum uslz_decode_ret decode_ret;
+	uint32_t crc;
+
+	decode_ret = uslz_decode(&decomp_ctx->state, (unsigned char *)in_data, in_len, &decoded, &decoded_len, &consumed, &crc);
+	decomp_ctx->drain = (char *)decoded;
+	decomp_ctx->drain_len = decoded_len;
+	switch (decode_ret) {
+		case USLZ_DECODE_SUCCESS:
+		case USLZ_DECODE_OUT_OF_SPACE:
+			if (decode_ret == USLZ_DECODE_SUCCESS)
+				decomp_ctx->flags |= DECOMP_CTX_FL_DONE;
+			break;
+
+		case USLZ_DECODE_OUT_OF_DATA:
+			break;
+		default:
+			/* decompression error. TODO: trace the error code and its meaning? */
+			return -1;
+	}
+
+	return consumed;
+}
+
+/* we just need to free the decomp_ctx here, nothing was allocated */
+static int decomp_uslz_end(struct decomp_ctx **decomp_ctx)
+{
+	deinit_decomp_ctx(decomp_ctx);
 	return 0;
 }
 
