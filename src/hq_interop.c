@@ -447,7 +447,7 @@ static void _hq_trace_http(const char *line, uint64_t mask,
 		chunk_appendf(&trash, " qcs=%p(%llu)", qcs, (ullong)qcs->id);
 
 	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
-	                 qcs->qcc->conn, qcs, 0, 0,
+	                 qcc ? qcc->conn : NULL, qcs, 0, 0,
 	                 "%s%s %s %s", c_str, s_str,
 	                 mask & QMUX_EV_STRM_SEND ? "sndh" : "rcvh", line);
 }
