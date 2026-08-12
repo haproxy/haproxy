@@ -6103,6 +6103,7 @@ compression                               X          X         X         X
 cookie                                    X          -         X         X
 crt                                       -          X         X         -
 declare capture                           -          X         X         -
+decompression                             X          X         X         X
 default-server                            X          -         X         X
 default_backend                           X          X         X         -
 description                               -          X         X         X
@@ -7061,7 +7062,7 @@ clitcpka-intvl <timeout>
 
 compression algo <algorithm> ...
 compression algo-req <algorithm>
-compression algo-res <algorithm>
+compression algo-res <algorithm> ...
 compression type <mime type> ...
   Enable HTTP compression.
 
@@ -7400,6 +7401,155 @@ declare capture [ request | response ] len <length>
   See also: "capture-req", "capture-res" (sample converters),
             "capture.req.hdr", "capture.res.hdr" (sample fetches),
             "http-request capture" and "http-response capture".
+
+decompression algo-req <algorithms> ...
+decompression algo-res <algorithms> ...
+
+  Configures the decompression algorithms supported by the proxy.
+  It does not enable decompression filters ("decomp-req" and "decomp-res")
+  automatically, relevant decompression filters must be enabled explicitly
+  on the proxy, else decompression options will simply be ignored.
+
+  May be used in the following contexts: http, tcp
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments :
+    algo-req     defines a list of decompression algorithms that may be used for
+                 requests. Only allowed on proxies with the frontend capability
+                 or in defaults section.
+
+    algo-res     defines a list of decompression algorithms that may be used for
+                 responses. Only allowed on proxies with the backend capability
+                 or in defaults section.
+
+  The currently supported algorithms are :
+    uslz-auto    for raw TCP, the filter will automatically detect compression
+                 format if the stream is zlib/gzip compatible, otherwise it
+                 will fall back to raw-deflate. While flexible, when algorithms
+                 are known, it is recommended to explicitly configure one of
+                 those below. This is only supported by libslz.
+
+    gzip         applies gzip decompression. This setting is only available
+                 when support for libslz was built in. In HTTP proxies, the
+                 "gzip" algorithm will also be advertised in Accept-Encoding.
+
+    deflate      same as "gzip", but with deflate algorithm and zlib format.
+                 This setting is only available when support for libslz was
+                 built in. In HTTP proxies, the "deflate" algorithm will also
+                 be advertised in Accept-Encoding.
+
+    raw-deflate  same as "deflate" without the zlib wrapper. This setting is
+                 only available when support for libslz was built in. In HTTP
+                 proxies, the "deflate" algorithm will also be advertised in
+                 Accept-Encoding.
+
+  When no algorithm is set (empty list), no decompression will happen. This
+  is the default.
+
+  For both "algo-req" and "algo-res", only HTTP proxies support multiple
+  algorithms to be provided. In TCP, only the first algorithm will be
+  considered. This is because HTTP advertises the compression algorithm used in
+  the "Content-Encoding" header, compared to TCP where the compressed stream
+  arrives without being advertised, requiring the user to know and configure
+  which one must be used.
+
+  Note that decompression is disabled by default in both directions and
+  requires a mode to be configure (see also: "decompression algo-req", and
+  "decompression algo-res").
+
+  In HTTP, enabling decompression on the stream will enforce chunked mode
+  ("Transfer-Encoding" will be set to "chunked" and existing "Content-length"
+   header will be removed), because the request / response body size cannot
+  be guessed when handling headers.
+
+  See also "decompression mode-req" and "decompression mode-res"
+
+
+decompression mode-req { none | auto | always }
+decompression mode-res { none | auto | always }
+  Defines how decompression works in each direction on a proxy
+
+  May be used in the following contexts: http, tcp
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments :
+    mode-req     configures request decompression mode among "none" (default),
+                 "auto" or "always" (see below). Only allowed on proxies with
+                 the frontend capability or in defaults section.
+
+    mode-res     configures response decompression mode among "none" (default),
+                 "auto" or "always" (see below).  Only allowed on proxies with
+                 the backend capability or in defaults section.
+
+  For each direction, the following modes are currently supported:
+    none         disables the compression in this direction. This is the
+                 default.
+
+    auto         enables opportunistic decompression in this direction: if a
+                 stream is compressed with a supported algorithm, then it will
+                 be decompressed. In HTTP, the algorithm used is determined by
+                 the Content-Encoding header. Also, supported algorithms will
+                 be advertised in the other direction via the Accept-Encoding
+                 header.
+
+    always       enables systematic decompression in this direction: if a
+                 stream is compressed with a supported algorithm, then it will
+                 be decompressed, otherwise the stream will be rejected and a
+                 failure will be reported. This ensures that the contents can
+                 always be decompressed for inspection for example. In HTTP,
+                 the algorithm used is determined by the Content-Encoding
+                 header. Also, supported algorithms will be advertised in the
+                 other direction via the Accept-Encoding header.
+
+  Mode "none", which is the default, means no decompression will be attempted
+  at all, the filter will let both uncompressed and compressed data pass
+  through. It can be used to disable the decompression inherited from a
+  defaults section.
+
+  When decompression is set to a mode other than "none" in a direction, the
+  associated decompression filter is automatically enabled. For requests, the
+  filter is called "decomp-req", and for responses, the filter is "decomp-res".
+  In order to prevent misconfigurations, particularly when combining multiple
+  filters, it is highly recommended to explicitly declare the filters sequence
+  via the "filter-sequence" directive in the proxy.
+
+  Mode "auto", which is only available for HTTP, means haproxy will try to find
+  a compatible algorithms in algo-req or algo-res list to be able to decompress
+  the body according to the advertised "Content-Encoding" header. If haproxy
+  finds a compatible algorithm, it will automatically decompress the stream,
+  otherwise it will forward it as-is. This can be considered as a best-effort
+  mode but it assumes that the endpoint is able to deal with both compressed
+  and uncompressed http bodies. This mode makes no sense with TCP because there
+  is no way to advertise the algorithm used.
+
+  Mode "always" means HAProxy will try to decompress the stream no matter what,
+  and if it fails (ie: no compatible algorithm found or error in the stream),
+  it will raise an error and terminate the stream. This mode is useful to
+  guarantee that the output data will never remain compressed (ie: if the
+  endpoint doesn't support compression at all).
+
+  In HTTP, enabling decompression on the stream will enforce chunked mode
+  ("Transfer-Encoding" will be set to "chunked" and existing "Content-length"
+   header will be removed), because the request / response body size cannot
+  be guessed when handling headers.
+
+  Examples :
+        decompression algo-req gzip
+        decompression mode-req auto
+        decompression algo-res deflate gzip
+        decompression mode-res always
+
+  IMPORTANT: decompression should only be enabled on traffic coming from
+             trusted peers. Indeed, it can be used as an attack amplifier, and
+             a hostile agent could trivially amplify its traffic 1000x by
+             sending it compressed.
+
+  See also "decompression algo-req", "decompression algo-res", and
+           "filter-sequence".
 
 
 default-server [name <name>] [from <origin>] [param*]
@@ -25325,24 +25475,24 @@ fe_tarpit_timeout : integer
 req.bytes_in : integer
   This returns the number of bytes received from the client. The value
   corresponds to what was received by HAProxy, including some headers and some
-  internal encoding overhead. Request compression does not affect the value
-  reported here.
+  internal encoding overhead. Request compression/decompression does not affect
+  the value reported here.
 
 req.bytes_out : integer
   This returns the number of bytes sent to the server. The value corresponds to
   what was sent by HAProxy, including some headers and some internal encoding
-  overhead. Request compression affects the value reported here.
+  overhead. Request compression/decompression affects the value reported here.
 
 res.bytes_in : integer
   This returns the number of bytes received from the server. The value
   corresponds to what was received by HAProxy, including some headers and some
-  internal encoding overhead. Response compression does not affect the value
-  reported here.
+  internal encoding overhead. Response compression/decompression does not affect
+  the value reported here.
 
 res.bytes_out : integer
   This returns the number of bytes sent to the client. The value corresponds to
   what was sent by HAProxy, including some headers and some internal encoding
-  overhead. Response compression affects the value reported here.
+  overhead. Response compression/decompression affects the value reported here.
 
 res.timer.data : integer
   this is the total transfer time of the response payload till the last byte
@@ -30707,6 +30857,23 @@ order.
 See also : "compression", section 9.4 about the cache filter and section 9.5
            about the fcgi-app filter.
 
+filter decomp-req
+
+Enables filter that explicitly tries to decompress requests according to
+"decompression" settings (setting algo is mandatory). It is only allowed on
+proxies with frontend capability. It supports both TCP and HTTP compressed
+streams. The filter runs during the stream forwarding phase, thus it will not
+be possible to perform TCP/HTTP rules on the decompressed stream (ie: req.body
+won't work).
+
+filter decomp-res
+
+Enables filter that explicitly tries to decompress responses according to
+"decompression" settings (setting algo is mandatory). It is only allowed on
+proxies with backend capability. It supports both TCP and HTTP compressed
+streams. The filter runs during the stream forwarding phase, thus it will not
+be possible to perform TCP/HTTP rules on the decompressed stream (ie: res.body
+won't work).
 
 9.3. Stream Processing Offload Engine (SPOE)
 --------------------------------------------
