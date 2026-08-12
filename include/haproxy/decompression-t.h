@@ -44,7 +44,7 @@
 /* DECOMP_DIR_FL_MODE modes are mutually exclusive */
 #define DECOMP_DIR_FL_MODE_MASK     0x0007
 #define DECOMP_DIR_FL_MODE_NONE     0x0001 /* default: do nothing */
-#define DECOMP_DIR_FL_MODE_AUTO     0x0002 /* best effort */
+#define DECOMP_DIR_FL_MODE_AUTO     0x0002 /* best effort, only available for HTTP decomp */
 #define DECOMP_DIR_FL_MODE_ALWAYS   0x0004 /* guarantees the output stream will be decompressed */
 
 /* Decompression ctx flags */

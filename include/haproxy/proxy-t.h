@@ -33,6 +33,7 @@
 #include <haproxy/arg-t.h>
 #include <haproxy/backend-t.h>
 #include <haproxy/compression-t.h>
+#include <haproxy/decompression-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/guid-t.h>
 #include <haproxy/obj_type-t.h>
@@ -494,6 +495,7 @@ struct proxy {
 	struct ceb_root *used_server_addr;      /* list of server addresses in use */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
+	struct decomp *decomp;                  /* tcp/http decompression */
 
 	struct {
 		union {

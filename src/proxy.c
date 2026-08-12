@@ -3532,6 +3532,20 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		curproxy->comp->flags = defproxy->comp->flags;
 	}
 
+	/* default decompression options */
+	if (defproxy->decomp != NULL) {
+		curproxy->decomp = calloc(1, sizeof(*curproxy->decomp));
+		if (!curproxy->decomp) {
+			memprintf(errmsg, "proxy '%s': out of memory for default decompression options", curproxy->id);
+			return 1;
+		}
+		curproxy->decomp->req.algos = defproxy->decomp->req.algos;
+		curproxy->decomp->req.flags = defproxy->decomp->req.flags;
+		curproxy->decomp->res.algos = defproxy->decomp->res.algos;
+		curproxy->decomp->res.flags = defproxy->decomp->res.flags;
+		curproxy->decomp->flags = defproxy->decomp->flags;
+	}
+
 	if (defproxy->check_path)
 		curproxy->check_path = strdup(defproxy->check_path);
 	if (defproxy->check_command)
