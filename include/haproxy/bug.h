@@ -33,6 +33,133 @@
 #include <haproxy/atomic.h>
 #include <haproxy/compiler.h>
 
+/* Counting the number of matches on a given BUG_ON()/WARN_ON()/CHECK_IF()/
+ * COUNT_IF() invocation requires a special section ("dbg_cnt") hence a modern
+ * linker.
+ */
+extern unsigned int debug_enable_counters;
+
+/* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
+extern unsigned int tainted;
+
+/* more reliable free() that clears the pointer */
+#define ha_free(x) do {							\
+		typeof(x) __x = (x);					\
+		if (__builtin_constant_p((x)) || __builtin_constant_p(*(x))) { \
+			HA_LINK_ERROR(call_to_ha_free_attempts_to_free_a_constant); \
+		}							\
+		free(*__x);						\
+		*__x = NULL;						\
+	} while (0)
+
+/* describes a call place in the code, for example for tracing memory
+ * allocations or task wakeups. These must be declared static const.
+ */
+struct ha_caller {
+	const char *func;  // function name
+	const char *file;  // file name
+	uint16_t line;     // line number
+	uint8_t what;      // description of the call, usage specific
+	uint8_t arg8;      // optional argument, usage specific
+	uint32_t arg32;    // optional argument, usage specific
+};
+
+/* makes a struct ha_caller from the caller */
+#define MK_CALLER(_what, _arg8, _arg32)					\
+	({ static const struct ha_caller _ = {				\
+		.func = __func__, .file = __FILE__, .line = __LINE__,	\
+		.what = _what, .arg8 = _arg8, .arg32 = _arg32 };	\
+		&_; })
+
+/* Memory allocation statistics are centralized into a global "mem_stats"
+ * section. This will not work with some linkers.
+ */
+enum {
+	MEM_STATS_TYPE_UNSET  = 0,
+	MEM_STATS_TYPE_CALLOC,
+	MEM_STATS_TYPE_FREE,
+	MEM_STATS_TYPE_MALLOC,
+	MEM_STATS_TYPE_REALLOC,
+	MEM_STATS_TYPE_STRDUP,
+	MEM_STATS_TYPE_P_ALLOC,
+	MEM_STATS_TYPE_P_FREE,
+};
+
+struct mem_stats {
+	size_t calls;
+	size_t size;
+	struct ha_caller caller;
+	const void *extra; // extra info specific to this call (e.g. pool ptr)
+} ALIGNED(sizeof(void*));
+
+/* handle 'tainted' status */
+enum tainted_flags {
+	TAINTED_CONFIG_EXP_KW_DECLARED = 0x00000001,
+	TAINTED_ACTION_EXP_EXECUTED    = 0x00000002,
+	TAINTED_CLI_EXPERT_MODE        = 0x00000004,
+	TAINTED_CLI_EXPERIMENTAL_MODE  = 0x00000008,
+	TAINTED_WARN                   = 0x00000010, /* a WARN_ON triggered */
+	TAINTED_BUG                    = 0x00000020, /* a BUG_ON triggered */
+	TAINTED_SHARED_LIBS            = 0x00000040, /* a shared library was loaded */
+	TAINTED_REDEFINITION           = 0x00000080, /* symbol redefinition detected */
+	TAINTED_REPLACED_MEM_ALLOCATOR = 0x00000100, /* memory allocator was replaced using LD_PRELOAD */
+	TAINTED_PANIC                  = 0x00000200, /* a panic dump has started */
+	TAINTED_LUA_STUCK              = 0x00000400, /* stuck in a Lua context */
+	TAINTED_LUA_STUCK_SHARED       = 0x00000800, /* stuck in a shared Lua context */
+	TAINTED_MEM_TRIMMING_STUCK     = 0x00001000, /* stuck while trimming memory */
+	TAINTED_WARN_BLOCKED_TRAFFIC   = 0x00002000, /* emitted a warning about blocked traffic */
+};
+
+static inline unsigned int mark_tainted(const enum tainted_flags flag)
+{
+	return HA_ATOMIC_FETCH_OR(&tainted, flag);
+}
+
+static inline unsigned int get_tainted()
+{
+	return HA_ATOMIC_LOAD(&tainted);
+}
+
+/* type of checks that can be verified. We cannot really distinguish between
+ * BUG/WARN/CHECK_IF as they all pass through __BUG_ON() at a different level,
+ * but there's at least a difference between __BUG_ON() and __BUG_ON_ONCE()
+ * (and of course COUNT_IF).
+ */
+enum debug_counter_type {
+	DBG_BUG,
+	DBG_BUG_ONCE,
+	DBG_COUNT_IF,
+	DBG_GLITCH,
+	DBG_COUNTER_TYPES // must be last
+};
+
+/* this is the struct that we store in section "dbg_cnt". Better keep it
+ * well aligned.
+ */
+struct debug_count {
+	const char *file;
+	const char *func;
+	const char *desc;
+	uint16_t    line;
+	uint8_t     type;
+	/* one-byte hole here */
+	uint32_t   count;
+};
+
+/* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
+#if defined(__GNUC__) && defined(__OPTIMIZE__)
+#define HA_LINK_ERROR(what)                                                  \
+	do {                                                                 \
+		/* provoke a build-time error */                             \
+		extern volatile int what;                                    \
+		what = 1;                                                    \
+	} while (0)
+#else
+#define HA_LINK_ERROR(what)                                                  \
+	do {                                                                 \
+	} while (0)
+#endif /* __OPTIMIZE__ */
+
 /* quick debugging hack, should really be removed ASAP */
 #ifdef DEBUG_FULL
 #define DPRINTF(x...) fprintf(x)
@@ -40,6 +167,8 @@
 #define DPRINTF(x...)
 #endif
 
+/* report a bug on stderr */
+void complain(int *counter, const char *msg, int taint);
 void ha_backtrace_to_stderr(void);
 
 /* Let's make DEBUG_STRESS equal to zero if not set or not valid, or to
@@ -174,39 +303,9 @@ static __attribute__((noinline,noreturn,unused)) void abort_with_line(uint line)
 	} while (0)
 #endif
 
-/* Counting the number of matches on a given BUG_ON()/WARN_ON()/CHECK_IF()/
- * COUNT_IF() invocation requires a special section ("dbg_cnt") hence a modern
- * linker.
- */
-extern unsigned int debug_enable_counters;
-
 #if !defined(USE_OBSOLETE_LINKER)
 
-/* type of checks that can be verified. We cannot really distinguish between
- * BUG/WARN/CHECK_IF as they all pass through __BUG_ON() at a different level,
- * but there's at least a difference between __BUG_ON() and __BUG_ON_ONCE()
- * (and of course COUNT_IF).
- */
-enum debug_counter_type {
-	DBG_BUG,
-	DBG_BUG_ONCE,
-	DBG_COUNT_IF,
-	DBG_GLITCH,
-	DBG_COUNTER_TYPES // must be last
-};
-
-/* this is the struct that we store in section "dbg_cnt". Better keep it
- * well aligned.
- */
-struct debug_count {
-	const char *file;
-	const char *func;
-	const char *desc;
-	uint16_t    line;
-	uint8_t     type;
-	/* one-byte hole here */
-	uint32_t   count;
-};
+/**** USE_OBSOLETE_LINKER not defined -- we're working with a modern linker ****/
 
 /* Declare a section for condition counters. The start and stop pointers are
  * set by the linker itself, which is why they're declared extern here. The
@@ -276,11 +375,15 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 	} while (0)
 # endif
 
-#else /* USE_OBSOLETE_LINKER not defined below  */
+#else /* USE_OBSOLETE_LINKER  */
+
+/**** USE_OBSOLETE_LINKER *is* defined -- we're working with an old linker ****/
+
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
 # define _COUNT_IF(cond, file, line, ...) DISGUISE(unlikely(cond) ? 1 : 0)
 # define _COUNT_GLITCH(file, line, ...) do { } while (0)
-#endif
+
+#endif /* USE_OBSOLETE_LINKER  */
 
 /* reports a glitch for current file and line, optionally with an explanation */
 #define COUNT_GLITCH(...) _COUNT_GLITCH(__FILE__, __LINE__, __VA_ARGS__)
@@ -382,7 +485,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "", __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
-#else
+#else /* DEBUG_STRICT not defined below */
 /* We want BUG_ON() to evaluate the expression sufficiently for next lines
  * of codes not to complain about suspicious dereferences for example.
  * GCC-11 tends to fail to validate that in combined expressions such as
@@ -416,7 +519,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, 1, "FATAL: check ",   "", __VA_ARGS__)
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
 # endif
-#else
+#else /* DEBUG_STRICT <= 1 below */
 /* Contrary to BUG_ON(), we do *NOT* want BUG_ON_HOT() to evaluate the
  * expression unless explicitly enabled, since it is located in hot code paths.
  * We just validate that the expression results in a valid type.
@@ -450,105 +553,9 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 	extern char CONCAT(bug_on_static_, __LINE__)[(cond) ? -1 : 1] __maybe_unused
 #endif
 
-/* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
-#if defined(__GNUC__) && defined(__OPTIMIZE__)
-#define HA_LINK_ERROR(what)                                                  \
-	do {                                                                 \
-		/* provoke a build-time error */                             \
-		extern volatile int what;                                    \
-		what = 1;                                                    \
-	} while (0)
-#else
-#define HA_LINK_ERROR(what)                                                  \
-	do {                                                                 \
-	} while (0)
-#endif /* __OPTIMIZE__ */
-
-/* more reliable free() that clears the pointer */
-#define ha_free(x) do {							\
-		typeof(x) __x = (x);					\
-		if (__builtin_constant_p((x)) || __builtin_constant_p(*(x))) { \
-			HA_LINK_ERROR(call_to_ha_free_attempts_to_free_a_constant); \
-		}							\
-		free(*__x);						\
-		*__x = NULL;						\
-	} while (0)
-
-/* describes a call place in the code, for example for tracing memory
- * allocations or task wakeups. These must be declared static const.
- */
-struct ha_caller {
-	const char *func;  // function name
-	const char *file;  // file name
-	uint16_t line;     // line number
-	uint8_t what;      // description of the call, usage specific
-	uint8_t arg8;      // optional argument, usage specific
-	uint32_t arg32;    // optional argument, usage specific
-};
-
-#define MK_CALLER(_what, _arg8, _arg32)					\
-	({ static const struct ha_caller _ = {				\
-		.func = __func__, .file = __FILE__, .line = __LINE__,	\
-		.what = _what, .arg8 = _arg8, .arg32 = _arg32 };	\
-		&_; })
-
-/* handle 'tainted' status */
-enum tainted_flags {
-	TAINTED_CONFIG_EXP_KW_DECLARED = 0x00000001,
-	TAINTED_ACTION_EXP_EXECUTED    = 0x00000002,
-	TAINTED_CLI_EXPERT_MODE        = 0x00000004,
-	TAINTED_CLI_EXPERIMENTAL_MODE  = 0x00000008,
-	TAINTED_WARN                   = 0x00000010, /* a WARN_ON triggered */
-	TAINTED_BUG                    = 0x00000020, /* a BUG_ON triggered */
-	TAINTED_SHARED_LIBS            = 0x00000040, /* a shared library was loaded */
-	TAINTED_REDEFINITION           = 0x00000080, /* symbol redefinition detected */
-	TAINTED_REPLACED_MEM_ALLOCATOR = 0x00000100, /* memory allocator was replaced using LD_PRELOAD */
-	TAINTED_PANIC                  = 0x00000200, /* a panic dump has started */
-	TAINTED_LUA_STUCK              = 0x00000400, /* stuck in a Lua context */
-	TAINTED_LUA_STUCK_SHARED       = 0x00000800, /* stuck in a shared Lua context */
-	TAINTED_MEM_TRIMMING_STUCK     = 0x00001000, /* stuck while trimming memory */
-	TAINTED_WARN_BLOCKED_TRAFFIC   = 0x00002000, /* emitted a warning about blocked traffic */
-};
-
-/* this is a bit field made of TAINTED_*, and is declared in haproxy.c */
-extern unsigned int tainted;
-
-void complain(int *counter, const char *msg, int taint);
-
-static inline unsigned int mark_tainted(const enum tainted_flags flag)
-{
-	return HA_ATOMIC_FETCH_OR(&tainted, flag);
-}
-
-static inline unsigned int get_tainted()
-{
-	return HA_ATOMIC_LOAD(&tainted);
-}
-
 #if defined(DEBUG_MEM_STATS)
 #include <stdlib.h>
 #include <string.h>
-
-/* Memory allocation statistics are centralized into a global "mem_stats"
- * section. This will not work with some linkers.
- */
-enum {
-	MEM_STATS_TYPE_UNSET  = 0,
-	MEM_STATS_TYPE_CALLOC,
-	MEM_STATS_TYPE_FREE,
-	MEM_STATS_TYPE_MALLOC,
-	MEM_STATS_TYPE_REALLOC,
-	MEM_STATS_TYPE_STRDUP,
-	MEM_STATS_TYPE_P_ALLOC,
-	MEM_STATS_TYPE_P_FREE,
-};
-
-struct mem_stats {
-	size_t calls;
-	size_t size;
-	struct ha_caller caller;
-	const void *extra; // extra info specific to this call (e.g. pool ptr)
-} ALIGNED(sizeof(void*));
 
 #undef calloc
 #define calloc(x,y)  ({							\
