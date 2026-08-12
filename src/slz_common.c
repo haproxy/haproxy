@@ -297,7 +297,5 @@ static inline void __slz_make_crc_table(void)
 __attribute__((constructor))
 static void __slz_common_initialize(void)
 {
-#if !defined(__ARM_FEATURE_CRC32)
 	__slz_make_crc_table(); // used by both slz and uslz
-#endif
 }
