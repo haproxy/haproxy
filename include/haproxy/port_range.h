@@ -92,6 +92,14 @@ static inline void port_range_release_port(struct port_range *range, int port)
 	port_range_release(range);
 }
 
+/* Return the number of usable ports in the range <range>.
+ * Note that range->size includes an extra slot used as a ring buffer sentinel.
+ */
+static inline int port_range_count(struct port_range *range)
+{
+	return range ? range->size - 1 : 0;
+}
+
 /* return a new initialized port range of N ports. The ports are not
  * filled in, it's up to the caller to do it.
  */

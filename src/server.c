@@ -1876,7 +1876,8 @@ static int srv_parse_source(char **args, int *cur_arg,
 			ha_alert("Server '%s': Out of memory (sport_range)\n", args[0]);
 			goto err;
 		}
-		for (i = 0; i < newsrv->conn_src.sport_range->size; i++)
+
+		for (i = 0; i < port_range_count(newsrv->conn_src.sport_range); i++)
 			newsrv->conn_src.sport_range->ports[i] = port_low + i;
 	}
 
@@ -2709,7 +2710,7 @@ static void srv_conn_src_sport_range_cpy(struct server *srv, const struct server
 {
 	int range_sz;
 
-	range_sz = src->conn_src.sport_range->size;
+	range_sz = port_range_count(src->conn_src.sport_range);
 	if (range_sz > 0) {
 		srv->conn_src.sport_range = port_range_alloc_range(range_sz);
 		if (srv->conn_src.sport_range != NULL) {
