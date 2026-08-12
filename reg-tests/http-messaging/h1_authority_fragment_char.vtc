@@ -1,0 +1,72 @@
+varnishtest "H1 absolute-form URI whose authority is terminated by '#' (rfc3986 3.2)"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.6-dev0)'"
+feature ignore_unknown_macro
+
+barrier b1 cond 2 -cyclic
+
+syslog S1 -level info {
+	# C1
+	recv
+	expect ~ "^.* uri: GET http://hostname#23frag HTTP/1.1; host: {hostname}$"
+	barrier b1 sync
+
+	# C2
+	recv
+	expect ~ "^.* uri: GET http://hostname/abc#23frag HTTP/1.1; host: {hostname}$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+
+		# a raw '#' in the request-target is rejected by default; relax this
+		# so the case reaches authority parsing.
+		option accept-unsafe-violations-in-http-request
+
+		http-request capture req.hdr(host) len 512
+		log-format "uri: %r; host: %hr"
+		log ${S1_addr}:${S1_port} len 2048 local0 debug err
+
+		http-request return status 200
+} -start
+
+# no path, authority terminated by '#' rather than '/' or '?' => must not be
+# absorbed into the authority, and the uri must be passed through untouched
+client c1 -connect ${h1_fe_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "http://hostname#frag" \
+	  -hdr "host: hostname"
+
+	rxresp
+	expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+# a path is present before the '#', so authority is terminated by '/' as usual;
+# the trailing fragment must be preserved as part of the path
+client c2 -connect ${h1_fe_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "http://hostname/abc#frag" \
+	  -hdr "host: hostname"
+
+	rxresp
+	expect resp.status == 200
+} -run
+
+syslog S1 -wait

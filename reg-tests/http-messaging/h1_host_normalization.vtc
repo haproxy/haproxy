@@ -231,6 +231,16 @@ syslog S1 -level info {
     # C43
     recv
     expect ~ "^.* uri: GET https://hostname:444/ HTTP/1.1; host: {hostname:444}$"
+    barrier b1 sync
+
+    # C44
+    recv
+    expect ~ "^.* uri: GET http://hostname\\?a=b HTTP/1.1; host: {hostname}$"
+    barrier b1 sync
+
+    # C45
+    recv
+    expect ~ "^.* uri: GET http://hostname\\?c=d HTTP/1.1; host: {hostname}$"
 
 } -start
 
@@ -903,6 +913,34 @@ client c43 -connect ${h1_fe_sock} {
       -req "GET" \
       -url "https://hostname:444" \
       -hdr "host: hostname:444"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+# empty path with a query string, no port => query must be preserved
+client c44 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname?a=b" \
+      -hdr "host: hostname"
+
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Wait matching on log message
+barrier b1 sync
+
+# empty path with a query string and a default port => no stray '/' after query
+client c45 -connect ${h1_fe_sock} {
+    txreq \
+      -req "GET" \
+      -url "http://hostname:80?c=d" \
+      -hdr "host: hostname:80"
 
     rxresp
     expect resp.status == 200
