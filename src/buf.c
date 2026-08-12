@@ -473,34 +473,84 @@ void b_move(const struct buffer *b, size_t src, size_t len, ssize_t shift)
  * located between <pos> and <end> with a copy of <blk> of length <len>. The
  * buffer's length is automatically updated. This is used to replace a block
  * with another one inside a buffer. The shift value (positive or negative) is
- * returned. If there's no space left, the move is not done. If <len> is null,
- * the <blk> pointer is allowed to be null, in order to erase a block.
+ * returned. If <len> is null, the <blk> pointer is allowed to be null, in
+ * order to erase a block. The caller has to check that the delta (inserted
+ * data - removed data) effectively fits into the buffer space (b_size()),
+ * else a BUG_ON() will be triggered, because the function is built to never
+ * fail when this condition is met.
+ *
+ * This function supports wrapping, as long as <pos> and <end> are on the same
+ * side of the buffer (<pos> and <end> have to be contigous, ie not interrupted
+ * by wrapping buffer)
  */
 int b_rep_blk(struct buffer *b, char *pos, char *end, const char *blk, size_t len)
 {
+	char *tail = b_tail(b);
 	int delta;
+	size_t block1;
+	size_t block2;
+	size_t after;
 
 	BUG_ON(pos < b->area || pos >= b->area + b->size);
 
 	delta = len - (end - pos);
 
-	if (__b_tail(b) + delta > b_wrap(b))
-		return 0;  /* no space left */
+	/* check if out of space, which is assumed it cannot happen as the
+	 * caller is supposed to check that prior to calling the function
+	 */
+	BUG_ON(b_data(b) + delta > b_size(b));
 
-	if (b_data(b) &&
-	    b_tail(b) + delta > b_head(b) &&
-	    b_head(b) >= b_tail(b))
-		return 0;  /* no space left before wrapping data */
+	block1 = len;
+	block2 = 0;
 
-	/* first, protect the end of the buffer */
-	memmove(end + delta, end, b_tail(b) - end);
+	if (delta > 0) {
+		/* Shift buffer data to make room for additional data. We take extra
+		 * precautions to ensure that we properly handle wrapping (either it
+		 * wrapped before the expansion or due to the expansion.
+		 */
+		if (tail < end) {
+			/* buffer already wrapped BEFORE expansion */
+			after = b_size(b) - (end - tail);
+		}
+		else {
+			/* buffer didn't wrap yet or about to wrap because of expansion */
+			after = tail - end;
+		}
+		/* nothing to move when <end> is the tail, and <delta> may then be
+		 * as large as the whole buffer, which b_move() refuses
+		 */
+		if (after)
+			b_move(b, end - b_orig(b), after, delta);
+		block1 = MIN(len, b_wrap(b) - pos);
+		block2 = len - block1;
+	}
 
 	/* now, copy blk over pos */
-	if (len)
-		memcpy(pos, blk, len);
+	if (block1)
+		memcpy(pos, blk, block1);
+	if (block2) {
+		/* remaining data after wrapping */
+		memcpy(b_orig(b), blk + block1, block2);
+	}
 
 	b_add(b, delta);
 	b_realign_if_empty(b);
+
+	if (delta >= 0)
+		return delta;
+
+	if (tail < end) {
+		/* we arrive here if a wrapping buffer was shrunk, meaning we left a
+		 * hole. In this case we must shift data back to prevent fragmentation
+		 */
+		after = b_size(b) - (end - tail);
+	}
+	else {
+		/* normal shrink */
+		after = tail - end;
+	}
+	if (after)
+		b_move(b, end - b_orig(b), after, delta);
 
 	return delta;
 }
