@@ -671,7 +671,7 @@ static void _h3_trace_header(const struct ist n, const struct ist v,
 		chunk_appendf(&trash, " (... +%ld)", (long)(v.len - v_short.len));
 
 	TRACE_PRINTF_LOC(TRACE_LEVEL_USER, mask, trc_loc, func,
-	                 qcc->conn, qcs, 0, 0, "%s%s %s %s: %s", c_str, s_str,
+	                 qcc ? qcc->conn : NULL, qcs, 0, 0, "%s%s %s %s: %s", c_str, s_str,
 	                 mask & H3_EV_TX_HDR ? "sndh" : "rcvh",
 	                 istptr(n_short), istptr(v_short));
 }
