@@ -26364,9 +26364,9 @@ ssl_c_i_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_c_i_dn(,0,rfc2253)
-  If the requested entry's ASN.1 value contains an embedded NUL byte
-  followed by other data, it is considered malformed and no data is
-  returned.
+  If the requested entry's ASN.1 value (or, when no <entry> is specified,
+  any entry in the DN) contains an embedded NUL byte followed by other
+  data, it is considered malformed and no data is returned.
 
 ssl_c_key_alg : string
   Returns the name of the algorithm used to generate the key of the certificate
@@ -26416,9 +26416,9 @@ ssl_c_r_dn([<entry>[,<occ>[,<format>]]]) : string
   different protocols. Currently supported is rfc2253 for LDAP v3. If you'd like
   to modify the format only you can specify an empty string and zero for the
   first two parameters. Example: ssl_c_r_dn(,0,rfc2253)
-  If the requested entry's ASN.1 value contains an embedded NUL byte
-  followed by other data, it is considered malformed and no data is
-  returned.
+  If the requested entry's ASN.1 value (or, when no <entry> is specified,
+  any entry in the DN) contains an embedded NUL byte followed by other
+  data, it is considered malformed and no data is returned.
 
 ssl_c_s_dn([<entry>[,<occ>[,<format>]]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
@@ -26434,9 +26434,9 @@ ssl_c_s_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_c_s_dn(,0,rfc2253)
-  If the requested entry's ASN.1 value contains an embedded NUL byte
-  followed by other data, it is considered malformed and no data is
-  returned.
+  If the requested entry's ASN.1 value (or, when no <entry> is specified,
+  any entry in the DN) contains an embedded NUL byte followed by other
+  data, it is considered malformed and no data is returned.
 
 ssl_c_san : string
   When the incoming connection was made over an SSL/TLS transport layer, and was
@@ -26508,9 +26508,9 @@ ssl_f_i_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_f_i_dn(,0,rfc2253)
-  If the requested entry's ASN.1 value contains an embedded NUL byte
-  followed by other data, it is considered malformed and no data is
-  returned.
+  If the requested entry's ASN.1 value (or, when no <entry> is specified,
+  any entry in the DN) contains an embedded NUL byte followed by other
+  data, it is considered malformed and no data is returned.
 
 ssl_f_key_alg : string
   Returns the name of the algorithm used to generate the key of the certificate
@@ -26541,9 +26541,9 @@ ssl_f_s_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_f_s_dn(,0,rfc2253)
-  If the requested entry's ASN.1 value contains an embedded NUL byte
-  followed by other data, it is considered malformed and no data is
-  returned.
+  If the requested entry's ASN.1 value (or, when no <entry> is specified,
+  any entry in the DN) contains an embedded NUL byte followed by other
+  data, it is considered malformed and no data is returned.
 
 ssl_f_serial : binary
   Returns the serial of the certificate presented by the frontend when the
@@ -26969,9 +26969,9 @@ ssl_s_i_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_s_i_dn(,0,rfc2253)
-  If the requested entry's ASN.1 value contains an embedded NUL byte
-  followed by other data, it is considered malformed and no data is
-  returned.
+  If the requested entry's ASN.1 value (or, when no <entry> is specified,
+  any entry in the DN) contains an embedded NUL byte followed by other
+  data, it is considered malformed and no data is returned.
 
 ssl_s_key_alg : string
   Returns the name of the algorithm used to generate the key of the certificate
@@ -27002,9 +27002,9 @@ ssl_s_s_dn([<entry>[,<occ>[,<format>]]]) : string
   LDAP v3.
   If you'd like to modify the format only you can specify an empty string
   and zero for the first two parameters. Example: ssl_s_s_dn(,0,rfc2253)
-  If the requested entry's ASN.1 value contains an embedded NUL byte
-  followed by other data, it is considered malformed and no data is
-  returned.
+  If the requested entry's ASN.1 value (or, when no <entry> is specified,
+  any entry in the DN) contains an embedded NUL byte followed by other
+  data, it is considered malformed and no data is returned.
 
 ssl_s_serial : binary
   Returns the serial of the certificate presented by the server when the

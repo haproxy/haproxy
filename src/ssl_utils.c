@@ -301,6 +301,7 @@ int ssl_sock_get_dn_oneline(__X509_NAME_CONST__ X509_NAME *a, struct buffer *out
 	__X509_NAME_CONST__ ASN1_OBJECT *obj;
 	__X509_NAME_CONST__ ASN1_STRING *data;
 	const unsigned char *data_ptr;
+	const unsigned char *nul;
 	int data_len;
 	int i, n, ln;
 	int l = 0;
@@ -320,6 +321,23 @@ int ssl_sock_get_dn_oneline(__X509_NAME_CONST__ X509_NAME *a, struct buffer *out
 		data = X509_NAME_ENTRY_get_data(ne);
 		data_ptr = ASN1_STRING_get0_data(data);
 		data_len = ASN1_STRING_length(data);
+
+		/* reject the whole DN if this entry carries an embedded NUL
+		 * (truncation/injection risk for NUL-terminated consumers);
+		 * trailing NUL(s) carry nothing after them so they're harmless
+		 * padding, just keep one and skip the extra ones
+		 */
+		nul = memchr(data_ptr, 0, data_len);
+		if (nul) {
+			const unsigned char *q;
+
+			for (q = nul; q < data_ptr + data_len; q++) {
+				if (*q)
+					return 0;
+			}
+			data_len = nul - data_ptr + 1;
+		}
+
 		n = OBJ_obj2nid(obj);
 		if ((n == NID_undef) || ((s = OBJ_nid2sn(n)) == NULL)) {
 			i2t_ASN1_OBJECT(tmp, sizeof(tmp), obj);
