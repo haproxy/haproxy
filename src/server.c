@@ -3697,6 +3697,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	int alt_proto = 0;
 	int tmpl_range_low = 0, tmpl_range_high = 0;
 	char *errmsg = NULL;
+	char *name = NULL;
+
 
 	*srv = NULL;
 
@@ -3892,8 +3894,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		HA_SPIN_INIT(&newsrv->lock);
 	}
 	else {
-		char *name;
-
 		/* Parse optional "name" default-server keyword. */
 		if (*args[1] && strcmp(args[1], "name") == 0) {
 			if (!*args[2]) {
@@ -3918,7 +3918,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		else {
 			/* unnamed default-server instance */
 			*cur_arg = 1;
-			name = NULL;
 			newsrv = curproxy->defsrv;
 		}
 
@@ -3957,6 +3956,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	return 0;
 
 out:
+	free(name);
 	free(fqdn);
 	return err_code;
 }
