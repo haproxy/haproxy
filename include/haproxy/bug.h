@@ -410,7 +410,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 	}) : 0)
 
 /* This is called by _BUG_ON() and _BUG_ON_ONCE() to handle the event. */
-#define __BUG_ON(cond, file, line, type, details, ...) do {		\
+#define __BUG_ON(cond, file, line, type, details, ...) {		\
 		const char *msg;					\
 		if (sizeof("" __VA_ARGS__) > 1)				\
 			msg = "\"" #cond "\" matched at " file ":" #line "\x1e" __VA_ARGS__; \
@@ -425,7 +425,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 			else if (details & DBG_DET_FAT_WARN)		\
 				ha_backtrace_to_stderr(0);		\
 		}							\
-	} while (0)
+	}
 
 /* This one is equivalent except that it only emits the message once by
  * maintaining a static counter. This may be used with warnings to detect
