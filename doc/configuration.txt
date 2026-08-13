@@ -1208,6 +1208,9 @@ The list of currently supported predicates is the following:
                             in the features list reported by "haproxy -vv"
                             (which means a <name> appears after a '+')
 
+  - fips_mode()           : returns true if the loaded SSL library is
+                            currently running in FIPS mode.
+
   - openssl_version_atleast(<ver>) : returns true if the current openssl
                             version is at least as recent as <ver> otherwise
                             false.

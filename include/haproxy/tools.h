@@ -1472,6 +1472,8 @@ int awslc_compare_current_api(const char *version);
 int openssl_compare_current_version(const char *version);
 /* compare the current OpenSSL name to a string */
 int openssl_compare_current_name(const char *name);
+/* returns whether the SSL library is currently running in FIPS mode */
+int openssl_fips_mode(void);
 
 /* vma helpers */
 void vma_set_name(void *addr, size_t size, const char *type, const char *name);

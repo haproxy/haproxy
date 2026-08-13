@@ -32,6 +32,7 @@ const struct cond_pred_kw cond_predicates[] = {
 	{ "awslc_api_atleast",       CFG_PRED_AWSLC_API_ATLEAST,      ARG1(1, STR)         },
 	{ "awslc_api_before",        CFG_PRED_AWSLC_API_BEFORE,       ARG1(1, STR)         },
 	{ "enabled",                 CFG_PRED_ENABLED,                ARG1(1, STR)         },
+	{ "fips_mode",               CFG_PRED_FIPS_MODE,              0                    },
 	{ NULL, CFG_PRED_NONE, 0 }
 };
 
@@ -319,6 +320,15 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 		}
 		case CFG_PRED_ENABLED: { // checks if the arg matches on a subset of enabled options
 			ret = cfg_eval_cond_enabled(term->args[0].data.str.area) != 0;
+			break;
+		}
+		case CFG_PRED_FIPS_MODE: { // checks if the SSL library is currently running in FIPS mode
+			int fipsret = openssl_fips_mode();
+
+			/* < -1 (i.e. -2) means the loaded SSL library doesn't support
+			 * FIPS mode at all, in which case the condition is simply false.
+			 */
+			ret = fipsret > 0;
 			break;
 		}
 		default:

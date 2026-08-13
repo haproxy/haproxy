@@ -57,6 +57,7 @@ enum cond_predicate {
 	CFG_PRED_AWSLC_API_ATLEAST,      // "awslc_api_atleast"
 	CFG_PRED_AWSLC_API_BEFORE,       // "awslc_api_before"
 	CFG_PRED_ENABLED,                // "enabled"
+	CFG_PRED_FIPS_MODE,              // "fips_mode"
 };
 
 /* types for condition terms */

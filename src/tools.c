@@ -7465,6 +7465,32 @@ int openssl_compare_current_name(const char *name)
 	return 1;
 }
 
+/*
+ * This function returns whether the SSL library currently loaded is running
+ * in FIPS mode.
+ *
+ * FIPS_mode() is implemented by OpenSSL 1.0.x/1.1.x (including
+ * FIPS-validated builds) as well as by libraries providing a compatible API
+ * such as AWS-LC. It was removed in OpenSSL 3.0, replaced by a provider-based
+ * FIPS model: EVP_default_properties_is_fips_enabled() reports whether the
+ * default library context currently resolves algorithm fetches to the FIPS
+ * provider, which is the closest 3.x equivalent.
+ *
+ *  1 : FIPS mode is enabled
+ *  0 : FIPS mode is disabled
+ * -2 : not applicable, the loaded SSL library does not support FIPS mode
+ */
+int openssl_fips_mode(void)
+{
+#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
+	return FIPS_mode() ? 1 : 0;
+#elif defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL)
+	return EVP_default_properties_is_fips_enabled(NULL) ? 1 : 0;
+#else
+	return -2;
+#endif
+}
+
 /* prctl/PR_SET_VMA wrapper to easily give a name to virtual memory areas,
  * knowing their address and size.
  *
