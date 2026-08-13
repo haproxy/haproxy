@@ -1,6 +1,22 @@
 Reporting security issues in HAProxy
 ------------------------------------
 
+Security issues may ONLY be reported against the LATEST released version of a
+branch, as indicated on https://www.haproxy.org/. It is the reporter's sole
+responsibility to verify that the issue exists in the upstream source code of
+the latest release for a given branch before submitting a report. Reports are
+frequently generated against older versions containing known, previously
+resolved bugs. Triaging these duplicate claims severely drains maintainer
+resources. If you are analyzing a specific version and cannot test the latest
+release, you MUST review your version's bugs at https://www.haproxy.org/bugs/
+and check the repository history to verify whether the fixes missing from that
+version address the issue. If the bug has already been resolved upstream, you
+must update your version or identify the specific missing patch, and refrain
+from sharing your report which then brings no value.
+
+Maintainers reserve the right to silently ignore security reports for issues
+already resolved in up-to-date releases.
+
 Before reporting anything, please read doc/internals/threat-model.txt. It
 defines precisely what is and is not considered a security vulnerability in
 HAProxy. A fair number of suspected issues (and most automated or LLM-assisted
