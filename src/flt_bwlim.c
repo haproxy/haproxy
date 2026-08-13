@@ -402,6 +402,11 @@ static enum act_return bwlim_set_limit(struct act_rule *rule, struct proxy *px,
 		if (!ts)
 			goto end;
 
+		/* release any entry held by a previous execution of the action
+		 * on the same stream, otherwise its reference would be leaked.
+		 */
+		if (st->ts)
+			stktable_touch_local(t, st->ts, 1);
 		st->ts = ts;
 		st->rule = rule;
 	}
