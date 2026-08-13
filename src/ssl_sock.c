@@ -8844,9 +8844,7 @@ static void ssl_register_build_options()
 #endif
 #endif
 	       "", ptr);
-#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
-	memprintf(&ptr, "%s\nSSL library FIPS mode : %s", ptr, FIPS_mode() ? "yes" : "no");
-#endif
+	memprintf(&ptr, "%s\nSSL library FIPS mode : %s", ptr, openssl_fips_mode() > 0 ? "yes" : "no");
 	memprintf(&ptr, "%s\nSSL library default verify directory : %s", ptr, ha_default_cert_dir());
 	memprintf(&ptr, "%s\nSSL library supports :", ptr);
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
