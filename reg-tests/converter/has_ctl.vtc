@@ -1,0 +1,162 @@
+varnishtest "has_ctl converter Test"
+
+feature ignore_unknown_macro
+
+# The test payloads are passed base64-encoded in the "data" header and decoded
+# so that control chars (including NUL) can safely transit over HTTP.
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 8 -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request  set-var(txn.in) req.hdr(data),b64dec
+
+	# no arg and empty arg both mean 00-1F and 7F except tab
+	http-response set-header ctl-def   "%[var(txn.in),has_ctl]"
+	http-response set-header ctl-empty "%[var(txn.in),has_ctl()]"
+	# all of 00-1F and 7F, tab included
+	http-response set-header ctl-any   "%[var(txn.in),has_ctl(any)]"
+	# only the chars strictly forbidden in HTTP: NUL, LF, CR
+	http-response set-header ctl-http  "%[var(txn.in),has_ctl(http)]"
+	# explicit mask, here only tab (bit 9)
+	http-response set-header ctl-mask  "%[var(txn.in),has_ctl(0x200)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# "hello world": no control char at all
+	txreq -url "/" -hdr "Data: aGVsbG8gd29ybGQ="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "0"
+	expect resp.http.ctl-empty == "0"
+	expect resp.http.ctl-any   == "0"
+	expect resp.http.ctl-http  == "0"
+	expect resp.http.ctl-mask  == "0"
+
+	# "a<tab>b": only matched by "any" and by the explicit tab mask
+	txreq -url "/" -hdr "Data: YQli"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "0"
+	expect resp.http.ctl-empty == "0"
+	expect resp.http.ctl-any   == "1"
+	expect resp.http.ctl-http  == "0"
+	expect resp.http.ctl-mask  == "1"
+
+	# "a<cr>b": matched everywhere except by the tab mask
+	txreq -url "/" -hdr "Data: YQ1i"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "1"
+	expect resp.http.ctl-empty == "1"
+	expect resp.http.ctl-any   == "1"
+	expect resp.http.ctl-http  == "1"
+	expect resp.http.ctl-mask  == "0"
+
+	# "a<lf>b"
+	txreq -url "/" -hdr "Data: YQpi"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "1"
+	expect resp.http.ctl-empty == "1"
+	expect resp.http.ctl-any   == "1"
+	expect resp.http.ctl-http  == "1"
+	expect resp.http.ctl-mask  == "0"
+
+	# "a<nul>b"
+	txreq -url "/" -hdr "Data: YQBi"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "1"
+	expect resp.http.ctl-empty == "1"
+	expect resp.http.ctl-any   == "1"
+	expect resp.http.ctl-http  == "1"
+	expect resp.http.ctl-mask  == "0"
+
+	# "a<soh>b": a control char but not one forbidden in HTTP
+	txreq -url "/" -hdr "Data: YQFi"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "1"
+	expect resp.http.ctl-empty == "1"
+	expect resp.http.ctl-any   == "1"
+	expect resp.http.ctl-http  == "0"
+	expect resp.http.ctl-mask  == "0"
+
+	# "a<esc>b"
+	txreq -url "/" -hdr "Data: YRti"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "1"
+	expect resp.http.ctl-empty == "1"
+	expect resp.http.ctl-any   == "1"
+	expect resp.http.ctl-http  == "0"
+	expect resp.http.ctl-mask  == "0"
+
+	# "a<del>b": 0x7f is the 33rd bit of the mask
+	txreq -url "/" -hdr "Data: YX9i"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ctl-def   == "1"
+	expect resp.http.ctl-empty == "1"
+	expect resp.http.ctl-any   == "1"
+	expect resp.http.ctl-http  == "0"
+	expect resp.http.ctl-mask  == "0"
+} -run
+
+# a non-numeric, non-keyword argument must be rejected
+haproxy h2 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe2}"
+	http-request set-var(txn.ctl) req.hdr(data),has_ctl(bogus)
+}
+
+# a mask with bits above the 33rd must be rejected
+haproxy h3 -conf-BAD {} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe3}"
+	http-request set-var(txn.ctl) req.hdr(data),has_ctl(0x400000000)
+}

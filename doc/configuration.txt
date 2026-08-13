@@ -21136,6 +21136,7 @@ fe_exists                                          string       boolean
 field(index,delimiters[,count])                    string       string
 fix_is_valid                                       binary       boolean
 fix_tag_value(tag)                                 binary       binary
+has_ctl([mask])                                    binary       boolean
 hex                                                binary       string
 hex2i                                              binary       integer
 hmac(algorithm,key)                                binary       binary
@@ -21718,6 +21719,24 @@ fix_tag_value(<tag>)
       # MsgType tag ID is 35, so both lines below will return the same content
       tcp-request content set-var(txn.foo) req.payload(0,0),fix_tag_value(35)
       tcp-request content set-var(txn.bar) req.payload(0,0),fix_tag_value(MsgType)
+
+has_ctl([mask])
+  Checks the input binary sample for control characters as defined by the mask
+  argument. The mask is a 33-bit number (either decimal or hexadecimal prefixed
+  by "0x"), which has one bit set for each character to be detected in the 0x00
+  to 0x1F range, and bit 32 set to match the DEL character (0x7F). When no mask
+  is specified, the converter will use value 0x1FFFFFDFF, matching all control
+  characters except TAB (0x09), which is commonly used in HTTP headers. The
+  special mask "any" corresponds to 0x1FFFFFFFF which will match all control
+  characters, TAB included. The special mask "http" corresponds to 0x2401 and
+  will only cause the control characterss forbidden in HTTP header values to be
+  matched, which are CR (0x0D), LF (0x0A) and NUL (0x00).
+
+  Examples:
+    # reject presence of DEL, CR, LF, NUL characters in the referer header
+    http-request deny if { req.fhdr(referer),has_ctl(0x100002401) }
+    # reject presence of any control char but tab in any HTTP header value
+    http-request deny if { req.hdr(),has_ctl }
 
 hex
   Converts a binary input sample to a hex string containing two hex digits per

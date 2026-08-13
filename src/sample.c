@@ -2189,6 +2189,74 @@ static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *
 	return 1;
 }
 
+/* check and/or preset the optional argument of has_ctl() */
+static int sample_conv_hasctl_check(struct arg *args, struct sample_conv *conv,
+                                    const char *file, int line, char **err)
+{
+	char *endarg;
+	long long arg_int;
+
+	if (args[0].type != ARGT_STR || !*args[0].data.str.area) {
+		/* default to match any ctl char \x00-\x1f and \x7f, except tab (0x09) */
+		args[0].data.str.area = "0x1FFFFFDFF";
+	}
+	else if (strcmp(args[0].data.str.area, "any") == 0) {
+		/* any means any, thus \x00-\x1f and \x7f */
+		args[0].data.str.area = "0x1FFFFFFFF";
+	}
+	else if (strcmp(args[0].data.str.area, "http") == 0) {
+		/* default HTTP control chars: CR, LF, NUL */
+		args[0].data.str.area = "0x2401";
+	}
+
+
+	arg_int = strtoll(args[0].data.str.area, &endarg, 0);
+	if (*endarg) {
+		memprintf(err,
+			  "cannot parse value '%s', problem at position %d; expecting an integer value (decimal or hex with '0x' prefix).\n",
+			  args[0].data.str.area,
+			  (int)(endarg - args[0].data.str.area));
+		return 0;
+	}
+
+	if (arg_int & ~0x1FFFFFFFFLL) {
+		memprintf(err, "unsupported excess bits 0x%llx in argument value %s",
+			  arg_int & ~0x1FFFFFFFFLL,
+			  args[0].data.str.area);
+		return 0;
+	}
+
+	args[0].type = ARGT_SINT;
+	args[0].data.sint = arg_int;
+	return 1;
+}
+
+/* Checks an input sample (binary or string) for control chars among those set
+ * in the mask in args[0], where one bit corresponds to one char for the first
+ * 32, and the 33th corresponds to 0x7F. This is used to detect some forbidden
+ * chars in header values. The result is a boolean indicating if any such char
+ * was found.
+ */
+static int sample_conv_hasctl(const struct arg *args, struct sample *smp, void *private)
+{
+	const char *end = smp->data.u.str.area + smp->data.u.str.data;
+	long long mask = args[0].data.sint;
+	unsigned char c;
+	const char *p;
+
+	for (p = smp->data.u.str.area; p < end; p++) {
+		c = *p;
+		if ((c < 0x20 && (mask & (1ULL << c))) ||
+		    (c == 0x7f && (mask & (1ULL << 32))))
+			break;
+	}
+
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = p < end; // true if found
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct buffer *trash = get_best_trash_chunk(&smp->data.u.str, smp->data.u.str.data*2);
@@ -5807,6 +5875,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "be2dec",  sample_conv_be2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
 	{ "le2dec",  sample_conv_le2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
 	{ "be2hex",  sample_conv_be2hex,       ARG3(1,STR,SINT,SINT), sample_conv_be2hex_check, SMP_T_BIN,  SMP_T_STR  },
+	{ "has_ctl", sample_conv_hasctl,       ARG1(0,STR),           sample_conv_hasctl_check, SMP_T_BIN,  SMP_T_BOOL },
 	{ "hex",     sample_conv_bin2hex,      0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "hex2i",   sample_conv_hex2int,      0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
 	{ "ipmask",  sample_conv_ipmask,       ARG2(1,MSK4,MSK6),     NULL,                     SMP_T_ADDR, SMP_T_ADDR },
