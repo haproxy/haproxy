@@ -3,6 +3,11 @@
 
 varnishtest "Health checks: test enhanced observability of TLS ClientHello"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(wolfSSL) && !ssllib_name_startswith(LibreSSL) && openssl_version_atleast(1.1.1)'"
+# backend be1's check relies on the "curves X25519" server keyword to
+# exercise X25519 key-share routing (group 0x001d); X25519 is not a
+# NIST P-curve and is rejected by HAProxy's FIPS compliance checks when
+# the SSL library is running in FIPS mode.
+feature cmd "$HAPROXY_PROGRAM -cc '!fips_mode()'"
 feature ignore_unknown_macro
 
 syslog S_ok -level notice {
