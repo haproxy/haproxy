@@ -1084,6 +1084,15 @@ static void h1s_destroy(struct h1s *h1s)
 				H1C_F_IN_SALLOC|H1C_F_IN_SMAYALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 
+		/*
+		 * If we reached the end of the stream and sent less bits than
+		 * announced in Content-Length, we have little choice but to
+		 * close the connection, as the peer will expect more.
+		 */
+		if (((h1s->req.flags & H1_MF_CLEN) && h1s->req.curr_len && !(h1s->flags & H1S_F_BODYLESS_REQ)) ||
+		    ((h1s->res.flags & H1_MF_CLEN) && h1s->res.curr_len && !(h1s->flags & H1S_F_BODYLESS_RESP)))
+			h1c->flags |= H1C_F_ERROR;
+
 		if (!(h1c->flags & (H1C_F_EOS|H1C_F_ERR_PENDING|H1C_F_ERROR|H1C_F_ABRT_PENDING|H1C_F_ABRTED)) &&  /* No error/read0/abort */
 		    h1_is_alive(h1c) &&                                                      /* still alive */
 		    (h1s->flags & H1S_F_WANT_KAL) &&                                         /* K/A possible */
