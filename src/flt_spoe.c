@@ -717,6 +717,9 @@ static void spoe_set_var(struct spoe_context *ctx, char *scope, char *name, int 
 	memset(varname, 0, sizeof(varname));
 	len = snprintf(varname, sizeof(varname), "%s.%s.%.*s",
 		       scope, agent->var_pfx, len, name);
+	/* reject truncated (thus different) names instead of using them */
+	if (len < 0 || len >= (int)sizeof(varname))
+		return;
 	if (agent->flags & SPOE_FL_FORCE_SET_VAR)
 		vars_set_by_name(varname, len, smp);
 	else
@@ -734,6 +737,9 @@ static void spoe_unset_var(struct spoe_context *ctx, char *scope, char *name, in
 	memset(varname, 0, sizeof(varname));
 	len = snprintf(varname, sizeof(varname), "%s.%s.%.*s",
 		       scope, agent->var_pfx, len, name);
+	/* reject truncated (thus different) names instead of using them */
+	if (len < 0 || len >= (int)sizeof(varname))
+		return;
 	vars_unset_by_name_ifexist(varname, len, smp);
 }
 
