@@ -197,7 +197,7 @@ int protocol_getsocks_foreign_fds(struct receiver ***orxs, int **ofds)
 	*orxs = NULL;
 	*ofds = NULL;
 
-	if (!(global.tune.options & GTUNE_NO_TG_FD_SHARING) || global.nbtgroups < 2)
+	if (MAX_TGROUPS < 2 || !(global.tune.options & GTUNE_NO_TG_FD_SHARING) || global.nbtgroups < 2)
 		return 0;
 
 	/* first pass: count the candidates */
