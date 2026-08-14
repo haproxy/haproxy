@@ -70,11 +70,16 @@ static uint64_t qpack_get_varint(const unsigned char **buf, uint64_t *len_in, in
 		if (!len)
 			goto too_short;
 
+		/* A valid QPACK varint is at most 62 bits. Zero-payload
+		 * continuations must not drive shift past 63, otherwise the
+		 * "(limit - ret) >> shift" check below runs with an out-of-range
+		 * shift count (C undefined behavior).
+		 */
+		if (shift >= 63)
+			goto too_large;
 		v = *raw++;
 		len--;
-		/* This check is sufficient to prevent any overflow
-		 * and implicitly limits shift to 63.
-		 */
+		/* This check is sufficient to prevent any overflow. */
 		if ((v & 127) > (limit - ret) >> shift)
 			goto too_large;
 
