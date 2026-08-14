@@ -302,6 +302,20 @@ def main(ref_name):
                 }
             )
 
+    # generic target
+
+    matrix.append(
+        {
+            "name": "{}, gcc, generic, ssl=openssl".format(os),
+            "os": os,
+            "TARGET": "generic",
+            "CC": "gcc",
+            "FLAGS": [
+                "USE_OPENSSL=1",
+            ],
+        }
+    )
+
     # macOS on dev branches
     if not is_stable:
         os = "macos-26"     # development branch
