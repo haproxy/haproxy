@@ -15,6 +15,7 @@
 #include <haproxy/quic_ssl.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
@@ -440,7 +441,8 @@ ssl_sock_gencert_load_ca(struct bind_conf *bind_conf)
 	if (global_ssl.ctx_cache) {
 		ssl_ctx_lru_tree = lru64_new(global_ssl.ctx_cache);
 	}
-	ssl_ctx_lru_seed = (uint64_t)time(NULL);
+	/* unpredictable seed, must not be guessable from the outside */
+	ssl_ctx_lru_seed = ha_random64();
 	ssl_ctx_serial   = now_ms;
 #endif
 
