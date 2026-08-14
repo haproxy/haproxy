@@ -4516,9 +4516,6 @@ static int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 	/* force length to zero to avoid ASN1 encoding */
 	SSL_SESSION_set1_id(sess, encid, 0);
 
-	/* force length to zero to avoid ASN1 encoding */
-	SSL_SESSION_set1_id_context(sess, (const unsigned char *)SHCTX_APPNAME, 0);
-
 	/* check if buffer is large enough for the ASN1 encoded session */
 	data_len = i2d_SSL_SESSION(sess, NULL);
 	if (data_len > SHSESS_MAX_DATA_LEN)
@@ -4535,7 +4532,6 @@ static int sh_ssl_sess_new_cb(SSL *ssl, SSL_SESSION *sess)
 err:
 	/* reset original length values */
 	SSL_SESSION_set1_id(sess, encid, sid_length);
-	SSL_SESSION_set1_id_context(sess, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
 
 	return 0; /* do not increment session reference count */
 }
@@ -4583,11 +4579,9 @@ static SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned 
 	/* decode ASN1 session */
 	p = data;
 	sess = d2i_SSL_SESSION(NULL, (const unsigned char **)&p, first->len-sizeof(struct sh_ssl_sess_hdr));
-	/* Reset session id and session id contenxt */
-	if (sess) {
+	/* Restore the session ID but preserve its original security context. */
+	if (sess)
 		SSL_SESSION_set1_id(sess, key, key_len);
-		SSL_SESSION_set1_id_context(sess, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
-	}
 
 	return sess;
 }
@@ -4622,6 +4616,75 @@ static void sh_ssl_sess_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 	/* unlock cache */
 	shctx_wrunlock(ssl_shctx);
 }
+
+#ifndef USE_OPENSSL_WOLFSSL
+
+/* hash the Issuer, Subject and Serial of a certificate
+ * mdctx: EVP crypto context
+ * cert: X509 to hash
+ */
+static int ssl_ctx_hash_X509(EVP_MD_CTX *mdctx, X509 *cert)
+{
+	ASN1_INTEGER *serial;
+	const unsigned char *serial_data;
+	int serial_len;
+	unsigned char digest[EVP_MAX_MD_SIZE];
+	unsigned int digest_len = 0;
+
+	if (!cert)
+		/* No certificate, probably initial ctx, ignore */
+		return 1;
+
+	/* Hash the Issuer and the Subject */
+	if (X509_NAME_digest(X509_get_issuer_name(cert), EVP_sha256(), digest, &digest_len) != 1)
+		return 0;
+	if (EVP_DigestUpdate(mdctx, digest, digest_len) != 1)
+		return 0;
+
+	if (X509_NAME_digest(X509_get_subject_name(cert), EVP_sha256(), digest, &digest_len) != 1)
+		return 0;
+	if (EVP_DigestUpdate(mdctx, digest, digest_len) != 1)
+		return 0;
+
+	/* Hash the Serial */
+	serial = X509_get_serialNumber(cert);
+	if (!serial)
+		return 0;
+
+	serial_data = ASN1_STRING_get0_data(serial);
+	serial_len = ASN1_STRING_length(serial);
+
+	if (EVP_DigestUpdate(mdctx, serial_data, serial_len) != 1)
+		return 0;
+
+	return 1;
+}
+
+/* Replace the sid_ctx of a SSL_CTX */
+static int ssl_set_session_id_context(SSL_CTX *ctx)
+{
+	EVP_MD_CTX *mdctx = NULL;
+	unsigned char sid_ctx[EVP_MAX_MD_SIZE];
+	unsigned int sid_ctx_len = 0;
+	int ret = 0;
+
+	mdctx = EVP_MD_CTX_new();
+	if (!mdctx ||
+	    EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL) != 1 ||
+	    EVP_DigestUpdate(mdctx, SHCTX_APPNAME, sizeof(SHCTX_APPNAME)) != 1 ||
+	    !ssl_ctx_hash_X509(mdctx, SSL_CTX_get0_certificate(ctx)) ||
+	    EVP_DigestFinal_ex(mdctx, sid_ctx, &sid_ctx_len) != 1 ||
+	    sid_ctx_len > SSL_MAX_SID_CTX_LENGTH ||
+	    SSL_CTX_set_session_id_context(ctx, sid_ctx, sid_ctx_len) != 1)
+		goto out;
+
+	ret = 1;
+
+out:
+	EVP_MD_CTX_free(mdctx);
+	return ret;
+}
+#endif /* !USE_OPENSSL_WOLFSSL */
 
 /* Set session cache mode to server and disable openssl internal cache.
  * Set shared cache callbacks on an ssl context.
@@ -4851,6 +4914,13 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 #endif
 
 	ssl_set_shctx(ctx);
+#ifndef USE_OPENSSL_WOLFSSL
+	if (!ssl_set_session_id_context(ctx)) {
+		memprintf(err, "%sProxy '%s': unable to set the SSL session context for bind '%s' at [%s:%d].\n",
+		          err && *err ? *err : "", bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+	}
+#endif /* !USE_OPENSSL_WOLFSSL */
 	conf_ciphers = (ssl_conf && ssl_conf->ciphers) ? ssl_conf->ciphers : bind_conf->ssl_conf.ciphers;
 	if (conf_ciphers &&
 	    !SSL_CTX_set_cipher_list(ctx, conf_ciphers)) {
