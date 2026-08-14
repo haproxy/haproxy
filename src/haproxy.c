@@ -3946,18 +3946,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/* When FD tables are not shared between thread groups, the poller
-	 * pipes of all threads must be created before any group unshares its
-	 * FD table, so that they are inherited into every group's table and
-	 * cross-group wake_thread() keeps working. This must be done for all
-	 * builds, including those without threads, since each thread will pick
-	 * its own pair from there.
-	 */
-	if (!fd_precreate_poller_pipes()) {
-		ha_alert("Failed to create the poller pipes.\n");
-		exit(1);
-	}
-
 	/* start threads 2 and above */
 	setup_extra_threads(&run_thread_poll_loop);
 
