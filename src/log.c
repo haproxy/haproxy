@@ -1966,6 +1966,8 @@ int parse_logger(char **args, struct list *loggers, int do_del, const char *file
 
   error:
 	free(smp_rgs);
+	if (logger && logger->lb.smp_rgs == smp_rgs)
+		logger->lb.smp_rgs = NULL;
 	free_logger(logger);
 	return 0;
 }
