@@ -36,7 +36,7 @@ static char *x509v3_ext_values[X509V3_EXT_SIZE] = {
 };
 /* LRU cache to store generated certificate */
 static struct lru64_head *ssl_ctx_lru_tree = NULL;
-static unsigned int       ssl_ctx_lru_seed = 0;
+static uint64_t           ssl_ctx_lru_seed = 0;
 static unsigned int	  ssl_ctx_serial;
 __decl_rwlock(ssl_ctx_lru_rwlock);
 
@@ -314,7 +314,7 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 
 /* Do a lookup for a certificate in the LRU cache used to store generated
  * certificates and immediately assign it to the SSL session if not null. */
-SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl)
+SSL_CTX *ssl_sock_assign_generated_cert(uint64_t key, struct bind_conf *bind_conf, SSL *ssl)
 {
 	struct lru64 *lru = NULL;
 
@@ -337,14 +337,14 @@ SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind
  * exists in the lru cache (with no warranty it will not be removed by another
  * thread). It is kept for backward compatibility. */
 SSL_CTX *
-ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf)
+ssl_sock_get_generated_cert(uint64_t key, struct bind_conf *bind_conf)
 {
 	return ssl_sock_assign_generated_cert(key, bind_conf, NULL);
 }
 
 /* Set a certificate int the LRU cache used to store generated
  * certificate. Return 0 on success, otherwise -1 */
-int ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int key, struct bind_conf *bind_conf)
+int ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, uint64_t key, struct bind_conf *bind_conf)
 {
 	struct lru64 *lru = NULL;
 
@@ -365,10 +365,10 @@ int ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int key, struct bind_
 }
 
 /* Compute the key of the certificate. */
-unsigned int
+uint64_t
 ssl_sock_generated_cert_key(const void *data, size_t len)
 {
-	return XXH32(data, len, ssl_ctx_lru_seed);
+	return XXH3(data, len, ssl_ctx_lru_seed);
 }
 
 /* Generate a cert and immediately assign it to the SSL session so that the cert's
@@ -379,7 +379,7 @@ int ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind
 	X509         *cacert  = bind_conf->ca_sign_ckch->cert;
 	SSL_CTX      *ssl_ctx = NULL;
 	struct lru64 *lru     = NULL;
-	unsigned int  key;
+	uint64_t      key;
 
 	key = ssl_sock_generated_cert_key(servername, strlen(servername));
 	if (ssl_ctx_lru_tree) {
@@ -413,7 +413,7 @@ error:
 }
 int ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 {
-	unsigned int key;
+	uint64_t key;
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 
 	if (conn_get_dst(conn)) {
@@ -440,7 +440,7 @@ ssl_sock_gencert_load_ca(struct bind_conf *bind_conf)
 	if (global_ssl.ctx_cache) {
 		ssl_ctx_lru_tree = lru64_new(global_ssl.ctx_cache);
 	}
-	ssl_ctx_lru_seed = (unsigned int)time(NULL);
+	ssl_ctx_lru_seed = (uint64_t)time(NULL);
 	ssl_ctx_serial   = now_ms;
 #endif
 

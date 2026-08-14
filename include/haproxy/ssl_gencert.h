@@ -26,10 +26,10 @@
 
 int ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf, SSL *ssl);
 int ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl);
-SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl);
-SSL_CTX *ssl_sock_get_generated_cert(unsigned int key, struct bind_conf *bind_conf);
-int ssl_sock_set_generated_cert(SSL_CTX *ctx, unsigned int key, struct bind_conf *bind_conf);
-unsigned int ssl_sock_generated_cert_key(const void *data, size_t len);
+SSL_CTX *ssl_sock_assign_generated_cert(uint64_t key, struct bind_conf *bind_conf, SSL *ssl);
+SSL_CTX *ssl_sock_get_generated_cert(uint64_t key, struct bind_conf *bind_conf);
+int ssl_sock_set_generated_cert(SSL_CTX *ctx, uint64_t key, struct bind_conf *bind_conf);
+uint64_t ssl_sock_generated_cert_key(const void *data, size_t len);
 int ssl_sock_gencert_load_ca(struct bind_conf *bind_conf);
 void ssl_sock_gencert_free_ca(struct bind_conf *bind_conf);
 EVP_PKEY *ssl_gen_EVP_PKEY(int keytype, int curves, int bits, char **errmsg);
