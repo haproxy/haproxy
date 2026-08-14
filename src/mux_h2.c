@@ -8534,10 +8534,13 @@ static int h2_dump_h2s_info(struct buffer *msg, const struct h2s *h2s, const cha
 	if (pfx)
 		chunk_appendf(msg, "\n%s", pfx);
 
-	chunk_appendf(msg, " .sc=%p", h2s_sc(h2s));
-	if (h2s_sc(h2s))
-		chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
-			      h2s_sc(h2s)->flags, h2s_sc(h2s)->app);
+	if (h2s->sd) {
+		/* h2s_sc requires an sd! */
+		chunk_appendf(msg, " .sc=%p", h2s_sc(h2s));
+		if (h2s_sc(h2s))
+			chunk_appendf(msg, "(.flg=0x%08x .app=%p)",
+				      h2s_sc(h2s)->flags, h2s_sc(h2s)->app);
+	}
 
 	chunk_appendf(msg, " .sd=%p", h2s->sd);
 	if (h2s->sd)
