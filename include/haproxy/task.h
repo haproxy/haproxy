@@ -210,7 +210,20 @@ __decl_thread(extern HA_SPINLOCK_T task_state_tid);
 
 static inline int __task_set_state_and_tid(struct task *t, int expected_tid, int new_tid, unsigned int current, unsigned int wanted)
 {
-#if defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW)
+#if !defined(USE_THREAD)
+	/* No concurrency here, so plain accesses to the two fields are
+	 * sufficient. It's also required, as the 64-bit accesses performed
+	 * below break strict-aliasing rules, which only the atomic builtins
+	 * protect against being optimized: with them turned into plain
+	 * accesses, the compiler may reorder or cache the fields' values
+	 * across the cast and make the callers' retry loops spin forever.
+	 */
+	if (t->tid != expected_tid || t->state != current)
+		return 0;
+	t->state = wanted;
+	t->tid = new_tid;
+	return 1;
+#elif defined(HA_CAS_IS_8B) || defined(HA_HAVE_CAS_DW)
 	uint64_t expected_value;
 	uint64_t new_value;
 
