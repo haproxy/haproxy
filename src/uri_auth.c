@@ -275,7 +275,8 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 			free(u->userlist);
 		}
 		free(u);
-		*root = NULL;
+		if (root)
+			*root = NULL;
 	}
 	return NULL;
 }
@@ -320,7 +321,8 @@ struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope)
  out_u:
 	if (!old_u) {
 		free(u);
-		*root = NULL;
+		if (root)
+			*root = NULL;
 	}
  out:
 	return NULL;
