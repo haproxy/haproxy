@@ -3185,7 +3185,7 @@ show errors [<iid>|<proxy>] [request|response]
     error was at byte 23. This is the slash ('/') in header name
     "header/bizarre", which is not a valid HTTP character for a header name.
 
-show events [<sink>] [-w] [-n] [-0]
+show events [<sink>] [-w] [-n] [-0] [-s]
   With no option, this lists all known event sinks and their types. With an
   option, it will dump all available events in the designated sink if it is of
   type buffer. If option "-w" is passed after the sink name, then once the end
@@ -3197,6 +3197,16 @@ show events [<sink>] [-w] [-n] [-0]
   may be used to enable both options at once. By default, all events are
   delimited by a line feed character ('\n' or 10 or 0x0A). It is possible to
   change this to the NUL character ('\0' or 0) by passing the "-0" argument.
+  Option "-s" sanitizes the output, so that binary contents resulting from
+  captured or decoded data do not alter the terminal's rendering. Whitespace
+  characters (space and tab) are replaced with a space so that each record
+  stays on a single line, and the other control characters (0x00 to 0x1F and
+  0x7F) as well as non-ASCII chars (0x80 and above) are replaced with a '?'.
+  The output length is preserved. This way, dumping a ring cannot inject ANSI
+  escape sequences nor writing direction codes into the operator's terminal,
+  which is useful when dumping to a terminal, or to a program whose input must
+  not be interpreted as special (e.g. monitoring scripts whose output is copied
+  verbatim into reports).
 
 show fd [-!plcfbs]* [[<tgid>]/[<fd>] | <fd>]
   Dump the list of either all open file descriptors or just the one number <fd>

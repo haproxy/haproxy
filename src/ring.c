@@ -18,6 +18,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#include <ctype.h>
 #include <stdlib.h>
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
@@ -717,6 +718,48 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 	return ret;
 }
 
+/* Same as applet_append_line() but sanitises each event before appending it,
+ * so that dumping a ring cannot inject control chars (CR, LF, BS, NUL, ANSI
+ * escapes etc) nor non-ASCII into the operator's terminal, as rings may hold
+ * contents from untrusted sources (forwarded syslog lines, log-format output
+ * emitted without "+E"). For every input byte, control chars are replaced
+ * with '?', and everything else verbatim. This function is selected via
+ * RING_WF_SANITIZE in <ctx->flags>.
+ */
+static ssize_t show_ring_append_sanitized(void *ctx, struct ist v1, struct ist v2, size_t ofs, size_t len, char delim)
+{
+	struct appctx *appctx = ctx;
+	char *p;
+	size_t i;
+
+	if (unlikely(len + 1 > b_size(&trash))) {
+		/* too large a message to ever fit, let's skip it */
+		return -2;
+	}
+
+	chunk_reset(&trash);
+	vp_peek_ofs(v1, v2, ofs, trash.area, len);
+	for (i = 0, p = trash.area; i < len; i++, p++) {
+		if (isblank((unsigned char)*p))
+			*p = ' ';
+		else if (iscntrl((unsigned char)*p) || (unsigned char)*p >= 0x80)
+			*p = '?';
+	}
+	/* the delimiter is always emitted, including when it is a NUL byte
+	 * (option "-0"), otherwise records would be glued together.
+	 */
+	trash.data += len;
+	trash.area[trash.data++] = delim;
+
+	if (applet_putchk(appctx, &trash) == -1) {
+		if (applet_output_data(appctx) > 0)
+			return -1; // buffer is full
+		else
+			return -2; // buffer empty, output will never fit
+	}
+	return len;
+}
+
 /* This function dumps all events from the ring whose pointer is in <p0> into
  * the appctx's output buffer, and takes from <o0> the seek offset into the
  * buffer's history (0 for oldest known event). It looks at <i0> for boolean
@@ -736,7 +779,8 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 
 	MT_LIST_DELETE(&appctx->wait_entry);
 
-	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags, applet_append_line,
+	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags,
+				     (ctx->flags & RING_WF_SANITIZE) ? show_ring_append_sanitized : applet_append_line,
 				     (ctx->flags & RING_WF_END_ZERO) ? 0 : '\n', NULL);
 
 	if (ret && (ctx->flags & RING_WF_WAIT_MODE)) {

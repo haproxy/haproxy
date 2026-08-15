@@ -363,7 +363,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 
 	if (!*args[1]) {
 		/* no arg => report the list of supported sink */
-		chunk_printf(&trash, "Supported events sinks are listed below. Add -0(zero), -w(wait), -n(new). Any key to stop.\n");
+		chunk_printf(&trash, "Supported events sinks are listed below. Add -0(zero), -w(wait), -n(new), -s(anitize). Any key to stop.\n");
 		list_for_each_entry(sink, &sink_list, sink_list) {
 			chunk_appendf(&trash, "    %-10s : type=%s, %u dropped, %s\n",
 				      sink->name,
@@ -397,6 +397,8 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 			ring_flags |= RING_WF_END_ZERO;
 		else if (strcmp(args[arg], "-nw") == 0 || strcmp(args[arg], "-wn") == 0)
 			ring_flags |= RING_WF_WAIT_MODE | RING_WF_SEEK_NEW;
+		else if (strcmp(args[arg], "-s") == 0)
+			ring_flags |= RING_WF_SANITIZE;
 		else
 			return cli_err(appctx, "unknown option");
 	}
