@@ -35,6 +35,11 @@ static struct fcgi_app *fcgi_apps = NULL;
 struct flt_ops fcgi_flt_ops;
 const char *fcgi_flt_id = "FCGI filter";
 
+/* The fcgi-app filter was implicitly declared (ie without the filter keyword,
+ * via use-fcgi-app).
+ */
+#define FCGI_FLT_F_IMPLICIT_DECL 0x00000001
+
 DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_flt_ctx, "fcgi_flt_ctx", struct fcgi_flt_ctx);
 DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_param_rule, "fcgi_param_rule", struct fcgi_param_rule);
 DECLARE_STATIC_TYPED_POOL(pool_head_fcgi_hdr_rule, "fcgi_hdr_rule", struct fcgi_hdr_rule);
@@ -229,9 +234,9 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 				 px->id);
 			goto err;
 		}
-		else if (f->id != fconf->id) {
+		else if ((f->id != fconf->id) && (fcgi_conf->flags & FCGI_FLT_F_IMPLICIT_DECL)) {
 			/* Implicit declaration is only allowed with the
-			 * compression and cache. For other filters, an implicit
+			 * compression and cache. For other filters, an explicit
 			 * declaration is required. */
 			ha_alert("config: proxy '%s': require an explicit filter declaration "
 				 "to use the fcgi-app '%s'.\n", px->id, fcgi_conf->name);
@@ -542,6 +547,8 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 		LIST_INIT(&fcgi_conf->hdr_rules);
 	}
 
+	/* Explicit declaration: clear the implicit flag. */
+	fcgi_conf->flags &= ~FCGI_FLT_F_IMPLICIT_DECL;
 	fconf->id   = fcgi_flt_id;
 	fconf->conf = fcgi_conf;
 	fconf->ops  = &fcgi_flt_ops;
@@ -596,6 +603,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 		goto err;
 	LIST_INIT(&fcgi_conf->param_rules);
 	LIST_INIT(&fcgi_conf->hdr_rules);
+	fcgi_conf->flags = FCGI_FLT_F_IMPLICIT_DECL; /* implicit declaration */
 
 	/* Register the filter */
 	fconf = calloc(1, sizeof(*fconf));

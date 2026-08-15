@@ -103,6 +103,7 @@ struct fcgi_app {
 struct fcgi_flt_conf {
 	char *name;                  /* fcgi-app name used during config parsing */
 	struct fcgi_app *app;        /* configuration of the fcgi application */
+	unsigned int flags;          /* FCGI_FLT_F_* */
 
 	struct list param_rules;     /* list of set/unset rules */
 	struct list hdr_rules;       /* list of pass/add rules  */
