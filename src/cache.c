@@ -3370,12 +3370,13 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 #undef ACCEPT_ENCODING_MAX_ENTRIES
 
 /*
- * Normalizer used by default for the Referer and Origin header. It only
- * calculates a hash of the whole value using xxhash algorithm.
- * Only the first occurrence of the header will be taken into account in the
- * hash.
+ * Normalizer used by default for the Referer and Origin header. It calculates
+ * a hash of the whole value using xxhash algorithm. Both headers are single-
+ * valued, but we can't predict how servers would handle extra occurrences,
+ * so better just ignore the secondary keys in case of extra entry, by
+ * returning -1. That way we continue to hash only the full header line.
  * Returns 0 in case of success, 1 if the hash buffer should be filled with 0s
- * and -1 in case of error.
+ * and -1 in case of error (header present more than once).
  */
 static int default_normalizer(struct htx *htx, struct ist hdr_name,
 			      char *buf, unsigned int *buf_len)
@@ -3387,6 +3388,10 @@ static int default_normalizer(struct htx *htx, struct ist hdr_name,
 		retval = 0;
 		write_u64(buf, XXH3(istptr(ctx.value), istlen(ctx.value), cache_hash_seed));
 		*buf_len = sizeof(uint64_t);
+
+		/* Make sure the header is unique and disable caching on duplicate */
+		if (http_find_header(htx, hdr_name, &ctx, 1))
+			retval = -1;
 	}
 
 	return retval;
@@ -3425,8 +3430,6 @@ static int accept_encoding_bitmap_cmp(const void *ref, const void *new, unsigned
  * implementation) of a given request. We have to calculate all the hashes
  * in advance because the actual Vary signature won't be known until the first
  * response.
- * Only the first occurrence of every header will be taken into account in the
- * hash.
  * If the header is not present, the hash portion of the given header will be
  * filled with zeros.
  * Returns 0 in case of success.
@@ -3443,8 +3446,6 @@ static int http_request_prebuild_full_secondary_key(struct stream *s)
  * Calculate the secondary key for a request for which we already have a known
  * vary signature. The key is made by aggregating hashes calculated for every
  * header mentioned in the vary signature.
- * Only the first occurrence of every header will be taken into account in the
- * hash.
  * If the header is not present, the hash portion of the given header will be
  * filled with zeros.
  * Returns 0 in case of success.

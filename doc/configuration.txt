@@ -20461,7 +20461,11 @@ process-vary <on/off>
   (which might come with a cpu cost) which will be used to build a secondary
   key for a given request (see RFC 7234#4.1). The secondary key is built out of
   the contents of the 'accept-encoding', 'referer' and 'origin' headers for
-  now. The default value is off (disabled).
+  now. Note that the 'origin' and 'referer' headers are single-valued per the
+  RFC, so a request carrying more than one occurrence of either should be
+  considered malformed. For such requests no secondary key is built and the
+  response is never delivered from the cache so that we can let the server
+  decide how to handle the situation. The default value is off (disabled).
 
 total-max-size <megabytes>
   Define the size in RAM of the cache in megabytes. This size is split in

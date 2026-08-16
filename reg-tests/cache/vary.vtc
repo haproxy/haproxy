@@ -146,6 +146,43 @@ server s1 {
        txresp -hdr "Vary: accept-encoding" \
                -hdr "Cache-Control: max-age=5" \
                -bodylen 256
+
+       # Repeated Origin / Referer headers: duplicates are not cached.
+       rxreq
+       expect req.url == "/repeated-origin"
+       txresp -hdr "Vary: origin" \
+              -hdr "Cache-Control: max-age=5" \
+              -bodylen 270
+
+       rxreq
+       expect req.url == "/repeated-origin"
+       txresp -hdr "Vary: origin" \
+              -hdr "Cache-Control: max-age=5" \
+              -bodylen 271
+
+       rxreq
+       expect req.url == "/repeated-origin"
+       txresp -hdr "Vary: origin" \
+              -hdr "Cache-Control: max-age=5" \
+              -bodylen 281
+
+       rxreq
+       expect req.url == "/repeated-referer"
+       txresp -hdr "Vary: referer" \
+              -hdr "Cache-Control: max-age=5" \
+              -bodylen 292
+
+       rxreq
+       expect req.url == "/repeated-referer"
+       txresp -hdr "Vary: referer" \
+              -hdr "Cache-Control: max-age=5" \
+              -bodylen 292
+
+       rxreq
+       expect req.url == "/repeated-referer"
+       txresp -hdr "Vary: referer" \
+              -hdr "Cache-Control: max-age=5" \
+              -bodylen 303
 } -start
 
 server s2 {
@@ -495,6 +532,77 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.bodylen == 256
        expect resp.http.content-encoding == "<undef>"
        expect resp.http.X-Cache-Hit == 0
+
+       # Repeated origin or referers are not cached since not valid.
+
+       # Two origins -> not cached, first request is a miss.
+       txreq -url "/repeated-origin" \
+               -hdr "Origin: origin_a" \
+               -hdr "Origin: origin_b"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 270
+       expect resp.http.X-Cache-Hit == 0
+
+       # Same two origins again -> still a miss, the response was not stored.
+       txreq -url "/repeated-origin" \
+               -hdr "Origin: origin_a" \
+               -hdr "Origin: origin_b"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 271
+       expect resp.http.X-Cache-Hit == 0
+
+       # A single origin is well-formed and must be cached normally, without
+       # being affected by the malformed requests above.
+       txreq -url "/repeated-origin" \
+               -hdr "Origin: origin_a"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 281
+       expect resp.http.X-Cache-Hit == 0
+
+       # Same single origin again -> cache hit on its own entry.
+       txreq -url "/repeated-origin" \
+               -hdr "Origin: origin_a"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 281
+       expect resp.http.X-Cache-Hit == 1
+
+       # Repeated Referer headers behave the same way.
+       txreq -url "/repeated-referer" \
+               -hdr "Referer: referer_a" \
+               -hdr "Referer: referer_b"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 292
+       expect resp.http.X-Cache-Hit == 0
+
+       # Same two referers again -> still a miss.
+       txreq -url "/repeated-referer" \
+               -hdr "Referer: referer_a" \
+               -hdr "Referer: referer_b"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 292
+       expect resp.http.X-Cache-Hit == 0
+
+       # A single referer is well-formed and must be cached normally.
+       txreq -url "/repeated-referer" \
+               -hdr "Referer: referer_a"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 303
+       expect resp.http.X-Cache-Hit == 0
+
+       # Same single referer again -> cache hit on its own entry.
+       txreq -url "/repeated-referer" \
+               -hdr "Referer: referer_a"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 303
+       expect resp.http.X-Cache-Hit == 1
 
        # The following requests are treated by a backend that does not cache
        # responses containing a Vary header
