@@ -141,9 +141,11 @@ static void ssl_trace(enum trace_level level, uint64_t mask, const struct trace_
 
 				if (crt) {
 					__X509_NAME_CONST__ X509_NAME *name = X509_get_subject_name(crt);
-					if (name)
+					if (name) {
+						chunk_reset(&trash);
 						chunk_appendf(&trace_buf, " subject=\"%s\"",
-							      X509_NAME_oneline(name, 0, 0));
+							      X509_NAME_oneline(name, b_orig(&trash), b_size(&trash)));
+					}
 				}
 			}
 		}
