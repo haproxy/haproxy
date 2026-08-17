@@ -629,15 +629,18 @@ sni_lookup:
 		}
 	}
 	if (!node) {
+		/* Nothing more to look up in the tree, and
+		 * ssl_sock_generate_certificate() takes this same lock in read
+		 * mode, which must not be done recursively.
+		 */
+		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 #if (!defined SSL_NO_GENERATE_CERTIFICATES)
 		if (s->options & BC_O_GENERATE_CERTS && ssl_sock_generate_certificate(servername, s, ssl)) {
 			/* switch ctx done in ssl_sock_generate_certificate */
-			HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 			TRACE_STATE("No context found, generate certificate", SSL_EV_CONN_SWITCHCTX_CB, NULL, ssl, servername);
 			return SSL_TLSEXT_ERR_OK;
 		}
 #endif
-		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 
 		if (!(s->ssl_options & BC_SSL_O_STRICT_SNI) && !default_lookup) {
 			/* we didn't find a SNI, and we didn't look for a default
