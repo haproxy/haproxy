@@ -151,7 +151,7 @@ int __trace_enabled(enum trace_level level, uint64_t mask, struct trace_source *
 #endif
 	if (!ctx.sess && ctx.strm)
 		ctx.sess = ctx.strm->sess;
-	else if (!ctx.sess && ctx.conn && LIST_INLIST(&ctx.conn->sess_el))
+	else if (!ctx.sess && ctx.conn && conn_is_back(ctx.conn) && LIST_INLIST(&ctx.conn->sess_el))
 		ctx.sess = ctx.conn->owner;
 	else if (!ctx.sess && ctx.check)
 		ctx.sess = ctx.check->sess;
