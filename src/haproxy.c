@@ -3372,6 +3372,7 @@ static int do_chroot(const char *prog, const char *path)
 {
 	const char *dir, *chroot_dir;
 	int error, chroot_error;
+	char tmpdir[] = "/tmp/haproxy.XXXXXX";
 
 	error = chroot_error = 0;
 	dir = chroot_dir = path;
@@ -3379,7 +3380,6 @@ static int do_chroot(const char *prog, const char *path)
 		/* When "chroot auto" is used, we attempt to chroot to an
 		 * anonymous and read-only directory.
 		 */
-		char tmpdir[] = "/tmp/haproxy.XXXXXX";
 		dir = mkdtemp(tmpdir);
 		if (dir == NULL) {
 			ha_alert("[%s.main()] Cannot create(%s) for chroot auto.\n",
