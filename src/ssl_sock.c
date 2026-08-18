@@ -4270,8 +4270,14 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 		mode |= SSL_MODE_ASYNC;
 #endif
 	SSL_CTX_set_mode(ctx, mode);
-	if (global_ssl.life_time)
+	if (global_ssl.life_time) {
 		SSL_CTX_set_timeout(ctx, global_ssl.life_time);
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+		/* SSL_CTX_set_timeout() above only covers TLS1.2 and below on
+		 * these libs, TLS1.3 has its own separate "psk_dhe" lifetime */
+		SSL_CTX_set_session_psk_dhe_timeout(ctx, global_ssl.life_time);
+#endif
+	}
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 # if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
