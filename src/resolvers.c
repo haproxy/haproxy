@@ -3590,8 +3590,7 @@ static int parse_resolve_conf(char **errmsg, char **warnmsg)
 			if (errmsg)
 				memprintf(errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			dns_ring_free(newnameserver->dgram->ring_req);
-			free(newnameserver->dgram);
+			dns_nameserver_deinit(newnameserver);
 			free(newnameserver);
 			goto resolv_out;
 		}
@@ -3602,8 +3601,7 @@ static int parse_resolve_conf(char **errmsg, char **warnmsg)
 				memprintf(errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			free((char *)newnameserver->conf.file);
-			dns_ring_free(newnameserver->dgram->ring_req);
-			free(newnameserver->dgram);
+			dns_nameserver_deinit(newnameserver);
 			free(newnameserver);
 			goto resolv_out;
 		}
@@ -3822,16 +3820,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		if ((newnameserver->conf.file = strdup(file)) == NULL) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
-			if (newnameserver->stream) {
-				dns_ring_free(newnameserver->stream->ring_req);
-				task_destroy(newnameserver->stream->task_req);
-				task_destroy(newnameserver->stream->task_rsp);
-				task_destroy(newnameserver->stream->task_idle);
-				free(newnameserver->stream);
-			} else if (newnameserver->dgram) {
-				dns_ring_free(newnameserver->dgram->ring_req);
-				free(newnameserver->dgram);
-			}
+			dns_nameserver_deinit(newnameserver);
 			free(newnameserver);
 			goto out;
 		}
@@ -3840,16 +3829,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			free((char *)newnameserver->conf.file);
-			if (newnameserver->stream) {
-				dns_ring_free(newnameserver->stream->ring_req);
-				task_destroy(newnameserver->stream->task_req);
-				task_destroy(newnameserver->stream->task_rsp);
-				task_destroy(newnameserver->stream->task_idle);
-				free(newnameserver->stream);
-			} else if (newnameserver->dgram) {
-				dns_ring_free(newnameserver->dgram->ring_req);
-				free(newnameserver->dgram);
-			}
+			dns_nameserver_deinit(newnameserver);
 			free(newnameserver);
 			goto out;
 		}

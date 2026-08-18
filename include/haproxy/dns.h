@@ -29,5 +29,6 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len);
 ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size);
 int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk);
 int dns_stream_init(struct dns_nameserver *ns, struct server *s);
+void dns_nameserver_deinit(struct dns_nameserver *ns);
 
 #endif // _HAPROXY_DNS_H

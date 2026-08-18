@@ -1417,6 +1417,25 @@ out:
 	return -1;
 }
 
+/* Releases transport allocations owned by <ns>. */
+void dns_nameserver_deinit(struct dns_nameserver *ns)
+{
+	if (ns->dgram) {
+		dns_ring_free(ns->dgram->ring_req);
+		free(ns->dgram);
+		ns->dgram = NULL;
+	}
+
+	if (ns->stream) {
+		dns_ring_free(ns->stream->ring_req);
+		task_destroy(ns->stream->task_req);
+		task_destroy(ns->stream->task_rsp);
+		task_destroy(ns->stream->task_idle);
+		free(ns->stream);
+		ns->stream = NULL;
+	}
+}
+
 int init_dns_buffers()
 {
 	dns_msg_trash = malloc(DNS_TCP_MSG_MAX_SIZE);
