@@ -2345,9 +2345,10 @@ int check_config_validity()
 	}
 
 	if ((global.tune.tg_takeover == FULL_THREADGROUP_TAKEOVER) &&
-	    (global.tune.options & GTUNE_NO_TG_FD_SHARING)) {
+	    (global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+	    (global.nbtgroups > 1)) {
 		err_code |= ERR_FATAL | ERR_ALERT;
-		ha_alert("tune.fd.tables per-thread-group is incompatible with tune.idle-pool shared full\n");
+		ha_alert("tune.fd.tables per-thread-group is incompatible with tune.idle-pool-shared full\n");
 		goto out;
 	}
 	pool_head_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
