@@ -1857,6 +1857,7 @@ static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx,
 
 	while (*args[cur_arg]) {
 		struct proxy *px;
+		int found = 0;
 
 		if (strcmp(args[cur_arg], "-f") == 0) {
 
@@ -1876,11 +1877,12 @@ static int cli_parse_show_sni(char **args, char *payload, struct appctx *appctx,
 				if (strcmp(px->id, args[cur_arg+1]) == 0) {
 					ctx->px = px;
 					ctx->options |= SHOW_SNI_OPT_1FRONTEND;
+					found = 1;
 					break;
 				}
 			}
 			cur_arg++; /* skip the argument */
-			if (px == NULL)
+			if (!found)
 				return cli_err(appctx, "Couldn't find the specified frontend!\n");
 
 		} else if (strcmp(args[cur_arg], "-A") == 0) {
