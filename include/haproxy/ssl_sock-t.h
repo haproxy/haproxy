@@ -50,6 +50,7 @@
 #define SSL_SOCK_SEND_UNLIMITED     0x00000004
 #define SSL_SOCK_RECV_HEARTBEAT     0x00000008
 #define SSL_SOCK_SEND_MORE          0x00000010  /* set MSG_MORE at lower levels */
+#define SSL_SOCK_SESS_TIMEOUT_SET   0x00000020  /* TLS1.3 session timeout already set */
 
 /* bits 0xFFFFFF00 are reserved to store verify errors.
  * The CA en CRT error codes will be stored on 7 bits each

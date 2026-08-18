@@ -51,6 +51,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
+#include <haproxy/clock.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
@@ -1751,6 +1752,43 @@ static void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 				ctx->xprt_st |= SSL_SOCK_ST_FL_16K_WBFSIZE;
 			}
 		}
+
+#ifdef TLS1_3_VERSION
+	/* Reduce TLS1.3 session timeout so it doesn't reset at each new
+	 * resumed connection */
+
+		if (!(ctx->xprt_st & SSL_SOCK_SESS_TIMEOUT_SET) &&
+		    SSL_version(ssl) == TLS1_3_VERSION) {
+			SSL_SESSION *sess = SSL_get0_session(ssl);
+
+			if (sess) {
+				time_t now = date.tv_sec;
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30400000L
+				time_t created = SSL_SESSION_get_time_ex(sess);
+#else
+				time_t created = SSL_SESSION_get_time(sess);
+#endif
+				long timeout = SSL_SESSION_get_timeout(sess);
+				long ctx_timeout = SSL_CTX_get_timeout(SSL_get_SSL_CTX(ssl));
+				long elapsed = now - created;
+
+				/* reduce the timeout if it was decreased in the configuration since the session creation */
+				if (ctx_timeout < timeout)
+					timeout = ctx_timeout;
+				if (elapsed < 0)
+					elapsed = 0;
+
+#if HA_OPENSSL_VERSION_NUMBER >= 0x30400000L
+				SSL_SESSION_set_time_ex(sess, now);
+#else
+				SSL_SESSION_set_time(sess, now);
+#endif
+				SSL_SESSION_set_timeout(sess, elapsed < timeout ? timeout - elapsed : 0);
+
+				ctx->xprt_st |= SSL_SOCK_SESS_TIMEOUT_SET;
+			}
+		}
+#endif
 	}
 }
 
