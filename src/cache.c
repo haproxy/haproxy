@@ -478,8 +478,11 @@ static unsigned int clear_expired_duplicates(struct cache_tree *cache, struct eb
  * duplicate entries (vary), it then checks that the number of entries did not
  * reach the max number of secondary entries. If this entry should not have been
  * created, remove it.
- * In the regular case (unique entries), this function does not do more than a
- * simple insert. In case of secondary entries, it will at most cost an
+ * In the regular case (unique entries), this function inserts the entry in the
+ * tree and checks if a previous entry already existed (which might happen
+ * because the key is only 32bits long and collisions are possible). In such a
+ * case the new entry is removed.
+ * In case of secondary entries, it will at most cost an
  * insertion+max_sec_entries time checks and entry deletion.
  * Returns the newly inserted node in case of success, NULL otherwise.
  *
@@ -498,14 +501,32 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_tree *tr
 
 	/* We should not have multiple entries with the same primary key unless
 	 * the entry has a non null vary signature. */
-	if (!new_entry->secondary_key_signature)
-		return node;
-
 	prev = eb32_prev_dup(node);
 	if (prev != NULL) {
+
+		/* We are either in a standard "Vary" case where secondary
+		 * entries are expected, or we had a collision in the 32 first
+		 * bits of the hash, in which case we want the newly inserted
+		 * entry to be deleted.
+		 */
+		entry = container_of(prev, struct cache_entry, eb);
+		if (memcmp(entry->hash, new_entry->hash, sizeof(entry->hash)) != 0 ||
+		    !new_entry->secondary_key_signature) {
+			/* Collision on the first 4 bytes of the hash or
+			 * unexpected secondary entry, destroy new entry.
+			 * The 'secondary_key_signature' must be reset otherwise
+			 * while trying to delete en entry in 'delete_entry' we
+			 * will try to decrement the secondary_entries_count of
+			 * the same tree line while it was never actually
+			 * incremented for this entry.
+			 */
+			new_entry->secondary_key_signature = 0;
+			release_entry_locked(tree, new_entry);
+			return NULL;
+		}
+
 		/* The last entry of a duplicate list should contain the current
 		 * number of entries in the list. */
-		entry = container_of(prev, struct cache_entry, eb);
 		entry_count = entry->secondary_entries_count;
 		last_clear_ts = entry->last_clear_ts;
 
