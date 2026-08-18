@@ -120,8 +120,6 @@ smp_client_hello_parse( struct sample *smp, enum client_hello_type type, unsigne
 		goto too_short;
 
 	/* Check for a complete client hello starting at <data> */
-	if (bleft < 1)
-		goto too_short;
 	if (data[0] != 0x01) /* msg_type = Client Hello */
 		goto not_ssl_hello;
 
