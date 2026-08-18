@@ -4660,12 +4660,34 @@ static int ssl_ctx_hash_X509(EVP_MD_CTX *mdctx, X509 *cert)
 	return 1;
 }
 
+/* hash SNI filters into the session ID context */
+static int ssl_ctx_hash_filters(EVP_MD_CTX *mdctx, char **filters, unsigned int fcount)
+{
+	unsigned int i;
+
+	if (EVP_DigestUpdate(mdctx, &fcount, sizeof(fcount)) != 1)
+		return 0;
+
+	for (i = 0; i < fcount; i++) {
+		size_t len = strlen(filters[i]);
+
+		/* hash the len to avoid collision like "ab""c" = "abc" */
+		if (EVP_DigestUpdate(mdctx, &len, sizeof(len)) != 1)
+			return 0;
+		if (len && EVP_DigestUpdate(mdctx, filters[i], len) != 1)
+			return 0;
+	}
+
+	return 1;
+}
+
 /* Replace the sid_ctx of a SSL_CTX */
-static int ssl_set_session_id_context(SSL_CTX *ctx)
+static int ssl_set_session_id_context(SSL_CTX *ctx, struct ckch_inst *ckch_inst)
 {
 	EVP_MD_CTX *mdctx = NULL;
 	unsigned char sid_ctx[EVP_MAX_MD_SIZE];
 	unsigned int sid_ctx_len = 0;
+	struct crtlist_entry *entry = ckch_inst ? ckch_inst->crtlist_entry : NULL;
 	int ret = 0;
 
 	mdctx = EVP_MD_CTX_new();
@@ -4673,6 +4695,7 @@ static int ssl_set_session_id_context(SSL_CTX *ctx)
 	    EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL) != 1 ||
 	    EVP_DigestUpdate(mdctx, SHCTX_APPNAME, sizeof(SHCTX_APPNAME)) != 1 ||
 	    !ssl_ctx_hash_X509(mdctx, SSL_CTX_get0_certificate(ctx)) ||
+	    !ssl_ctx_hash_filters(mdctx, entry ? entry->filters : NULL, entry ? entry->fcount : 0) ||
 	    EVP_DigestFinal_ex(mdctx, sid_ctx, &sid_ctx_len) != 1 ||
 	    sid_ctx_len > SSL_MAX_SID_CTX_LENGTH ||
 	    SSL_CTX_set_session_id_context(ctx, sid_ctx, sid_ctx_len) != 1)
@@ -4797,7 +4820,8 @@ error:
  * This function applies the SSL configuration on a SSL_CTX
  * It returns an error code and fills the <err> buffer
  */
-static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx, char **err)
+static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx,
+                                 struct ckch_inst *ckch_inst, char **err)
 {
 	struct proxy *curproxy = bind_conf->frontend;
 	int cfgerr = 0;
@@ -4915,7 +4939,7 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 
 	ssl_set_shctx(ctx);
 #ifndef USE_OPENSSL_WOLFSSL
-	if (!ssl_set_session_id_context(ctx)) {
+	if (!ssl_set_session_id_context(ctx, ckch_inst)) {
 		memprintf(err, "%sProxy '%s': unable to set the SSL session context for bind '%s' at [%s:%d].\n",
 		          err && *err ? *err : "", bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr |= ERR_ALERT | ERR_FATAL;
@@ -5090,7 +5114,7 @@ int ssl_sock_prep_ctx_and_inst(struct bind_conf *bind_conf, struct ssl_bind_conf
 {
 	int errcode = 0;
 
-	errcode |= ssl_sock_prepare_ctx(bind_conf, ssl_conf, ctx, err);
+	errcode |= ssl_sock_prepare_ctx(bind_conf, ssl_conf, ctx, ckch_inst, err);
 	if (!errcode && ckch_inst)
 		ckch_inst_add_cafile_link(ckch_inst, bind_conf, ssl_conf, NULL);
 
