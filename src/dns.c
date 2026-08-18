@@ -1399,9 +1399,6 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	dss->task_idle->context = dss;
 	dss->task_idle->expire = tick_add(now_ms, 5000);
 
-	/* let start the task to free idle conns immediately */
-	task_queue(dss->task_idle);
-
 	LIST_INIT(&dss->free_sess);
 	LIST_INIT(&dss->idle_sess);
 	LIST_INIT(&dss->wait_sess);

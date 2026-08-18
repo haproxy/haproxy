@@ -2827,6 +2827,7 @@ static int resolvers_finalize_config(void)
 				task_set_thread(ns->stream->task_req, t->tid);
 				task_set_thread(ns->stream->task_rsp, t->tid);
 				task_set_thread(ns->stream->task_idle, t->tid);
+				task_wakeup(ns->stream->task_idle, TASK_WOKEN_INIT);
 			}
 		}
 		task_wakeup(t, TASK_WOKEN_INIT);
