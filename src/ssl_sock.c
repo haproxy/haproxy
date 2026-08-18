@@ -4681,8 +4681,86 @@ static int ssl_ctx_hash_filters(EVP_MD_CTX *mdctx, char **filters, unsigned int 
 	return 1;
 }
 
+/* hash the trusted store of the SSL_CTX (X509 + CRL) */
+static int ssl_ctx_hash_store(EVP_MD_CTX *mdctx, SSL_CTX *ctx)
+{
+	STACK_OF(X509_OBJECT) *objects;
+	int count;
+	int i;
+	int ret = 0;
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x40000000L) && !defined(OPENSSL_IS_AWSLC) && \
+    !defined(LIBRESSL_VERSION_NUMBER)
+	objects = X509_STORE_get1_objects(SSL_CTX_get_cert_store(ctx));
+#else
+	objects = X509_STORE_get0_objects(SSL_CTX_get_cert_store(ctx));
+#endif
+	if (!objects)
+		return 0;
+
+	count = sk_X509_OBJECT_num(objects);
+	if (EVP_DigestUpdate(mdctx, &count, sizeof(count)) != 1)
+		goto out;
+
+	for (i = 0; i < count; i++) {
+		X509_OBJECT *object = sk_X509_OBJECT_value(objects, i);
+		int type = X509_OBJECT_get_type(object);
+		unsigned char digest[EVP_MAX_MD_SIZE];
+		unsigned int digest_len = 0;
+
+		if (EVP_DigestUpdate(mdctx, &type, sizeof(type)) != 1)
+			goto out;
+
+		switch (type) {
+		case X509_LU_X509:
+			if (!ssl_ctx_hash_X509(mdctx, X509_OBJECT_get0_X509(object)))
+				goto out;
+			break;
+		case X509_LU_CRL: {
+			X509_CRL *crl = X509_OBJECT_get0_X509_CRL(object);
+			ASN1_INTEGER *crl_number;
+			int crl_number_len;
+
+			if (X509_NAME_digest(X509_CRL_get_issuer(crl), EVP_sha256(), digest, &digest_len) != 1)
+				goto out;
+			if (EVP_DigestUpdate(mdctx, digest, digest_len) != 1)
+				goto out;
+
+			crl_number = X509_CRL_get_ext_d2i(crl, NID_crl_number, NULL, NULL);
+			crl_number_len = crl_number ? ASN1_STRING_length(crl_number) : 0;
+
+			if (EVP_DigestUpdate(mdctx, &crl_number_len, sizeof(crl_number_len)) != 1) {
+				ASN1_INTEGER_free(crl_number);
+				goto out;
+			}
+			if (crl_number_len && EVP_DigestUpdate(mdctx, ASN1_STRING_get0_data(crl_number), crl_number_len) != 1) {
+				ASN1_INTEGER_free(crl_number);
+				goto out;
+			}
+			ASN1_INTEGER_free(crl_number);
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	ret = 1;
+
+out:
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x40000000L) && !defined(OPENSSL_IS_AWSLC) && \
+    !defined(LIBRESSL_VERSION_NUMBER)
+	sk_X509_OBJECT_pop_free(objects, X509_OBJECT_free);
+#endif
+	return ret;
+}
+
 /* Replace the sid_ctx of a SSL_CTX */
-static int ssl_set_session_id_context(SSL_CTX *ctx, struct ckch_inst *ckch_inst)
+static int ssl_set_session_id_context(SSL_CTX *ctx,
+                                       const struct bind_conf *bind_conf,
+                                       const struct ssl_bind_conf *ssl_conf,
+                                       int verify,
+                                       struct ckch_inst *ckch_inst)
 {
 	EVP_MD_CTX *mdctx = NULL;
 	unsigned char sid_ctx[EVP_MAX_MD_SIZE];
@@ -4696,6 +4774,12 @@ static int ssl_set_session_id_context(SSL_CTX *ctx, struct ckch_inst *ckch_inst)
 	    EVP_DigestUpdate(mdctx, SHCTX_APPNAME, sizeof(SHCTX_APPNAME)) != 1 ||
 	    !ssl_ctx_hash_X509(mdctx, SSL_CTX_get0_certificate(ctx)) ||
 	    !ssl_ctx_hash_filters(mdctx, entry ? entry->filters : NULL, entry ? entry->fcount : 0) ||
+	    EVP_DigestUpdate(mdctx, &verify, sizeof(verify)) != 1 ||
+	    !ssl_ctx_hash_store(mdctx, ctx) ||
+	    EVP_DigestUpdate(mdctx, bind_conf->ca_ignerr_bitfield,
+	                     sizeof(bind_conf->ca_ignerr_bitfield)) != 1 ||
+	    EVP_DigestUpdate(mdctx, bind_conf->crt_ignerr_bitfield,
+	                     sizeof(bind_conf->crt_ignerr_bitfield)) != 1 ||
 	    EVP_DigestFinal_ex(mdctx, sid_ctx, &sid_ctx_len) != 1 ||
 	    sid_ctx_len > SSL_MAX_SID_CTX_LENGTH ||
 	    SSL_CTX_set_session_id_context(ctx, sid_ctx, sid_ctx_len) != 1)
@@ -4939,7 +5023,7 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 
 	ssl_set_shctx(ctx);
 #ifndef USE_OPENSSL_WOLFSSL
-	if (!ssl_set_session_id_context(ctx, ckch_inst)) {
+	if (!ssl_set_session_id_context(ctx, bind_conf, ssl_conf, verify, ckch_inst)) {
 		memprintf(err, "%sProxy '%s': unable to set the SSL session context for bind '%s' at [%s:%d].\n",
 		          err && *err ? *err : "", bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr |= ERR_ALERT | ERR_FATAL;
