@@ -176,6 +176,12 @@ static int init_deviceatlas(void)
 		size_t atlasimglen;
 		da_status_t status;
 
+		if ((global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+		    global.nbtgroups > 1) {
+			ha_alert("deviceatlas is incompatible with tune.fd.tables per-thread-group\n");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 		jsonp = fopen(global_deviceatlas.jsonpath, "r");
 		if (unlikely(jsonp == 0)) {
 			ha_alert("deviceatlas : '%s' json file has invalid path or is not readable.\n",
