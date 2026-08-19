@@ -12,6 +12,8 @@
 static int hld_debug;
 struct hld_url_cfg *hld_url_cfgs;
 char *srv_opts, *tls_ciphers, *tls_ciphersuites, *tls_curves, *alpn;
+enum http_meth_t http_meth = HTTP_METH_GET;
+struct ist meth_ist = IST("GET");
 int h2c;
 
 static void  hld_usage(char *name, int argc)
@@ -23,6 +25,9 @@ static void  hld_usage(char *name, int argc)
 		"        -e               stop upon first connection error\n"
 		"        -h(0|1|2|2c|3)   use h0 (hq-interop for QUIC), h1, h2, h2c or h3 (QUIC/TCP) protocols (*)\n"
 		"        -(0|1|2|2c|3)    same as above (*)\n"
+		"        -get             use GET method (default) (*)\n"
+		"        -head            use HEAD method instead of GET (*)\n"
+		"        -post <size>     use POST method, sending <size> bytes of body (*)\n"
 		"        -hs              show HTTP status codes distribution\n"
 		"        -hsv             show HTTP status codes distribution ((global + per HTTP version)\n"
 		"        -l               enable long output format; double for raw values\n"
@@ -37,7 +42,6 @@ static void  hld_usage(char *name, int argc)
 		"        -C               dump the configuration and exit\n"
 		"        -F               merge send() with connect's ACK\n"
 		"        -H \"foo:bar\"   add this header name and value\n"
-		"        -I               use HEAD instead of GET\n"
 		"        -R <rate>        limit to this many request attempts per second (0)\n"
 		"        -v               shows version\n"
 		"        --defaults <str> add a string to default section\n"
@@ -250,6 +254,9 @@ static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
 
 			/* Append a new path to this URL */
 			p->path = path;
+			p->http_meth = http_meth;
+			p->meth_ist = meth_ist;
+			p->post_sz = arg_post_sz;
 			p->next = hld_url_cfg->paths;
 			hld_url_cfg->paths = p;
 
@@ -285,6 +292,9 @@ static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
 		goto err;
 
 	p->path = path;
+	p->http_meth = http_meth;
+	p->meth_ist = meth_ist;
+	p->post_sz = arg_post_sz;
 	p->next = NULL;
 
 	hld_url_cfg->ssl = ssl;
@@ -530,6 +540,26 @@ void haproxy_init_args(int argc, char **argv)
 				goto leave;
 #endif
 			}
+			else if (strcmp(opt, "get") == 0) {
+				http_meth = HTTP_METH_GET;
+				meth_ist = ist("GET");
+				arg_post_sz = 0;
+			}
+			else if (strcmp(opt, "head") == 0) {
+				http_meth = HTTP_METH_HEAD;
+				meth_ist = ist("HEAD");
+				arg_post_sz = 0;
+			}
+			else if (strcmp(opt, "post") == 0) {
+				argv++, argc--;
+				if ((argc <= 0 || **argv == '-'))
+					hld_usage(progname, argc);
+
+				http_meth = HTTP_METH_POST;
+				meth_ist = ist("POST");
+				opt = *argv;
+				hld_parse_long(&arg_post_sz, opt, &argc, &argv);
+			}
 			else if (*opt == 'd') {
 				opt++;
 				hld_parse_long(&arg_dura, opt, &argc, &argv);
@@ -623,13 +653,6 @@ void haproxy_init_args(int argc, char **argv)
 				}
 
 				LIST_APPEND(&hld_hdrs, &hdr->list);
-			}
-			else if (*opt == 'I') {
-				/* empty option */
-				if (*(opt + 1))
-					hld_usage(progname, argc);
-
-				arg_head = 1;
 			}
 			else if (*opt == 'R') {
 				opt++;

@@ -61,6 +61,9 @@ HALoad displays its usage when run without argument or wrong arguments:
             -h(0|1|2|2c|3)   use h0 (hq-interop for QUIC), h1, h2, h2c or h3
                              (QUIC/TCP) protocols (*)
             -(0|1|2|2c|3)    same as above (*)
+            -get             use GET method (default) (*)
+            -head            use HEAD method instead of GET (*)
+            -post <size>     use POST method, sending <size> bytes of body (*)
             -hs              show HTTP status codes distribution
             -hsv             show HTTP status codes distribution ((global + per HTTP version)
             -l               enable long output format; double for raw values
@@ -73,7 +76,6 @@ HALoad displays its usage when run without argument or wrong arguments:
             -w <time>        I/O timeout in milliseconds (10000)
             -C               dump the configuration and exit
             -H "foo:bar"     add this header name and value
-            -I               use HEAD instead of GET
             -R <rate>        limit to this many request attempts per second (0)
             -v               shows version
             --defaults <str> add a string to default section
@@ -106,6 +108,10 @@ Examples:
 
     # HTTP/3 test limiting concurrent streams to 3 per connection (-m3)
     $ ./haload -m3 quic://127.0.0.1:8889/
+
+    # POST 500 bytes to /a, then GET /b, on the same server: each path keeps
+    # its own method and body size even though they share the same address
+    $ ./haload -post 500 http://127.0.0.1:8888/a -get http://127.0.0.1:8888/b -u 10 -d 30
 
     # Dump the generated memory configuration and exit (-C)
     $ ./haload https://127.0.0.1:4443 -C

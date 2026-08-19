@@ -24,6 +24,9 @@ enum hld_http_ver {
 
 struct hld_path {
 	char *path;
+	enum http_meth_t http_meth;
+	struct ist meth_ist;
+	int post_sz;
 	struct hld_path *next;
 };
 
@@ -70,10 +73,10 @@ extern struct proxy hld_proxy;
 extern int arg_accu;
 extern int arg_dura;
 extern int arg_fast;
-extern int arg_head;
 extern int arg_hscd;
 extern int arg_long;
 extern int arg_mreqs;
+extern int arg_post_sz;
 extern int arg_rate;
 extern int arg_reqs;
 extern int arg_rcon;

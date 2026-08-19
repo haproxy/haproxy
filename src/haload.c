@@ -1,6 +1,7 @@
 #include <openssl/ssl.h>
 
 #include <haproxy/api.h>
+#include <haproxy/chunk.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
 #include <haproxy/http.h>
@@ -17,6 +18,7 @@
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/tools.h>
 
 /* haload stream state flags */
 #define HLD_STRM_ST_IN_ALLOC     0x0001
@@ -93,10 +95,10 @@ const char *arg_path;
 int arg_accu;          // more accurate req/time measurements in keep-alive
 int arg_dura;          // test duration in sec if non-nul
 int arg_fast;          // merge send with connect's ACK
-int arg_head;          // use HEAD
 int arg_hscd;          // HTTP status code distribution
 int arg_long;          // long output format; 2=raw values
 int arg_mreqs = 1;     // max concurrent streams by connection
+int arg_post_sz;       // number of bytes to POST
 int arg_rate;          // connection & request rate limit
 int arg_rcon = -1;     // max requests per conn
 int arg_reqs = -1;     // max total requests
@@ -113,6 +115,10 @@ int running_tasks;     // tasks counter for the users and for the conn rate
 unsigned int hld_ver_flags; // flags to identify the HTTP versions used
 
 char *hld_args[MAX_LINE_ARGS + 1];
+
+#define HLD_POST_DATA_SZ       16384 // bytes
+#define HLD_POST_DATA_LINE_SZ     50 // bytes
+static char hld_post_data[HLD_POST_DATA_SZ];
 
 volatile unsigned long global_req; // global (started) req counter to sync user tasks.
 
@@ -348,9 +354,9 @@ static void hld_trace(enum trace_level level, uint64_t mask, const struct trace_
 	if (!hs || src->verbosity < HALOAD_VERB_CLEAN)
 		return;
 
-	chunk_appendf(&trace_buf, " hs@%p conn@%p se@%p to_send=%u tot_req=%lu",
+	chunk_appendf(&trace_buf, " hs@%p conn@%p se@%p to_send=%llu tot_req=%lu",
 	              hs, __sc_conn(hs->sc), __sc_endp(hs->sc),
-	              htxbuf(&hs->bo)->data, hs->url->tot_req);
+	              hs->to_send, hs->url->tot_req);
 	if (hs->sc) {
 		struct connection *conn = sc_conn(hs->sc);
 		chunk_appendf(&trace_buf, " - conn=%p(0x%08x)", conn, conn ? conn->flags : 0);
@@ -916,16 +922,31 @@ leave:
 	return t;
 }
 
-static int hldstream_build_http_req(struct hldstream *hs, struct ist path, int eom)
+/* Add up to <to_send> bytes of the POST body to <htx>, shifting the starting
+ * offset in hld_post_data by up to one line's width based on how many bytes
+ * were already sent, so consecutive chunks don't start with the exact same
+ * bytes. Mirrors hstream_add_htx_data() in haterm.c. Returns the number of
+ * bytes actually added.
+ */
+static size_t hldstream_add_htx_data(struct hldstream *hs, struct htx *htx,
+                                     unsigned long long to_send)
+{
+	size_t offset = (hs->post_sz - to_send) % HLD_POST_DATA_LINE_SZ;
+	size_t len = MIN(to_send, (unsigned long long)(sizeof(hld_post_data) - offset));
+
+	return htx_add_data(htx, ist2(hld_post_data + offset, len));
+}
+
+static int hldstream_build_http_req(struct hldstream *hs, struct ist path)
 {
 	int ret = 0;
 	struct buffer *buf;
 	struct htx *htx;
 	struct htx_sl *sl;
-	struct ist meth_ist;
 	struct hld_hdr *hdr;
+	struct ist meth_ist = hs->meth_ist;
 	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_XFER_LEN |
-		(!hs->to_send ? HTX_SL_F_BODYLESS : 0);
+		(!hs->to_send ? HTX_SL_F_BODYLESS : HTX_SL_F_CLEN);
 
 	TRACE_ENTER(HLD_STRM_EV_TX, hs);
 	buf = hldstream_get_obuf(hs);
@@ -936,12 +957,11 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path, int e
 	}
 
 	htx = htx_from_buf(buf);
-	meth_ist = !arg_head ? ist("GET") : ist("HEAD");
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth_ist, path, ist("HTTP/1.1"));
 	if (!sl)
 		goto err;
 
-	sl->info.req.meth = !arg_head ? HTTP_METH_GET : HTTP_METH_HEAD;
+	sl->info.req.meth = hs->http_meth;
 	list_for_each_entry(hdr, &hld_hdrs, list)
 		if (!htx_add_header(htx, hdr->name, hdr->value)) {
 			TRACE_ERROR("could not add a header", HLD_STRM_EV_TX, hs);
@@ -959,10 +979,22 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path, int e
 		goto err;
 	}
 
+	if (hs->to_send > 0) {
+		char *end = ultoa_o(hs->to_send, trash.area, trash.size);
+
+		if (!end || !htx_add_header(htx, ist("Content-Length"), ist2(trash.area, end - trash.area))) {
+			TRACE_ERROR("could not add content-length header", HLD_STRM_EV_TX, hs);
+			goto err;
+		}
+	}
+
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto err;
 
-	if (eom)
+	if (hs->to_send > 0)
+		hs->to_send -= hldstream_add_htx_data(hs, htx, hs->to_send);
+
+	if (!hs->to_send)
 		htx->flags |= HTX_FL_EOM;
 	htx_to_buf(htx, &hs->bo);
  leave:
@@ -973,6 +1005,35 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path, int e
 	hs->flags |= HLD_STRM_ST_CONN_ERR;
 	TRACE_DEVEL("leaving on error", HLD_STRM_EV_TX, hs);
 	goto leave;
+}
+
+/* Continue sending the POST body once the previous output buffer was fully
+ * drained but hs->to_send is still > 0. Sets HTX_FL_EOM once it reaches 0.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int hldstream_build_http_body(struct hldstream *hs)
+{
+	int ret = 0;
+	struct buffer *buf;
+	struct htx *htx;
+
+	TRACE_ENTER(HLD_STRM_EV_TX, hs);
+	buf = hldstream_get_obuf(hs);
+	if (!buf) {
+		TRACE_STATE("waiting for ouput buffer", HLD_STRM_EV_TX|HLD_STRM_EV_TX_BLK, hs);
+		hs->flags |= HLD_STRM_ST_OUT_ALLOC;
+		goto leave;
+	}
+
+	htx = htx_from_buf(buf);
+	hs->to_send -= hldstream_add_htx_data(hs, htx, hs->to_send);
+	if (!hs->to_send)
+		htx->flags |= HTX_FL_EOM;
+	htx_to_buf(htx, &hs->bo);
+ leave:
+	ret = 1;
+	TRACE_LEAVE(HLD_STRM_EV_TX, hs);
+	return ret;
 }
 
 /* Send HTX data prepared for <hs> haload stream from <conn> connection */
@@ -1330,10 +1391,17 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	}
 
 	if (hs->flags & HLD_STRM_ST_REQ_TO_BUILD) {
-		if (!hldstream_build_http_req(hs, ist(hs->path), 1))
+		if (!hldstream_build_http_req(hs, ist(hs->path)))
 			goto out;
 
 		hs->flags &= ~HLD_STRM_ST_REQ_TO_BUILD;
+	}
+	else if (hs->to_send && htx_is_empty(htxbuf(&hs->bo))) {
+		/* The request headers were already sent but the whole POST body
+		 * did not fit in the first buffer. Continue feeding it.
+		 */
+		if (!hldstream_build_http_body(hs))
+			goto out;
 	}
 
 	if (!hldstream_htx_buf_snd(conn, hs))
@@ -1474,13 +1542,16 @@ static struct hldstream *hld_new_strm(struct hld_usr *usr,
 	hs->usr = usr;
 	hs->url = url;
 	hs->path = path->path;
+	hs->http_meth = path->http_meth;
+	hs->meth_ist = path->meth_ist;
 	hs->sc = sc;
 	hs->bi = hs->bo = BUF_NULL;
 	LIST_INIT(&hs->buf_wait.list);
 	hs->task = t;
 	hs->flags = conn ? HLD_STRM_ST_REQ_TO_BUILD : HLD_STRM_ST_REQ_TO_BUILD;
 	hs->state = 0;
-	hs->to_send = 0;
+	hs->to_send = path->post_sz;
+	hs->post_sz = path->post_sz;
 	hs->req_date = tv_unset();
 	LIST_APPEND(&usr->strms, &hs->list);
 	task_wakeup(t, TASK_WOKEN_INIT);
@@ -2062,3 +2133,23 @@ static int hld_init(void)
 	goto leave;
 }
 REGISTER_POST_CHECK(hld_init);
+
+/* Build the POST data buffer.
+ * Always succeeds.
+ */
+static int hldstream_build_post_data(void)
+{
+	int i;
+
+	for (i = 0; i < sizeof(hld_post_data); i++) {
+		if (i % HLD_POST_DATA_LINE_SZ == HLD_POST_DATA_LINE_SZ - 1)
+			hld_post_data[i] = '\n';
+		else if (i % 10 == 0)
+			hld_post_data[i] = '.';
+		else
+			hld_post_data[i] = '0' + i % 10;
+	}
+
+	return 1;
+}
+REGISTER_POST_CHECK(hldstream_build_post_data);
