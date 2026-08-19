@@ -1274,6 +1274,13 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	srv->svc_port = get_host_port(logger->target.addr);
 	HA_SPIN_INIT(&srv->lock);
 
+	/* This server is created from a POST_CHECK hook, that is after
+	 * check_config_validity() has run srv_preinit() over all the servers
+	 * known at that point, so it would never be initialized otherwise.
+	 */
+	if (srv_preinit(srv) & ERR_CODE)
+		goto error;
+
 	if (sink_finalize(sink) & ERR_CODE)
 		goto error;
 
