@@ -276,6 +276,11 @@ static int ha_wurfl_init(void)
 		return ERR_WARN;
 	}
 
+	if ((global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+	    global.nbtgroups > 1) {
+		ha_alert("WURFL is incompatible with tune.fd.tables per-thread-group\n");
+		return (ERR_FATAL | ERR_ALERT);
+	}
 	ha_notice("WURFL: Engine handler created - API version %s\n", wurfl_get_api_version() );
 
 	// set wurfl data file
