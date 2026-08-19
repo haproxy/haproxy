@@ -932,6 +932,11 @@ static int init_51degrees(void)
 		return (ERR_FATAL | ERR_ALERT);
 	}
 
+	if ((global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+	    global.nbtgroups > 1) {
+		ha_alert("51Degrees is incompatible with tune.fd.tables per-thread-group\n");
+		return (ERR_FATAL | ERR_ALERT);
+	}
 	if (!LIST_ISEMPTY(&global_51degrees.property_names)) {
 		i = 0;
 		list_for_each_entry(name, &global_51degrees.property_names, list)
