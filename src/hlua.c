@@ -12991,6 +12991,7 @@ static int hlua_load_state(char **args, lua_State *L, char **err)
 	return 0;
 }
 
+static int hlua_gload = 0;
 static int hlua_load(char **args, int section_type, struct proxy *curpx,
                      const struct proxy *defpx, const char *file, int line,
                      char **err)
@@ -13005,6 +13006,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 	/* loading for global state */
 	hlua_state_id = 0;
 	ha_set_thread(NULL);
+	hlua_gload = 1;
 	return hlua_load_state(&args[1], hlua_states[0], err);
 }
 
@@ -13531,6 +13533,11 @@ int hlua_post_init()
 	}
 #endif
 
+	if (hlua_gload && (global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+	    global.nbtgroups > 1) {
+		ha_alert("tune.fd.tables per-thread-groups is incompatible with lua-load, please use lua-load-per-thread");
+		return 0;
+	}
 	/* Perform post init of common thread */
 	hlua_state_id = 0;
 	ha_set_thread(&ha_thread_info[0]);
