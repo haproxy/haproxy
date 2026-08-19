@@ -2675,6 +2675,21 @@ end:
 REGISTER_CONFIG_POST_SECTION("listen",   post_section_frontend_crt_init);
 REGISTER_CONFIG_POST_SECTION("frontend", post_section_frontend_crt_init);
 
+static int cfgparse_ssl_post_check(void)
+{
+	int err_code = 0;
+
+	if (global_ssl.async && (global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+	    (global.nbtgroups > 1)) {
+		err_code |= ERR_FATAL | ERR_ALERT;
+		ha_alert("tune.fd.tables per-thread-group is incompatible with ssl-mode-async\n");
+		goto out;
+	}
+out:
+	return err_code;
+}
+
+REGISTER_POST_CHECK(cfgparse_ssl_post_check);
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
