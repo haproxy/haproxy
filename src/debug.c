@@ -293,7 +293,7 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 /* dump a backtrace of current thread's stack to stderr. Displays the hint about
  * the core if hint & 1.
  */
-void ha_backtrace_to_stderr(int hint)
+__attribute__((noinline)) void ha_backtrace_to_stderr(int hint)
 {
 	char area[8192];
 	struct buffer b = b_make(area, sizeof(area), 0, 0);

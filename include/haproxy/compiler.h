@@ -124,14 +124,12 @@
 #endif
 
 /* tail-call elimination (turn the final call of a function into a jump). This
- * applies to the calling function. Clang doesn't support -f type optimizations
- * but has a dedicated attribute that we can use. Modern versions have a
- * "musttail" attribute at the statement level (per-return), but that's harder
- * to turn into something portable.
+ * applies to the calling function. Clang has no function attribute to enable
+ * this optimization. Modern versions have a "musttail" attribute at the
+ * statement level (per-return), but that's harder to turn into something
+ * portable.
  */
-#if defined(__clang__) && __has_attribute(disable_tail_calls)
-#  define eliminate_tail_calls __attribute__((disable_tail_calls))
-#elif !defined(__clang__) && __has_attribute(optimize)
+#if !defined(__clang__) && __has_attribute(optimize)
 #  define eliminate_tail_calls __attribute__((optimize("optimize-sibling-calls")))
 #else
 #  define eliminate_tail_calls
