@@ -53,7 +53,7 @@ struct hld_thr_info {
 	uint32_t curusrs;            // number of active users
 	uint32_t maxusrs;            // max number of users
 	uint64_t tot_conn;           // total conns attempted on this thread
-	uint64_t tot_done;           // total requests finished (successes+failures)
+	uint64_t tot_done;           // total successful requests finished
 	uint64_t tot_rcvd;           // total bytes received on this thread
 	uint64_t tot_perr;           // total protocol errors on this thread
 	uint64_t tot_fbs;            // total number of ttfb samples
@@ -1617,7 +1617,10 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			break;
 
 		TRACE_STATE("expired task", HLD_EV_USR_TASK, hs);
-		thrs_info[tid].tot_done++;
+		/* this stream never got a full response within <arg_wait>:
+		 * count it as a failure, not a success
+		 */
+		thrs_info[tid].tot_perr++;
 		hs->url->mreqs++;
 		usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs + 1;
 		LIST_DELETE(&hs->list);
