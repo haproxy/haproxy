@@ -16,6 +16,9 @@
 
 #include <errno.h>
 
+#include <haproxy/freq_ctr.h>
+#include <haproxy/global.h>
+#include <haproxy/init.h>
 #include <haproxy/pool.h>
 #include <haproxy/trace.h>
 #include <haproxy/quic_cc_drs.h>
@@ -1193,6 +1196,13 @@ int send_version_negotiation(int fd, struct sockaddr_storage *addr,
 	return !ret;
 }
 
+/* Stateless Reset rate limiting: each thread gets its own share of
+ * quic_tune.sec_stateless_reset_rate (the configured total, all
+ * threads), and its own freq_ctr to track how many it already sent.
+ */
+static THREAD_LOCAL struct freq_ctr quic_stateless_reset_freq_ctr;
+static THREAD_LOCAL uint quic_stateless_reset_rate;
+
 /* Send a stateless reset packet depending on <pkt> RX packet information
  * from <fd> UDP socket to <dst>
  * Return 1 if succeeded, 0 if not.
@@ -1207,6 +1217,12 @@ int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
 	struct quic_counters *prx_counters;
 
 	TRACE_ENTER(QUIC_EV_STATELESS_RST);
+
+	if (quic_stateless_reset_rate &&
+	    !freq_ctr_remain(&quic_stateless_reset_freq_ctr, quic_stateless_reset_rate, 0)) {
+		TRACE_DEVEL("stateless reset rate limited", QUIC_EV_STATELESS_RST);
+		goto leave;
+	}
 
 	/* RFC 9000 10.3. Stateless Reset
 	 *
@@ -1260,6 +1276,8 @@ int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
 
     ret = 1;
 	HA_ATOMIC_INC(&prx_counters->stateless_reset_sent);
+	if (quic_stateless_reset_rate)
+		update_freq_ctr(&quic_stateless_reset_freq_ctr, 1);
 	TRACE_PROTO("stateless reset sent", QUIC_EV_STATELESS_RST, NULL, &rxpkt->dcid);
  leave:
 	TRACE_LEAVE(QUIC_EV_STATELESS_RST);
@@ -2358,6 +2376,18 @@ int quic_tx_unittest(int argc, char **argv)
 	return 0;
 }
 REGISTER_UNITTEST("quic_tx", quic_tx_unittest);
+
+static int quic_stateless_reset_rate_init(void)
+{
+	/* split N across threads so the totals add up to exactly N: this
+	 * thread gets (N + tid) / nbthread. No flat ceil() here, since that
+	 * could push the total above N.
+	 */
+	quic_stateless_reset_rate =
+		(quic_tune.sec_stateless_reset_rate + tid) / global.nbthread;
+	return 1;
+}
+REGISTER_PER_THREAD_INIT(quic_stateless_reset_rate_init);
 
 /*
  * Local variables:

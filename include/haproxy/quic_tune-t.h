@@ -18,6 +18,8 @@
 #define QUIC_DFLT_BE_MAX_IDLE_TIMEOUT   30000 /* milliseconds */
 /* Default Retry threshold */
 #define QUIC_DFLT_SEC_RETRY_THRESHOLD     100 /* in connection openings */
+/* Default Stateless Reset rate limit */
+#define QUIC_DFLT_SEC_STATELESS_RESET_RATE 1000 /* packets/s, all threads */
 /* Default settings related to flow-control */
 #define QUIC_DFLT_FE_STREAM_DATA_RATIO     90
 #define QUIC_DFLT_BE_STREAM_DATA_RATIO     90
@@ -63,6 +65,7 @@ struct quic_tune {
 	} be;
 
 	uint64_t mem_tx_max;
+	uint sec_stateless_reset_rate; /* max total Stateless Reset pkts/s, all threads (0 = unlimited) */
 };
 
 #endif /* USE_QUIC */

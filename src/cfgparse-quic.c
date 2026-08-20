@@ -48,6 +48,7 @@ struct quic_tune quic_tune = {
 		.fb_opts = QUIC_TUNE_FB_TX_PACING|QUIC_TUNE_FB_TX_UDP_GSO,
 	},
 	.mem_tx_max = QUIC_MAX_TX_MEM,
+	.sec_stateless_reset_rate = QUIC_DFLT_SEC_STATELESS_RESET_RATE,
 };
 
 static int bind_parse_quic_force_retry(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -424,6 +425,9 @@ static int cfg_parse_quic_tune_setting(char **args, int section_type,
 	else if (strcmp(suffix, "fe.sec.retry-threshold") == 0) {
 		quic_tune.fe.sec_retry_threshold = arg;
 	}
+	else if (strcmp(suffix, "sec.stateless-reset-rate") == 0) {
+		quic_tune.sec_stateless_reset_rate = arg;
+	}
 	else if (strcmp(suffix, "be.stream.data-ratio") == 0 ||
 	         strcmp(suffix, "fe.stream.data-ratio") == 0) {
 		uint *ptr = (suffix[0] == 'b') ? &quic_tune.be.stream_data_ratio :
@@ -532,6 +536,7 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.quic.listen", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.mem.tx-max", cfg_parse_quic_tune_setting },
+	{ CFG_GLOBAL, "tune.quic.sec.stateless-reset-rate", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.zero-copy-fwd-send", cfg_parse_quic_tune_on_off },
 
 	{ CFG_GLOBAL, "tune.quic.fe.cc.cubic-min-losses", cfg_parse_quic_tune_setting },
