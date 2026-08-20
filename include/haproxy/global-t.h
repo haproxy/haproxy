@@ -178,6 +178,7 @@ struct global {
 		int options;       /* various tuning options */
 		uint debug;        /* various debugging options (GDBG_*) */
 		int runqueue_depth;/* max number of tasks to run at once */
+		uint twork_budget; /* max number of cross-thread work items to run at once */
 		uint recv_enough;  /* how many input bytes at once are "enough" */
 		uint bufsize;      /* buffer size in bytes, defaults to BUFSIZE */
 		uint bufsize_small;/* small buffer size in bytes */

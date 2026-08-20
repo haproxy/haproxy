@@ -1984,6 +1984,7 @@ The following keywords are supported in the "global" section :
    - tune.ring.queues
    - tune.runqueue-depth
    - tune.sched.low-latency
+   - tune.sched.remote-work-budget
    - tune.sndbuf.backend
    - tune.sndbuf.client
    - tune.sndbuf.frontend
@@ -5468,6 +5469,14 @@ tune.sched.low-latency { on | off }
   maximum latency experienced by new requests or connections in the middle of
   massive traffic, at the expense of a higher impact on this large traffic.
   For regular usage it is better to leave this off. The default value is off.
+
+tune.sched.remote-work-budget <number>
+  Sets the maximum number of deferred work items that a thread processes in a
+  row on behalf of other threads or thread groups (for instance the file
+  descriptor operations delegated between thread groups when FD tables are not
+  shared) before letting other tasks run. Larger values reduce the scheduling
+  overhead when such requests come in bursts, smaller ones limit the latency
+  they may inflict on regular traffic. The default value is 16.
 
 tune.sndbuf.backend  <size>
 tune.sndbuf.frontend <size>

@@ -955,7 +955,7 @@ OBJS += src/mux_h1.o src/log.o						\
         src/http_act.o src/http_fetch.o src/cebs_tree.o			\
         src/cebib_tree.o src/http_client.o src/dns.o			\
         src/cebb_tree.o src/vars.o src/event_hdl.o src/tcp_rules.o	\
-        src/stats-proxy.o src/pool.o src/stats.o		\
+        src/stats-proxy.o src/pool.o src/stats.o src/twork.o	\
         src/cfgparse-global.o src/filters.o src/mux_pt.o		\
         src/flt_http_comp.o src/sock.o src/h1.o src/sink.o		\
         src/ceba_tree.o src/session.o src/payload.o src/htx.o		\

@@ -262,6 +262,13 @@
 #define RUNQUEUE_DEPTH 280
 #endif
 
+/* default number of cross-thread work items processed per tasklet call
+ * (tune.sched.remote-work-budget).
+ */
+#ifndef TWORK_BUDGET
+#define TWORK_BUDGET 16
+#endif
+
 // cookie delimiter in "prefix" mode. This character is inserted between the
 // persistence cookie and the original value. The '~' is allowed by RFC6265,
 // and should not be too common in server names.
