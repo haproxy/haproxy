@@ -1625,6 +1625,11 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs + 1;
 		LIST_DELETE(&hs->list);
 		hldstream_free(&hs);
+
+		if (arg_serr == 1) {
+			usr->flags |= HLD_USR_FL_STOP;
+			HA_ATOMIC_STORE(&all_usr_stop_asap, 1);
+		}
 	}
 
 	if ((usr->flags & HLD_USR_FL_STOP) || HA_ATOMIC_LOAD(&all_usr_stop_asap)) {
