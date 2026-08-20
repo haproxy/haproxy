@@ -94,6 +94,7 @@ static int comp_deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data,
 static int comp_deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int comp_deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out);
 static int comp_deflate_end(struct comp_ctx **comp_ctx);
+static int decomp_uslz_not_supported(struct decomp_ctx **decomp_ctx);
 
 #endif /* USE_ZLIB */
 
@@ -121,6 +122,10 @@ const struct decomp_algo decomp_algos[] =
 	{ "raw-deflate", 11, "deflate",     7, decomp_uslz_raw_deflate_init,  decomp_uslz_stream_new, decomp_uslz_add_data, NULL,  decomp_uslz_end },
 	{ "gzip",        4,  "gzip",        4, decomp_uslz_gzip_init,  decomp_uslz_stream_new, decomp_uslz_add_data, NULL,  decomp_uslz_end },
 #elif defined(USE_ZLIB)
+	{ "uslz-auto",   9,  NULL,          0, decomp_uslz_not_supported, NULL, NULL, NULL, NULL },
+	{ "deflate",     7,  NULL,          0, decomp_uslz_not_supported, NULL, NULL, NULL, NULL },
+	{ "raw-deflate", 11, NULL,          0, decomp_uslz_not_supported, NULL, NULL, NULL, NULL },
+	{ "gzip",        4,  NULL,          0, decomp_uslz_not_supported, NULL, NULL, NULL, NULL },
 #endif /* USE_ZLIB */
 	{ NULL,       0,     NULL,          0, NULL ,                     NULL, NULL, NULL, NULL }
 };
@@ -565,6 +570,18 @@ static int decomp_uslz_end(struct decomp_ctx **decomp_ctx)
 }
 
 #elif defined(USE_ZLIB)  /* ! USE_SLZ */
+
+/* SLZ's auto deflate (supports RFC1950, 51 and 52).
+ * Returns < 0 on error.
+ */
+/* uslz requires SLZ library, inform that the algo is not supported unless
+ * haproxy is built using USE_SLZ
+ */
+static int decomp_uslz_not_supported(struct decomp_ctx **decomp_ctx)
+{
+	ha_alert("decompression not supported: haproxy built without USE_SLZ.\n");
+	return -1;
+}
 
 /*
  * This is a tricky allocation function using the zlib.
