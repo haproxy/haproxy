@@ -23,6 +23,10 @@ static void  hld_usage(char *name, int argc)
 		"where <opts> may be any combination of:\n"
 		"        -d <time>        test duration in seconds (0)\n"
 		"        -e               stop upon first connection error\n"
+		"        -ee              on first error, reset counters and probe at 1 conn/req\n"
+		"                         per sec per URL, doubling the rate every second while\n"
+		"                         requests keep succeeding, until 100 per URL succeed;\n"
+		"                         then resume the load asked for on the command line\n"
 		"        -h(0|1|2|2c|3)   use h0 (hq-interop for QUIC), h1, h2, h2c or h3 (QUIC/TCP) protocols (*)\n"
 		"        -(0|1|2|2c|3)    same as above (*)\n"
 		"        -get             use GET method (default) (*)\n"
@@ -565,11 +569,19 @@ void haproxy_init_args(int argc, char **argv)
 				hld_parse_long(&arg_dura, opt, &argc, &argv);
 			}
 			else if (*opt == 'e') {
-				/* empty option */
-				if (*(opt + 1))
-					hld_usage(progname, argc);
-
-				arg_serr = 1;
+				opt++;
+				if (*opt == 'e') {
+					/* -ee: probe-and-ramp mode */
+					opt++;
+					if (*opt)
+						hld_usage(progname, argc);
+					arg_serr = 2;
+				}
+				else {
+					if (*opt)
+						hld_usage(progname, argc);
+					arg_serr = 1;
+				}
 			}
 			else if (strcmp(opt, "hs") == 0) {
 				arg_hscd = 1;

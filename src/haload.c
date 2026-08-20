@@ -48,12 +48,14 @@ struct hld_thr_info {
 	struct timeval now;          // current time
 	struct hld_freq_ctr req_rate;    // thread's measured request rate
 	struct hld_freq_ctr conn_rate;   // thread's measured connection rate
+	int err_ramp_gen;            // last -ee generation seen by this thread
 	uint32_t cur_req;            // number of active requests
 	uint32_t curconn;            // number of active connections
 	uint32_t curusrs;            // number of active users
 	uint32_t maxusrs;            // max number of users
 	uint64_t tot_conn;           // total conns attempted on this thread
 	uint64_t tot_done;           // total successful requests finished
+	uint64_t tot_probe_done;     // successes from users created during the current -ee ramp
 	uint64_t tot_rcvd;           // total bytes received on this thread
 	uint64_t tot_perr;           // total protocol errors on this thread
 	uint64_t tot_fbs;            // total number of ttfb samples
@@ -80,6 +82,7 @@ struct hld_usr {
 	struct hld_url *cur_url;
 	int nreqs;
 	int flags;
+	int ramp_gen;          // err_ramp_gen at creation time, see hldstream_htx_buf_rcv()
 };
 
 struct hld_thr_info *thrs_info;
@@ -102,7 +105,7 @@ int arg_post_sz;       // number of bytes to POST
 int arg_rate;          // connection & request rate limit
 int arg_rcon = -1;     // max requests per conn
 int arg_reqs = -1;     // max total requests
-int arg_serr;          // stop on first error
+int arg_serr;          // 1 = stop on first error (-e), 2 = probe and ramp (-ee)
 int arg_slow;          // slow start: delay in milliseconds
 int arg_thrd;          // number of threads
 int arg_usr = 1;       // number of users
@@ -126,6 +129,20 @@ volatile unsigned long global_req; // global (started) req counter to sync user 
 
 struct timeval hld_start_date, hld_stop_date, hld_now;
 volatile uint32_t throttle = 0;  // pass to mul32hi() if not null.
+
+/* -ee (probe-and-ramp on error) state */
+#define HLD_EE_SUCCESS_PER_URL 100      // successes needed per URL before going back to normal load
+static struct timeval hld_err_date;     // when the -ee probe/ramp last started
+static int err_ramp_pending;            // guard: only one ramp can run at a time
+static int err_ramp_active;             // 1 while the ramp is running
+static int err_ramp_gen;                // goes up each time -ee triggers again
+static int err_ramp_step;               // current step, moves up only after a real success
+static uint64_t err_ramp_ok_base;       // success count as of the last step
+static int err_rate_floor;              // 1 conn/req per sec, per URL
+static int err_rate_target;             // 0 = no limit before, >0 = the old -R value
+static uint64_t err_success_target;     // successes needed before going back to normal load
+static int hld_reset_summary_baseline;  // tells hld_summary() to reset its own counters
+static int hld_nb_url_cfg;              // number of target URLs, set once in hld_init()
 
 /* timeval is not set */
 #define TV_UNSET ((struct timeval){ .tv_sec = 0, .tv_usec = ~0 })
@@ -574,6 +591,38 @@ static const char *short_delay_str(double us)
 	return str;
 }
 
+/* Reset all cumulative per-thread counters, for -ee after an error. */
+static void hld_reset_counters(void)
+{
+	int th;
+
+	for (th = 0; th < arg_thrd; th++) {
+		HA_ATOMIC_STORE(&thrs_info[th].tot_conn, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_done, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_probe_done, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_rcvd, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_perr, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_fbs, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_ttfb, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_lbs, 0);
+		HA_ATOMIC_STORE(&thrs_info[th].tot_ttlb, 0);
+		if (arg_hscd) {
+			int i;
+
+			for (i = 0; i < 5; i++)
+				HA_ATOMIC_STORE(&thrs_info[th].tot_sc[i], 0);
+		}
+		if (arg_hscd == 2) {
+			int v, i;
+
+			for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++)
+				for (i = 0; i < 5; i++)
+					HA_ATOMIC_STORE(&thrs_info[th].vtot_sc[v][i], 0);
+		}
+	}
+	hld_reset_summary_baseline = 1;
+}
+
 /* reports current date (now) and aggragated stats */
 void hld_summary(void)
 {
@@ -585,6 +634,21 @@ void hld_summary(void)
 	                prev_vsc[HLD_HTTP_VER_MAX][5];
 	static struct timeval prev_date = TV_UNSET;
 	double interval;
+
+	if (hld_reset_summary_baseline) {
+		prev_totc = prev_totr = prev_totb = 0;
+		prev_ttfb = prev_ttlb = prev_fbs = prev_lbs = 0;
+		if (arg_hscd)
+			prev_sc[0] = prev_sc[1] = prev_sc[2] = prev_sc[3] = prev_sc[4] = 0;
+		if (arg_hscd == 2) {
+			int v;
+
+			for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++)
+				prev_vsc[v][0] = prev_vsc[v][1] = prev_vsc[v][2] = prev_vsc[v][3] = prev_vsc[v][4] = 0;
+		}
+		prev_date = TV_UNSET;
+		hld_reset_summary_baseline = 0;
+	}
 
 	cur_conn = tot_conn = tot_req = tot_err = tot_rcvd = 0;
 	tot_ttfb = tot_ttlb = tot_fbs = tot_lbs = 0;
@@ -810,6 +874,84 @@ void update_throttle()
 	throttle = ratio;
 }
 
+/* Runs once, on the first error while -ee is set: resets counters and
+ * drops to 1 conn/req per second per target.
+ */
+static void hld_err_trigger(void)
+{
+	int expected = 0;
+
+	/* only one ramp at a time. update_err_ramp() sets this back to 0
+	 * once a ramp is done, so a later, new outage can trigger again.
+	 */
+	if (!HA_ATOMIC_CAS(&err_ramp_pending, &expected, 1))
+		return; /* a ramp is already running */
+
+	hld_reset_counters();
+	err_rate_target = HA_ATOMIC_LOAD(&arg_rate); /* 0 = no limit before, >0 = old -R value */
+	hld_err_date = hld_now;
+	err_ramp_step = 0;
+	err_ramp_ok_base = 0;
+	HA_ATOMIC_INC(&err_ramp_gen); /* tell every thread to reset its own rate history */
+	HA_ATOMIC_STORE(&arg_rate, err_rate_floor);
+	HA_ATOMIC_STORE(&err_ramp_active, 1); /* set this last, so other threads see the rest first */
+	ha_alert("haload: error detected, probing at %d req/s, doubling every second"
+	         " until %llu successes are seen\n",
+	         err_rate_floor, (unsigned long long)err_success_target);
+}
+
+/* -ee ramp-up: doubles the rate every second, from <err_rate_floor>, as long
+ * as new requests keep succeeding. Once <err_success_target> successes have
+ * been seen (since the trigger), stop probing and go back to the load the
+ * command line asked for (<err_rate_target>: 0 = no limit, >0 = old -R
+ * value). The doubling is not capped at <err_rate_target> on the way up:
+ * only reaching <err_success_target> ends the ramp.
+ */
+static void update_err_ramp(void)
+{
+	uint64_t ok = 0;
+	int th, step;
+
+	if (!HA_ATOMIC_LOAD(&err_ramp_active))
+		return;
+
+	/* add up successes on all threads, counting only users created
+	 * during this ramp (tot_probe_done): a pre-existing, unaffected
+	 * user succeeding does not mean the probe itself is working.
+	 */
+	for (th = 0; th < arg_thrd; th++)
+		ok += HA_ATOMIC_LOAD(&thrs_info[th].tot_probe_done);
+
+	/* enough confirmed successes: stop probing, resume the normal load */
+	if (ok >= err_success_target) {
+		HA_ATOMIC_STORE(&arg_rate, err_rate_target);
+		HA_ATOMIC_STORE(&err_ramp_active, 0);
+		HA_ATOMIC_STORE(&err_ramp_pending, 0); /* a later outage may trigger again */
+		return;
+	}
+
+	/* step 0 checks every time this runs, to catch the first success
+	 * fast. every step after that waits 1s before doubling again.
+	 */
+	if (err_ramp_step > 0 && tv_ms_remain(&hld_err_date, &hld_now) < 1000)
+		return;
+
+	if (ok <= err_ramp_ok_base) {
+		/* nothing new succeeded: target is still down, do not speed up */
+		if (err_ramp_step > 0)
+			hld_err_date = hld_now;
+		return;
+	}
+
+	err_ramp_ok_base = ok;
+	hld_err_date = hld_now;
+	step = ++err_ramp_step;
+	if (step > 40)
+		step = 40; /* keep this small so the math below stays safe */
+
+	HA_ATOMIC_STORE(&arg_rate, (uint64_t)err_rate_floor << step);
+}
+
 /* main task */
 static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 {
@@ -847,6 +989,7 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	update_throttle();
+	update_err_ramp();
 	if (tick_is_expired(mtask.show_time, now_ms)) {
 		hld_summary();
 		if (!HA_ATOMIC_LOAD(&running_tasks)) {
@@ -865,7 +1008,7 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 	}
 
 	/* users initializations */
-	if (!arg_rate && usr_cnt < arg_usr) {
+	if (!HA_ATOMIC_LOAD(&arg_rate) && usr_cnt < arg_usr) {
 		if (throttle) {
 			int i, nb_usr;
 
@@ -911,7 +1054,7 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 		}
 
 	}
-	else if (arg_rate && HA_ATOMIC_LOAD(&running_tasks) <= arg_usr) {
+	else if (HA_ATOMIC_LOAD(&arg_rate) && HA_ATOMIC_LOAD(&running_tasks) <= arg_usr) {
 		t->expire = tick_first(tick_add(now_ms, MS_TO_TICKS(100)), mtask.show_time);
 	}
 	else
@@ -1157,6 +1300,13 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 		if (!htx_expect_more(htxbuf(&hs->bi)) || sc_ep_test(hs->sc, SE_FL_EOS)) {
 		    *fin = 1;
 			thrs_info[tid].tot_done++;
+			/* only count this success towards the current -ee ramp
+			 * if this user was itself created during that ramp:
+			 * a pre-existing, never-affected user succeeding does
+			 * not tell us the probe itself is working.
+			 */
+			if (hs->usr->ramp_gen == HA_ATOMIC_LOAD(&err_ramp_gen))
+				thrs_info[tid].tot_probe_done++;
 			if (hs->url->tot_req > 1 || !arg_accu) {
 				ttlb = tv_us(tv_diff(&hs->req_date, &date));
 				thrs_info[tid].tot_lbs++;
@@ -1247,6 +1397,13 @@ static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
 	uint32_t max, wait;
 	struct hld_thr_info *ti = &thrs_info[tid];
 	uint32_t maxusrs = ti->maxusrs;
+
+	if (HA_ATOMIC_LOAD(&err_ramp_active) && ti->err_ramp_gen != HA_ATOMIC_LOAD(&err_ramp_gen)) {
+		/* reset this thread's own rate history for the new -ee ramp */
+		memset(&ti->req_rate, 0, sizeof(ti->req_rate));
+		memset(&ti->conn_rate, 0, sizeof(ti->conn_rate));
+		ti->err_ramp_gen = HA_ATOMIC_LOAD(&err_ramp_gen);
+	}
 
 	if (throttle) {
 		maxusrs = mul32hi(maxusrs, throttle);
@@ -1353,7 +1510,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 			goto err;
 		}
 
-		if (arg_rate)
+		if (HA_ATOMIC_LOAD(&arg_rate))
 			hld_update_freq_ctr(&thrs_info[tid].conn_rate, 1, date);
 
 		conn_set_private(conn);
@@ -1456,7 +1613,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	/* Note that the user task will release all the expired streams
 	 * attached to it.
 	 */
-	if (!arg_rate) {
+	if (!HA_ATOMIC_LOAD(&arg_rate)) {
 		task_wakeup(usr->task, TASK_WOKEN_IO);
 		if (LIST_ISEMPTY(&usr->strms))
 			usr->task->expire = TICK_ETERNITY;
@@ -1470,7 +1627,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		}
 	}
 	else {
-		hld_usr_schedule(usr, arg_rate);
+		hld_usr_schedule(usr, HA_ATOMIC_LOAD(&arg_rate));
 	}
 
 	goto leave;
@@ -1484,19 +1641,32 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		url->tot_rconn_sent--;
 	}
 	BUG_ON(arg_rcon > 0 && url->tot_rconn_done > arg_rcon);
-	/* Note that the user task will release all the expired streams
-	 * attached to it.
-	 */
-	if (!arg_rate)
-		task_wakeup(usr->task, TASK_WOKEN_IO);
-	else
-		hld_usr_schedule(usr, arg_rate);
 	LIST_DELETE(&hs->list);
 	hldstream_free(&hs);
 	t = NULL;
-	if (arg_serr) {
+
+	if (arg_serr == 2) {
+		/* -ee: this user lost its connection. Kill it instead
+		 * of retrying it here; hld_rate_task() creates a
+		 * replacement at the current ramp rate.
+		 */
 		usr->flags |= HLD_USR_FL_STOP;
-		HA_ATOMIC_STORE(&all_usr_stop_asap, 1);
+		task_wakeup(usr->task, TASK_WOKEN_IO);
+		hld_err_trigger();
+	}
+	else {
+		/* Note that the user task will release all the expired
+		 * streams attached to it.
+		 */
+		if (!HA_ATOMIC_LOAD(&arg_rate))
+			task_wakeup(usr->task, TASK_WOKEN_IO);
+		else
+			hld_usr_schedule(usr, HA_ATOMIC_LOAD(&arg_rate));
+
+		if (arg_serr == 1) {
+			usr->flags |= HLD_USR_FL_STOP;
+			HA_ATOMIC_STORE(&all_usr_stop_asap, 1);
+		}
 	}
 
 	goto leave;
@@ -1596,6 +1766,15 @@ static inline void hld_usr_release(struct hld_usr **usr)
 	session_free((*usr)->sess);
 	ha_free(usr);
 
+	if (arg_serr == 2) {
+		/* -ee: update the user count and wake the rate task
+		 * so it can create a replacement for this killed user.
+		 */
+		HA_ATOMIC_DEC(&thrs_info[tid].curusrs);
+		if (thrs_info[tid].rate_task)
+			task_wakeup(thrs_info[tid].rate_task, TASK_WOKEN_OTHER);
+	}
+
 	TRACE_LEAVE(HLD_EV_USR_TASK);
 }
 
@@ -1630,6 +1809,9 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 			usr->flags |= HLD_USR_FL_STOP;
 			HA_ATOMIC_STORE(&all_usr_stop_asap, 1);
 		}
+		else if (arg_serr == 2) {
+			hld_err_trigger();
+		}
 	}
 
 	if ((usr->flags & HLD_USR_FL_STOP) || HA_ATOMIC_LOAD(&all_usr_stop_asap)) {
@@ -1652,7 +1834,7 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 				goto out;
 			}
 
-			if (arg_rate)
+			if (HA_ATOMIC_LOAD(&arg_rate))
 				hld_update_freq_ctr(&thrs_info[tid].req_rate, 1, date);
 
 			thrs_info[tid].cur_req++;
@@ -1739,6 +1921,7 @@ static inline struct hld_usr *hld_new_usr(int nreqs, int tid)
 	usr->flags = 0;
 	usr->urls = NULL;
 	usr->nreqs = nreqs;
+	usr->ramp_gen = HA_ATOMIC_LOAD(&err_ramp_gen);
 	LIST_INIT(&usr->strms);
 
 	for (cfg = hld_url_cfgs; cfg; cfg = cfg->next) {
@@ -1998,25 +2181,61 @@ static void hld_dealloc_thrs_info(void)
 /* Thread task launched to handle the connection and request rate */
 static struct task *hld_rate_task(struct task *t, void *context, unsigned int state)
 {
+	if (HA_ATOMIC_LOAD(&all_usr_stop_asap)) {
+		/* the test is ending: destroy this task for good, even
+		 * under -ee where it would otherwise stay alive and idle.
+		 */
+		HA_ATOMIC_DEC(&running_tasks);
+		task_destroy(t);
+		thrs_info[tid].rate_task = NULL;
+		return NULL;
+	}
+
 	if (thrs_info[tid].curusrs < thrs_info[tid].maxusrs) {
 		int budget = -1;
 		uint32_t max;
 		uint32_t b1, b2;
 		int nb_usr = thrs_info[tid].maxusrs;
 
+		if (HA_ATOMIC_LOAD(&err_ramp_active) && thrs_info[tid].err_ramp_gen != HA_ATOMIC_LOAD(&err_ramp_gen)) {
+			/* reset this thread's own rate history for the new -ee ramp */
+			memset(&thrs_info[tid].req_rate, 0, sizeof(thrs_info[tid].req_rate));
+			memset(&thrs_info[tid].conn_rate, 0, sizeof(thrs_info[tid].conn_rate));
+			thrs_info[tid].err_ramp_gen = HA_ATOMIC_LOAD(&err_ramp_gen);
+		}
+
 		if (throttle) {
 			nb_usr = mul32hi(thrs_info[tid].maxusrs, throttle);
 			nb_usr = nb_usr ? nb_usr : 1;
-			max = (mul32hi(arg_rate, throttle) + arg_thrd - 1) / arg_thrd;
 		}
-		else
-			max = (arg_rate + arg_thrd - 1) / arg_thrd;
 
-		max = max ? max : 1;
-		b1 = hld_freq_ctr_remain(&thrs_info[tid].conn_rate, max, 0, date);
-		b2 = hld_freq_ctr_remain(&thrs_info[tid].req_rate, max,
-		                         thrs_info[tid].curusrs - thrs_info[tid].cur_req, date);
-		budget = (!b2 || b1 <= b2) ? b1 : b2;
+		if (!HA_ATOMIC_LOAD(&arg_rate) && HA_ATOMIC_LOAD(&usr_cnt) >= arg_usr) {
+			/* 0 means no rate limit, same as everywhere else in
+			 * this file. Only take over once the initial ramp-up
+			 * (done directly by the main task, see usr_cnt) is
+			 * over: fill up to nb_usr directly, no per-thread
+			 * budget, so a kill under -ee can still be refilled
+			 * even without -R.
+			 */
+			budget = nb_usr;
+		}
+		else {
+			if (throttle)
+				max = (mul32hi(HA_ATOMIC_LOAD(&arg_rate), throttle) + tid) / arg_thrd;
+			else
+				max = (HA_ATOMIC_LOAD(&arg_rate) + tid) / arg_thrd;
+
+			/* max may be 0 here: this thread's exact share of the rate is
+			 * 0 right now (either a real rate cap, or the initial
+			 * ramp-up is still the main task's job). hld_freq_ctr_remain()
+			 * below handles freq=0 fine (just returns no budget), no
+			 * need to force max to 1.
+			 */
+			b1 = hld_freq_ctr_remain(&thrs_info[tid].conn_rate, max, 0, date);
+			b2 = hld_freq_ctr_remain(&thrs_info[tid].req_rate, max,
+			                         thrs_info[tid].curusrs - thrs_info[tid].cur_req, date);
+			budget = (!b2 || b1 <= b2) ? b1 : b2;
+		}
 
 		while (thrs_info[tid].curusrs < nb_usr && budget--) {
 			struct hld_usr *hu;
@@ -2034,11 +2253,21 @@ static struct task *hld_rate_task(struct task *t, void *context, unsigned int st
 		task_schedule(t, tick_add(now_ms, MS_TO_TICKS(100)));
 	}
 	else {
-		HA_ATOMIC_DEC(&running_tasks);
-		t->expire = TICK_ETERNITY;
-		task_destroy(t);
-		thrs_info[tid].rate_task = NULL;
-		t = NULL;
+		if (arg_serr != 2) {
+			HA_ATOMIC_DEC(&running_tasks);
+			t->expire = TICK_ETERNITY;
+			task_destroy(t);
+			thrs_info[tid].rate_task = NULL;
+			t = NULL;
+		}
+		else {
+			/* -ee: recheck later instead of staying idle
+			 * forever. This is how we notice the test is
+			 * ending (see the all_usr_stop_asap check above)
+			 * even if no user gets killed in the meantime.
+			 */
+			task_schedule(t, tick_add(now_ms, MS_TO_TICKS(1000)));
+		}
 	}
 
 	return t;
@@ -2057,7 +2286,7 @@ static int hld_alloc_thrs_info(void)
 
 	for (i = 0; i < arg_thrd; i++) {
 		thrs_info[i].maxusrs = (arg_usr + i) / arg_thrd;
-		if (arg_rate) {
+		if (HA_ATOMIC_LOAD(&arg_rate) || arg_serr == 2) {
 			struct task *t;
 
 			t = task_new_on(i);
@@ -2090,13 +2319,35 @@ static int hld_init(void)
 	if (!hld_cfg_finalize())
 		goto err;
 
+	/* used by -ee to compute its per-target rate floor; count once here
+	 * since hld_url_cfgs never changes once the config is finalized.
+	 */
+	hld_nb_url_cfg = 0;
+	{
+		struct hld_url_cfg *cfg;
+
+		for (cfg = hld_url_cfgs; cfg; cfg = cfg->next)
+			hld_nb_url_cfg++;
+	}
+	if (!hld_nb_url_cfg)
+		hld_nb_url_cfg = 1;
+
 	/* This is the location to initialize the default value for <arg_thrd>.
 	 * Indeed, global.nthread is initialized late(after the parsing step).
 	 */
 	if (arg_thrd == 0)
 		arg_thrd = global.nbthread;
 
-	if (arg_rate && arg_thrd > arg_usr) {
+	/* -ee's rate floor: 1 conn/req per sec, per URL. Threads don't come
+	 * into this on purpose: a floor that grows with the thread count
+	 * would make -ee's probing far from gentle on big machines.
+	 * hld_nb_url_cfg is fixed by now, so compute this once instead of
+	 * on every -ee trigger.
+	 */
+	err_rate_floor = hld_nb_url_cfg;
+	err_success_target = (uint64_t)HLD_EE_SUCCESS_PER_URL * hld_nb_url_cfg;
+
+	if (HA_ATOMIC_LOAD(&arg_rate) && arg_thrd > arg_usr) {
 		ha_alert("Thread count (%d) must not exceed connection count (%d)\n",
 		         arg_thrd, arg_usr);
 		goto err;
