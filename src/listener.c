@@ -44,6 +44,7 @@
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
+#include <haproxy/twork.h>
 
 
 /* List head of all known bind keywords */
@@ -644,7 +645,7 @@ int resume_listener(struct listener *l, int lpx, int lli)
 
 	if (tg_agents_enabled && l->state == LI_ASSIGNED &&
 	    (l->rx.flags & RX_F_MUST_DUP)) {
-		if (l->rx.agent.xfer_fd < 0) {
+		if (HA_ATOMIC_LOAD(&l->rx.agent.xfer_fd) < 0) {
 			rx_agent_want_state(l->rx.shard_info->ref, RX_AGENT_ST_READY);
 			goto end;
 		}
@@ -784,13 +785,12 @@ void dequeue_proxy_listeners(struct proxy *px, int lpx)
 
 /*
  * Per-thread-group agents, only set up when FD tables are not shared between
- * thread groups. Each thread group runs one agent tasklet on its first thread,
- * to which any thread may post the operations that can only be performed from
- * inside that group.
+ * thread groups. Operations that can only be performed from inside a given
+ * group are posted to it using the twork API; only the socketpair used to
+ * transfer FD copies between groups remains specific to the agent.
  */
 struct tg_agent {
-	struct tasklet *tl;     /* runs on the group's first thread */
-	struct mt_list ops;     /* receivers with pending operations */
+	struct twork drain_twk; /* posts the transfer socket drains to this group */
 	int xfer_sock[2];       /* [0]=any sender, [1]=this group's agent */
 };
 
@@ -810,13 +810,16 @@ struct rx_xfer_msg {
 static void rx_xfer_send_members(struct receiver *ref);
 static int rx_xfer_send_fd(uint grp, struct receiver *rx, enum rx_xfer_op op, int fd);
 
-/* Queues receiver <rx> to 1-based group <grp>'s agent and wakes it. The
- * operation fields must be set before calling this, see struct tg_agent.
- */
+/* executes the pending operations of one receiver, in its owner group */
+static union twork_arg rx_agent_work(union twork_arg arg)
+{
+	rx_agent_process_one(arg.ptr);
+	return twk_u64(0);
+}
+
 static void rx_agent_post(struct receiver *rx, uint grp)
 {
-	if (MT_LIST_TRY_APPEND(&tg_agents[grp - 1].ops, &rx->agent.link.list))
-		tasklet_wakeup(tg_agents[grp - 1].tl);
+	twork_post_tgroup(&rx->agent.twk, grp, rx_agent_work, twk_ptr(rx));
 }
 
 static void rx_agent_process_one(struct receiver *rx)
@@ -862,16 +865,11 @@ static void rx_agent_process_one(struct receiver *rx)
 	}
 }
 
-static struct task *tg_agent_process(struct task *t, void *context, unsigned int state)
+/* receives the FD copies pending on 0-based group <arg.u32>'s socketpair */
+static union twork_arg rx_xfer_work(union twork_arg arg)
 {
-	uint grp = (uint)(ulong)context;
-	struct rx_agent_link *lnk;
-
-	while ((lnk = MT_LIST_POP(&tg_agents[grp].ops, struct rx_agent_link *, list)))
-		rx_agent_process_one(lnk->rx);
-
-	rx_xfer_drain(grp);
-	return t;
+	rx_xfer_drain(arg.u32);
+	return twk_u64(0);
 }
 
 void rx_agent_close(struct receiver *rx)
@@ -949,7 +947,7 @@ static int rx_xfer_send_fd(uint grp, struct receiver *rx, enum rx_xfer_op op, in
 		           grp, strerror(errno));
 		return 0;
 	}
-	tasklet_wakeup(tg_agents[grp - 1].tl);
+	twork_post_tgroup(&tg_agents[grp - 1].drain_twk, grp, rx_xfer_work, twk_u32(grp - 1));
 	return 1;
 }
 
@@ -998,13 +996,12 @@ void rx_xfer_drain(uint grp)
 
 		switch (xmsg.op) {
 		case RX_XFER_OP_REBIND:
-			rx->agent.xfer_fd = fd;
+			HA_ATOMIC_STORE(&rx->agent.xfer_fd, fd);
 			l = LIST_ELEM(rx, struct listener *, rx);
 			resume_listener(l, 0, 0);
-			if (rx->agent.xfer_fd >= 0) {
-				close(rx->agent.xfer_fd);
-				rx->agent.xfer_fd = -1;
-			}
+			fd = HA_ATOMIC_XCHG(&rx->agent.xfer_fd, -1);
+			if (fd >= 0)
+				close(fd);
 			break;
 
 		case RX_XFER_OP_GETSOCKS:
@@ -1023,16 +1020,10 @@ int rx_agent_init(void)
 	uint i;
 
 	for (i = 0; i < global.nbtgroups; i++) {
-		MT_LIST_INIT(&tg_agents[i].ops);
+		twork_init(&tg_agents[i].drain_twk);
 		if (socketpair(AF_UNIX, SOCK_SEQPACKET, 0, tg_agents[i].xfer_sock) < 0)
 			return 0;
 		fd_set_nonblock(tg_agents[i].xfer_sock[1]);
-		tg_agents[i].tl = tasklet_new();
-		if (!tg_agents[i].tl)
-			return 0;
-		tg_agents[i].tl->process = tg_agent_process;
-		tg_agents[i].tl->context = (void *)(ulong)i;
-		tg_agents[i].tl->tid = ha_tgroup_info[i].base;
 	}
 	protocol_init_rx_agents();
 	tg_agents_enabled = 1;

@@ -229,9 +229,8 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 		 * try hard not to reconfigure the socket since it's shared.
 		 */
 		BUG_ON(!rx->shard_info);
-		if (tg_agents_enabled && rx->agent.xfer_fd >= 0) {
-			rx->fd = rx->agent.xfer_fd;
-			rx->agent.xfer_fd = -1;
+		if (tg_agents_enabled && HA_ATOMIC_LOAD(&rx->agent.xfer_fd) >= 0) {
+			rx->fd = HA_ATOMIC_XCHG(&rx->agent.xfer_fd, -1);
 		}
 		else {
 			if (!(rx->shard_info->ref->flags & RX_F_BOUND)) {

@@ -30,6 +30,7 @@
 #include <haproxy/proto_rhttp-t.h>
 #include <haproxy/quic_sock-t.h>
 #include <haproxy/thread.h>
+#include <haproxy/twork-t.h>
 
 /* Bit values for receiver->flags */
 #define RX_F_BOUND              0x00000001  /* receiver already bound */
@@ -76,11 +77,6 @@ struct shard_info {
 #define RX_AGENT_ST_PAUSED      1           /* suspend_listener() */
 #define RX_AGENT_ST_READY       2           /* resume_listener() (includes rebind) */
 
-struct rx_agent_link {
-	struct mt_list list;             /* position in one group agent's queue */
-	struct receiver *rx;             /* the receiver this link belongs to */
-};
-
 /* This describes a receiver with all its characteristics (address, options, etc) */
 struct receiver {
 	int fd;                          /* handle we receive from (fd only for now) */
@@ -93,7 +89,7 @@ struct receiver {
 	struct rx_settings *settings;    /* points to the settings used by this receiver */
 	struct shard_info *shard_info;   /* points to info about the owning shard, NULL if single rx */
 	struct {
-		struct rx_agent_link link;   /* position in the owner group agent's queue */
+		struct twork twk;            /* posts the pending operations to the owner group */
 		int close_fd;                /* FD to release, -1 if none */
 		uint ops;                    /* pending one-shot RX_AGENT_OP_* */
 		uint want_state;             /* last requested RX_AGENT_ST_* */

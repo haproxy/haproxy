@@ -26,6 +26,7 @@
 #include <haproxy/quic_tune.h>
 #include <haproxy/sock.h>
 #include <haproxy/tools.h>
+#include <haproxy/twork.h>
 
 
 /* List head of all registered protocols */
@@ -141,8 +142,7 @@ void protocol_init_rx_agents(void)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(rx, &proto->receivers, proto_list) {
-			MT_LIST_INIT(&rx->agent.link.list);
-			rx->agent.link.rx = rx;
+			twork_init(&rx->agent.twk);
 			rx->agent.want_state = RX_AGENT_ST_NONE;
 			rx->agent.close_fd = -1;
 			rx->agent.xfer_fd = -1;
