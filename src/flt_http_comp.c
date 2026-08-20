@@ -1161,6 +1161,8 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 					goto end;
 				}
 			}
+			else if (fconf->id == decomp_req_flt_id || fconf->id == decomp_res_flt_id)
+				continue;
 #if defined(USE_FCGI)
 			else if (fconf->id == fcgi_flt_id)
 				continue;

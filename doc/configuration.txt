@@ -7404,11 +7404,11 @@ declare capture [ request | response ] len <length>
 
 decompression algo-req <algorithms> ...
 decompression algo-res <algorithms> ...
-
-  Configures the decompression algorithms supported by the proxy.
-  It does not enable decompression filters ("decomp-req" and "decomp-res")
-  automatically, relevant decompression filters must be enabled explicitly
-  on the proxy, else decompression options will simply be ignored.
+  Configures the decompression algorithms supported by the proxy.  It will
+  implicitly enable decompression filter ("decomp-req" or "decomp-res" whether
+  the decompression option targets request, response) automatically. However to
+  prevent misconfiguration, it is recommended to explicitly declare filters
+  when multiple filters are involved on the proxy. See also "filter-sequence".
 
   May be used in the following contexts: http, tcp
 

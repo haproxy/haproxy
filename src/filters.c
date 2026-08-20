@@ -16,6 +16,7 @@
 #include <haproxy/compression.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
+#include <haproxy/flt_decomp.h>
 #include <haproxy/flt_http_comp.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
@@ -515,6 +516,7 @@ flt_check(struct proxy *proxy)
 	struct flt_conf *fconf;
 	int err = 0;
 
+	err += check_implicit_decomp_flt(proxy);
 	err += check_implicit_http_comp_flt(proxy);
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
 		if (fconf->ops->check)

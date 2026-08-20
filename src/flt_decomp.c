@@ -1279,6 +1279,89 @@ parse_decomp_res_flt(char **args, int *cur_arg, struct proxy *px,
 	return 0;
 }
 
+int
+check_implicit_decomp_flt(struct proxy *proxy)
+{
+	struct flt_conf *fconf;
+	struct flt_conf *fconf_req = NULL;
+	struct flt_conf *fconf_res = NULL;
+	int explicit = 0;
+	int err = 0;
+
+	if (proxy->decomp == NULL)
+		goto end;
+
+	if (!LIST_ISEMPTY(&proxy->filter_configs)) {
+		list_for_each_entry(fconf, &proxy->filter_configs, list) {
+			if ((proxy->cap & PR_CAP_FE) && fconf->id == decomp_req_flt_id)
+				fconf_req = fconf;
+			else if ((proxy->cap & PR_CAP_BE) && fconf->id == decomp_res_flt_id)
+				fconf_res = fconf;
+			else if (fconf->id == cache_store_flt_id) {
+				if (((proxy->cap & PR_CAP_FE) && !fconf_req) || ((proxy->cap & PR_CAP_BE) && !fconf_res)) {
+					ha_alert("config: %s '%s': cache filter declared before a decompression filter is invalid.\n",
+						 proxy_type_str(proxy), proxy->id);
+					err++;
+					goto end;
+				}
+			}
+			else if (fconf->id == http_comp_req_flt_id || fconf->id == http_comp_res_flt_id)
+				continue;
+#if defined(USE_FCGI)
+			else if (fconf->id == fcgi_flt_id)
+				continue;
+#endif
+			else
+				explicit = 1;
+		}
+	}
+
+	if ((proxy->cap & PR_CAP_FE) && proxy->decomp->req.algos && !fconf_req) {
+		if (explicit) {
+			ha_alert("config: %s '%s': require an explicit 'filter decomp-req' declaration to use "
+				 "decompression.\n", proxy_type_str(proxy), proxy->id);
+			err++;
+			goto end;
+		}
+		/* Implicit declaration of the decomp-req filter should be at
+		 * the beginning of the filter list.
+		 */
+		fconf_req = calloc(1, sizeof(*fconf));
+		if (!fconf_req)
+			goto out_of_memory;
+		fconf_req->id   = decomp_req_flt_id;
+		fconf_req->conf = &proxy->decomp->req;
+		fconf_req->ops  = &decomp_req_ops;
+		LIST_INSERT(&proxy->filter_configs, &fconf_req->list);
+	}
+	if ((proxy->cap & PR_CAP_BE) && proxy->decomp->res.algos && !fconf_res) {
+		if (explicit) {
+			ha_alert("config: %s '%s': require an explicit 'filter decomp-res' declaration to use "
+				 "decompression.\n", proxy_type_str(proxy), proxy->id);
+			err++;
+			goto end;
+		}
+		/* Implicit declaration of the decomp-res filter should be at
+		 * the beginning of the filter list.
+		 */
+		fconf_res = calloc(1, sizeof(*fconf));
+		if (!fconf_res)
+			goto out_of_memory;
+		fconf_res->id   = decomp_res_flt_id;
+		fconf_res->conf = &proxy->decomp->res;
+		fconf_res->ops  = &decomp_res_ops;
+		LIST_INSERT(&proxy->filter_configs, &fconf_res->list);
+	}
+ end:
+	return err;
+
+ out_of_memory:
+	ha_alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
+	err++;
+	goto end;
+}
+
+
 /* Declare the config parser for "decompression" keyword */
 static struct cfg_kw_list cfg_kws = {ILH, {
 		{ CFG_LISTEN, "decompression", parse_decompression_options },
