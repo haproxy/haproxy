@@ -1,6 +1,159 @@
 ChangeLog :
 ===========
 
+2026/08/21 : 3.5-dev5
+    - MINOR: config: support "all" and "none" on "tune.defaults.purge"
+    - BUG/MINOR: proxy: release watcher in various commands on CLI abort
+    - BUG/MINOR: proxy: release watcher in "show default-server" on CLI abort
+    - REGTESTS: proxy: complete "del backend" test
+    - BUG/MEDIUM: hpack: encode long methods and schemes using the long form
+    - BUG/MINOR: stats-file: reject tgid 0 when preloading shm objects
+    - BUG/MINOR: hlua: use a local buffer to format the socket addresses
+    - DEV: haring: bound the ring geometry to the size of the file
+    - BUG/MEDIUM: mux-fcgi: check the room left before appending the index
+    - BUG/MEDIUM: spoe: clear the applet pointer when the applet fails to start
+    - BUG/MINOR: mux-fcgi: don't call fcgi_strm_destroy() on a NULL stream
+    - BUG/MEDIUM: http-ana: don't crash on "keep-query" in a response redirect
+    - BUG/MEDIUM: stick-tables: use the same bucket for string keys with a NUL
+    - BUG/MEDIUM: sock: bound the recvmsg() length when receiving old sockets
+    - BUG/MEDIUM: http-ana: check the cookie rewrite result before moving the offsets
+    - BUG/MINOR: mux-fcgi: sanitize the STDERR records before logging them
+    - MINOR: log/tools: fix ambiguous comments for some log encoding helpers
+    - BUG/MEDIUM: log: always reserve room for trailing 0 when using CBOR encoding helpers
+    - BUG/MEDIUM: jwe: validate the secret length against the algorithm of the token
+    - BUG/MINOR: jwt: don't take an extra reference on the certificate public key
+    - BUG/MEDIUM: ssl: require a full-length AEAD tag when decrypting with AES-GCM
+    - BUG/MEDIUM: acme: don't delete a NULL token from the map
+    - BUG/MINOR: ssl: reject server certificate names containing a NUL byte
+    - BUG/MINOR: acme: restrict the permissions of the generated account key
+    - MINOR: backend: Do not always allow takeover across thread groups
+    - MINOR: backend: Deprecate tune.takeover-other-tg-connections.
+    - DOC: Document limitations of tune.fd.tables
+    - MEDIUM: pipes: Never allocate more than maxpipes
+    - BUG/MEDIUM: fd: release the port range entry in host byte order
+    - BUG/MINOR: connection: reserve the whole CRC32C TLV before saving its pointer
+    - BUG/MEDIUM: session: don't release a reversed connection twice on error
+    - BUG/MINOR: lb-chash: bound the walk when the saved cursor changed tree
+    - BUG/MINOR: debug: only dump the trace once in __BUG_ON_ONCE()
+    - BUG/MINOR: mux-h2: strip the userinfo when deriving :authority for a server
+    - BUG/MEDIUM: quic: prevent out-of-bound read on wrapping CRYPTO content
+    - MINOR: quic: stress CRYPTO Rx buffer wrapping
+    - BUG/MINOR: quic: drop multiple Retry on same connection
+    - BUG/MEDIUM: lua: resume Channel:send() from the unsent part of the string
+    - BUG/MEDIUM: hlua_fcn: ensure systematic bref cleanup for patref list iterator
+    - DOC: config: clarify req.ssl_sni
+    - MINOR: ssl: add ssl_c_policies sample fetch
+    - REGTESTS: ssl: add ssl_c_policies test
+    - IMPORT: slz: update slz to version 1.3.0
+    - IMPORT: slz: do not read past the end of the input around the match loop
+    - IMPORT: slz: fix the documented worst case size of flush() and finish()
+    - IMPORT: slz: use the exact switch cost for the last literals of a block
+    - IMPORT: slz: bound the bits wasted by the 9-bit literals
+    - IMPORT: slz: do not append a block to an already finished stream
+    - IMPORT: slz: fix the adler32 accumulators signedness on 32-bit
+    - IMPORT: slz: avoid undefined shifts when building the word byte by byte
+    - IMPORT: slz: clarify that the size promise applies to the stream, not to a call
+    - IMPORT: slz/uslz: fix incorrect sign extension in shift when reading the adler32 trailer
+    - IMPORT: slz/uslz: don't reset the drain offset when nothing was decoded
+    - IMPORT: slz/uslz: don't lose the bytes consumed by the header fast paths
+    - IMPORT: slz/uslz: make the gzip FEXTRA field resumable
+    - IMPORT: slz/uslz: widen crc_flush, it overflowed on large stored blocks
+    - IMPORT: slz/uslz: verify the trailer checksum before reporting completion
+    - IMPORT: slz/uslz: decode all the members of a multi-member gzip stream
+    - IMPORT: slz/uslz: add a method to impose an envelope format (gzip or zlib)
+    - IMPORT: slz/uslz: inline the bit reader and the huffman decoders
+    - IMPORT: slz/uslz: defer the output bookkeeping to a checkpoint
+    - BUG/MEDIUM: cache: retain the primary or secondary entry only when detaching its row
+    - BUG/MINOR: cache: do not retain imcomplete or stripped secondary entry
+    - BUG/MEDIUM: cache: do not release an entry under the cache read lock
+    - BUG/MINOR: wurfl: fix memory leak of information list and patch strings at deinit
+    - IMPORT: slz: prevent build compilation error due to unused __slz_make_crc_table()
+    - BUG/MINOR: ssl: reject an embedded NUL in the ssl_*_dn(entry) fetches
+    - BUG/MINOR: ssl: reject an embedded NUL in the full-DN ssl_*_dn() fetches
+    - BUG/MINOR: quic: avoid a division by zero in the BBR pacing interval
+    - BUG/MINOR: server: fix memory leak on "default-server" parsing failures
+    - BUG/MINOR: h3: fix potential NULL pointer dereference in _h3_trace_header()
+    - BUG/MINOR: hq_interop: fix potential NULL dereference in _hq_trace_http()
+    - BUG/MINOR: server: fix off-by-one error when parsing and copying source port range
+    - BUG/MEDIUM: http: fix authority parsing for absolute-form URI with empty path
+    - DOC: security: clarify that only up-to-date versions may get securty reports
+    - MINOR: sample: add new converter has_ctl() to detect control characters
+    - BUG/MEDIUM: bwlim: fix a stick-table entry leak in shared mode
+    - MEDIUM: ssl: add fips_mode() config condition predicate
+    - MINOR: ssl: report FIPS mode in -vv for OpenSSL >= 3.0 too
+    - REGTESTS: ssl: skip tests broken by FIPS mode
+    - REGTESTS: checks: skip tcp-check-client-hello.vtc under FIPS mode
+    - DEBUG: cli: unstatify cli_process_cmdline()
+    - CLEANUP: debug: move ha_backtrace_to_stderr() declaration to bug.h
+    - CLEANUP: debug: reorder definitions in bug.h
+    - MINOR: debug: check the match count in __BUG_ON_ONCE() and not in complain()
+    - DEBUG: cli: add a "debug dev abort" debugging command
+    - DEBUG: deduplicate __ABORT_NOW() between DEBUG_USE_ABORT and ha_crash_now()
+    - MINOR: debug: move printing of the hint to ha_backtrace_to_stderr()
+    - MINOR: debug: use bit fields for the debug type and fatality
+    - MINOR: debug: only emit and count warnings when explicitly requested
+    - CLEANUP: debug: remove the now unused counter argument to complain()
+    - MINOR: debug: make the complain() function start to complete the message
+    - MEDIUM: debug: make the complain() function print the prefix
+    - MEDIUM: debug: use \x1e (RS) to delimit the condition from vaargs in DBG_COUNT()
+    - MEDIUM: debug: use \x1e (RS) to delimit the condition from vaargs in complain()
+    - MEDIUM: debug: make the complain() function print the suffix
+    - MINOR: debug: pass the type to the __BUG_ON*() macros
+    - MINOR: debug: unify __BUG_ON() and __BUG_ON_ONCE()
+    - MINOR: debug: avoid the break in __BUG_ON()
+    - CLEANUP: debug: remove the unneeded do { } while (0) on __BUG_ON()
+    - MINOR: debug: make a pair of __BUG_ON() for modern and obsolete linkers
+    - MINOR: debug: rely on the __dbg_cnt_ counter for _BUG_ON_ONCE()
+    - MINOR: debug: store the caller's details in debug_count
+    - MINOR: debug: prepare complain() to be used in multiple ways
+    - MEDIUM: debug: add a new version of complain() that takes a debug_count struct
+    - MEDIUM: debug: do not dump a context-less backtrace in ABORT_NOW()
+    - CLEANUP: debug: make __BUG_ON() use abort_with_line()
+    - MEDIUM: debug: merge the counter and message emission into complain()
+    - MINOR: compiler: add a function attribute to disable tail calls
+    - MINOR: debug: force complain's backtrace to be a tail jump instead of a tail call
+    - BUG/MINOR: payload: fix handshake length off-by-4 in ssl_hello_sni/alpn
+    - MINOR: payload: make smp_fetch_ssl_hello_sni() use smp_client_hello_parse()
+    - MINOR: payload: make smp_fetch_ssl_hello_alpn() use smp_client_hello_parse()
+    - MINOR: ssl-gencert: use a 64-bit hash for the LRU cache key
+    - MINOR: ssl-gencert: enforce a stronger seed for the LRU cache key
+    - BUG/MINOR: spoe: check snprintf() return value in spoe_set_var/spoe_unset_var
+    - BUG/MINOR: qpack: missing shift count check in qpack_get_varint() (UB)
+    - BUG/MEDIUM: pollers: create the poller pipes in builds without threads
+    - BUG/MEDIUM: tasks: don't type-pun state and tid in builds without threads
+    - BUG/MINOR: log: fix double-free error when error in parse_loger occurs
+    - BUG/MINOR: uri-auth: never risk to dereference a NULL on error path
+    - BUG/MINOR: mux-h2: harden h2_dump_h2s_info() against potentially null h2s->sd
+    - BUILD: protocol: silence -Warray-bounds in single-group builds
+    - CI: github: add a TARGET=generic job in matrix.py
+    - BUG/MINOR: conn: Do not check 'sess_el' list on frontend connections in __trace_enabled
+    - BUG/MINOR: ssl: Fix leak of X509_NAME in traces
+    - BUG/MINOR: ssl: release the previous client cert reference at depth > 0
+    - BUG/MEDIUM: ssl: Fix unprotected 'ssl_sock_choose_sni_ctx' calls
+    - BUG/MEDIUM: ssl: enforce tune.ssl.lifetime across TLS1.3 session renewals
+    - BUG/MINOR: ssl: apply tune.ssl.lifetime to TLS1.3 sessions on BoringSSL/AWS-LC
+    - BUILD: ssl: disable the TLS1.3 session timeout clamp on wolfSSL
+    - BUG/MEDIUM: ssl: isolate TLS session resumption per X509 server certificate
+    - BUG/MINOR: ssl: isolate TLS session resumption per crt-list filter
+    - BUG/MEDIUM: ssl: isolate TLS session resumption per authentication policy
+    - BUG/MEDIUM: tasks: don't type-pun state and tid in builds without threads
+    - BUG/MEDIUM: pollers: really create the poller pipes in builds without threads
+    - REGTESTS: don't rely on the stick-table dump order in the ipmask test
+    - CLEANUP: payload: remove dead code in smp_client_hello_parse()
+    - BUG/MINOR: haproxy: fix out-of-scope tmpdir usage in do_chroot()
+    - BUG/MINOR: ssl/cli: fix frontend-not-found detection in 'show ssl sni -f'
+    - MINOR: backend: Do not bother stopping if there is only one thread group
+    - REGTESTS: converters: use connection: close in the has_ctl() test
+    - BUG/MINOR: resolvers: accept fields at the response boundary
+    - BUG/MINOR: dns: schedule idle task after setting its thread
+    - CLEANUP: dns: centralize nameserver transport cleanup
+    - MINOR: ssl: Forbid using ssl-mode-async with per tgroup fd tables
+    - MINOR: hlua: Forbid lua-load with per-tgroup fd tables
+    - MINOR: addons/51d: Forbid use with per tgroup fd tables
+    - MINOR: addons/wurfl: Forbid use with per tgroup fd tables
+    - MINOR: addons/deviceatlas: Forbid use with per tgroup fd tables
+    - BUG/MEDIUM: sink: pre-initialize the implicit log forwarding server
+
 2026/08/06 : 3.5-dev4
     - CLEANUP: mux_quic: remove unused prototype
     - BUG/MEDIUM: proxy: protect "show errors" against backend deletion
