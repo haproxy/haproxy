@@ -2728,7 +2728,16 @@ int smp_fetch_fc_pp_tlv(const struct arg *args, struct sample *smp, const char *
 		return 0;
 
 	idx = args[0].data.sint;
-	conn_tlv = smp->ctx.p ? smp->ctx.p : LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
+	conn_tlv = smp->ctx.p;
+	if (conn_tlv) {
+		/* resume *after* the TLV returned on the previous call:
+		 * list_for_each_entry_from() starts on the element it is given, so
+		 * resuming on it would match it again and return it forever
+		 */
+		conn_tlv = LIST_NEXT(&conn_tlv->list, struct conn_tlv_list *, list);
+	}
+	else
+		conn_tlv = LIST_ELEM(conn->tlv_list.n, struct conn_tlv_list *, list);
 	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
 		if (conn_tlv->type == idx) {
 			smp->flags |= SMP_F_NOT_LAST;

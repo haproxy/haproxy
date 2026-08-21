@@ -22,6 +22,21 @@ haproxy h1 -conf {
         http-after-response set-header echo2 %[var(sess.azure)]
         http-after-response set-header echo3 %[fc_pp_tlv(0xEB)]
         http-after-response set-header echo4 %[fc_pp_tlv(0xEC),length]
+
+        # A pattern that matches none of the occurrences of a TLV which is
+        # present must terminate: the ACL engine keeps asking the fetch for the
+        # next occurrence as long as it reports one, so a fetch that keeps
+        # returning the same TLV loops forever and the request never completes.
+        tcp-request content set-var(sess.nomatch) str(no)
+        tcp-request content set-var(sess.nomatch) str(yes) if { fc_pp_tlv(0xEB) -m str does-not-match }
+        http-after-response set-header echo5 %[var(sess.nomatch)]
+
+        # 0xED is sent three times below: matching on the last value proves the
+        # fetch walks the occurrences instead of repeating the first one.
+        tcp-request content set-var(sess.third) str(no)
+        tcp-request content set-var(sess.third) str(yes) if { fc_pp_tlv(0xED) -m str third }
+        http-after-response set-header echo6 %[var(sess.third)]
+
         http-request return status 200
 } -start
 
@@ -32,8 +47,8 @@ client c1 -connect ${h1_fe1_sock} {
     sendhex "21"
     # TCP4
     sendhex "11"
-    # length of the address (12) + length of the TLVs (14 + 10 + 9 + 131)
-    sendhex "00 B0"
+    # length of the address (12) + length of the TLVs (14 + 10 + 9 + 131 + 3 * 8)
+    sendhex "00 C8"
     # 127.0.0.1 42 127.0.0.1 1337
     sendhex "7F 00 00 01 7F 00 00 01 00 2A 05 39"
 
@@ -52,6 +67,11 @@ client c1 -connect ${h1_fe1_sock} {
     # custom type (0xEC) + length of the value (128, does not fit in pool) + random data
     sendhex "EC 00 80 3A D9 32 9B 11 A7 29 81 14 B2 33 F0 C2 0D 7A 53 D1 97 28 74 4B 78 8A D3 10 C4 B1 88 42 9C 63 8E 8B 8A A0 B4 B0 E7 9D 20 27 0F 1E 53 4D 33 F7 5A D0 91 3F B8 C9 E9 16 C4 61 C5 13 02 92 64 9D D4 22 5C 8E 4E 0B 2D 2D 7D 9F 5D 97 9B 25 C4 12 7D 21 75 C8 15 92 6B 64 F2 5F C0 A9 0F 9A 7D 0A 6D 68 79 F4 56 18 6F 23 45 2A 9B 36 34 3A 47 43 32 29 18 6F 23 45 2A 9B 36 34 3A 47 43 32 29 32 29"
 
+    # custom type (0xED) sent three times: "first", "secnd", "third"
+    sendhex "ED 00 05 66 69 72 73 74"
+    sendhex "ED 00 05 73 65 63 6E 64"
+    sendhex "ED 00 05 74 68 69 72 64"
+
     txreq -url "/"
     rxresp
     expect resp.status == 200
@@ -59,4 +79,6 @@ client c1 -connect ${h1_fe1_sock} {
     expect resp.http.echo2 == "LINKID"
     expect resp.http.echo3 == "custom"
     expect resp.http.echo4 == 128
+    expect resp.http.echo5 == "no"
+    expect resp.http.echo6 == "yes"
 } -run
