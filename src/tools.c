@@ -2193,53 +2193,122 @@ int chunk_escape_string(struct buffer *chunk, const char *str, size_t len)
 	return 0;
 }
 
-/* CBOR helper to encode an uint64 value with prefix (3bits MAJOR type)
- * according to RFC8949
- *
- * CBOR encode ctx is provided in <ctx>
+/* helper to encode a single byte in hex form
  *
  * Returns the address of the byte immediately after the last written byte
- * on success, or NULL on error. The function cannot write past <stop>.
- * It will not append terminating NULL byte.
+ * on success, or NULL on error. It will not append terminating NULL byte.
  */
-char *cbor_encode_uint64_prefix(struct cbor_encode_ctx *ctx,
-                                char *start, char *stop, uint64_t value,
-                                uint8_t prefix)
+static inline char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
 {
-	int nb_bytes = 0;
+	/* hex form requires 2 bytes */
+	if ((stop - start) < 2)
+		return NULL;
+	*start++ = hextab[(byte >> 4) & 15];
+	*start++ = hextab[byte & 15];
+	return start;
+}
 
+static inline int _cbor_encode_uint64_prefix(uint64_t value, uint8_t *prefix)
+{
+
+	int nb_bytes = 0;
 	/*
 	 * For encoding logic, see:
 	 * https://www.rfc-editor.org/rfc/rfc8949.html#name-specification-of-the-cbor-e
 	 */
 	if (value < 24) {
 		/* argument is the value itself */
-		prefix |= value;
+		*prefix |= value;
 	}
 	else {
 		if (value <= 0xFFU) {
 			/* 1-byte */
 			nb_bytes = 1;
-			prefix |= 24; // 0x18
+			*prefix |= 24; // 0x18
 		}
 		else if (value <= 0xFFFFU) {
 			/* 2 bytes */
 			nb_bytes = 2;
-			prefix |= 25; // 0x19
+			*prefix |= 25; // 0x19
 		}
 		else if (value <= 0xFFFFFFFFU) {
 			/* 4 bytes */
 			nb_bytes = 4;
-			prefix |= 26; // 0x1A
+			*prefix |= 26; // 0x1A
 		}
 		else {
 			/* 8 bytes */
 			nb_bytes = 8;
-			prefix |= 27; // 0x1B
+			*prefix |= 27; // 0x1B
 		}
 	}
 
-	start = ctx->e_fct_byte(ctx, start, stop, prefix);
+	return nb_bytes;
+}
+
+
+/* CBOR helper to encode an uint64 value with prefix (3bits MAJOR type)
+ * according to RFC8949 in bin form.
+ *
+ * Returns the address of the byte immediately after the last written byte
+ * on success, or NULL on error. The function cannot write past <stop>.
+ * It will not append terminating NULL byte.
+ */
+char *cbor_encode_uint64_prefix_bin(char *start, char *stop, uint64_t value,
+                                    uint8_t prefix)
+{
+	int nb_bytes;
+
+
+	nb_bytes = _cbor_encode_uint64_prefix(value, &prefix);
+
+	if (stop - start < 1)
+		return NULL;
+
+	*start++ = prefix;
+
+	if (start + nb_bytes >= stop)
+		return NULL;
+
+#if defined(__x86_64__)
+	/* we can actually assume the bits are already in proper order
+	 * so let's directly write them as-is on the wire to save CPU
+	 * time.
+	 */
+	memcpy(start, &value, nb_bytes);
+	start += nb_bytes;
+#else
+	/* encode 1 byte at a time from higher bits to lower bits */
+	while (nb_bytes) {
+		uint8_t cur_byte = (value >> ((nb_bytes - 1) * 8)) & 0xFFU;
+
+		*start++ = cur_byte;
+		if (start == NULL)
+			return NULL;
+
+		nb_bytes--;
+	}
+#endif
+
+	return start;
+}
+
+/* CBOR helper to encode an uint64 value with prefix (3bits MAJOR type)
+ * according to RFC8949 in hex form.
+ *
+ * Returns the address of the byte immediately after the last written byte
+ * on success, or NULL on error. The function cannot write past <stop>.
+ * It will not append terminating NULL byte.
+ */
+char *cbor_encode_uint64_prefix_hex(char *start, char *stop, uint64_t value,
+                                    uint8_t prefix)
+{
+	int nb_bytes;
+
+
+	nb_bytes = _cbor_encode_uint64_prefix(value, &prefix);
+
+	start = _encode_byte_hex(start, stop, prefix);
 	if (start == NULL)
 		return NULL;
 
@@ -2247,7 +2316,7 @@ char *cbor_encode_uint64_prefix(struct cbor_encode_ctx *ctx,
 	while (nb_bytes) {
 		uint8_t cur_byte = (value >> ((nb_bytes - 1) * 8)) & 0xFFU;
 
-		start = ctx->e_fct_byte(ctx, start, stop, cur_byte);
+		start = _encode_byte_hex(start, stop, cur_byte);
 		if (start == NULL)
 			return NULL;
 
@@ -2257,16 +2326,14 @@ char *cbor_encode_uint64_prefix(struct cbor_encode_ctx *ctx,
 	return start;
 }
 
-/* CBOR helper to encode an int64 value according to RFC8949
- *
- * CBOR encode ctx is provided in <ctx>
+
+/* CBOR helper to encode an int64 value according to RFC8949 in bin form
  *
  * Returns the address of the byte immediately after the last written byte
  * on success, or NULL on error. The function cannot write past <stop>.
  * It will not append terminating NULL byte.
  */
-char *cbor_encode_int64(struct cbor_encode_ctx *ctx,
-                        char *start, char *stop, int64_t value)
+char *cbor_encode_int64_bin(char *start, char *stop, int64_t value)
 {
 	uint64_t absolute_value = llabs(value);
 	int cbor_prefix;
@@ -2282,11 +2349,80 @@ char *cbor_encode_int64(struct cbor_encode_ctx *ctx,
 		/* N-1 for negative int */
 		absolute_value -= 1;
 	}
-	return cbor_encode_uint64_prefix(ctx, start, stop,
-	                                 absolute_value, cbor_prefix);
+	return cbor_encode_uint64_prefix_bin(start, stop,
+	                                     absolute_value, cbor_prefix);
 }
 
-/* CBOR helper to encode a <prefix> string chunk according to RFC8949
+/* CBOR helper to encode an int64 value according to RFC8949 in hex form
+ *
+ * Returns the address of the byte immediately after the last written byte
+ * on success, or NULL on error. The function cannot write past <stop>.
+ * It will not append terminating NULL byte.
+ */
+char *cbor_encode_int64_hex(char *start, char *stop, int64_t value)
+{
+	uint64_t absolute_value = llabs(value);
+	int cbor_prefix;
+
+	/*
+	 * For encoding logic, see:
+	 * https://www.rfc-editor.org/rfc/rfc8949.html#name-specification-of-the-cbor-e
+	 */
+	if (value >= 0)
+		cbor_prefix = 0x00; // unsigned int
+	else {
+		cbor_prefix = 0x20; // negative int
+		/* N-1 for negative int */
+		absolute_value -= 1;
+	}
+	return cbor_encode_uint64_prefix_hex(start, stop,
+	                                     absolute_value, cbor_prefix);
+}
+
+static inline char *_cbor_encode_bytes_prefix_bin(char *start, char *stop,
+                                                  const char *bytes, size_t len,
+                                                  uint8_t prefix)
+{
+	/* write prefix (with text length as argument) */
+	start = cbor_encode_uint64_prefix_bin(start, stop,
+	                                      len, prefix);
+	if (start == NULL)
+		return NULL;
+
+	/* write actual bytes if provided */
+	if (start + len >= stop)
+		return NULL;
+	memcpy(start, bytes, len);
+	start += len;
+
+	return start;
+}
+
+static inline char *_cbor_encode_bytes_prefix_hex(char *start, char *stop,
+                                                  const char *bytes, size_t len,
+                                                  uint8_t prefix)
+{
+
+	size_t it = 0;
+
+	/* write prefix (with text length as argument) */
+	start = cbor_encode_uint64_prefix_hex(start, stop,
+	                                      len, prefix);
+	if (start == NULL)
+		return NULL;
+
+	/* write actual bytes if provided */
+	while (bytes && it < len) {
+		start = _encode_byte_hex(start, stop, bytes[it]);
+		if (start == NULL)
+			return NULL;
+		it++;
+	}
+	return start;
+}
+
+/* CBOR helper to encode a <prefix> string chunk according to RFC8949 in
+ * bin form.
  *
  * if <bytes> is NULL, then only the <prefix> (with length) will be
  * emitted
@@ -2297,50 +2433,17 @@ char *cbor_encode_int64(struct cbor_encode_ctx *ctx,
  * on success, or NULL on error. The function cannot write past <stop>.
  * It will not append terminating NULL byte.
  */
-char *cbor_encode_bytes_prefix(struct cbor_encode_ctx *ctx,
-                               char *start, char *stop,
-                               const char *bytes, size_t len,
-                               uint8_t prefix)
+char *cbor_encode_bytes_prefix_bin(char *start, char *stop,
+                                   const char *bytes, size_t len,
+                                   uint8_t prefix)
 {
-
-	size_t it = 0;
-
-	/* write prefix (with text length as argument) */
-	start = cbor_encode_uint64_prefix(ctx, start, stop,
-	                                  len, prefix);
-	if (start == NULL)
-		return NULL;
-
-	/* write actual bytes if provided */
-	while (bytes && it < len) {
-		start = ctx->e_fct_byte(ctx, start, stop, bytes[it]);
-		if (start == NULL)
-			return NULL;
-		it++;
-	}
-	return start;
+	return _cbor_encode_bytes_prefix_bin(start, stop, bytes, len, prefix);
 }
 
-/* CBOR helper to encode a text chunk according to RFC8949
+/* CBOR helper to encode a <prefix> string chunk according to RFC8949 in
+ * hex form.
  *
- * if <text> is NULL, then only the text prefix (with length) will be emitted
- *
- * CBOR encode ctx is provided in <ctx>
- *
- * Returns the address of the byte immediately after the last written byte
- * on success, or NULL on error. The function cannot write past <stop>.
- * It will not append terminating NULL byte.
- */
-char *cbor_encode_text(struct cbor_encode_ctx *ctx,
-                       char *start, char *stop,
-                       const char *text, size_t len)
-{
-	return cbor_encode_bytes_prefix(ctx, start, stop, text, len, 0x60);
-}
-
-/* CBOR helper to encode a byte string chunk according to RFC8949
- *
- * if <bytes> is NULL, then only the byte string prefix (with length) will be
+ * if <bytes> is NULL, then only the <prefix> (with length) will be
  * emitted
  *
  * CBOR encode ctx is provided in <ctx>
@@ -2349,11 +2452,69 @@ char *cbor_encode_text(struct cbor_encode_ctx *ctx,
  * on success, or NULL on error. The function cannot write past <stop>.
  * It will not append terminating NULL byte.
  */
-char *cbor_encode_bytes(struct cbor_encode_ctx *ctx,
-                        char *start, char *stop,
-                        const char *bytes, size_t len)
+char *cbor_encode_bytes_prefix_hex(char *start, char *stop,
+                                   const char *bytes, size_t len,
+                                   uint8_t prefix)
 {
-	return cbor_encode_bytes_prefix(ctx, start, stop, bytes, len, 0x40);
+	return _cbor_encode_bytes_prefix_hex(start, stop, bytes, len, prefix);
+}
+
+/* CBOR helper to encode a text chunk according to RFC8949 in bin form.
+ *
+ * if <text> is NULL, then only the text prefix (with length) will be emitted
+ *
+ * Returns the address of the byte immediately after the last written byte
+ * on success, or NULL on error. The function cannot write past <stop>.
+ * It will not append terminating NULL byte.
+ */
+char *cbor_encode_text_bin(char *start, char *stop,
+                           const char *text, size_t len)
+{
+	return _cbor_encode_bytes_prefix_bin(start, stop, text, len, 0x60);
+}
+
+/* CBOR helper to encode a text chunk according to RFC8949 in hex form.
+ *
+ * if <text> is NULL, then only the text prefix (with length) will be emitted
+ *
+ * Returns the address of the byte immediately after the last written byte
+ * on success, or NULL on error. The function cannot write past <stop>.
+ * It will not append terminating NULL byte.
+ */
+char *cbor_encode_text_hex(char *start, char *stop,
+                           const char *text, size_t len)
+{
+	return _cbor_encode_bytes_prefix_hex(start, stop, text, len, 0x60);
+}
+
+/* CBOR helper to encode a byte string chunk according to RFC8949 in bin form.
+ *
+ * if <bytes> is NULL, then only the byte string prefix (with length) will be
+ * emitted
+ *
+ * Returns the address of the byte immediately after the last written byte
+ * on success, or NULL on error. The function cannot write past <stop>.
+ * It will not append terminating NULL byte.
+ */
+char *cbor_encode_bytes_bin(char *start, char *stop,
+                            const char *bytes, size_t len)
+{
+	return _cbor_encode_bytes_prefix_bin(start, stop, bytes, len, 0x40);
+}
+
+/* CBOR helper to encode a byte string chunk according to RFC8949 in hex form.
+ *
+ * if <bytes> is NULL, then only the byte string prefix (with length) will be
+ * emitted
+ *
+ * Returns the address of the byte immediately after the last written byte
+ * on success, or NULL on error. The function cannot write past <stop>.
+ * It will not append terminating NULL byte.
+ */
+char *cbor_encode_bytes_hex(char *start, char *stop,
+                            const char *bytes, size_t len)
+{
+	return _cbor_encode_bytes_prefix_hex(start, stop, bytes, len, 0x40);
 }
 
 /* Check a string for using it in a CSV output format. If the string contains

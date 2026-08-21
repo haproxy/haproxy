@@ -160,22 +160,6 @@ struct net_addr_type {
 	int xprt_type;  // transport layer
 };
 
-/* To easily pass context to cbor encode functions
- */
-struct cbor_encode_ctx {
-	/* function pointer that cbor encode functions will use to encode a
-	 * single byte.
-	 *
-	 * The function needs to return the position of the last written byte
-	 * on success and NULL on failure. The function cannot write past <stop>
-	 */
-	char *(*e_fct_byte)(struct cbor_encode_ctx *ctx,
-	                    char *start, char *stop, uint8_t byte);
-
-	/* to provide some user-context to the encode_fct_* funcs */
-	void *e_fct_ctx;
-};
-
 /* An indexed file name node, to be used at various places where a config file
  * location is expected. These elements live forever and are only released on
  * deinit. The goal is to use them in place of a regular "char* file" in many

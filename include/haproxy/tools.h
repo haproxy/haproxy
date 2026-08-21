@@ -477,21 +477,26 @@ int chunk_escape_string(struct buffer *chunk, const char *str, size_t len);
 /* Below are RFC8949 compliant cbor encode helper functions, see source
  * file for functions descriptions
  */
-char *cbor_encode_uint64_prefix(struct cbor_encode_ctx *ctx,
-                                char *start, char *stop,
-                                uint64_t value, uint8_t prefix);
-char *cbor_encode_int64(struct cbor_encode_ctx *ctx,
-                        char *start, char *stop, int64_t value);
-char *cbor_encode_bytes_prefix(struct cbor_encode_ctx *ctx,
-                               char *start, char *stop,
-                               const char *bytes, size_t len,
-                               uint8_t prefix);
-char *cbor_encode_bytes(struct cbor_encode_ctx *ctx,
-                        char *start, char *stop,
-                        const char *bytes, size_t len);
-char *cbor_encode_text(struct cbor_encode_ctx *ctx,
-                       char *start, char *stop,
-                       const char *text, size_t len);
+char *cbor_encode_uint64_prefix_bin(char *start, char *stop,
+                                    uint64_t value, uint8_t prefix);
+char *cbor_encode_uint64_prefix_hex(char *start, char *stop,
+                                    uint64_t value, uint8_t prefix);
+char *cbor_encode_int64_bin(char *start, char *stop, int64_t value);
+char *cbor_encode_int64_hex(char *start, char *stop, int64_t value);
+char *cbor_encode_bytes_prefix_bin(char *start, char *stop,
+                                   const char *bytes, size_t len,
+                                   uint8_t prefix);
+char *cbor_encode_bytes_prefix_hex(char *start, char *stop,
+                                   const char *bytes, size_t len,
+                                   uint8_t prefix);
+char *cbor_encode_bytes_bin(char *start, char *stop,
+                            const char *bytes, size_t len);
+char *cbor_encode_bytes_hex(char *start, char *stop,
+                            const char *bytes, size_t len);
+char *cbor_encode_text_bin(char *start, char *stop,
+                           const char *text, size_t len);
+char *cbor_encode_text_hex(char *start, char *stop,
+                           const char *text, size_t len);
 
 /* Check a string for using it in a CSV output format. If the string contains
  * one of the following four char <">, <,>, CR or LF, the string is

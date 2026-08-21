@@ -2021,9 +2021,6 @@ struct lf_buildctx {
 	int options;   /* LOG_OPT_* options */
 	int typecast;  /* same as logformat_node->typecast */
 	int in_text;   /* inside variable-length text */
-	union {
-		struct cbor_encode_ctx cbor; /* cbor-encode specific ctx */
-	} encode;
 };
 
 static THREAD_LOCAL char lf_buildbuf[256]; /* fixed size buffer for building small strings */
@@ -2033,32 +2030,21 @@ static THREAD_LOCAL char lf_buildbuf[256]; /* fixed size buffer for building sma
  * Returns the address of the byte immediately after the last written byte
  * on success, or NULL on error. It will not append terminating NULL byte.
  */
-static char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
+static inline char *_encode_byte_hex(char *start, char *stop, unsigned char byte)
 {
 	/* hex form requires 2 bytes */
 	if ((stop - start) < 2)
 		return NULL;
 	*start++ = hextab[(byte >> 4) & 15];
 	*start++ = hextab[byte & 15];
-	return start;
+
+       return start;
 }
 
-/* lf cbor function ptr used to encode a single byte according to RFC8949
- *
- * The function may only be called under CBOR context (that is when
- * LOG_OPT_ENCODE_CBOR option is set).
- *
- * Returns the address of the byte immediately after the last written byte
- * on success, or NULL on error. It will not append terminating NULL byte.
- */
-static char *_lf_cbor_encode_byte(struct cbor_encode_ctx *cbor_ctx,
-                                  char *start, char *stop, unsigned char byte)
+/* lf_cbor helper to write a single byte according to CBOR options */
+static inline char *_lf_cbor_encode_byte(struct lf_buildctx *ctx,
+                                         char *start, char *stop, unsigned char byte)
 {
-	struct lf_buildctx *ctx;
-
-	BUG_ON(!cbor_ctx || !cbor_ctx->e_fct_ctx);
-	ctx = cbor_ctx->e_fct_ctx;
-
 	if (ctx->options & LOG_OPT_BIN) {
 		/* raw output */
 		if ((stop - start) < 1)
@@ -2084,12 +2070,6 @@ static inline void lf_buildctx_prepare(struct lf_buildctx *ctx,
 	else {
 		ctx->options = g_options;
 		ctx->typecast = SMP_T_SAME; /* default */
-	}
-
-	if (ctx->options & LOG_OPT_ENCODE_CBOR) {
-		/* prepare cbor-specific encode ctx */
-		ctx->encode.cbor.e_fct_byte = _lf_cbor_encode_byte;
-		ctx->encode.cbor.e_fct_ctx = ctx;
 	}
 }
 
@@ -2128,9 +2108,14 @@ static inline char *_lf_cbor_escape_byte(char *start, char *stop,
 	escaped_byte[1] = hextab[(byte >> 4) & 15];
 	escaped_byte[2] = hextab[byte & 15];
 
-	start = cbor_encode_bytes_prefix(&ctx->encode.cbor, start, stop,
-	                                 escaped_byte, 3,
-	                                 cbor_string_prefix);
+	if (ctx->options & LOG_OPT_BIN)
+		start = cbor_encode_bytes_prefix_bin(start, stop,
+		                                     escaped_byte, 3,
+			                             cbor_string_prefix);
+	else
+		start = cbor_encode_bytes_prefix_hex(start, stop,
+		                                     escaped_byte, 3,
+			                             cbor_string_prefix);
 
 	return start;
 }
@@ -2184,9 +2169,14 @@ static inline char *_lf_cbor_map_escape_byte(char *start, char *stop,
 		 */
 	} else {
 		/* first, flush pending unescaped bytes */
-		start = cbor_encode_bytes_prefix(&ctx->encode.cbor, start, stop,
-		                                 *pending, (byte - *pending),
-		                                 cbor_string_prefix);
+		if (ctx->options & LOG_OPT_BIN)
+			start = cbor_encode_bytes_prefix_bin(start, stop,
+			                                     *pending, (byte - *pending),
+			                                     cbor_string_prefix);
+		else
+			start = cbor_encode_bytes_prefix_hex(start, stop,
+			                                     *pending, (byte - *pending),
+			                                     cbor_string_prefix);
 		if (start == NULL)
 			return NULL;
 
@@ -2322,7 +2312,7 @@ static char *_lf_encode_bytes(char *start, char *stop,
 
 		if ((ctx->options & LOG_OPT_ENCODE_CBOR) && !ctx->in_text) {
 			/* start indefinite-length cbor byte string or text */
-			start = _lf_cbor_encode_byte(&ctx->encode.cbor, start, stop,
+			start = _lf_cbor_encode_byte(ctx, start, stop,
 			                             (cbor_string_prefix | 0x1F));
 			if (start == NULL)
 				return NULL;
@@ -2357,15 +2347,20 @@ static char *_lf_encode_bytes(char *start, char *stop,
 		if (ctx->options & LOG_OPT_ENCODE_CBOR) {
 			if (pending != bytes) {
 				/* flush pending unescaped bytes */
-				start = cbor_encode_bytes_prefix(&ctx->encode.cbor, start, stop,
-				                                 pending, (bytes - pending),
-				                                 cbor_string_prefix);
+				if (ctx->options & LOG_OPT_BIN)
+					start = cbor_encode_bytes_prefix_bin(start, stop,
+					                                     pending, (bytes - pending),
+					                                     cbor_string_prefix);
+				else
+					start = cbor_encode_bytes_prefix_hex(start, stop,
+					                                     pending, (bytes - pending),
+					                                     cbor_string_prefix);
 				if (start == NULL)
 					return NULL;
 			}
 			if (!ctx->in_text) {
 				/* cbor break (to end indefinite-length text or byte string) */
-				start = _lf_cbor_encode_byte(&ctx->encode.cbor, start, stop, 0xFF);
+				start = _lf_cbor_encode_byte(ctx, start, stop, 0xFF);
 				if (start == NULL)
 					return NULL;
 			}
@@ -2437,7 +2432,10 @@ static inline char *_lf_text_len(char *dst, const char *src,
 			/* cbor_encode_text() doesn't append terminating NULL
 			 * byte, we must reserve 1 byte for that.
 			 */
-			ret = cbor_encode_text(&ctx->encode.cbor, dst, dst + size - 1, src, len);
+			if (ctx->options & LOG_OPT_BIN)
+				ret = cbor_encode_text_bin(dst, dst + size - 1, src, len);
+			else
+				ret = cbor_encode_text_hex(dst, dst + size - 1, src, len);
 			if (ret == NULL)
 				return NULL;
 			len = ret - dst;
@@ -2624,8 +2622,8 @@ static char *lf_bool_encode(char *dst, size_t size, uint8_t value,
 	}
 	if (ctx->options & LOG_OPT_ENCODE_CBOR) {
 		if (value)
-			return _lf_cbor_encode_byte(&ctx->encode.cbor, dst, dst + size, 0xF5);
-		return _lf_cbor_encode_byte(&ctx->encode.cbor, dst, dst + size, 0xF4);
+			return _lf_cbor_encode_byte(ctx, dst, dst + size, 0xF5);
+		return _lf_cbor_encode_byte(ctx, dst, dst + size, 0xF4);
 	}
 
 	return NULL; /* not supported */
@@ -2668,7 +2666,10 @@ static char *lf_int_encode(char *dst, size_t size, int64_t value,
 		/* Always print as a regular int64 number (STR typecast isn't
 		 * supported)
 		 */
-		return cbor_encode_int64(&ctx->encode.cbor, dst, dst + size, value);
+		if (ctx->options & LOG_OPT_BIN)
+			return cbor_encode_int64_bin(dst, dst + size, value);
+		else
+			return cbor_encode_int64_hex(dst, dst + size, value);
 	}
 
 	return NULL; /* not supported */
@@ -3551,7 +3552,7 @@ const char sess_set_cookie[] = "NPDIRU67";	/* No set-cookie, Set-cookie found an
  * try to write a cbor byte if there is enough space, or goto out
  */
 #define LOG_CBOR_BYTE(x) do {                                          \
-			ret = _lf_cbor_encode_byte(&ctx->encode.cbor,  \
+			ret = _lf_cbor_encode_byte(ctx,                \
 			                           tmplog,             \
 			                           dst + maxsize - 1,  \
 			                           (x));               \
@@ -3572,10 +3573,14 @@ const char sess_set_cookie[] = "NPDIRU67";	/* No set-cookie, Set-cookie found an
 				 * cbor decoder to know how to handle them     \
 				 */                                            \
 				_x[0] = (x);                                   \
-				ret = cbor_encode_text(&ctx->encode.cbor,      \
-				                       tmplog,                 \
-				                       dst + maxsize - 1,      \
-				                       _x, sizeof(_x));        \
+				if (ctx->options & LOG_OPT_BIN)                \
+					ret = cbor_encode_text_bin(tmplog,           \
+					                           dst + maxsize - 1,\
+					                           _x, sizeof(_x));  \
+				else                                           \
+					ret = cbor_encode_text_hex(tmplog,           \
+					                           dst + maxsize - 1,\
+					                           _x, sizeof(_x));  \
 				if (ret == NULL)                               \
 					goto out;                              \
 				tmplog = ret;                                  \
@@ -4145,9 +4150,12 @@ size_t sess_build_logline_orig(struct session *sess, struct stream *s,
 				LOGCHAR(' ');
 			}
 			else if (ctx->options & LOG_OPT_ENCODE_CBOR) {
-				ret = cbor_encode_text(&ctx->encode.cbor, tmplog,
-				                       dst + maxsize - 1, tmp->name,
-				                       strlen(tmp->name));
+				if (ctx->options & LOG_OPT_BIN)
+					ret = cbor_encode_text_bin(tmplog, dst + maxsize -1,
+					                           tmp->name, strlen(tmp->name));
+				else
+					ret = cbor_encode_text_hex(tmplog, dst + maxsize - 1,
+					                           tmp->name, strlen(tmp->name));
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
