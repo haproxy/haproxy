@@ -1,0 +1,61 @@
+varnishtest "Decompression: response header rewriting"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(SLZ)'"
+feature ignore_unknown_macro
+
+server s1 {
+	# 1. an unrelated Vary value must survive, and a strong ETag must be
+	#    weakened since we alter the representation
+	rxreq
+	expect req.url == "/vary"
+	txresp \
+	  -hdr "Content-Encoding: gzip" \
+	  -hdr "Vary: Accept" \
+	  -hdr "ETag: \"strong\"" \
+	  -gzipbody "decompressed"
+
+	# 2. a coding which is only a prefix of a configured algo must not
+	#    engage decompression
+	rxreq
+	expect req.url == "/prefix"
+	txresp -hdr "Content-Encoding: g" -body "not compressed at all"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen decomp-http
+	mode http
+	bind "fd@${decomp_http}"
+	decompression algo-res gzip
+	decompression mode-res auto
+	filter decomp-res
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_decomp_http_sock} {
+	txreq -url "/vary"
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "decompressed"
+	expect resp.http.content-encoding == "<undef>"
+	# "Accept" is a prefix of "accept-encoding" but a distinct value
+	expect resp.http.vary == "Accept"
+	expect resp.http.etag == "W/\"strong\""
+
+	txreq -url "/prefix"
+	rxresp
+	expect resp.status == 200
+	# "g" is not a supported coding, the body must pass through untouched
+	expect resp.body == "not compressed at all"
+	expect resp.http.content-encoding == "g"
+} -run
