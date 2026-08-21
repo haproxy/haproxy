@@ -1413,11 +1413,19 @@ static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
 	if (ti->curusrs < maxusrs && throttle)
 		max = 0;
 	else if (throttle)
-		max = (mul32hi(rate, throttle) + arg_thrd - 1) / arg_thrd;
+		max = (mul32hi(rate, throttle) + tid) / arg_thrd;
 	else
-		max = (rate + arg_thrd - 1) / arg_thrd;
+		max = (rate + tid) / arg_thrd;
 
-	max = max ? max : 1;
+	if (!max) {
+		/* this thread has no budget right now (its exact share of
+		 * <rate> is 0, or it's still ramping up under -s): nothing
+		 * to send from here, just check back shortly.
+		 */
+		task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(1000)));
+		return;
+	}
+
 	wait = hld_next_event_delay(&ti->req_rate, max,
 	                            ti->curusrs - ti->cur_req, date);
 	task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(wait)));
