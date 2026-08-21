@@ -56,6 +56,11 @@ enum slz_state {
 };
 
 enum {
+	SLZ_FMT_NONE = 0,/* default value, this way this ensure library users storing the
+			  * the fmt value in a structure that is zero-initialized have no
+	                  * FMT by default, plus they have a way to know if a fmt was
+	                  * selected or not by comparing it with this value
+			  */
 	SLZ_FMT_GZIP,    /* RFC1952: gzip envelope and crc32 for CRC */
 	SLZ_FMT_ZLIB,    /* RFC1950: zlib envelope and adler-32 for CRC */
 	SLZ_FMT_DEFLATE, /* RFC1951: raw deflate, and no crc */

@@ -1584,6 +1584,9 @@ int uslz_init_fmt(struct uslz_stream *state, unsigned char *output_buffer,
 		return 0;
 
 	switch (format) {
+	case SLZ_FMT_NONE:
+		/* nothing to do */
+		break;
 	case SLZ_FMT_DEFLATE:
 		/* nothing to detect nor to skip, the first bits are already
 		 * the first block header.
