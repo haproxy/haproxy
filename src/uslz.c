@@ -1434,6 +1434,8 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 			 * will be detected by tinflate_block().
 			 */
 			unsigned char bytes[2];
+			const unsigned char *save_ptr = state->in_ptr;
+			const unsigned char *save_top = state->in_top;
 			int it = 0;
 
 			if (state->hdr_detect.buf_len > 2)
@@ -1452,9 +1454,15 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 			state->in_top = bytes + state->hdr_detect.buf_len;
 			res = uslz_decode_block(state);
 
-			/* restore original state */
-			state->in_ptr   = (const unsigned char *)compressed_data;
-			state->in_top   = state->in_ptr + compressed_size;
+			/* Restore where the real input had got to, which is
+			 * *not* the start of the caller's buffer: the loop
+			 * that filled hdr_detect.buf above consumed from it,
+			 * and those bytes have just been replayed from <bytes>.
+			 * Rewinding to <compressed_data> would hand them to the
+			 * decoder a second time.
+			 */
+			state->in_ptr   = save_ptr;
+			state->in_top   = save_top;
 
 			goto next_block;
 		}// else raw format without pending bytes
