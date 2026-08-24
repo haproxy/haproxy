@@ -11142,6 +11142,21 @@ static void hlua_applet_http_release(struct appctx *ctx)
 	http_ctx->hlua = NULL;
 }
 
+/* Release the private data attached to a Lua action or service rule. */
+static void release_hlua_rule(struct act_rule *rule)
+{
+	if (rule->arg.hlua_rule) {
+		if (rule->arg.hlua_rule->args) {
+			int i;
+
+			for (i = 0; rule->arg.hlua_rule->args[i]; i++)
+				ha_free(&rule->arg.hlua_rule->args[i]);
+			ha_free(&rule->arg.hlua_rule->args);
+		}
+		ha_free(&rule->arg.hlua_rule);
+	}
+}
+
 /* global {tcp|http}-request parser. Return ACT_RET_PRS_OK in
  * success case, else return ACT_RET_PRS_ERR.
  *
@@ -11190,6 +11205,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = hlua_action;
+	rule->release_ptr = release_hlua_rule;
 	return ACT_RET_PRS_OK;
 
   error:
@@ -11243,6 +11259,7 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 	rule->applet.fct = hlua_applet_http_fct;
 	rule->applet.release = hlua_applet_http_release;
 	rule->applet.timeout = hlua_timeout_applet;
+	rule->release_ptr = release_hlua_rule;
 
 	return ACT_RET_PRS_OK;
 }
@@ -11431,6 +11448,7 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
 	rule->applet.fct = hlua_applet_tcp_fct;
 	rule->applet.release = hlua_applet_tcp_release;
 	rule->applet.timeout = hlua_timeout_applet;
+	rule->release_ptr = release_hlua_rule;
 
 	return 0;
 }
