@@ -1402,19 +1402,25 @@ static inline uint32_t hld_thr_rate_share(int rate)
 	return (rate + tid) / arg_thrd;
 }
 
-/* Schedule <usr> user, depending on <rate> conn/req rate value */
-static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
+/* If a new -ee ramp just started, reset this thread's own rate
+ * history: it must not carry over data from before the ramp.
+ */
+static inline void hld_thr_sync_ramp_gen(struct hld_thr_info *ti)
 {
-	uint32_t max, wait;
-	struct hld_thr_info *ti = &thrs_info[tid];
-	uint32_t maxusrs = ti->maxusrs;
-
 	if (HA_ATOMIC_LOAD(&err_ramp_active) && ti->err_ramp_gen != HA_ATOMIC_LOAD(&err_ramp_gen)) {
-		/* reset this thread's own rate history for the new -ee ramp */
 		memset(&ti->req_rate, 0, sizeof(ti->req_rate));
 		memset(&ti->conn_rate, 0, sizeof(ti->conn_rate));
 		ti->err_ramp_gen = HA_ATOMIC_LOAD(&err_ramp_gen);
 	}
+}
+
+/* This thread's send budget for <rate> right now: 0 while <ti> is
+ * still ramping up its user count under -s, otherwise its exact
+ * share of <rate> (see hld_thr_rate_share()).
+ */
+static inline uint32_t hld_thr_rate_max(struct hld_thr_info *ti, int rate)
+{
+	uint32_t maxusrs = ti->maxusrs;
 
 	if (throttle) {
 		maxusrs = mul32hi(maxusrs, throttle);
@@ -1422,9 +1428,18 @@ static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
 	}
 
 	if (ti->curusrs < maxusrs && throttle)
-		max = 0;
-	else
-		max = hld_thr_rate_share(rate);
+		return 0;
+	return hld_thr_rate_share(rate);
+}
+
+/* Schedule <usr> user, depending on <rate> conn/req rate value */
+static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
+{
+	uint32_t max, wait;
+	struct hld_thr_info *ti = &thrs_info[tid];
+
+	hld_thr_sync_ramp_gen(ti);
+	max = hld_thr_rate_max(ti, rate);
 
 	if (!max) {
 		/* this thread has no budget right now (its exact share of
@@ -2214,12 +2229,7 @@ static struct task *hld_rate_task(struct task *t, void *context, unsigned int st
 		uint32_t b1, b2;
 		int nb_usr = thrs_info[tid].maxusrs;
 
-		if (HA_ATOMIC_LOAD(&err_ramp_active) && thrs_info[tid].err_ramp_gen != HA_ATOMIC_LOAD(&err_ramp_gen)) {
-			/* reset this thread's own rate history for the new -ee ramp */
-			memset(&thrs_info[tid].req_rate, 0, sizeof(thrs_info[tid].req_rate));
-			memset(&thrs_info[tid].conn_rate, 0, sizeof(thrs_info[tid].conn_rate));
-			thrs_info[tid].err_ramp_gen = HA_ATOMIC_LOAD(&err_ramp_gen);
-		}
+		hld_thr_sync_ramp_gen(&thrs_info[tid]);
 
 		if (throttle) {
 			nb_usr = mul32hi(thrs_info[tid].maxusrs, throttle);
