@@ -2217,13 +2217,16 @@ static struct task *hld_rate_task(struct task *t, void *context, unsigned int st
 			nb_usr = nb_usr ? nb_usr : 1;
 		}
 
-		if (!HA_ATOMIC_LOAD(&arg_rate) && HA_ATOMIC_LOAD(&usr_cnt) >= arg_usr) {
-			/* 0 means no rate limit, same as everywhere else in
-			 * this file. Only take over once the initial ramp-up
-			 * (done directly by the main task, see usr_cnt) is
-			 * over: fill up to nb_usr directly, no per-thread
-			 * budget, so a kill under -ee can still be refilled
-			 * even without -R.
+		if (!HA_ATOMIC_LOAD(&arg_rate) && !HA_ATOMIC_LOAD(&err_ramp_pending) &&
+		    HA_ATOMIC_LOAD(&usr_cnt) >= arg_usr) {
+			/* 0 means no rate limit here too. Only do this after
+			 * the main task's initial ramp-up (usr_cnt >= arg_usr):
+			 * fill up to nb_usr directly, no per-thread budget, so
+			 * a kill under -ee can still be refilled without -R.
+			 *
+			 * err_ramp_pending is checked too. It is set first by
+			 * hld_err_trigger(). Seeing it at 0 means no other
+			 * thread just started a trigger.
 			 */
 			budget = nb_usr;
 		}
@@ -2255,6 +2258,12 @@ static struct task *hld_rate_task(struct task *t, void *context, unsigned int st
 				break;
 			}
 
+			/* count this new user right now, not later when it
+			 * really connects. Without this, a fast re-wakeup of
+			 * this task (many kills in a row) would still see an
+			 * empty counter and create too many replacements.
+			 */
+			hld_update_freq_ctr(&thrs_info[tid].conn_rate, 1, date);
 			HA_ATOMIC_INC(&running_tasks);
 		}
 
