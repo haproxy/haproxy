@@ -1851,6 +1851,31 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		goto skip_new_strms;
 	}
 
+	if (HA_ATOMIC_LOAD(&err_ramp_active) && usr->ramp_gen != HA_ATOMIC_LOAD(&err_ramp_gen)) {
+		/* This user was scheduled before the current -ee ramp,
+		 * under the old rate. Check for room now before it sends.
+		 *
+		 * Retry with a short, fixed delay if there is none, and
+		 * check again next time. hld_usr_schedule()'s wait would
+		 * grow with the idle user count instead, which can be huge
+		 * right after a mass failure, giving some users a
+		 * multi-minute wait with no way back.
+		 *
+		 * A user created during this ramp already has the right
+		 * ramp_gen, so replacements are not affected.
+		 */
+		struct hld_thr_info *ti = &thrs_info[tid];
+		uint32_t rate = HA_ATOMIC_LOAD(&arg_rate);
+		uint32_t max = hld_thr_rate_max(ti, rate);
+
+		if (!max || !hld_freq_ctr_remain(&ti->req_rate, max, 0, date)) {
+			task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(1000)));
+			goto skip_new_strms;
+		}
+
+		usr->ramp_gen = HA_ATOMIC_LOAD(&err_ramp_gen);
+	}
+
 	for (url = urls; url; url = hld_next_url(urls, url)) {
 		struct hld_path *path, *paths = url->cfg->cur_path;
 
