@@ -1391,7 +1391,18 @@ static int hld_be_reuse_conn(struct connection **conn, int64_t *hash,
 	return ret;
 }
 
-/* Schedule <urs> user, depending on <rate> conn/req rate value */
+/* This thread's exact share of <rate>, split evenly across arg_thrd
+ * threads. Thread <tid> gets (rate + tid) / arg_thrd. The shares
+ * always add up to exactly <rate>, with nothing extra from rounding.
+ */
+static inline uint32_t hld_thr_rate_share(int rate)
+{
+	if (throttle)
+		return (mul32hi(rate, throttle) + tid) / arg_thrd;
+	return (rate + tid) / arg_thrd;
+}
+
+/* Schedule <usr> user, depending on <rate> conn/req rate value */
 static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
 {
 	uint32_t max, wait;
@@ -1412,10 +1423,8 @@ static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
 
 	if (ti->curusrs < maxusrs && throttle)
 		max = 0;
-	else if (throttle)
-		max = (mul32hi(rate, throttle) + tid) / arg_thrd;
 	else
-		max = (rate + tid) / arg_thrd;
+		max = hld_thr_rate_share(rate);
 
 	if (!max) {
 		/* this thread has no budget right now (its exact share of
@@ -2231,10 +2240,7 @@ static struct task *hld_rate_task(struct task *t, void *context, unsigned int st
 			budget = nb_usr;
 		}
 		else {
-			if (throttle)
-				max = (mul32hi(HA_ATOMIC_LOAD(&arg_rate), throttle) + tid) / arg_thrd;
-			else
-				max = (HA_ATOMIC_LOAD(&arg_rate) + tid) / arg_thrd;
+			max = hld_thr_rate_share(HA_ATOMIC_LOAD(&arg_rate));
 
 			/* max may be 0 here: this thread's exact share of the rate is
 			 * 0 right now (either a real rate cap, or the initial
