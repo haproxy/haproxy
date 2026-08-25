@@ -587,15 +587,30 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 	 * and keep it while being scheduled. Thus instead let's take it the
 	 * first time we enter here so that we have a chance to pass many
 	 * existing messages before grabbing a reference to a location. This
-	 * value cannot be produced after initialization. The first offset
-	 * needs to be taken under isolation as it must not move while we're
-	 * trying to catch it.
+	 * value cannot be produced after initialization. The head must not move
+	 * while we're trying to catch it, and since only a writer holding the
+	 * tail lock may move it, taking that same lock is sufficient here. We
+	 * must not use thread_isolate() for this, as some callers may hold a
+	 * lock (e.g. the sink forward applet holds the sft lock), and isolating
+	 * while holding a lock deadlocks against any thread spinning on it,
+	 * since a spinning thread never becomes harmless.
 	 */
 	if (unlikely(*ofs_ptr == ~0)) {
-		thread_isolate();
+		size_t *tail_ptr = &ring->storage->tail;
+
+		/* grab the tail lock, i.e. atomically set the lock bit on the
+		 * tail offset only if it's not already set, exactly like a
+		 * writer does before recycling the oldest messages.
+		 */
+		tail_ofs = HA_ATOMIC_LOAD(tail_ptr);
+		while (1) {
+			tail_ofs &= ~RING_TAIL_LOCK;
+			if (HA_ATOMIC_CAS(tail_ptr, &tail_ofs, tail_ofs | RING_TAIL_LOCK))
+				break;
+			__ha_cpu_relax();
+		}
 
 		head_ofs = HA_ATOMIC_LOAD(&ring->storage->head);
-		tail_ofs = ring_tail(ring);
 
 		if (flags & RING_WF_SEEK_NEW) {
 			/* going to the end means looking at tail-1 */
@@ -604,13 +619,18 @@ int ring_dispatch_messages(struct ring *ring, void *ctx, size_t *ofs_ptr, size_t
 				head_ofs -= ring_size;
 		}
 
-		/* reserve our slot here (inc readers count) */
+		/* reserve our slot here (inc readers count). The byte may still
+		 * be seen as RING_WRITING_SIZE by a writer which released the
+		 * tail lock and is still copying its payload, hence the retry
+		 * on values above RING_MAX_READERS.
+		 */
 		do {
 			readers = _HA_ATOMIC_LOAD(ring_area + head_ofs);
 		} while ((readers > RING_MAX_READERS ||
 			  !_HA_ATOMIC_CAS(ring_area + head_ofs, &readers, readers + 1)) && __ha_cpu_relax());
 
-		thread_release();
+		/* release the tail lock */
+		HA_ATOMIC_STORE(tail_ptr, tail_ofs);
 
 		/* store this precious offset in our context, and we're done */
 		*ofs_ptr = head_ofs;
