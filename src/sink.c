@@ -452,13 +452,22 @@ static void _sink_forward_io_handler(struct appctx *appctx,
 		goto out;
 	}
 
+	MT_LIST_DELETE(&appctx->wait_entry);
+
+	/* The lock must not be held across ring_dispatch_messages(), which may
+	 * isolate the thread when attaching to the ring. A thread spinning on
+	 * a lock never becomes harmless, so isolating while holding this lock
+	 * would deadlock against process_sink_forward(). It is not needed
+	 * either: sft->ofs and sft->e_processed are only ever accessed from
+	 * this applet, which is bound to a single thread, and the lists are
+	 * mt_lists which protect themselves.
+	 */
+	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0,
+	                             msg_handler, '\n', &processed);
+
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
 	BUG_ON(appctx != sft->appctx);
 
-	MT_LIST_DELETE(&appctx->wait_entry);
-
-	ret = ring_dispatch_messages(ring, appctx, &sft->ofs, &last_ofs, 0,
-	                             msg_handler, '\n', &processed);
 	sft->e_processed += processed;
 
 	/* if server's max-reuse is set (>= 0), destroy the applet once the
