@@ -4721,6 +4721,9 @@ static int ssl_ctx_hash_store(EVP_MD_CTX *mdctx, SSL_CTX *ctx)
 			ASN1_INTEGER *crl_number;
 			int crl_number_len;
 
+			if (!crl)
+				goto out;
+
 			if (X509_NAME_digest(X509_CRL_get_issuer(crl), EVP_sha256(), digest, &digest_len) != 1)
 				goto out;
 			if (EVP_DigestUpdate(mdctx, digest, digest_len) != 1)
