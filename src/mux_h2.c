@@ -6611,9 +6611,18 @@ try_again:
 		 * EOM was already reported.
 		 */
 		if ((h2c->flags & H2_CF_IS_BACK) || !(h2s->flags & H2_SF_TUNNEL_ABRT)) {
-			/* htx may be empty if receiving an empty DATA frame. */
-			if (!htx_set_eom(htx))
-				goto fail;
+			/*
+			 * Do not report end of message if we had a
+			 * Content-Length, but we got less than that, otherwise
+			 * the other mux will consider it complete when it
+			 * should not.
+			 */
+			if (!(h2s->flags & H2_SF_DATA_CLEN) || !h2s->body_len ||
+			    ((h2c->flags & H2_CF_IS_BACK) && (h2s->flags & H2_SF_BODYLESS_RESP))) {
+				/* htx may be empty if receiving an empty DATA frame. */
+				if (!htx_set_eom(htx))
+					goto fail;
+			}
 		}
 	}
 
