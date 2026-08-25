@@ -90,6 +90,9 @@ void thread_isolate()
 {
 	uint tgrp, thr;
 
+	BUG_ON(thread_isolated(), "thread_isolate() called recursively!");
+	BUG_ON(th_ctx->lock_level, "thread_isolate() called with a lock held!");
+
 	_HA_ATOMIC_OR(&tg_ctx->threads_harmless, ti->ltid_bit);
 	__ha_barrier_atomic_store();
 	_HA_ATOMIC_INC(&rdv_requests);
