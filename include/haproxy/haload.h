@@ -34,6 +34,7 @@ struct hld_url_cfg {
 	int ssl;
 	int is_quic;
 	int h2c;
+	int thnk_time;
 	enum hld_http_ver http_ver;
 	char *addr;
 	char *raw_addr; // used only to set the host header value
@@ -83,6 +84,7 @@ extern int arg_rcon;
 extern int arg_slow;
 extern int arg_serr;
 extern int arg_usr;
+extern int arg_thnk;
 extern int arg_thrd;
 extern int arg_wait;
 

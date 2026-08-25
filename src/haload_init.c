@@ -47,6 +47,7 @@ static void  hld_usage(char *name, int argc)
 		"        -F               merge send() with connect's ACK\n"
 		"        -H \"foo:bar\"   add this header name and value\n"
 		"        -R <rate>        limit to this many request attempts per second (0)\n"
+		"        -T <time>        think time in ms after a response (0) (*)\n"
 		"        -v               shows version\n"
 		"        --defaults <str> add a string to default section\n"
 		"        --global <str>   add a string to global section\n"
@@ -304,6 +305,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
 	hld_url_cfg->ssl = ssl;
 	hld_url_cfg->is_quic = is_quic;
 	hld_url_cfg->h2c = h2c_param;
+	hld_url_cfg->thnk_time = arg_thnk;
 	hld_url_cfg->http_ver = http_ver;
 	hld_url_cfg->addr = addr;
 	hld_url_cfg->raw_addr = raw_addr;
@@ -669,6 +671,10 @@ void haproxy_init_args(int argc, char **argv)
 			else if (*opt == 'R') {
 				opt++;
 				hld_parse_long(&arg_rate, opt, &argc, &argv);
+			}
+			else if (*opt == 'T') {
+				opt++;
+				hld_parse_long(&arg_thnk, opt, &argc, &argv);
 			}
 			else if (*opt == 'v') {
 				/* empty option */

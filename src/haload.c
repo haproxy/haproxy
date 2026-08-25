@@ -107,6 +107,7 @@ int arg_rcon = -1;     // max requests per conn
 int arg_reqs = -1;     // max total requests
 int arg_serr;          // 1 = stop on first error (-e), 2 = probe and ramp (-ee)
 int arg_slow;          // slow start: delay in milliseconds
+int arg_thnk;          // think time after a reponse (ms)
 int arg_thrd;          // number of threads
 int arg_usr = 1;       // number of users
 int arg_wait = 10000;  // I/O time out (ms)
@@ -1432,8 +1433,11 @@ static inline uint32_t hld_thr_rate_max(struct hld_thr_info *ti, int rate)
 	return hld_thr_rate_share(rate);
 }
 
-/* Schedule <usr> user, depending on <rate> conn/req rate value */
-static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
+/* Schedule <usr> user, depending on <rate> conn/req rate value and on
+ * <think>, an already-computed think time in ms (0 if none). The wait
+ * used is the larger of the two, same as h1load's -T.
+ */
+static inline void hld_usr_schedule(struct hld_usr *usr, int rate, uint32_t think)
 {
 	uint32_t max, wait;
 	struct hld_thr_info *ti = &thrs_info[tid];
@@ -1441,17 +1445,19 @@ static inline void hld_usr_schedule(struct hld_usr *usr, int rate)
 	hld_thr_sync_ramp_gen(ti);
 	max = hld_thr_rate_max(ti, rate);
 
-	if (!max) {
+	if (!max)
 		/* this thread has no budget right now (its exact share of
 		 * <rate> is 0, or it's still ramping up under -s): nothing
 		 * to send from here, just check back shortly.
 		 */
-		task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(1000)));
-		return;
-	}
+		wait = 1000;
+	else
+		wait = hld_next_event_delay(&ti->req_rate, max,
+		                            ti->curusrs - ti->cur_req, date);
 
-	wait = hld_next_event_delay(&ti->req_rate, max,
-	                            ti->curusrs - ti->cur_req, date);
+	if (think > wait)
+		wait = think;
+
 	task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(wait)));
 }
 
@@ -1645,7 +1651,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 	/* Note that the user task will release all the expired streams
 	 * attached to it.
 	 */
-	if (!HA_ATOMIC_LOAD(&arg_rate)) {
+	if (!HA_ATOMIC_LOAD(&arg_rate) && !url->cfg->thnk_time) {
 		task_wakeup(usr->task, TASK_WOKEN_IO);
 		if (LIST_ISEMPTY(&usr->strms))
 			usr->task->expire = TICK_ETERNITY;
@@ -1659,7 +1665,20 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		}
 	}
 	else {
-		hld_usr_schedule(usr, HA_ATOMIC_LOAD(&arg_rate));
+		int rate = HA_ATOMIC_LOAD(&arg_rate);
+		uint32_t think = 0;
+
+		/* -ee takes over as soon as an error is detected: ignore -T
+		 * while it is still probing. -R and -T only apply again once
+		 * probing is done and the normal load resumes.
+		 */
+		if (!HA_ATOMIC_LOAD(&err_ramp_active) && url->cfg->thnk_time)
+			think = url->cfg->thnk_time * (4096 - 128 + statistical_prng_range(256)) / 4096;
+
+		if (rate)
+			hld_usr_schedule(usr, rate, think);
+		else
+			task_schedule(usr->task, tick_add(now_ms, MS_TO_TICKS(think)));
 	}
 
 	goto leave;
@@ -1693,7 +1712,7 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 		if (!HA_ATOMIC_LOAD(&arg_rate))
 			task_wakeup(usr->task, TASK_WOKEN_IO);
 		else
-			hld_usr_schedule(usr, HA_ATOMIC_LOAD(&arg_rate));
+			hld_usr_schedule(usr, HA_ATOMIC_LOAD(&arg_rate), 0);
 
 		if (arg_serr == 1) {
 			usr->flags |= HLD_USR_FL_STOP;
