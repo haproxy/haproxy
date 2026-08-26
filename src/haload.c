@@ -2087,12 +2087,17 @@ static inline struct hld_usr *hld_new_usr(int nreqs, int tid)
 	struct session *sess;
 
 	BUG_ON(!nreqs);
-	usr = malloc(sizeof(*usr));
 	t = task_new_on(tid);
 	sess = session_new(&hld_proxy, NULL, NULL);
-	if (!usr || !t || !sess) {
+	if (!t || !sess) {
 		ha_alert("could not allocate a new user\n");
-		goto err;
+		goto err_deps;
+	}
+
+	usr = malloc(sizeof(*usr));
+	if (!usr) {
+		ha_alert("could not allocate a new user\n");
+		goto err_deps;
 	}
 
 	t->process = hld_usr_task;
@@ -2146,8 +2151,12 @@ static inline struct hld_usr *hld_new_usr(int nreqs, int tid)
 		free(url);
 		url = next_url;
 	}
-	task_destroy(t);
 	free(usr);
+
+ err_deps:
+	if (sess)
+		session_free(sess);
+	task_destroy(t);
 	return NULL;
 }
 
