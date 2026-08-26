@@ -1275,6 +1275,9 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	if (!srv)
 		goto error;
 
+	/* there will be no defaults, we must initialize settings */
+	srv_settings_init(srv);
+
 	/* init server */
 	srv->id = strdup(logger->target.ring_name);
 	srv->conf.file = strdup(logger->conf.file);
