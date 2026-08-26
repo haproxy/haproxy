@@ -1240,6 +1240,7 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	struct sink *sink = NULL;
 	struct server *srv = NULL;
 	char *err_msg = NULL;
+	int err_code = ERR_NONE;
 
 	/* prepare description for the sink */
 	chunk_reset(&trash);
@@ -1291,6 +1292,16 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	 * known at that point, so it would never be initialized otherwise.
 	 */
 	if (srv_preinit(srv) & ERR_CODE)
+		goto error;
+
+	/* Same thing for the forward proxy: check_config_validity() has
+	 * already walked over sink_proxies_list, so this one is never
+	 * initialized nor finalized. Keep the same order as there, as the
+	 * load-balancing setup performed by proxy_finalize() relies on the
+	 * per-thread-group areas allocated by proxy_init_per_thr().
+	 */
+	proxy_init_per_thr(sink->forward_px);
+	if (proxy_finalize(sink->forward_px, &err_code) || (err_code & ERR_CODE))
 		goto error;
 
 	if (sink_finalize(sink) & ERR_CODE)
