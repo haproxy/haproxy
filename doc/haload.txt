@@ -80,6 +80,7 @@ HALoad displays its usage when run without argument or wrong arguments:
             -w <time>        I/O timeout in milliseconds (10000)
             -C               dump the configuration and exit
             -H "foo:bar"     add this header name and value
+            -P               report ttfb/ttlb percentiles at the end
             -R <rate>        limit to this many request attempts per second (0)
             -T <time>        think time in ms after a response (0) (*)
             -v               shows version

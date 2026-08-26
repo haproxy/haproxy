@@ -30,6 +30,7 @@
 #define HLD_STRM_ST_GOT_RESP_SL  0x0040
 
 static inline struct hld_usr *hld_new_usr(int nreqs, int tid);
+static void hld_report_percentiles(void);
 static void hld_dealloc_thrs_info(void);
 
 struct hld_mtask {
@@ -111,6 +112,7 @@ int arg_fast;          // merge send with connect's ACK
 int arg_hscd;          // HTTP status code distribution
 int arg_long;          // long output format; 2=raw values
 int arg_mreqs = 1;     // max concurrent streams by connection
+int arg_pctl;          // report ttfb/ttlb percentiles at the end
 int arg_post_sz;       // number of bytes to POST
 int arg_rate;          // connection & request rate limit
 int arg_rcon = -1;     // max requests per conn
@@ -155,6 +157,15 @@ static uint64_t err_success_target;     // successes needed before going back to
 static int hld_reset_summary_baseline;  // tells hld_summary() to reset its own counters
 static int hld_nb_url_cfg;              // number of target URLs, set once in hld_init()
 
+/* unsigned 16-bit float, used as a compact histogram bucket for -P:
+ *    b15..b11 = 5-bit exponent
+ *    b10..b0  = 11-bit mantissa
+ * Values 0..2047 are all distinct (no rounding below 2048). Values up
+ * to about 2^42 keep some precision. Above that, everything maps to
+ * the same, highest bucket.
+ */
+typedef uint16_t uf16_t;
+
 /* timeval is not set */
 #define TV_UNSET ((struct timeval){ .tv_sec = 0, .tv_usec = ~0 })
 
@@ -192,6 +203,33 @@ static inline struct timeval tv_diff(const struct timeval *past, const struct ti
 		}
 	}
 	return ret;
+}
+
+/* builds a uf16 from an exponent and a mantissa */
+static inline uf16_t uf16(uint8_t e, uint16_t m)
+{
+	return ((uf16_t)e << 11) + m;
+}
+
+/* converts any value between 0 and 2^42 to a uf16 bucket */
+static inline uf16_t to_uf16(uint64_t v)
+{
+	uint64_t max = (uint64_t)0x7FF << 31;
+	int8_t e;
+
+	v = (v <= max) ? v : max;
+	e = __builtin_clzl(v) ^ 63;
+	e -= 10;
+	if (e < 0)
+		e = 0;
+	v >>= e;
+	return uf16(e, v);
+}
+
+/* converts a uf16 bucket back to the value it represents */
+static inline uint64_t from_uf16(uf16_t u)
+{
+	return (uint64_t)(u & 0x7FF) << (u >> 11);
 }
 
 /* read a freq counter over a 1-second period and return the event rate/s */
@@ -1006,6 +1044,8 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 		if (!HA_ATOMIC_LOAD(&running_tasks)) {
 			task_destroy(t);
 			t = NULL;
+			if (arg_pctl)
+				hld_report_percentiles();
 			hld_dealloc_thrs_info();
 			/* The process will exit after this call */
 			soft_stop();
@@ -1393,6 +1433,8 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 				ttfb = tv_us(tv_diff(&hs->req_date, &date));
 				thrs_info[tid].tot_fbs++;
 				thrs_info[tid].tot_ttfb += ttfb;
+				if (arg_pctl)
+					thrs_info[tid].ttfb_pct[to_uf16(ttfb)]++;
 			}
 		}
 
@@ -1411,6 +1453,8 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 				ttlb = tv_us(tv_diff(&hs->req_date, &date));
 				thrs_info[tid].tot_lbs++;
 				thrs_info[tid].tot_ttlb += ttlb;
+				if (arg_pctl)
+					thrs_info[tid].ttlb_pct[to_uf16(ttlb)]++;
 			}
 		    break;
 		}
@@ -2354,6 +2398,72 @@ void sigint_handler(int sig)
 	signal(SIGINT, SIG_DFL);
 }
 
+/* Report ttfb/ttlb percentiles collected under -P, merging every
+ * thread's counters into thread 0's first.
+ */
+static void hld_report_percentiles(void)
+{
+	uint64_t tot_ttfb, tot_ttlb;
+	uint64_t cur_ttfb, cur_ttlb;
+	int ttfb_idx, ttlb_idx;
+	double points[100];
+	double pct;
+	int nbpts;
+	int i, t;
+
+	/* build percentile points from 10% up to 100% */
+	nbpts = 0; pct = 0.1;
+	for (; (points[nbpts] = pct) < 0.500000; nbpts++, pct += 0.1);
+	for (; (points[nbpts] = pct) < 0.800000; nbpts++, pct += 0.05);
+	for (; (points[nbpts] = pct) < 0.900000; nbpts++, pct += 0.02);
+	for (; (points[nbpts] = pct) < 0.950000; nbpts++, pct += 0.01);
+	for (; (points[nbpts] = pct) < 0.990000; nbpts++, pct += 0.005);
+	for (; (points[nbpts] = pct) < 0.995000; nbpts++, pct += 0.001);
+	for (; (points[nbpts] = pct) < 0.999000; nbpts++, pct += 0.0005);
+	for (; (points[nbpts] = pct) < 0.999500; nbpts++, pct += 0.0001);
+	for (; (points[nbpts] = pct) < 0.999900; nbpts++, pct += 0.00005);
+	for (; (points[nbpts] = pct) < 0.999950; nbpts++, pct += 0.00001);
+	for (; (points[nbpts] = pct) < 0.999990; nbpts++, pct += 0.000005);
+	for (; (points[nbpts] = pct) < 0.999995; nbpts++, pct += 0.000005);
+	for (; (points[nbpts] = pct) < 0.999999; nbpts++, pct += 0.000004);
+	for (; (points[nbpts] = pct) < 1.000000; nbpts++, pct += 0.000001);
+
+	/* merge every thread's counters into thread 0's */
+	for (t = 1; t < arg_thrd; t++) {
+		for (i = 0; i < 65536; i++) {
+			thrs_info[0].ttfb_pct[i] += thrs_info[t].ttfb_pct[i];
+			thrs_info[0].ttlb_pct[i] += thrs_info[t].ttlb_pct[i];
+		}
+	}
+
+	tot_ttfb = tot_ttlb = 0;
+	for (i = 0; i < 65536; i++) {
+		tot_ttfb += thrs_info[0].ttfb_pct[i];
+		tot_ttlb += thrs_info[0].ttlb_pct[i];
+	}
+
+	printf("#======= Percentiles for time-to-first-byte and time-to-last-byte =======\n");
+	printf("# use $3:$5 $3:$7 with logscale X\n");
+	printf("# $1     $2      $3         $4       $5         $6       $7\n");
+	printf("#pctl   tail   invtail   ttfbcnt ttfb(ms)   ttlbcnt ttlb(ms)\n");
+
+	cur_ttfb = cur_ttlb = 0;
+	ttfb_idx = ttlb_idx = 0;
+	for (i = 0; i < nbpts; i++) {
+		while (ttfb_idx < 65536 && cur_ttfb + thrs_info[0].ttfb_pct[ttfb_idx] < points[i] * tot_ttfb)
+			cur_ttfb += thrs_info[0].ttfb_pct[ttfb_idx++];
+
+		while (ttlb_idx < 65536 && cur_ttlb + thrs_info[0].ttlb_pct[ttlb_idx] < points[i] * tot_ttlb)
+			cur_ttlb += thrs_info[0].ttlb_pct[ttlb_idx++];
+
+		printf("%-7g %-6g %-7.f %9llu %8g %9llu %8g\n",
+		       points[i]*100.0, 100.0*(1.0-points[i]),
+		       points[i] == 1.0 ? 250000 : 1.0/(1.0-points[i]),
+		       (unsigned long long)cur_ttfb, (double)from_uf16(ttfb_idx) / 1000.0,
+		       (unsigned long long)cur_ttlb, (double)from_uf16(ttlb_idx) / 1000.0);
+	}
+}
+
 /* Deallocate the thread information structs */
 static void hld_dealloc_thrs_info(void)
 {
@@ -2365,6 +2475,8 @@ static void hld_dealloc_thrs_info(void)
 	for (i = 0; i < arg_thrd; i++) {
 		task_destroy(thrs_info[i].rate_task);
 		thrs_info[i].rate_task = NULL;
+		free(thrs_info[i].ttfb_pct);
+		free(thrs_info[i].ttlb_pct);
 	}
 
 	free(thrs_info);
@@ -2480,6 +2592,15 @@ static int hld_alloc_thrs_info(void)
 
 	for (i = 0; i < arg_thrd; i++) {
 		thrs_info[i].maxusrs = (arg_usr + i) / arg_thrd;
+		if (arg_pctl) {
+			thrs_info[i].ttfb_pct = calloc(1 << 16, sizeof(*thrs_info[i].ttfb_pct));
+			thrs_info[i].ttlb_pct = calloc(1 << 16, sizeof(*thrs_info[i].ttlb_pct));
+			if (!thrs_info[i].ttfb_pct || !thrs_info[i].ttlb_pct) {
+				ha_alert("could not allocate percentile counters\n");
+				goto out;
+			}
+		}
+
 		if (HA_ATOMIC_LOAD(&arg_rate) || arg_serr == 2) {
 			struct task *t;
 

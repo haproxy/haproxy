@@ -46,6 +46,7 @@ static void  hld_usage(char *name, int argc)
 		"        -C               dump the configuration and exit\n"
 		"        -F               merge send() with connect's ACK\n"
 		"        -H \"foo:bar\"   add this header name and value\n"
+		"        -P               report ttfb/ttlb percentiles at the end\n"
 		"        -R <rate>        limit to this many request attempts per second (0)\n"
 		"        -T <time>        think time in ms after a response (0) (*)\n"
 		"        -v               shows version\n"
@@ -667,6 +668,13 @@ void haproxy_init_args(int argc, char **argv)
 				}
 
 				LIST_APPEND(&hld_hdrs, &hdr->list);
+			}
+			else if (*opt == 'P') {
+				/* empty option */
+				if (*(opt + 1))
+					hld_usage(progname, argc);
+
+				arg_pctl = 1;
 			}
 			else if (*opt == 'R') {
 				opt++;

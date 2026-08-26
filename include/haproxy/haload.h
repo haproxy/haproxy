@@ -77,6 +77,7 @@ extern int arg_fast;
 extern int arg_hscd;
 extern int arg_long;
 extern int arg_mreqs;
+extern int arg_pctl;
 extern int arg_post_sz;
 extern int arg_rate;
 extern int arg_reqs;
