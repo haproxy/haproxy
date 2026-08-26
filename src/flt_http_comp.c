@@ -26,6 +26,7 @@
 #include <haproxy/tools.h>
 
 #define COMP_STATE_PROCESSING 0x01
+#define COMP_STATE_EOM_SEEN   0x02
 
 const char *http_comp_req_flt_id = "comp-req filter";
 const char *http_comp_res_flt_id = "comp-res filter";
@@ -279,6 +280,16 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 	blk = htxret.blk;
 	offset = htxret.ret;
+
+	/* Remove EOM flag from HTX message to be sure to not expose it too
+	 * early to next filters. But save the information to be able to restore
+	 * the flag at the end of the compression.
+	 */
+	if (htx->flags & HTX_FL_EOM) {
+		st->flags |= COMP_STATE_EOM_SEEN;
+		htx->flags &= ~HTX_FL_EOM;
+	}
+
 	for (next = NULL; blk && len; blk = next) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
@@ -298,7 +309,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		switch (type) {
 			case HTX_BLK_DATA:
 				/* it is the last data block */
-				last = (!next && (htx->flags & HTX_FL_EOM));
+				last = (!next && (st->flags & COMP_STATE_EOM_SEEN));
 				v = htx_get_blk_value(htx, blk);
 				v = istadv(v, offset);
 				if (v.len > len) {
@@ -361,6 +372,12 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	}
 
   end:
+	/* The compression is finished and we must now restore the EOM flog on
+	 * the HTX message.
+	 */
+	if ((st->flags & (COMP_STATE_PROCESSING|COMP_STATE_EOM_SEEN)) == COMP_STATE_EOM_SEEN)
+		htx->flags |= HTX_FL_EOM;
+
 	if (to_forward != consumed)
 		flt_update_offsets(filter, msg->chn, to_forward - consumed);
 
@@ -384,6 +401,9 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	return to_forward;
 
   error:
+	/* On error, restore HTX_FL_EOM flag */
+	if (st->flags & COMP_STATE_EOM_SEEN)
+		htx_set_eom(htx);
 	return -1;
 }
 
