@@ -1401,7 +1401,14 @@ int sink_resolve_logger_buffer(struct logger *logger, char **msg)
 
 	BUG_ON(target->type != LOG_TARGET_BUFFER || (target->flags & LOG_TARGET_FL_RESOLVED));
 	if (target->addr) {
-		sink = sink_new_from_logger(logger);
+		/* The same "log" directive may exist as multiple logger copies:
+		 * dup_logger() is used for "log global", either directly or via
+		 * a defaults section, as well as for internal proxies. Let's be
+		 * careful not to re-create a new ring for each reference!
+		 */
+		sink = sink_find(target->ring_name);
+		if (!sink)
+			sink = sink_new_from_logger(logger);
 		if (!sink) {
 			memprintf(msg, "cannot be initialized (failed to create implicit ring)");
 			err_code |= ERR_ALERT | ERR_FATAL;
