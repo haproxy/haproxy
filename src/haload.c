@@ -74,10 +74,20 @@ struct hld_thr_info {
 /* User flags */
 #define HLD_USR_FL_STOP  0x00000001 // this user must stop sending requests
 
+/* one cookie held by a user, name and value are owned copies (see
+ * istdup()): the HTX buffer they were read from is reused right after.
+ */
+struct hld_cookie {
+	struct ist name;
+	struct ist value;
+	struct list list;
+};
+
 struct hld_usr {
 	struct task *task;
 	struct session *sess;
 	struct list strms;
+	struct list cookies;   // cookies set by the server so far, struct hld_cookie
 	struct hld_url *urls;
 	struct hld_url *cur_url;
 	int nreqs;
@@ -1132,6 +1142,24 @@ static int hldstream_build_http_req(struct hldstream *hs, struct ist path)
 		}
 	}
 
+	if (!LIST_ISEMPTY(&hs->usr->cookies)) {
+		struct hld_cookie *ck;
+
+		chunk_reset(&trash);
+		list_for_each_entry(ck, &hs->usr->cookies, list) {
+			if (trash.data)
+				chunk_appendf(&trash, "; ");
+
+			chunk_appendf(&trash, "%.*s=%.*s", (int)ck->name.len, ck->name.ptr,
+			              (int)ck->value.len, ck->value.ptr);
+		}
+
+		if (!htx_add_header(htx, ist("Cookie"), ist2(trash.area, trash.data))) {
+			TRACE_ERROR("could not add cookie header", HLD_STRM_EV_TX, hs);
+			goto err;
+		}
+	}
+
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto err;
 
@@ -1231,6 +1259,66 @@ static int hldstream_htx_buf_snd(struct connection *conn, struct hldstream *hs)
 	return ret;
 }
 
+/* Split name=value out of a Set-Cookie value, using
+ * http_extract_cookie_value() for a properly parsed value. The name
+ * is found by hand since that function needs it to already be known.
+ * Return 1 if succeeded, 0 if not.
+ */
+static inline int hld_split_cookie(struct ist v, struct ist *name, struct ist *value)
+{
+	char *eq, *end = istend(v);
+	char *val_ptr;
+	size_t val_len;
+
+	for (eq = istptr(v); eq < end && *eq != '=' && *eq != ';'; eq++)
+		;
+
+	if (eq == end || *eq != '=')
+		return 0;
+
+	*name = ist2(istptr(v), eq - istptr(v));
+	if (!http_extract_cookie_value(istptr(v), end, istptr(v), eq - istptr(v), 0, &val_ptr, &val_len))
+		return 0;
+
+	*value = ist2(val_ptr, val_len);
+	return 1;
+}
+
+/* Add or update a cookie for <usr>, copying <name> and <value>. */
+static inline void hld_usr_set_cookie(struct hld_usr *usr, struct ist name, struct ist value)
+{
+	struct hld_cookie *ck;
+	struct ist new_value;
+
+	list_for_each_entry(ck, &usr->cookies, list) {
+		if (!isteq(ck->name, name))
+			continue;
+
+		new_value = istdup(value);
+		if (!isttest(new_value))
+			return;
+
+		istfree(&ck->value);
+		ck->value = new_value;
+		return;
+	}
+
+	ck = malloc(sizeof(*ck));
+	if (!ck)
+		return;
+
+	ck->name = istdup(name);
+	ck->value = istdup(value);
+	if (!isttest(ck->name) || !isttest(ck->value)) {
+		istfree(&ck->name);
+		istfree(&ck->value);
+		free(ck);
+		return;
+	}
+
+	LIST_APPEND(&usr->cookies, &ck->list);
+}
+
 /* Handle HTX data to be received by <h> haload stream. Also set
  * <*fin> to 1 if the end of stream is reached.
  */
@@ -1272,7 +1360,9 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 		sc_ep_clr(hs->sc, SE_FL_WANT_ROOM);
 		read = CALL_MUX_WITH_RET(conn->mux, rcv_buf(hs->sc, &hs->bi, max, 0));
 		if (!(hs->flags & HLD_STRM_ST_GOT_RESP_SL) && read && !sl) {
+			struct http_hdr_ctx ctx;
 			int status;
+
 			sl = http_get_stline(htx_from_buf(&hs->bi));
 			if (!sl) {
 				TRACE_ERROR("start line not found", HLD_STRM_EV_RX, hs);
@@ -1285,6 +1375,15 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 			TRACE_PRINTF(TRACE_LEVEL_PROTO, HLD_STRM_EV_RX, hs, 0, 0, 0,
 			             "HTTP status: %d cur_read=%d",
 			             status, (int)cur_read);
+
+			ctx.blk = NULL;
+			while (http_find_header(htx_from_buf(&hs->bi), ist("Set-Cookie"), &ctx, 1)) {
+				struct ist name, value;
+
+				if (hld_split_cookie(ctx.value, &name, &value))
+					hld_usr_set_cookie(hs->usr, name, value);
+			}
+
 			if (arg_hscd)
 				thrs_info[tid].tot_sc[status * 41 / 4096 - 1]++;
 			if (arg_hscd == 2) {
@@ -1805,12 +1904,20 @@ static inline struct hld_path *hld_next_path(struct hld_path *list,
 static inline void hld_usr_release(struct hld_usr **usr)
 {
 	struct hld_url *url;
+	struct hld_cookie *ck, *ck_back;
 
 	url = (*usr)->urls;
 	while (url) {
 		struct hld_url *url_next = url->next;
 		ha_free(&url);
 		url = url_next;
+	}
+
+	list_for_each_entry_safe(ck, ck_back, &(*usr)->cookies, list) {
+		LIST_DELETE(&ck->list);
+		istfree(&ck->name);
+		istfree(&ck->value);
+		ha_free(&ck);
 	}
 
 	task_destroy((*usr)->task);
@@ -1999,6 +2106,7 @@ static inline struct hld_usr *hld_new_usr(int nreqs, int tid)
 	usr->nreqs = nreqs;
 	usr->ramp_gen = HA_ATOMIC_LOAD(&err_ramp_gen);
 	LIST_INIT(&usr->strms);
+	LIST_INIT(&usr->cookies);
 
 	for (cfg = hld_url_cfgs; cfg; cfg = cfg->next) {
 		struct hld_url *url;
