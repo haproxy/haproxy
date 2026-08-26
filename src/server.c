@@ -6742,11 +6742,12 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	 * operation are completed.
 	 */
 	if (!srv->puid) {
-		srv->puid = server_get_next_id(be, 1);
+		srv->puid = server_get_next_id(be, be->conf.first_unused_id ? be->conf.first_unused_id : 1);
 		if (!srv->puid) {
 			ha_alert("Cannot attach server : no id left in proxy\n");
 			goto out;
 		}
+		be->conf.first_unused_id = srv->puid;
 	}
 
 	if (!srv_alloc_lb(srv, be)) {
@@ -6772,6 +6773,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	/* insert the server in the backend trees */
 	server_index_id(be, srv);
+	if (be->conf.first_unused_id == srv->puid)
+		be->conf.first_unused_id = srv->puid + 1;
+
 	_srv_register_name(srv, be);
 	/* addr_key could be NULL if FQDN resolution is postponed (ie: add server from cli) */
 	if (srv->addr_key)
@@ -7001,6 +7005,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	proxy_take(srv->proxy);
 
 	/* remove srv from addr_node tree */
+	if (srv->puid < be->conf.first_unused_id)
+		be->conf.first_unused_id = srv->puid; // search from there for next add.
 	ceb32_item_delete(&be->conf.used_server_id, conf.puid_node, puid, srv);
 	cebuis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
 	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
