@@ -2434,6 +2434,7 @@ int sha1_hosturi(struct stream *s)
 
 	/* hash everything */
 	blk_SHA1_Init(&sha1_ctx);
+	blk_SHA1_Update(&sha1_ctx, &cache_hash_seed, sizeof(cache_hash_seed));
 	blk_SHA1_Update(&sha1_ctx, trash->area, trash->data);
 	blk_SHA1_Final((unsigned char *)txn->cache_hash, &sha1_ctx);
 
