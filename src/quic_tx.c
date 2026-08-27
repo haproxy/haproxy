@@ -2379,12 +2379,11 @@ REGISTER_UNITTEST("quic_tx", quic_tx_unittest);
 
 static int quic_stateless_reset_rate_init(void)
 {
-	/* split N across threads so the totals add up to exactly N: this
-	 * thread gets (N + tid) / nbthread. No flat ceil() here, since that
-	 * could push the total above N.
+	/* every thread gets the same share: (rate + nbthread - 1) / nbthread,
+	 * which stays strictly positive for any rate >= 1.
 	 */
 	quic_stateless_reset_rate =
-		(quic_tune.sec_stateless_reset_rate + tid) / global.nbthread;
+		(quic_tune.sec_stateless_reset_rate + global.nbthread - 1) / global.nbthread;
 	return 1;
 }
 REGISTER_PER_THREAD_INIT(quic_stateless_reset_rate_init);

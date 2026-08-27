@@ -5367,10 +5367,10 @@ tune.quic.mem.tx-max <size>
 
 tune.quic.sec.stateless-reset-rate <number>
   Sets the maximum total number of QUIC Stateless Reset packets emitted per
-  second, across all threads. Each thread gets its own even share of this
-  total, so the actual number sent per second may be slightly under or over
-  <number> depending on how evenly it divides by the thread count, but the
-  total across all threads never drifts from it over time.
+  second, across all threads. Each thread is given the same share of this
+  total, rounded up so that share always stays strictly positive. As a
+  result, when <number> does not divide evenly among the threads, the real
+  total emitted per second across all threads can be higher than <number>.
 
   The default value is 1000.
 
