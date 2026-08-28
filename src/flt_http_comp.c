@@ -80,11 +80,18 @@ comp_strm_init(struct stream *s, struct filter *filter)
 	st->flags     = 0;
 	filter->ctx   = st;
 
-	/* Register post-analyzer on AN_RES_WAIT_HTTP because we need to
-	 * analyze response headers before http-response rules execution
-	 * to be sure we can use res.comp and res.comp_algo sample
-	 * fetches */
-	filter->post_analyzers |= AN_RES_WAIT_HTTP;
+	if (filter->config->id == http_comp_res_flt_id) {
+		/* Register post-analyzer on AN_REQ_HTTP_INNER because we must select the
+		 * response algorithm from the client's "Accept-Encoding" before the
+		 * AN_REQ_FLT_HTTP_HDRS analyzer, so that no decompression filter may have
+		 * rewritten that header yet.
+		 *
+		 * Register post-analyzer on AN_RES_WAIT_HTTP because we need to
+		 * analyze response headers before http-response rules execution
+		 * to be sure we can use res.comp and res.comp_algo sample
+		 * fetches */
+		filter->post_analyzers |= (AN_REQ_HTTP_INNER|AN_RES_WAIT_HTTP);
+	}
 	return 1;
 }
 
@@ -230,10 +237,7 @@ comp_res_http_headers(struct stream *s, struct filter *filter, struct http_msg *
 	if (!(comp_flags & COMP_FL_DIR_RES))
 		goto end;
 
-
-	if (!(msg->chn->flags & CF_ISRESP))
-		select_compression_request_header(st, s, msg);
-	else {
+	if (msg->chn->flags & CF_ISRESP) {
 		/* Response headers have already been checked in
 		 * comp_res_http_post_analyze callback. */
 		if (st->comp_algo) {
@@ -253,16 +257,18 @@ comp_res_http_post_analyze(struct stream *s, struct filter *filter,
                            struct channel *chn, unsigned an_bit)
 {
 	struct http_txn   *txn = s->txn.http;
-	struct http_msg   *msg = &txn->rsp;
+	struct http_msg   *msg;
 	struct comp_state *st  = filter->ctx;
-
-	if (an_bit != AN_RES_WAIT_HTTP)
-		goto end;
 
 	if (!strm_fe(s)->comp && !s->be->comp)
 		goto end;
 
-	select_compression_response_header(st, s, msg);
+	msg = ((chn->flags & CF_ISRESP) ? &txn->rsp : &txn->req);
+
+	if (!(chn->flags & CF_ISRESP) && an_bit == AN_REQ_HTTP_INNER)
+		select_compression_request_header(st, s, msg);
+	else if ((chn->flags & CF_ISRESP) && an_bit == AN_RES_WAIT_HTTP)
+		select_compression_response_header(st, s, msg);
 
   end:
 	return 1;
