@@ -1,0 +1,234 @@
+varnishtest "Decompression of raw TCP streams"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(SLZ)'"
+
+feature ignore_unknown_macro
+
+# HAProxy is in TCP mode here, so it does not parse anything: the payloads
+# below are opaque byte streams for it. The clients and the servers only
+# agree on HTTP because it gives us a convenient and readable way to assert
+# on the *decompressed* bytes.
+#
+# Compressed payloads are injected as hex with "sendhex". They were produced
+# with the following helper, where <wbits> is 31 for gzip, 15 for zlib and -15
+# for raw deflate. The 4 gzip mtime bytes are zeroed so that the payloads stay
+# stable:
+#
+#   python3 -c 'import sys, zlib; \
+#     d = sys.stdin.buffer.read(); \
+#     c = zlib.compressobj(9, zlib.DEFLATED, <wbits>); \
+#     o = c.compress(d) + c.flush(); \
+#     o = (o[:4] + bytes(4) + o[8:]) if o[:2] == b"\x1f\x8b" else o; \
+#     print(o.hex().upper())'
+
+# gzip in both directions
+server s1 {
+	rxreq
+	expect req.method == "GET"
+	expect req.url == "/tcp-gzip"
+	expect req.http.host == "decomp"
+
+	# gzip("HTTP/1.1 200 OK\r\nContent-Length: 17\r\n\r\ntcp gzip response")
+	sendhex "1F8B0800000000000203F3080909D037D4335430323050F0F7E6E572CECF2B49"
+	sendhex "CD2BD1F549CD4B2FC9B0523034E7E5E2E52A492E5048AFCA2C50284A2D2EC8CF"
+	sendhex "2B4E0500771922E238000000"
+} -start
+
+# uslz-auto on the request only, exercised with a zlib stream then with a
+# raw deflate stream
+server s2 {
+	rxreq
+	expect req.url == "/tcp-auto-zlib"
+	txresp -body "zlib request seen"
+
+	accept
+
+	rxreq
+	expect req.url == "/tcp-auto-raw"
+	txresp -body "raw deflate request seen"
+} -start
+
+# raw deflate on the response only
+server s3 {
+	rxreq
+	expect req.url == "/tcp-raw-deflate"
+
+	# rawdeflate("HTTP/1.1 200 OK\r\nContent-Length: 25\r\n\r\ntcp raw-deflate response")
+	sendhex "F3080909D037D4335430323050F0F7E6E572CECF2B49CD2BD1F549CD4B2FC9B0"
+	sendhex "523032E1E5E2E52A492E50284A2CD74D494DCB492C4955284A2D2EC8CF2B4E05"
+	sendhex "00"
+} -start
+
+# decompression configured but disabled by the "none" mode
+server s4 {
+	rxreq
+	expect req.url == "/tcp-none"
+	expect req.body == "not compressed"
+	txresp -body "not compressed either"
+} -start
+
+# large payloads, to force the decompressed output to be drained over
+# several passes
+server s5 {
+	rxreq
+	expect req.url == "/tcp-big"
+	expect req.bodylen == 50000
+
+	# gzip("HTTP/1.1 200 OK\r\nContent-Length: 50000\r\n\r\n" + 50000 * "y")
+	sendhex "1F8B0800000000000203EDC1B10984300000C03E901DB2806F146C6CBF1114B4"
+	sendhex "7005D12A36697EFB770EB9BB69DFB7B6FB74A9CF39AD730CDFBBD4A3D46639CA"
+	sendhex "59AF310DF911430C3F0000000000000000000000000000000000000000000000"
+	sendhex "000000000000000000000000000000000000000000000000005EE50F669DE619"
+	sendhex "7AC30000"
+} -start
+
+# "always" mode on a stream that is not compressed at all: the stream must be
+# aborted, so the server must never see any data
+server s6 {
+	expect_close
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode tcp
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen tcp-gzip
+	mode tcp
+	bind "fd@${tcp_gzip}"
+	decompression algo-req gzip
+	decompression mode-req always
+	decompression algo-res gzip
+	decompression mode-res always
+	filter decomp-req
+	filter decomp-res
+	server s1 ${s1_addr}:${s1_port}
+
+    listen tcp-auto
+	mode tcp
+	bind "fd@${tcp_auto}"
+	# "uslz-auto" detects the zlib/gzip wrapper and falls back to raw
+	# deflate otherwise. It is only allowed on TCP proxies.
+	decompression algo-req uslz-auto
+	decompression mode-req always
+	filter decomp-req
+	server s2 ${s2_addr}:${s2_port}
+
+    listen tcp-raw-deflate
+	mode tcp
+	bind "fd@${tcp_raw_deflate}"
+	decompression algo-res raw-deflate
+	decompression mode-res always
+	filter decomp-res
+	server s3 ${s3_addr}:${s3_port}
+
+    listen tcp-none
+	mode tcp
+	bind "fd@${tcp_none}"
+	# algorithms are configured but the "none" mode disables the
+	# decompression: both directions must pass through untouched
+	decompression algo-req gzip
+	decompression mode-req none
+	decompression algo-res gzip
+	decompression mode-res none
+	filter decomp-req
+	filter decomp-res
+	server s4 ${s4_addr}:${s4_port}
+
+    listen tcp-big
+	mode tcp
+	bind "fd@${tcp_big}"
+	decompression algo-req gzip
+	decompression mode-req always
+	decompression algo-res gzip
+	decompression mode-res always
+	filter decomp-req
+	filter decomp-res
+	server s5 ${s5_addr}:${s5_port}
+
+    listen tcp-fail
+	mode tcp
+	bind "fd@${tcp_fail}"
+	decompression algo-req gzip
+	decompression mode-req always
+	filter decomp-req
+	server s6 ${s6_addr}:${s6_port}
+} -start
+
+# 1. gzip request and gzip response on the same connection. Both streams are
+#    independent, each one is decompressed on its own way.
+client c1 -connect ${h1_tcp_gzip_sock} {
+	# gzip("GET /tcp-gzip HTTP/1.1\r\nHost: decomp\r\n\r\n")
+	sendhex "1F8B080000000000020373770D51D02F492ED04DAFCA2C50F0080909D037D433"
+	sendhex "E4E5F2C82F2EB15248494DCECF2DE0E5E2E50200B410B0A128000000"
+
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "tcp gzip response"
+} -run
+
+# 2. zlib stream, detected by "uslz-auto"
+client c2 -connect ${h1_tcp_auto_sock} {
+	# zlib("GET /tcp-auto-zlib HTTP/1.1\r\nHost: decomp\r\n\r\n")
+	sendhex "78DA73770D51D02F492ED04D2C2DC9D7ADCAC94C52F0080909D037D433E4E5F2"
+	sendhex "C82F2EB15248494DCECF2DE0E5E2E502003FB40D0F"
+
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "zlib request seen"
+} -run
+
+# 3. raw deflate stream, "uslz-auto" falls back to it since there is no
+#    recognizable wrapper
+client c3 -connect ${h1_tcp_auto_sock} {
+	# rawdeflate("GET /tcp-auto-raw HTTP/1.1\r\nHost: decomp\r\n\r\n")
+	sendhex "73770D51D02F492ED04D2C2DC9D72D4A2C57F0080909D037D433E4E5F2C82F2E"
+	sendhex "B15248494DCECF2DE0E5E2E50200"
+
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "raw deflate request seen"
+} -run
+
+# 4. raw deflate on the response path only, the request is sent as-is
+client c4 -connect ${h1_tcp_raw_deflate_sock} {
+	txreq -url "/tcp-raw-deflate" -hdr "Host: decomp" -nohost
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "tcp raw-deflate response"
+} -run
+
+# 5. "none" mode, nothing must be altered in either direction
+client c5 -connect ${h1_tcp_none_sock} {
+	txreq -url "/tcp-none" -body "not compressed"
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "not compressed either"
+} -run
+
+# 6. large gzip payloads in both directions
+client c6 -connect ${h1_tcp_big_sock} {
+	# gzip("GET /tcp-big HTTP/1.1\r\nHost: decomp\r\nContent-Length: 50000\r\n\r\n" + 50000 * "x")
+	sendhex "1F8B0800000000000203EDC1310E82300000C0BD49FFD00F2032B8B01A238383"
+	sendhex "435F201274B025B183CFD77798BB3B9F72EADBBC75B7E79AA69CAFFDB01B6298"
+	sendhex "EABB8DE9BECCF5B5C570ACA52DA57597A5ACED31A6C3FE2786183E0000000000"
+	sendhex "0000000000000000000000000000000000000000000000000000000000000000"
+	sendhex "0000000000000000000000FC952FA3C1D4B28EC30000"
+
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 50000
+} -run
+
+# 7. uncompressed stream while "always" is requested: the stream is rejected
+client c7 -connect ${h1_tcp_fail_sock} {
+	txreq -url "/tcp-fail"
+	expect_close
+} -run

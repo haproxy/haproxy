@@ -1,0 +1,292 @@
+varnishtest "HTTP decompression, requests and responses"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(SLZ)'"
+
+feature ignore_unknown_macro
+
+# response decompression in "auto" mode
+server s1 {
+	# 1. no Content-Encoding at all: nothing must be touched, the framing
+	#    must be left as-is
+	rxreq
+	expect req.url == "/plain"
+	# supported algorithms are advertised to the server
+	expect req.http.accept-encoding == "gzip"
+	txresp -body "not compressed"
+
+	# 2. gzip body: decompressed, and switched to the chunked encoding
+	rxreq
+	expect req.url == "/gzip"
+	txresp -gzipbody "decompressed by haproxy"
+
+	# 3. unsupported coding: "auto" is best-effort, the body is forwarded
+	#    as-is
+	rxreq
+	expect req.url == "/unsupported"
+	txresp -hdr "Content-Encoding: br" -body "still compressed"
+
+	# 4. 304 has no body: everything, including Content-Encoding, must be
+	#    preserved as it describes the stored representation
+	rxreq
+	expect req.url == "/304"
+	txresp -status 304 -nolen -hdr "Content-Encoding: gzip" -hdr "ETag: \"strong\""
+
+	# 5. 204 has no body either
+	rxreq
+	expect req.url == "/204"
+	txresp -status 204 -nolen -hdr "Content-Encoding: gzip"
+
+	# 6. a response to HEAD has no body, the announced Content-Length must
+	#    not be replaced by a chunked encoding
+	rxreq
+	expect req.url == "/head"
+	expect req.method == "HEAD"
+	txresp -nolen -hdr "Content-Encoding: gzip" -hdr "Content-Length: 100"
+
+	# 7. in "auto" mode the client's own Accept-Encoding is preserved
+	rxreq
+	expect req.url == "/keep-ae"
+	expect req.http.accept-encoding == "br"
+	txresp -gzipbody "decompressed by haproxy"
+
+	# 8. a large body, decompressed over several passes
+	rxreq
+	expect req.url == "/big"
+	txresp -gziplen 50000
+} -start
+
+# response decompression in "always" mode, with two algorithms
+server s2 {
+	rxreq
+	expect req.url == "/gzip"
+	# "always" mode drops the client's Accept-Encoding and only advertises
+	# what we can decompress
+	expect req.http.accept-encoding != "br"
+	txresp -gzipbody "gzip decompressed"
+
+	rxreq
+	expect req.url == "/deflate"
+	txresp -nolen -hdr "Content-Encoding: deflate" -hdr "Content-Length: 21"
+	# zlib("deflated body")
+	sendhex "78DA4B494DCB492C494D5148CA4FA9040023510508"
+
+	accept
+
+	# an unsupported coding is a hard error in "always" mode
+	rxreq
+	expect req.url == "/unsupported"
+	txresp -hdr "Content-Encoding: br" -body "still compressed"
+} -start
+
+# response decompression of a raw deflate body
+server s3 {
+	rxreq
+	expect req.url == "/raw-deflate"
+	txresp -nolen -hdr "Content-Encoding: deflate" -hdr "Content-Length: 19"
+	# rawdeflate("raw deflated body")
+	sendhex "2B4A2C5748494DCB492C494D5148CA4FA90400"
+} -start
+
+# request decompression in "always" mode
+server s4 {
+	# 1. gzip request body: decompressed and rechunked
+	rxreq
+	expect req.url == "/gzip"
+	expect req.http.content-encoding == "<undef>"
+	expect req.http.content-length == "<undef>"
+	expect req.http.transfer-encoding == "chunked"
+	expect req.body == "decompressed request"
+	txresp -body "ok"
+
+	# 2. a request that is not compressed at all is not an error, there is
+	#    simply nothing to decompress
+	rxreq
+	expect req.url == "/plain"
+	expect req.http.transfer-encoding == "<undef>"
+	expect req.body == "plain request"
+	txresp -body "ok"
+
+	# 3. a large gzip request body
+	rxreq
+	expect req.url == "/big"
+	expect req.bodylen == 50000
+	txresp -body "ok"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen res-auto
+	mode http
+	bind "fd@${res_auto}"
+	decompression algo-res gzip
+	decompression mode-res auto
+	filter decomp-res
+	server s1 ${s1_addr}:${s1_port}
+
+    listen res-always
+	mode http
+	bind "fd@${res_always}"
+	decompression algo-res gzip deflate
+	decompression mode-res always
+	filter decomp-res
+	server s2 ${s2_addr}:${s2_port}
+
+    listen res-raw-deflate
+	mode http
+	bind "fd@${res_raw_deflate}"
+	# "raw-deflate" is advertised as "deflate" in Accept-Encoding, like
+	# for the compression
+	decompression algo-res raw-deflate
+	decompression mode-res always
+	filter decomp-res
+	server s3 ${s3_addr}:${s3_port}
+
+    listen req-always
+	mode http
+	bind "fd@${req_always}"
+	decompression algo-req gzip
+	decompression mode-req always
+	filter decomp-req
+	server s4 ${s4_addr}:${s4_port}
+} -start
+
+client c1 -connect ${h1_res_auto_sock} {
+	# 1. uncompressed response, untouched
+	txreq -url "/plain"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.http.transfer-encoding == "<undef>"
+	expect resp.http.content-length == "14"
+	expect resp.body == "not compressed"
+
+	# 2. gzip response, decompressed. The body size is unknown when the
+	#    headers are processed, so the message is switched to chunked and
+	#    the Content-Length is dropped.
+	txreq -url "/gzip"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.http.content-length == "<undef>"
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.body == "decompressed by haproxy"
+
+	# 3. unsupported coding, forwarded as-is in "auto" mode
+	txreq -url "/unsupported"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "br"
+	expect resp.http.transfer-encoding == "<undef>"
+	expect resp.body == "still compressed"
+
+	# 4. 304, left completely untouched
+	txreq -url "/304"
+	rxresp
+	expect resp.status == 304
+	expect resp.http.content-encoding == "gzip"
+	expect resp.http.transfer-encoding == "<undef>"
+	expect resp.http.etag == "\"strong\""
+
+	# 5. 204, left completely untouched
+	txreq -url "/204"
+	rxresp
+	expect resp.status == 204
+	expect resp.http.content-encoding == "gzip"
+	expect resp.http.transfer-encoding == "<undef>"
+
+	# 6. response to HEAD, left completely untouched
+	txreq -req "HEAD" -url "/head"
+	rxresp -no_obj
+	expect resp.status == 200
+	expect resp.http.content-encoding == "gzip"
+	expect resp.http.content-length == "100"
+	expect resp.http.transfer-encoding == "<undef>"
+
+	# 7. the client's Accept-Encoding is preserved in "auto" mode
+	txreq -url "/keep-ae" -hdr "Accept-Encoding: br"
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "decompressed by haproxy"
+
+	# 8. large body
+	txreq -url "/big"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.bodylen == 50000
+} -run
+
+client c2 -connect ${h1_res_always_sock} {
+	# 1. gzip
+	txreq -url "/gzip" -hdr "Accept-Encoding: br"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.body == "gzip decompressed"
+
+	# 2. zlib deflate
+	txreq -url "/deflate"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.http.content-length == "<undef>"
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.body == "deflated body"
+} -run
+
+# an unsupported coding cannot be decompressed while "always" was requested:
+# the stream is aborted. Note the headers were already received at this point,
+# so for now nothing at all is reported to the client, the connection is just
+# closed.
+client c3 -connect ${h1_res_always_sock} {
+	txreq -url "/unsupported"
+	expect_close
+} -run
+
+client c4 -connect ${h1_res_raw_deflate_sock} {
+	txreq -url "/raw-deflate"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.body == "raw deflated body"
+} -run
+
+client c5 -connect ${h1_req_always_sock} {
+	# 1. gzip request body
+	txreq -url "/gzip" -gzipbody "decompressed request"
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "ok"
+
+	# 2. uncompressed request body
+	txreq -url "/plain" -body "plain request"
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "ok"
+
+	# 3. large gzip request body
+	txreq -url "/big" -gziplen 50000
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "ok"
+} -run
+
+# an unsupported coding on the request while "always" was requested: the
+# stream is aborted before the request is sent to the server
+client c6 -connect ${h1_req_always_sock} {
+	txreq -url "/unsupported" -hdr "Content-Encoding: br" -body "compressed"
+	rxresp
+	expect resp.status == 400
+} -run

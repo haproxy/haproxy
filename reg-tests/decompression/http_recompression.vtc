@@ -1,0 +1,227 @@
+varnishtest "HTTP decompression chained with the compression"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(SLZ)'"
+
+feature ignore_unknown_macro
+
+# The proxies below decompress the messages they receive and compress them
+# again before forwarding them. This is the typical setup where haproxy has to
+# inspect or transform a compressed payload, or where the two endpoints don't
+# agree on the same coding.
+
+# same coding on both sides
+server s1 {
+	# 1. the request was gzipped by the client, decompressed by the proxy,
+	#    then gzipped again. The server must see a brand new gzip stream
+	#    over a chunked message.
+	rxreq
+	expect req.url == "/both-ways"
+	expect req.http.content-encoding == "gzip"
+	expect req.http.content-length == "<undef>"
+	expect req.http.transfer-encoding == "chunked"
+	gunzip
+	expect req.body == "request from the client"
+
+	# the response decompression advertises what we support, so the server
+	# is free to compress its response
+	expect req.http.accept-encoding == "gzip"
+	txresp -hdr "Content-Type: text/plain" -gzipbody "response from the server"
+
+	# 2. nothing to decompress in either direction: the decompression must
+	#    not get in the way of the compression
+	rxreq
+	expect req.url == "/nothing-to-decompress"
+	expect req.http.content-encoding == "gzip"
+	gunzip
+	expect req.body == "uncompressed request"
+	txresp -hdr "Content-Type: text/plain" -body "uncompressed response"
+
+	# 3. the client accepts no coding at all. The response decompression
+	#    still advertises gzip to the server on its own behalf, but that
+	#    must not be mistaken for the client's own "Accept-Encoding": the
+	#    response has to be delivered decompressed.
+	rxreq
+	expect req.url == "/no-accept-encoding"
+	expect req.http.accept-encoding == "gzip"
+	txresp -hdr "Content-Type: text/plain" -gzipbody "third response"
+} -start
+
+# the client only knows gzip, the server only knows deflate
+server s2 {
+	rxreq
+	expect req.url == "/transcode"
+	# the request was gzipped by the client and is deflated for the server
+	expect req.http.content-encoding == "deflate"
+	expect req.http.content-length == "<undef>"
+	expect req.http.transfer-encoding == "chunked"
+	# only what we are able to decompress on the response path is
+	# advertised, the client's own "gzip" must not leak here
+	expect req.http.accept-encoding == "deflate"
+
+	txresp -nolen \
+	  -hdr "Content-Type: text/plain" \
+	  -hdr "Content-Encoding: deflate" \
+	  -hdr "Content-Length: 30"
+	# zlib("deflated by the server")
+	sendhex "78DA4B494DCB492C494D5148AA5428C94855284E2D2A4B2D02005EB4084D"
+} -start
+
+# same as s2, but with the compression offloading enabled
+server s3 {
+	rxreq
+	expect req.url == "/offload"
+	expect req.http.content-encoding == "deflate"
+	expect req.http.transfer-encoding == "chunked"
+	# "compression offload" removed the client's own codings, so only the
+	# one advertised by the response decompression is left. Note the
+	# decompression is in "auto" mode here, it does not remove anything by
+	# itself.
+	expect req.http.accept-encoding == "deflate"
+
+	txresp -nolen \
+	  -hdr "Content-Type: text/plain" \
+	  -hdr "Content-Encoding: deflate" \
+	  -hdr "ETag: \"strong\"" \
+	  -hdr "Content-Length: 30"
+	# zlib("offloaded and deflated")
+	sendhex "78DACB4F4BCBC94F4C494D5148CC4B5148494DCB492C494D0100603B0851"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen recomp
+	mode http
+	bind "fd@${recomp}"
+
+	decompression algo-req gzip
+	decompression mode-req always
+	decompression algo-res gzip
+	decompression mode-res always
+
+	compression direction both
+	compression algo-req gzip
+	compression type-req text/plain
+	compression algo-res gzip
+	compression type-res text/plain
+
+	server s1 ${s1_addr}:${s1_port}
+
+    listen recomp-transcode
+	mode http
+	bind "fd@${recomp_transcode}"
+
+	decompression algo-req gzip
+	decompression mode-req always
+	decompression algo-res deflate
+	decompression mode-res always
+
+	compression direction both
+	compression algo-req deflate
+	compression type-req text/plain
+	compression algo-res gzip
+	compression type-res text/plain
+
+	server s2 ${s2_addr}:${s2_port}
+
+    listen recomp-offload
+	mode http
+	bind "fd@${recomp_offload}"
+
+	decompression algo-req gzip
+	decompression mode-req always
+	decompression algo-res deflate
+	decompression mode-res auto
+
+	compression direction both
+	compression algo-req deflate
+	compression type-req text/plain
+	compression algo-res gzip
+	compression type-res text/plain
+	# hide the client's codings from the server. The codings advertised by
+	# the response decompression must survive it, otherwise the server
+	# would stop compressing and there would be nothing left to decompress.
+	compression offload
+
+	server s3 ${s3_addr}:${s3_port}
+} -start
+
+client c1 -connect ${h1_recomp_sock} {
+	# 1. compressed in both directions
+	txreq -url "/both-ways" \
+	  -hdr "Accept-Encoding: gzip" \
+	  -hdr "Content-Type: text/plain" \
+	  -gzipbody "request from the client"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "gzip"
+	expect resp.http.transfer-encoding == "chunked"
+	gunzip
+	expect resp.body == "response from the server"
+
+	# 2. uncompressed in both directions: only the compression must kick in
+	txreq -url "/nothing-to-decompress" \
+	  -hdr "Accept-Encoding: gzip" \
+	  -hdr "Content-Type: text/plain" \
+	  -body "uncompressed request"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "gzip"
+	expect resp.http.transfer-encoding == "chunked"
+	gunzip
+	expect resp.body == "uncompressed response"
+
+	# 3. no "Accept-Encoding" from the client: the response is only
+	#    decompressed, it must not be compressed again
+	txreq -url "/no-accept-encoding" \
+	  -hdr "Content-Type: text/plain" \
+	  -gzipbody "third request"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.body == "third response"
+} -run
+
+# gzip on the client side, deflate on the server side
+client c2 -connect ${h1_recomp_transcode_sock} {
+	txreq -url "/transcode" \
+	  -hdr "Accept-Encoding: gzip" \
+	  -hdr "Content-Type: text/plain" \
+	  -gzipbody "gzipped by the client"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "gzip"
+	expect resp.http.content-length == "<undef>"
+	expect resp.http.transfer-encoding == "chunked"
+	gunzip
+	expect resp.body == "deflated by the server"
+} -run
+
+# same as c2, but the compression offloading hides the client's codings from
+# the server
+client c3 -connect ${h1_recomp_offload_sock} {
+	txreq -url "/offload" \
+	  -hdr "Accept-Encoding: gzip, br" \
+	  -hdr "Content-Type: text/plain" \
+	  -gzipbody "gzipped by the client"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "gzip"
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.http.vary == "Accept-Encoding"
+	# both filters alter the representation but the ETag must only be
+	# weakened once
+	expect resp.http.etag == "W/\"strong\""
+	gunzip
+	expect resp.body == "offloaded and deflated"
+} -run
