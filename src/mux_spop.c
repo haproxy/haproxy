@@ -2066,7 +2066,7 @@ static void spop_process_demux(struct spop_conn *spop_conn)
 			TRACE_STATE("waiting AGENT HELLO frame to be sent", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR|SPOP_EV_RX_HELLO, spop_conn->conn);
 			goto out;
 		}
-		else { /* AGENT_HELLO OR CLOSING */
+		else if (spop_conn->dsi == -1) { /* AGENT_HELLO OR CLOSING */
                        /* ensure that what is pending is a valid AGENT HELLO/DISCONNECT frame. */
 			TRACE_STATE("receiving AGENT HELLO/DISCONNECT frame header", SPOP_EV_RX_FRAME|SPOP_EV_RX_FHDR, spop_conn->conn);
 			if (!spop_get_frame_hdr(&spop_conn->dbuf, &hdr)) {
