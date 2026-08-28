@@ -7923,6 +7923,12 @@ static int h2_subscribe(struct stconn *sc, int event_type, struct wait_event *es
 
 	if (event_type & SUB_RETRY_SEND) {
 		TRACE_DEVEL("subscribe(send)", H2_EV_STRM_SEND, h2c->conn, h2s);
+		/*
+		 * If the caller subscribes, that means he was enable to send
+		 * data, so let's not pretend it has already been notified
+		 * he could, this is obviously obsolete.
+		 */
+		h2s->flags &= ~H2_SF_NOTIFIED;
 		if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
 		    !LIST_INLIST(&h2s->list)) {
 			if (h2s->flags & H2_SF_BLK_MFCTL) {
