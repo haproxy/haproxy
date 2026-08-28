@@ -2767,12 +2767,22 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		if (px->mode == PR_MODE_SPOP)
 			px->options |= PR_O_REUSE_ALWS;
 
-		if ((px->mode != PR_MODE_HTTP) && newsrv->flags & SRV_F_RHTTP) {
-			ha_alert("%s '%s' : server %s uses reverse HTTP addressing which can only be used with HTTP mode.\n",
-			         proxy_type_str(px), px->id, newsrv->id);
-			cfgerr++;
-			*err_code |= ERR_FATAL | ERR_ALERT;
-			goto out;
+		if (newsrv->flags & SRV_F_RHTTP) {
+			if ((global.tune.options & GTUNE_NO_TG_FD_SHARING) &&
+			    (global.nbtgroups > 1)) {
+				ha_alert("%s '%s' : server %s uses reverse HTTP addressing which is incompatible with tune.fd.tables per-thread-group.\n",
+				         proxy_type_str(px), px->id, newsrv->id);
+				cfgerr++;
+				*err_code |= ERR_FATAL | ERR_ALERT;
+				goto out;
+			}
+			if (px->mode != PR_MODE_HTTP) {
+				ha_alert("%s '%s' : server %s uses reverse HTTP addressing which can only be used with HTTP mode.\n",
+					 proxy_type_str(px), px->id, newsrv->id);
+				cfgerr++;
+				*err_code |= ERR_FATAL | ERR_ALERT;
+				goto out;
+			}
 		}
 	}
 
