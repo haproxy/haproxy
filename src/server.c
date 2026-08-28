@@ -4317,7 +4317,7 @@ int parse_server(const char *file, int linenum, char **args,
 
 	if (newsrv != from) {
 		/* This will copy <from> settings or init them if NULL. */
-		srv_settings_cpy(newsrv, from, !!(parse_flags & SRV_PARSE_TEMPLATE));
+		srv_settings_cpy(newsrv, from, 0);
 	}
 
 	if (!newsrv->conf.file) // note: do it only once for default-server
