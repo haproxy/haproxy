@@ -422,31 +422,6 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 	return -1;
 }
 
-/* Returns decompression options to be used for <s> stream. Only
- * call this function when you know for sure that decompression filter
- * was declared on the proxy.
- * This function will never return NULL.
- */
-static inline struct decomp *stream_get_decomp(struct stream *s)
-{
-	struct decomp *decomp;
-
-	/* we consider be decompression options in over frontend ones
-	 * unless it is not set at all on the be
-	 */
-	if (s->be->decomp && s->be->decomp->res.algos != NULL)
-		decomp = s->be->decomp;
-	else
-		decomp = strm_fe(s)->decomp;
-
-	/* we end up there via a filter callback in decompression context, thus
-	 * we are not supposed to be called w/o decomp options allocated.
-	 */
-	BUG_ON(decomp == NULL);
-
-	return decomp;
-}
-
 /* checks the input HTTP headers to guess if the body is compressed and if we
  * support the encoding used. Then if we enabled decompression, add relevant
  * headers to stream the body in chunked mode since we don't know what will
