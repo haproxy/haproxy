@@ -1,0 +1,85 @@
+varnishtest "TLS ClientHello parser: cipher_len must not exceed the ClientHello"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.2-dev11)'"
+
+# smp_client_hello_parse() validates the CipherSuite length with
+#
+#     ext_len > hs_len
+#
+# where <hs_len> is the number of ClientHello bytes remaining *including* the
+# 2-byte cipher_len field itself.  The CLIENTHELLO_CIPHERSUITE exit path
+# returns <data> (pointing at cipher_len) together with *len = cipher_len, and
+# smp_fetch_ssl_cipherlist() then publishes <data + 2> over <cipher_len> bytes.
+# The check must therefore be "ext_len > hs_len - 2".
+#
+# Without that, a ClientHello announcing cipher_len = 10 while only 8 bytes of
+# cipher suites fit in the handshake message makes req.ssl_cipherlist return
+# 10 bytes, the last 2 of which are read past the end of the ClientHello:
+# either whatever the client appended behind it (c2 below), or, when the
+# ClientHello is the last thing in the buffer, leftovers of a previous
+# connection.
+
+feature ignore_unknown_macro
+
+syslog S1 -level info {
+    # c1: well-formed ClientHello, the 8 announced cipher bytes are returned
+    #     and the 2 bytes trailing the TLS record are not.
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: cipherlist=130213031301009f$"
+    # c2: cipher_len announces 2 bytes more than the ClientHello holds, the
+    #     ClientHello must be rejected rather than over-read.
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: cipherlist=-$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        nbthread 1
+
+    defaults
+        mode tcp
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        log ${S1_addr}:${S1_port} local0
+        log-format "cipherlist=%[var(txn.cl)]"
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-var(txn.cl) req.ssl_cipherlist,hex,lower
+        tcp-request content reject
+} -start
+
+# Both ClientHellos must be sent in a single write: HAProxy rejects the
+# connection as soon as the ruleset is evaluated, so a second write would
+# hit a closed socket.
+#
+# Layout of the 56 bytes below:
+#   16 03 01 00 31   TLS record: handshake, TLSv1.0, length = 49
+#   01 00 00 2d      Handshake: ClientHello, length = 45
+#   03 03            client_version
+#   00 .. 1f         Random[32]
+#   00               session_id_len = 0
+#   00 08 / 00 0a    cipher_len
+#   13 02 .. 00 9f   8 bytes of cipher suites, end of the ClientHello
+#   ca fe            trailing garbage, outside of the TLS record; it must
+#                    never show up in req.ssl_cipherlist
+
+# Well-formed ClientHello: cipher_len = 8, 8 bytes of cipher suites.
+client c1 -connect ${h1_fe1_sock} {
+    sendhex "1603010031 0100002d 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 0008 130213031301009f cafe"
+    delay 0.3
+} -run
+
+# Same ClientHello, but cipher_len announces 10 bytes while only 8 fit in the
+# 45-byte handshake message.
+client c2 -connect ${h1_fe1_sock} {
+    sendhex "1603010031 0100002d 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 000a 130213031301009f cafe"
+    delay 0.3
+} -run
+
+syslog S1 -wait

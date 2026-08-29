@@ -152,7 +152,7 @@ smp_client_hello_parse( struct sample *smp, enum client_hello_type type, unsigne
 
 	if (hs_len < 4 ||                               /* minimum one cipher */
 	    (ext_len = (data[0] << 8) + data[1]) < 2 || /* minimum 2 bytes for a cipher */
-	    ext_len > hs_len)
+	    ext_len > hs_len - 2)                       /* ciphers must fit after cipher_len */
 		goto not_ssl_hello;
 
 	/* Jump to the compression methods. For fetching cipher list this processing is not required. */
