@@ -587,8 +587,8 @@ smp_fetch_ssl_supported_groups(const struct arg *args, struct sample *smp, const
 				goto not_ssl_hello;
 
 			grp_len = (data[4] << 8) + data[5]; /* Supported group list length */
-			if (grp_len < 2 || grp_len > hs_len - 6)
-				goto not_ssl_hello; /* at least 2 bytes per supported group */
+			if (grp_len < 2 || grp_len > ext_len - 2)
+				goto not_ssl_hello; /* at least 2 bytes per supported group, and the list must fit in the extension */
 
 			smp->data.type = SMP_T_BIN;
 			smp->data.u.str.area = (char *)data + 6;
@@ -642,8 +642,8 @@ smp_fetch_ssl_sigalgs(const struct arg *args, struct sample *smp, const char *kw
 				goto not_ssl_hello;
 
 			sigalg_len = (data[4] << 8) + data[5]; /* Sigalgs list length */
-			if (sigalg_len < 2 || sigalg_len > hs_len - 6)
-				goto not_ssl_hello; /* at least 2 bytes per sigalg */
+			if (sigalg_len < 2 || sigalg_len > ext_len - 2)
+				goto not_ssl_hello; /* at least 2 bytes per sigalg, and the list must fit in the extension */
 
 			smp->data.type = SMP_T_BIN;
 			smp->data.u.str.area = (char *)data + 6;
@@ -701,8 +701,8 @@ smp_fetch_ssl_keyshare_groups(const struct arg *args, struct sample *smp, const 
 				goto not_ssl_hello;
 
 			keyshare_len = (data[4] << 8) + data[5]; /* Client keyshare length */
-			if (keyshare_len < 4 || keyshare_len > hs_len - 6)
-				goto not_ssl_hello; /* at least 4 bytes for one keyshare entry */
+			if (keyshare_len < 4 || keyshare_len > ext_len - 2)
+				goto not_ssl_hello; /* at least 4 bytes for one keyshare entry, and the list must fit in the extension */
 			dataPointer = data + 6; /* start of keyshare entries */
 			readPosition = 0;
 			numberOfKeyshares = 0;
@@ -792,8 +792,8 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 				goto not_ssl_hello;
 
 			srv_len = (data[4] << 8) + data[5];
-			if (srv_len < 4 || srv_len > hs_len - 6)
-				goto not_ssl_hello; /* at least 4 bytes per server name */
+			if (srv_len < 4 || srv_len > ext_len - 2)
+				goto not_ssl_hello; /* at least 4 bytes per server name, and the list must fit in the extension */
 
 			name_type = data[6];
 			name_len = (data[7] << 8) + data[8];

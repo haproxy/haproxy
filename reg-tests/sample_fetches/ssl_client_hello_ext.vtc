@@ -1,0 +1,117 @@
+varnishtest "TLS ClientHello: extension lists must fit in their own extension"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.2-dev11)'"
+
+# smp_fetch_ssl_supported_groups(), smp_fetch_ssl_sigalgs(),
+# smp_fetch_ssl_keyshare_groups() and smp_fetch_ssl_hello_sni() all validate
+# the length of the list held by their extension with
+#
+#     <list_len> > hs_len - 6
+#
+# where <hs_len> is what remains of the whole extension block, not of the
+# extension currently being parsed.  The list lives in the extension body, so
+# the bound is <ext_len> - 2.
+#
+# With the loose check, an extension whose body is only the 2-byte list length
+# is accepted while announcing a list that runs into the extensions that
+# follow, and the fetch returns bytes that belong to another extension.  For
+# req.ssl_sni, name_type, name_len and the hostname itself are then all read
+# from the neighbour, so a hostname can be reported that appears in no
+# server_name entry at all.
+#
+# The reads stay within the ClientHello, so this is not an out-of-bounds
+# access, but it lets a client steer the value seen by use-server/use_backend
+# rules and logs.
+
+feature ignore_unknown_macro
+
+syslog S1 -level info {
+    # c1: well-formed extensions, every fetch returns its own contents
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: groups=001d0017 sigalgs=04030804 keyshare=001d sni=www.example.com$"
+    # c2..c5: one over-announced list each, every fetch must give up
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: groups=- sigalgs=- keyshare=- sni=-$"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: groups=- sigalgs=- keyshare=- sni=-$"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: groups=- sigalgs=- keyshare=- sni=-$"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: groups=- sigalgs=- keyshare=- sni=-$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        nbthread 1
+
+    defaults
+        mode tcp
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        log ${S1_addr}:${S1_port} local0
+        log-format "groups=%[var(txn.g)] sigalgs=%[var(txn.a)] keyshare=%[var(txn.k)] sni=%[var(txn.s)]"
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-var(txn.g) req.ssl_supported_groups,hex,lower
+        tcp-request content set-var(txn.a) req.ssl_sigalgs,hex,lower
+        tcp-request content set-var(txn.k) req.ssl_keyshare_groups,hex,lower
+        tcp-request content set-var(txn.s) req.ssl_sni
+        tcp-request content reject
+} -start
+
+# Each ClientHello has to be sent in a single write: HAProxy rejects the
+# connection as soon as the ruleset is evaluated.  They all share the same
+# 43-byte prologue:
+#
+#   16 03 01 LL LL     TLS record: handshake, TLSv1.0
+#   01 00 00 LL        Handshake: ClientHello
+#   03 03              client_version
+#   00 .. 1f           Random[32]
+#   00                 session_id_len = 0
+#   00 02 13 02        cipher_len = 2, one cipher suite
+#   01 00              compression_len = 1, method 0
+#   LL LL              extensions_len
+#
+# and differ only by the extension block that follows.
+
+# server_name "www.example.com", supported_groups 001d:0017,
+# sigalgs 0403:0804, key_share for group 001d. All well-formed.
+client c1 -connect ${h1_fe1_sock} {
+    sendhex "1603010069 010000650303000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000002130201 00 003a 000000140012 00000f 7777772e6578616d706c652e636f6d 000a00060004001d0017 000d00060004040308040 0330 00a0008001d0004aabbccdd"
+    delay 0.3
+} -run
+
+# supported_groups: 2-byte body announcing a 32-byte list. Without the fix,
+# req.ssl_supported_groups returns the next extension: ff010020aaaa...
+client c2 -connect ${h1_fe1_sock} {
+    sendhex "1603010059 010000550303000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000002130201 00 002a 000a00020020 ff010020 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    delay 0.3
+} -run
+
+# same, for sigalgs
+client c3 -connect ${h1_fe1_sock} {
+    sendhex "1603010059 010000550303000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000002130201 00 002a 000d00020020 ff010020 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    delay 0.3
+} -run
+
+# same, for key_share
+client c4 -connect ${h1_fe1_sock} {
+    sendhex "1603010059 010000550303000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000002130201 00 002a 003300020020 ff010020 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    delay 0.3
+} -run
+
+# server_name: 2-byte body announcing a 32-byte list. Without the fix,
+# name_type (00), name_len (000a) and the hostname are read out of the next
+# extension header and body, and req.ssl_sni reports "HIJACKED!!".
+client c5 -connect ${h1_fe1_sock} {
+    sendhex "1603010055 010000510303000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000002130201 00 0026 000000020020 00000a48 494a41434b45442121 cccccccccccccccccccccccccccccccccccccc"
+    delay 0.3
+} -run
+
+syslog S1 -wait
