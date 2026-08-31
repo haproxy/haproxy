@@ -195,7 +195,7 @@ int hld_url_cfg_path_exist(struct hld_url_cfg *u, const char *path)
  */
 static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
                                          char *alpn_param, int h2c_param,
-                                         enum hld_http_ver http_ver)
+                                         enum hld_proto proto)
 {
 	int ssl = 0;
 	char *addr = NULL, *raw_addr = NULL, *path = NULL;
@@ -308,7 +308,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
 	hld_url_cfg->is_quic = is_quic;
 	hld_url_cfg->h2c = h2c_param;
 	hld_url_cfg->thnk_time = arg_thnk;
-	hld_url_cfg->http_ver = http_ver;
+	hld_url_cfg->proto = proto;
 	hld_url_cfg->addr = addr;
 	hld_url_cfg->raw_addr = raw_addr;
 	if (alpn_param) {
@@ -416,7 +416,7 @@ void haproxy_init_args(int argc, char **argv)
 	struct hbuf gbuf = HBUF_NULL; // "global" section
 	struct hbuf tbuf = HBUF_NULL; // "traces" section
 	struct hbuf dbuf = HBUF_NULL; // "default" section
-	int http_ver = HLD_HTTP_VER_1;
+	int proto = HLD_PROTO_H1;
 
 	if (argc <= 1)
 		hld_usage(progname, argc);
@@ -522,32 +522,32 @@ void haproxy_init_args(int argc, char **argv)
 			         strcmp(opt, "h0") == 0) {
 				alpn = "hq-interop";
 				h2c = 0;
-				http_ver = HLD_HTTP_VER_0;
+				proto = HLD_PROTO_H0;
 			}
 			else if (strcmp(opt, "1") == 0 ||
 			         strcmp(opt, "h1") == 0) {
 				alpn = "http/1.1";
 				h2c = 0;
-				http_ver = HLD_HTTP_VER_1;
+				proto = HLD_PROTO_H1;
 			}
 			else if (strcmp(opt, "2") == 0 ||
 			         strcmp(opt, "h2") == 0) {
 				alpn = "h2";
 				h2c = 0;
-				http_ver = HLD_HTTP_VER_2;
+				proto = HLD_PROTO_H2;
 			}
 			else if (strcmp(opt, "2c") == 0 ||
 			         strcmp(opt, "h2c") == 0) {
 				alpn = NULL;
 				h2c = 1;
-				http_ver = HLD_HTTP_VER_2;
+				proto = HLD_PROTO_H2;
 			}
 			else if (strcmp(opt, "3") == 0 ||
 			         strcmp(opt, "h3") == 0) {
 #if defined(USE_QUIC)
 				alpn = "h3";
 				h2c = 0;
-				http_ver = HLD_HTTP_VER_3;
+				proto = HLD_PROTO_H3;
 #else
 				ha_warning("QUIC support not compiled in. Rebuild with USE_QUIC=1.\n");
 				goto leave;
@@ -707,18 +707,18 @@ void haproxy_init_args(int argc, char **argv)
 
 			is_quic = strncmp(*argv, "quic://", 7) == 0;
 			if (is_quic)
-				http_ver = HLD_HTTP_VER_3;
-			hld_ver_flags |= (1 << http_ver);
+				proto = HLD_PROTO_H3;
+			hld_proto_flags |= (1 << proto);
 			url = hld_alloc_url(*argv, is_quic,
 			                    is_quic ? "h3" : alpn,
-			                    is_quic ? 0 : h2c, http_ver);
+			                    is_quic ? 0 : h2c, proto);
 			if (!url) {
 				ha_alert("could not parse a new URL\n");
 				goto leave;
 			}
 
 			/* default version flag value */
-			http_ver = HLD_HTTP_VER_3;
+			proto = HLD_PROTO_H3;
 		}
 
 		argv++; argc--;
