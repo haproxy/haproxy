@@ -146,13 +146,11 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 		 */
 		if (!(*pkt->data & QUIC_PACKET_KEY_PHASE_BIT) ^ !(tls_ctx->flags & QUIC_FL_TLS_KP_BIT_SET)) {
 			if (pkt->pn < tls_ctx->rx.pn) {
-				/* The lowest packet number of a previous key phase
-				 * cannot be null if it really stores previous key phase
-				 * secrets.
+				/* The previous key phase secrets are only
+				 * available after a first key update.
 				 */
-				// TODO: check if BUG_ON() more suitable
-				if (!qc->ku.prv_rx.pn) {
-					TRACE_ERROR("null previous packet number", QUIC_EV_CONN_RXPKT, qc);
+				if (!qc->ku.prv_rx.ctx) {
+					TRACE_ERROR("no previous key phase secrets", QUIC_EV_CONN_RXPKT, qc);
 					goto leave;
 				}
 
