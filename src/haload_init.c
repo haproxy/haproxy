@@ -16,6 +16,7 @@ char *srv_opts, *tls_ciphers, *tls_ciphersuites, *tls_curves, *alpn;
 enum http_meth_t http_meth = HTTP_METH_GET;
 struct ist meth_ist = IST("GET");
 int h2c;
+int fcgi;
 
 static void  hld_usage(char *name, int argc)
 {
@@ -30,6 +31,7 @@ static void  hld_usage(char *name, int argc)
 		"                         then resume the load asked for on the command line\n"
 		"        -h(0|1|2|2c|3)   use h0 (hq-interop for QUIC), h1, h2, h2c or h3 (QUIC/TCP) protocols (*)\n"
 		"        -(0|1|2|2c|3)    same as above (*)\n"
+		"        -fcgi            use FastCGI protocol (*)\n"
 		"        -get             use GET method (default) (*)\n"
 		"        -head            use HEAD method instead of GET (*)\n"
 		"        -post <size>     use POST method, sending <size> bytes of body (*)\n"
@@ -54,7 +56,8 @@ static void  hld_usage(char *name, int argc)
 		"        --defaults <str> add a string to default section\n"
 		"        --global <str>   add a string to global section\n"
 		"        --server <opts>  set server <opt> options as defined for \"server\" haproxy keyword\n"
-		"        --traces         enable the traces for all the HTTP protocols\n"
+		"        --fcgi-app <str> add a string to the generated \"fcgi-app haload\" section\n"
+		"        --traces         enable the traces for all the protocols\n"
 		"SSL options:\n"
 		"        --tls-ciphers <ciphers>       for TLS1.2 and below (*)\n"
 		"        --tls-ciphersuites <ciphers>  for TLS1.3 and above (*)\n"
@@ -80,7 +83,8 @@ static const char *hld_cfg_traces_str =
 #endif
 		"\ttrace haload sink stderr level developer start now verbosity clean\n"
 		"\ttrace h1 sink stderr level developer start now verbosity minimal\n"
-		"\ttrace h2 sink stderr level developer start now verbosity minimal\n";
+		"\ttrace h2 sink stderr level developer start now verbosity minimal\n"
+		"\ttrace fcgi sink stderr level developer start now verbosity minimal\n";
 
 /* Allocate <hdr_str> header with "<name>:<value>" form and
  * returs it.
@@ -195,7 +199,7 @@ int hld_url_cfg_path_exist(struct hld_url_cfg *u, const char *path)
  */
 static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
                                          char *alpn_param, int h2c_param,
-                                         enum hld_proto proto)
+                                         int fcgi_param, enum hld_proto proto)
 {
 	int ssl = 0;
 	char *addr = NULL, *raw_addr = NULL, *path = NULL;
@@ -242,7 +246,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
 
 	for (purl = hld_url_cfgs; purl; purl = purl->next) {
 		if (purl->is_quic == is_quic && purl->ssl == ssl &&
-		    purl->h2c == h2c_param &&
+		    purl->h2c == h2c_param && purl->fcgi == fcgi_param &&
 		    strcmp(purl->raw_addr, addr) == 0 &&
 		    ((!purl->alpn && !alpn_param) ||
 		     (purl->alpn && alpn_param && strcmp(purl->alpn, alpn_param) == 0))) {
@@ -307,6 +311,7 @@ static struct hld_url_cfg *hld_alloc_url(char *url, int is_quic,
 	hld_url_cfg->ssl = ssl;
 	hld_url_cfg->is_quic = is_quic;
 	hld_url_cfg->h2c = h2c_param;
+	hld_url_cfg->fcgi = fcgi_param;
 	hld_url_cfg->thnk_time = arg_thnk;
 	hld_url_cfg->proto = proto;
 	hld_url_cfg->addr = addr;
@@ -416,6 +421,7 @@ void haproxy_init_args(int argc, char **argv)
 	struct hbuf gbuf = HBUF_NULL; // "global" section
 	struct hbuf tbuf = HBUF_NULL; // "traces" section
 	struct hbuf dbuf = HBUF_NULL; // "default" section
+	struct hbuf fbuf = HBUF_NULL; // "fcgi-app" section
 	int proto = HLD_PROTO_H1;
 
 	if (argc <= 1)
@@ -472,6 +478,22 @@ void haproxy_init_args(int argc, char **argv)
 
 					hbuf_str_append(&dbuf, *argv);
 				}
+				else if (strcmp(opt, "fcgi-app") == 0) {
+					argv++; argc--;
+					if (argc <= 0 || **argv == '-')
+						hld_usage(progname, argc);
+
+					if (hbuf_is_null(&fbuf)) {
+						if (hbuf_alloc(&fbuf) == NULL) {
+							ha_alert("failed to allocate a buffer.\n");
+							goto leave;
+						}
+
+						hbuf_appendf(&fbuf, "fcgi-app haload\n");
+					}
+
+					hbuf_str_append(&fbuf, *argv);
+				}
 				else if (strcmp(opt, "global") == 0) {
 					argv++; argc--;
 					if (argc <= 0 || **argv == '-')
@@ -522,24 +544,28 @@ void haproxy_init_args(int argc, char **argv)
 			         strcmp(opt, "h0") == 0) {
 				alpn = "hq-interop";
 				h2c = 0;
+				fcgi = 0;
 				proto = HLD_PROTO_H0;
 			}
 			else if (strcmp(opt, "1") == 0 ||
 			         strcmp(opt, "h1") == 0) {
 				alpn = "http/1.1";
 				h2c = 0;
+				fcgi = 0;
 				proto = HLD_PROTO_H1;
 			}
 			else if (strcmp(opt, "2") == 0 ||
 			         strcmp(opt, "h2") == 0) {
 				alpn = "h2";
 				h2c = 0;
+				fcgi = 0;
 				proto = HLD_PROTO_H2;
 			}
 			else if (strcmp(opt, "2c") == 0 ||
 			         strcmp(opt, "h2c") == 0) {
 				alpn = NULL;
 				h2c = 1;
+				fcgi = 0;
 				proto = HLD_PROTO_H2;
 			}
 			else if (strcmp(opt, "3") == 0 ||
@@ -547,11 +573,18 @@ void haproxy_init_args(int argc, char **argv)
 #if defined(USE_QUIC)
 				alpn = "h3";
 				h2c = 0;
+				fcgi = 0;
 				proto = HLD_PROTO_H3;
 #else
 				ha_warning("QUIC support not compiled in. Rebuild with USE_QUIC=1.\n");
 				goto leave;
 #endif
+			}
+			else if (strcmp(opt, "fcgi") == 0) {
+				alpn = NULL;
+				h2c = 0;
+				fcgi = 1;
+				proto = HLD_PROTO_FCGI;
 			}
 			else if (strcmp(opt, "get") == 0) {
 				http_meth = HTTP_METH_GET;
@@ -711,7 +744,8 @@ void haproxy_init_args(int argc, char **argv)
 			hld_proto_flags |= (1 << proto);
 			url = hld_alloc_url(*argv, is_quic,
 			                    is_quic ? "h3" : alpn,
-			                    is_quic ? 0 : h2c, proto);
+			                    is_quic ? 0 : h2c,
+			                    is_quic ? 0 : fcgi, proto);
 			if (!url) {
 				ha_alert("could not parse a new URL\n");
 				goto leave;
@@ -756,6 +790,9 @@ void haproxy_init_args(int argc, char **argv)
 	/* "default section */
 	if (!hbuf_is_null(&dbuf))
 		hbuf_appendf(&buf, "%.*s\n", (int)dbuf.data, dbuf.area);
+	/* "fcgi-app" section */
+	if (!hbuf_is_null(&fbuf))
+		hbuf_appendf(&buf, "%.*s\n", (int)fbuf.data, fbuf.area);
 
 	fileless_cfg.filename = strdup("haterm cfgfile");
 	fileless_cfg.content = strdup(buf.area);
@@ -777,6 +814,7 @@ void haproxy_init_args(int argc, char **argv)
 	err = 0;
 leave:
 	free_hbuf(&dbuf);
+	free_hbuf(&fbuf);
 	free_hbuf(&gbuf);
 	free_hbuf(&buf);
 	if (err)
