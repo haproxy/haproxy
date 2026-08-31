@@ -1078,7 +1078,6 @@ static inline void quic_tls_ku_free(struct quic_conn *qc)
 static inline int quic_tls_kp_init(struct quic_tls_kp *kp)
 {
 	kp->count = 0;
-	kp->pn = 0;
 	kp->flags = 0;
 	kp->secret = pool_alloc(pool_head_quic_tls_secret);
 	kp->secretlen = QUIC_TLS_SECRET_LEN;

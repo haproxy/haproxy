@@ -1172,7 +1172,6 @@ void quic_tls_rotate_keys(struct quic_conn *qc)
 	qc->ku.prv_rx.secret = curr_secret;
 	qc->ku.prv_rx.iv     = curr_iv;
 	qc->ku.prv_rx.key    = curr_key;
-	qc->ku.prv_rx.pn     = tls_ctx->rx.pn;
 
 	/* Update the TX secrets */
 	curr_ctx = tls_ctx->tx.ctx;

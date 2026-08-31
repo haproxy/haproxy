@@ -200,7 +200,6 @@ struct quic_tls_kp {
 	unsigned char *key;
 	size_t keylen;
 	uint64_t count;
-	int64_t pn;
 	unsigned char flags;
 };
 
