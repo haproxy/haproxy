@@ -67,10 +67,15 @@ enum {
 };
 
 struct slz_stream {
-#ifdef USE_64BIT_QUEUE
-	uint64_t queue; /* last pending bits, LSB first */
+#if defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4)
+	/* Note below: the queue never contains more than 32 bits for the
+	 * 64-bit one, or 8 bits for the 32-bit one since contents are dumped
+	 * as soon as they're large enough (32b for the 64-bit one, 8b-24b for
+	 * the 32-bit one).
+	 */
+	uint64_t queue; /* last pending bits, LSB first, faster on 64-bit archs */
 #else
-	uint32_t queue; /* last pending bits, LSB first */
+	uint32_t queue; /* last pending bits, LSB first, faster on 32-bit archs */
 #endif
 	uint32_t qbits; /* number of bits in queue, < 8 on 32-bit, < 32 on 64-bit */
 	unsigned char *outbuf; /* set by encode() */

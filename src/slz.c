@@ -171,7 +171,7 @@ union ref {
 	uint64_t by64;
 };
 
-#if defined(USE_64BIT_QUEUE) && defined(UNALIGNED_LE_OK)
+#if defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4) && defined(UNALIGNED_LE_OK)
 
 /* enqueue code x of <xbits> bits (LSB aligned, at most 24) and copy complete
  * 32-bit words into output buffer. X must not contain non-zero bits above

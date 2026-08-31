@@ -35,7 +35,6 @@
 #if defined(__x86_64__)
 #define UNALIGNED_LE_OK
 #define UNALIGNED_FASTER
-#define USE_64BIT_QUEUE
 #define HAVE_FAST_MULT
 #elif defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__)
 #define UNALIGNED_LE_OK
