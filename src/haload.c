@@ -66,7 +66,7 @@ struct hld_thr_info {
 	uint64_t *ttfb_pct;          // counts per ttfb value for percentile
 	uint64_t *ttlb_pct;          // counts per ttlb value for percentile
 	uint64_t tot_sc[5];          // total status codes on this thread: 1xx,2xx,3xx,4xx,5xx
-	uint64_t vtot_sc[HLD_HTTP_VER_MAX][5]; // by version total status codes
+	uint64_t vtot_sc[HLD_PROTO_MAX][5]; // by protocol total status codes
 	                                       // on this thread: 1xx,2xx,3xx,4xx,5xx
 	struct task *rate_task;      // task used when <arg_rate> is set
 	__attribute__((aligned(64))) union { } __pad;
@@ -128,7 +128,7 @@ int all_usr_stop_asap; // all users must stop as soon as possible
 int usr_tid;
 int usr_cnt;           // user counter incremented by <mtask> main task
 int running_tasks;     // tasks counter for the users and for the conn rate
-unsigned int hld_ver_flags; // flags to identify the HTTP versions used
+unsigned int hld_proto_flags; // flags to identify the protocols used
 
 char *hld_args[MAX_LINE_ARGS + 1];
 
@@ -664,7 +664,7 @@ static void hld_reset_counters(void)
 		if (arg_hscd == 2) {
 			int v, i;
 
-			for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++)
+			for (v = HLD_PROTO_H0; v < HLD_PROTO_MAX; v++)
 				for (i = 0; i < 5; i++)
 					HA_ATOMIC_STORE(&thrs_info[th].vtot_sc[v][i], 0);
 		}
@@ -677,10 +677,10 @@ void hld_summary(void)
 {
 	int th;
 	uint64_t cur_conn, tot_conn, tot_req, tot_err, tot_rcvd, bytes;
-	uint64_t tot_ttfb, tot_ttlb, tot_fbs, tot_lbs, tot_sc[5], vtot_sc[HLD_HTTP_VER_MAX][5];
+	uint64_t tot_ttfb, tot_ttlb, tot_fbs, tot_lbs, tot_sc[5], vtot_sc[HLD_PROTO_MAX][5];
 	static uint64_t prev_totc, prev_totr, prev_totb;
 	static uint64_t prev_ttfb, prev_ttlb, prev_fbs, prev_lbs, prev_sc[5],
-	                prev_vsc[HLD_HTTP_VER_MAX][5];
+	                prev_vsc[HLD_PROTO_MAX][5];
 	static struct timeval prev_date = TV_UNSET;
 	double interval;
 
@@ -692,7 +692,7 @@ void hld_summary(void)
 		if (arg_hscd == 2) {
 			int v;
 
-			for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++)
+			for (v = HLD_PROTO_H0; v < HLD_PROTO_MAX; v++)
 				prev_vsc[v][0] = prev_vsc[v][1] = prev_vsc[v][2] = prev_vsc[v][3] = prev_vsc[v][4] = 0;
 		}
 		prev_date = TV_UNSET;
@@ -706,7 +706,7 @@ void hld_summary(void)
 	if (arg_hscd == 2) {
 		int v;
 
-		for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++)
+		for (v = HLD_PROTO_H0; v < HLD_PROTO_MAX; v++)
 			vtot_sc[v][0] = vtot_sc[v][1] = vtot_sc[v][2] = vtot_sc[v][3] = vtot_sc[v][4] = 0;
 	}
 
@@ -730,8 +730,8 @@ void hld_summary(void)
 		if (arg_hscd == 2) {
 			int v;
 
-			for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++) {
-				if (!(hld_ver_flags & (1U << v)))
+			for (v = HLD_PROTO_H0; v < HLD_PROTO_MAX; v++) {
+				if (!(hld_proto_flags & (1U << v)))
 				    continue;
 
 				vtot_sc[v][0]+= HA_ATOMIC_LOAD(&thrs_info[th].vtot_sc[v][0]);
@@ -815,8 +815,8 @@ void hld_summary(void)
 	if (arg_hscd == 2) {
 		int v;
 
-		for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++) {
-			if (!(hld_ver_flags & (1U << v)))
+		for (v = HLD_PROTO_H0; v < HLD_PROTO_MAX; v++) {
+			if (!(hld_proto_flags & (1U << v)))
 				continue;
 
 			printf("     %3llu %3llu %3llu %3llu %3llu",
@@ -849,7 +849,7 @@ void hld_summary(void)
 	if (arg_hscd == 2) {
 		int v;
 
-		for (v = HLD_HTTP_VER_0; v < HLD_HTTP_VER_MAX; v++) {
+		for (v = HLD_PROTO_H0; v < HLD_PROTO_MAX; v++) {
 			prev_vsc[v][0] = vtot_sc[v][0];
 			prev_vsc[v][1] = vtot_sc[v][1];
 			prev_vsc[v][2] = vtot_sc[v][2];
@@ -1027,7 +1027,7 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 			int i;
 
 			for (i = 0 ; i < 4; i++) {
-				if (!(hld_ver_flags & (1 << i)))
+				if (!(hld_proto_flags & (1 << i)))
 					continue;
 				printf("   (h%d)1xx 2xx 3xx 4xx 5xx", i);
 			}
@@ -1427,7 +1427,7 @@ static void hldstream_htx_buf_rcv(struct connection *conn,
 			if (arg_hscd)
 				thrs_info[tid].tot_sc[status * 41 / 4096 - 1]++;
 			if (arg_hscd == 2) {
-				thrs_info[tid].vtot_sc[hs->url->cfg->http_ver][status * 41 / 4096 - 1]++;
+				thrs_info[tid].vtot_sc[hs->url->cfg->proto][status * 41 / 4096 - 1]++;
 			}
 			if (hs->url->tot_req > 1 || !arg_accu) {
 				ttfb = tv_us(tv_diff(&hs->req_date, &date));
