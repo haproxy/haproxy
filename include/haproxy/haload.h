@@ -11,12 +11,14 @@
 #define HLD_HAS_PROTO_H1   (1U << HLD_PROTO_H1)
 #define HLD_HAS_PROTO_H2   (1U << HLD_PROTO_H2)
 #define HLD_HAS_PROTO_H3   (1U << HLD_PROTO_H3)
+#define HLD_HAS_PROTO_FCGI (1U << HLD_PROTO_FCGI)
 
 enum hld_proto {
 	HLD_PROTO_H0,
 	HLD_PROTO_H1,
 	HLD_PROTO_H2,
 	HLD_PROTO_H3,
+	HLD_PROTO_FCGI,
 	/* Do not add more enum below */
 	HLD_PROTO_MAX,
 };
@@ -34,6 +36,7 @@ struct hld_url_cfg {
 	int ssl;
 	int is_quic;
 	int h2c;
+	int fcgi;
 	int thnk_time;
 	enum hld_proto proto;
 	char *addr;

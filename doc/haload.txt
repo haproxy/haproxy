@@ -65,6 +65,7 @@ HALoad displays its usage when run without argument or wrong arguments:
             -h(0|1|2|2c|3)   use h0 (hq-interop for QUIC), h1, h2, h2c or h3
                              (QUIC/TCP) protocols (*)
             -(0|1|2|2c|3)    same as above (*)
+            -fcgi            use FastCGI protocol (*)
             -get             use GET method (default) (*)
             -head            use HEAD method instead of GET (*)
             -post <size>     use POST method, sending <size> bytes of body (*)
@@ -88,6 +89,11 @@ HALoad displays its usage when run without argument or wrong arguments:
             --global <str>   add a string to global section
             --server <opts>  set server <opt> options as defined for "server"
                              haproxy keyword
+            --fcgi-app <str> add a string to the generated "fcgi-app haload"
+                             section (docroot, index...). Note: "set-param" and
+                             "pass-header" rules have no effect, since HALoad
+                             does not use HAProxy streams to run them; use "-H"
+                             to set FCGI params directly (e.g. -H ":fcgi-script_filename:...")
             --traces         enable the traces for all the HTTP protocols
     SSL options:
             --tls-ciphers <ciphers>      for TLS1.2 and below (*)
@@ -145,6 +151,9 @@ Examples:
     defaults
             timeout connect 5s
 
+    # FastCGI target, with a docroot for the generated "fcgi-app" section
+    $ ./haload --fcgi-app "docroot /var/www" -fcgi -u 10 -d 30 http://127.0.0.1:9000/index.php
+
 
 4. Limitations
 --------------
@@ -158,3 +167,11 @@ For example, when targeting a single URL, specifying "-u 10 -m 5" might lead
 to opening more than 10 concurrent connections to the target server under
 heavy load, instead of strictly capping the total connections to the requested
 number of users.
+
+FastCGI (-fcgi) requires a "docroot" set via --fcgi-app, and only supports a
+single "fcgi-app" configuration for the whole run: HAProxy allows only one
+per backend, and HALoad uses a single internal backend for every URL. Also,
+"set-param" and "pass-header" rules in that section have no effect, since
+they are only evaluated through an HAProxy stream filter and HALoad drives
+its connections without ever creating a stream; use "-H :fcgi-<param>:<val>"
+instead to override an FCGI parameter.

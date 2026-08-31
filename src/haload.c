@@ -4,6 +4,9 @@
 #include <haproxy/chunk.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
+#include <haproxy/fcgi-app.h>
+#include <haproxy/fcgi-app-t.h>
+#include <haproxy/filters.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -32,6 +35,9 @@
 static inline struct hld_usr *hld_new_usr(int nreqs, int tid);
 static void hld_report_percentiles(void);
 static void hld_dealloc_thrs_info(void);
+
+/* not declared in any header */
+extern struct flt_ops fcgi_flt_ops;
 
 struct hld_mtask {
 	struct task *t;
@@ -1001,6 +1007,8 @@ static void update_err_ramp(void)
 	HA_ATOMIC_STORE(&arg_rate, (uint64_t)err_rate_floor << step);
 }
 
+static const char *hld_proto_names[HLD_PROTO_MAX] = { "h0", "h1", "h2", "h3", "fcgi" };
+
 /* main task */
 static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 {
@@ -1026,10 +1034,10 @@ static struct task *mtask_cb(struct task *t, void *context, unsigned int state)
 		if (arg_hscd == 2) {
 			int i;
 
-			for (i = 0 ; i < 4; i++) {
+			for (i = 0 ; i < HLD_PROTO_MAX; i++) {
 				if (!(hld_proto_flags & (1 << i)))
 					continue;
-				printf("   (h%d)1xx 2xx 3xx 4xx 5xx", i);
+				printf("   (%s)1xx 2xx 3xx 4xx 5xx", hld_proto_names[i]);
 			}
 		}
 
@@ -2246,6 +2254,7 @@ static int hld_srv_parse_opts(char *opts, struct server *s)
 static int hld_cfg_finalize(void)
 {
 	int ret = 0;
+	int fcgi_used = 0;
 	struct hld_url_cfg *cfg;
 
 	for (cfg = hld_url_cfgs; cfg; cfg = cfg->next) {
@@ -2314,6 +2323,8 @@ static int hld_cfg_finalize(void)
 				srv->mux_proto = get_mux_proto(ist("quic"));
 			else if (cfg->h2c)
 				srv->mux_proto = get_mux_proto(ist("h2"));
+			else if (cfg->fcgi)
+				srv->mux_proto = get_mux_proto(ist("fcgi"));
 		}
 
 		if (srv->mux_proto) {
@@ -2383,6 +2394,42 @@ static int hld_cfg_finalize(void)
 
 		/* Attach the server to the URL */
 		cfg->srv = srv;
+		if (cfg->fcgi)
+			fcgi_used = 1;
+	}
+
+	if (fcgi_used) {
+		/* same as "use-fcgi-app haload" at config parsing time */
+		struct fcgi_flt_conf *fcgi_conf;
+		struct flt_conf *fconf;
+
+		fcgi_conf = calloc(1, sizeof(*fcgi_conf));
+		fconf = calloc(1, sizeof(*fconf));
+		if (!fcgi_conf || !fconf) {
+			ha_alert("could not allocate the FCGI filter config\n");
+			goto leave;
+		}
+
+		fcgi_conf->name = strdup("haload");
+		if (!fcgi_conf->name) {
+			ha_alert("could not allocate the FCGI app name\n");
+			goto leave;
+		}
+
+		LIST_INIT(&fcgi_conf->param_rules);
+		LIST_INIT(&fcgi_conf->hdr_rules);
+
+		/* same as fcgi_flt_check() does at post-parsing time */
+		fcgi_conf->app = fcgi_app_find_by_name(fcgi_conf->name);
+		if (!fcgi_conf->app) {
+			ha_alert("fcgi-app 'haload' not found. Did you pass --fcgi-app with a \"docroot\"?\n");
+			goto leave;
+		}
+
+		fconf->id = fcgi_flt_id;
+		fconf->conf = fcgi_conf;
+		fconf->ops = &fcgi_flt_ops;
+		LIST_APPEND(&hld_proxy.filter_configs, &fconf->list);
 	}
 
 	ret = 1;
