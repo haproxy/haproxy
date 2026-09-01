@@ -132,16 +132,16 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 	return 0;
 }
 
-/* Sends a message to a name server
+/* Sends a message using server type <type> on nameserver <ns>.
  * It returns message length on success
  * or -1 in error case
  * 0 is returned in case of output ring buffer is full
  */
-int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
+int dns_send_nameserver(struct dns_nameserver *ns, enum dns_server_type type, void *buf, size_t len)
 {
 	int ret = -1;
 
-	if (ns->dgram) {
+	if (dns_server_type_is_dgram(type) && ns->dgram) {
 		struct dgram_conn *dgram = &ns->dgram->conn;
 		int fd;
 
@@ -190,7 +190,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 		ns->counters->sent++;
 		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 	}
-	else if (ns->stream) {
+	else if (dns_server_type_is_stream(type) && ns->stream) {
 		struct ist myist;
 
 		myist = ist2(buf, len);
@@ -208,16 +208,16 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 
 void dns_session_free(struct dns_session *);
 
-/* Receives a dns message
+/* Receives a DNS message using server type <type> on nameserver <ns>.
  * Returns message length
  * 0 is returned if no more message available
  * -1 in error case
  */
-ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
+ssize_t dns_recv_nameserver(struct dns_nameserver *ns, enum dns_server_type type, void *data, size_t size)
 {
 	ssize_t ret = -1;
 
-	if (ns->dgram) {
+	if (dns_server_type_is_dgram(type) && ns->dgram) {
 		struct dgram_conn *dgram = &ns->dgram->conn;
 		struct sockaddr_storage from = {0};
 		socklen_t fromlen = sizeof(from);
@@ -249,7 +249,7 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 		}
 		HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 	}
-	else if (ns->stream) {
+	else if (dns_server_type_is_stream(type) && ns->stream) {
 		struct dns_stream_server *dss = ns->stream;
 		struct dns_session *ds;
 
@@ -353,7 +353,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 
 	HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
 
-	ns->process_responses(ns);
+	ns->process_responses(ns, DNS_SERVER_DGRAM);
 }
 
 /* Called when a dns network socket is ready to send data */
@@ -1336,7 +1336,7 @@ static struct task *dns_process_rsp(struct task *t, void *context, unsigned int 
 {
 	struct dns_nameserver *ns = (struct dns_nameserver *)context;
 
-	ns->process_responses(ns);
+	ns->process_responses(ns, DNS_SERVER_STREAM);
 
 	return t;
 }

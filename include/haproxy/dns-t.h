@@ -136,6 +136,11 @@ struct dns_session {
 	int shutdown;
 };
 
+enum dns_server_type {
+	DNS_SERVER_DGRAM = 0,
+	DNS_SERVER_STREAM,
+};
+
 /* Structure describing a name server
  */
 struct dns_nameserver {
@@ -147,7 +152,7 @@ struct dns_nameserver {
 		int         line;       /* line where the section appears */
 	} conf;                         /* config information */
 
-	int (*process_responses)(struct dns_nameserver *ns); /* callback used to process responses */
+	int (*process_responses)(struct dns_nameserver *ns, enum dns_server_type type); /* callback used to process responses */
 	struct dns_dgram_server *dgram;  /* used for dgram dns */
 	struct dns_stream_server *stream; /* used for tcp dns */
 

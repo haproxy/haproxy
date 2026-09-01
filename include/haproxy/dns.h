@@ -25,10 +25,22 @@
 #include <haproxy/dns-t.h>
 #include <haproxy/server-t.h>
 
-int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len);
-ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size);
+int dns_send_nameserver(struct dns_nameserver *ns, enum dns_server_type type, void *buf, size_t len);
+ssize_t dns_recv_nameserver(struct dns_nameserver *ns, enum dns_server_type type, void *data, size_t size);
 int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk);
 int dns_stream_init(struct dns_nameserver *ns, struct server *s);
 void dns_nameserver_deinit(struct dns_nameserver *ns);
+
+/* Returns nonzero if <type> selects a datagram server. */
+static inline int dns_server_type_is_dgram(enum dns_server_type type)
+{
+	return type == DNS_SERVER_DGRAM;
+}
+
+/* Returns nonzero if <type> selects a stream server. */
+static inline int dns_server_type_is_stream(enum dns_server_type type)
+{
+	return type == DNS_SERVER_STREAM;
+}
 
 #endif // _HAPROXY_DNS_H

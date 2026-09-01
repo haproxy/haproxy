@@ -470,7 +470,10 @@ static int resolv_send_query(struct resolv_resolution *resolution)
 	}
 
 	list_for_each_entry(ns, &resolvers->nameservers, list) {
-		if (dns_send_nameserver(ns, trash.area, len) >= 0)
+		enum dns_server_type type;
+
+		type = ns->dgram ? DNS_SERVER_DGRAM : DNS_SERVER_STREAM;
+		if (dns_send_nameserver(ns, type, trash.area, len) >= 0)
 			resolution->nb_queries++;
 	}
 
@@ -2313,14 +2316,14 @@ void resolv_unlink_resolution(struct resolv_requester *requester)
 	leave_resolver_code();
 }
 
-/* Called when a network IO is generated on a name server socket for an incoming
- * packet. It performs the following actions:
+/* Called when a network IO is generated on server type <type> of nameserver
+ * <ns> for an incoming packet. It performs the following actions:
  *  - check if the packet requires processing (not outdated resolution)
  *  - ensure the DNS packet received is valid and call requester's callback
  *  - call requester's error callback if invalid response
  *  - check the dn_name in the packet against the one sent
  */
-static int resolv_process_responses(struct dns_nameserver *ns)
+static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_type type)
 {
 	struct dns_counters   *tmpcounters;
 	struct resolvers  *resolvers;
@@ -2341,9 +2344,9 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 	/* process all pending input messages */
 	while (1) {
 		/* read message received */
-		if ((buflen = dns_recv_nameserver(ns, (void *)buf, sizeof(buf))) <= 0) {
+		buflen = dns_recv_nameserver(ns, type, (void *)buf, sizeof(buf));
+		if (buflen <= 0)
 			break;
-		}
 
 		/* message too big */
 		if (buflen > resolvers->accepted_payload_size) {
