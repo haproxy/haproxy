@@ -2332,12 +2332,15 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 	unsigned char *bufend;
 	int buflen, dns_resp;
 	int max_answer_records;
+	unsigned int max_payload_size;
 	unsigned short query_id;
 	struct eb32_node *eb;
 	struct resolv_requester *req;
 	int keep_answer_items;
 
 	resolvers = ns->parent;
+	max_payload_size = dns_server_type_is_stream(type) ?
+	                   DNS_MAX_MSG_SIZE : resolvers->accepted_payload_size;
 	enter_resolver_code();
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
@@ -2349,7 +2352,7 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 			break;
 
 		/* message too big */
-		if (buflen > resolvers->accepted_payload_size) {
+		if (buflen > max_payload_size) {
 			ns->counters->app.resolver.too_big++;
 			continue;
 		}
@@ -2377,7 +2380,7 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 		/* number of responses received */
 		res->nb_responses++;
 
-		max_answer_records = (resolvers->accepted_payload_size - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE;
+		max_answer_records = (max_payload_size - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE;
 		dns_resp = resolv_validate_dns_response(buf, bufend, res, max_answer_records);
 
 		switch (dns_resp) {

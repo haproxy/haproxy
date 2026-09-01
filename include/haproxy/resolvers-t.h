@@ -142,7 +142,7 @@ struct resolv_response {
  */
 struct resolvers {
 	__decl_thread(HA_SPINLOCK_T lock);
-	unsigned int accepted_payload_size; /* maximum payload size we accept for responses */
+	unsigned int accepted_payload_size; /* maximum UDP payload size we announce and accept */
 	int          nb_nameservers;        /* total number of nameservers in a resolvers section */
 	int          resolve_retries;       /* number of retries before giving up */
 	struct {                            /* time to: */
