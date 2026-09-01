@@ -307,18 +307,17 @@ static ssize_t h3_init_uni_stream(struct h3c *h3c, struct qcs *qcs,
 static ssize_t h3_parse_uni_stream_no_h3(struct qcs *qcs, struct buffer *b, int fin)
 {
 	struct h3s *h3s = qcs->ctx;
+	int ret = -1;
 
 	/* Function reserved to non-HTTP/3 unidirectional streams. */
 	BUG_ON(!quic_stream_is_uni(qcs->id) || !(h3s->flags & H3_SF_UNI_NO_H3));
 
 	switch (h3s->type) {
 	case H3S_T_QPACK_DEC:
-		if (qpack_decode_dec(b, fin, qcs))
-			return -1;
+		ret = qpack_decode_dec(b, fin, qcs);
 		break;
 	case H3S_T_QPACK_ENC:
-		if (qpack_decode_enc(b, fin, qcs))
-			return -1;
+		ret = qpack_decode_enc(b, fin, qcs);
 		break;
 	case H3S_T_UNKNOWN:
 	default:
@@ -326,8 +325,7 @@ static ssize_t h3_parse_uni_stream_no_h3(struct qcs *qcs, struct buffer *b, int 
 		ABORT_NOW();
 	}
 
-	/* TODO adjust return code */
-	return 0;
+	return ret;
 }
 
 /* Decode a H3 frame header from <rxbuf> buffer. The frame type is stored in
