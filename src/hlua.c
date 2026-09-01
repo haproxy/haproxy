@@ -13520,9 +13520,6 @@ int hlua_post_init()
 	struct hlua_function *fcn;
 	struct hlua_reg_filter *reg_flt;
 
-	hlua_body = 0;
-
-
 #if defined(USE_OPENSSL)
 	/* Initialize SSL server. */
 	if (socket_ssl->xprt->prepare_srv) {
@@ -13641,6 +13638,8 @@ int hlua_post_init()
 
 	if (errors > 0)
 		return 0;
+
+	hlua_body = 0;
 
 	/* after this point, this global will no longer be used, so set to
 	 * -1 in order to have probably a segfault if someone use it
