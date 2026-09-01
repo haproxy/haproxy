@@ -156,8 +156,9 @@ struct net_addr {
 
 /* holds socket and xprt types for a given address */
 struct net_addr_type {
-	int proto_type; // socket layer
-	int xprt_type;  // transport layer
+	int proto_type;    /* socket layer */
+	int xprt_type;     /* transport layer */
+	int explicit_type; /* protocol or transport type was forced by a prefix */
 };
 
 /* An indexed file name node, to be used at various places where a config file

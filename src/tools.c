@@ -994,6 +994,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	 * Currently, only MPTCP is defined as an alternate protocol for TCP
 	 */
 	int alt_proto = 0;
+	int explicit_type = 0;
 
 	portl = porth = porta = 0;
 	if (fqdn)
@@ -1026,16 +1027,19 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 7;
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "dgram+", 6) == 0) {
 		str2 += 6;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "quic+", 5) == 0) {
 		str2 += 5;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 
 	if (strncmp(str2, "unix@", 5) == 0) {
@@ -1047,12 +1051,14 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNIX;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "uxst@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_UNIX;
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "abns@", 5) == 0) {
 		str2 += 5;
@@ -1079,6 +1085,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_INET;
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "mptcp4@", 7) == 0) {
 		str2 += 7;
@@ -1086,18 +1093,21 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
 		alt_proto = 1;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "udp4@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "tcp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "mptcp6@", 7) == 0) {
 		str2 += 7;
@@ -1105,18 +1115,21 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
 		alt_proto = 1;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "udp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "tcp@", 4) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_UNSPEC;
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "mptcp@", 6) == 0) {
 		str2 += 6;
@@ -1124,24 +1137,28 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		proto_type = PROTO_TYPE_STREAM;
 		ctrl_type = SOCK_STREAM;
 		alt_proto = 1;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "udp@", 4) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_UNSPEC;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_DGRAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "quic4@", 6) == 0) {
 		str2 += 6;
 		ss.ss_family = AF_INET;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "quic6@", 6) == 0) {
 		str2 += 6;
 		ss.ss_family = AF_INET6;
 		proto_type = PROTO_TYPE_DGRAM;
 		ctrl_type = SOCK_STREAM;
+		explicit_type = 1;
 	}
 	else if (strncmp(str2, "fd@", 3) == 0) {
 		str2 += 3;
@@ -1449,6 +1466,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	if (sa_type) {
 		sa_type->proto_type = proto_type;
 		sa_type->xprt_type = (ctrl_type == SOCK_DGRAM) ? PROTO_TYPE_DGRAM : PROTO_TYPE_STREAM;
+		sa_type->explicit_type = explicit_type;
 	}
 	if (alt)
 		*alt = alt_proto;
