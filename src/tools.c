@@ -2408,10 +2408,12 @@ static inline char *_cbor_encode_bytes_prefix_bin(char *start, char *stop,
 		return NULL;
 
 	/* write actual bytes if provided */
-	if (start + len >= stop)
-		return NULL;
-	memcpy(start, bytes, len);
-	start += len;
+	if (bytes) {
+		if (start + len >= stop)
+			return NULL;
+		memcpy(start, bytes, len);
+		start += len;
+	}
 
 	return start;
 }
