@@ -68,10 +68,13 @@ struct shard_info {
 	struct receiver **members; /* all members of the shard (one per thread group) */
 };
 
-/* operations pending on a receiver, run by its owner group's agent */
-#define RX_AGENT_OP_SUSPEND     0x00000001  /* suspend_listener() */
-#define RX_AGENT_OP_RESUME      0x00000002  /* resume_listener() (includes rebind) */
-#define RX_AGENT_OP_ENABLE      0x00000004  /* enable_listener() */
+/* one-shot operations pending on a receiver, run by its owner group's agent */
+#define RX_AGENT_OP_ENABLE      0x00000001  /* enable_listener() */
+
+/* last listening state requested on a receiver, applied by its owner group */
+#define RX_AGENT_ST_NONE        0           /* nothing requested */
+#define RX_AGENT_ST_PAUSED      1           /* suspend_listener() */
+#define RX_AGENT_ST_READY       2           /* resume_listener() (includes rebind) */
 
 struct rx_agent_link {
 	struct mt_list list;             /* position in one group agent's queue */
@@ -92,7 +95,8 @@ struct receiver {
 	struct {
 		struct rx_agent_link link;   /* position in the owner group agent's queue */
 		int close_fd;                /* FD to release, -1 if none */
-		uint ops;                    /* pending RX_AGENT_OP_* */
+		uint ops;                    /* pending one-shot RX_AGENT_OP_* */
+		uint want_state;             /* last requested RX_AGENT_ST_* */
 		uint getsocks_grp;           /* group requesting an FD copy for _getsocks */
 		int xfer_fd;                 /* FD copy received for a rebind, -1 if none */
 		int getsocks_fd;             /* FD copy received for _getsocks, -1 if none */

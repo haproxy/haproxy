@@ -3997,7 +3997,8 @@ int pause_proxy(struct proxy *p)
 
 	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
 
-	if (!(p->cap & PR_CAP_FE) || (p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) || !p->li_ready)
+	if (!(p->cap & PR_CAP_FE) || (p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) ||
+	    (!p->li_ready && !tg_agents_enabled))
 		goto end;
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
@@ -4054,7 +4055,8 @@ int resume_proxy(struct proxy *p)
 
 	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
 
-	if ((p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) || !p->li_paused)
+	if ((p->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) ||
+	    (!p->li_paused && !tg_agents_enabled))
 		goto end;
 
 	fail = 0;
@@ -5280,7 +5282,7 @@ static int cli_parse_disable_frontend(char **args, char *payload, struct appctx 
 	if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was previously shut down, cannot disable.\n");
 
-	if (!px->li_ready)
+	if (!px->li_ready && !tg_agents_enabled)
 		return cli_msg(appctx, LOG_NOTICE, "All sockets are already disabled.\n");
 
 	/* pause_proxy will take PROXY_LOCK */
@@ -5311,7 +5313,7 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 		return cli_err(appctx, "Frontend was previously shut down, cannot enable.\n");
 
-	if (px->li_ready == px->li_all)
+	if (px->li_ready == px->li_all && !tg_agents_enabled)
 		return cli_msg(appctx, LOG_NOTICE, "All sockets are already enabled.\n");
 
 	/* resume_proxy will take PROXY_LOCK */

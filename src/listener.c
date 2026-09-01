@@ -59,6 +59,8 @@ ullong maxconn_reached = 0;
 __decl_thread(static HA_RWLOCK_T global_listener_rwlock);
 
 static void rx_agent_schedule_op(struct receiver *rx, uint op);
+static void rx_agent_want_state(struct receiver *rx, uint state);
+static void rx_agent_process_one(struct receiver *rx);
 
 /* listener status for stats */
 const char* li_status_st[LI_STATE_COUNT] = {
@@ -544,13 +546,16 @@ int suspend_listener(struct listener *l, int lpx, int lli)
 	if (!lli)
 		HA_RWLOCK_WRLOCK(LISTENER_LOCK, &l->lock);
 
-	if (!(l->flags & LI_F_FINALIZED) || l->state <= LI_PAUSED)
+	if (!(l->flags & LI_F_FINALIZED))
 		goto end;
 
 	if (tg_agents_enabled && rx_owner_tgid(&l->rx) != tgid) {
-		rx_agent_schedule_op(&l->rx, RX_AGENT_OP_SUSPEND);
+		rx_agent_want_state(&l->rx, RX_AGENT_ST_PAUSED);
 		goto end;
 	}
+
+	if (l->state <= LI_PAUSED)
+		goto end;
 
 	if (l->rx.proto->suspend) {
 		ret = l->rx.proto->suspend(l);
@@ -625,23 +630,24 @@ int resume_listener(struct listener *l, int lpx, int lli)
 	if (MT_LIST_INLIST(&l->wait_queue))
 		goto end;
 
-	if (!(l->flags & LI_F_FINALIZED) || l->state == LI_READY)
+	if (!(l->flags & LI_F_FINALIZED))
+		goto end;
+
+	if (tg_agents_enabled && rx_owner_tgid(&l->rx) != tgid &&
+	    !((l->rx.flags & RX_F_MUST_DUP) && l->state == LI_ASSIGNED)) {
+		rx_agent_want_state(&l->rx, RX_AGENT_ST_READY);
+		goto end;
+	}
+
+	if (l->state == LI_READY)
 		goto end;
 
 	if (tg_agents_enabled && l->state == LI_ASSIGNED &&
 	    (l->rx.flags & RX_F_MUST_DUP)) {
 		if (l->rx.agent.xfer_fd < 0) {
-			rx_agent_schedule_op(l->rx.shard_info->ref, RX_AGENT_OP_RESUME);
+			rx_agent_want_state(l->rx.shard_info->ref, RX_AGENT_ST_READY);
 			goto end;
 		}
-	}
-	else if (tg_agents_enabled && rx_owner_tgid(&l->rx) != tgid) {
-		/* all FD operations, including a possible rebind, must act on
-		 * the owner group's kernel and fdtab tables: delegate to its
-		 * agent and report success, failures will be handled there.
-		 */
-		rx_agent_schedule_op(&l->rx, RX_AGENT_OP_RESUME);
-		goto end;
 	}
 
 	if (l->rx.proto->resume) {
@@ -818,18 +824,20 @@ static void rx_agent_process_one(struct receiver *rx)
 	int fd = HA_ATOMIC_XCHG(&rx->agent.close_fd, -1);
 	uint dest;
 	uint ops;
+	uint state;
 
 	if (fd >= 0)
 		fd_delete(fd);
 
 	ops = HA_ATOMIC_XCHG(&rx->agent.ops, 0);
-	if (ops) {
+	state = HA_ATOMIC_XCHG(&rx->agent.want_state, RX_AGENT_ST_NONE);
+	if (ops || state) {
 		struct listener *l = LIST_ELEM(rx, struct listener *, rx);
 
-		if (ops & RX_AGENT_OP_SUSPEND)
+		if (state == RX_AGENT_ST_PAUSED)
 			suspend_listener(l, 0, 0);
 
-		if (ops & RX_AGENT_OP_RESUME) {
+		if (state == RX_AGENT_ST_READY) {
 			resume_listener(l, 0, 0);
 
 			/*
@@ -875,6 +883,13 @@ void rx_agent_close(struct receiver *rx)
 static void rx_agent_schedule_op(struct receiver *rx, uint op)
 {
 	HA_ATOMIC_OR(&rx->agent.ops, op);
+	rx_agent_post(rx, rx_owner_tgid(rx));
+}
+
+/* requests listening state <state> on <rx>, superseding any pending one */
+static void rx_agent_want_state(struct receiver *rx, uint state)
+{
+	HA_ATOMIC_STORE(&rx->agent.want_state, state);
 	rx_agent_post(rx, rx_owner_tgid(rx));
 }
 

@@ -143,6 +143,7 @@ void protocol_init_rx_agents(void)
 		list_for_each_entry(rx, &proto->receivers, proto_list) {
 			MT_LIST_INIT(&rx->agent.link.list);
 			rx->agent.link.rx = rx;
+			rx->agent.want_state = RX_AGENT_ST_NONE;
 			rx->agent.close_fd = -1;
 			rx->agent.xfer_fd = -1;
 			rx->agent.getsocks_fd = -1;
