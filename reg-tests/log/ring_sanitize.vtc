@@ -1,0 +1,73 @@
+varnishtest "Check that 'show events -s' sanitizes the ring contents"
+feature ignore_unknown_macro
+
+# The log-format below deliberately emits control characters into the ring
+# without involving any client: "Gw==", "Cg==" and "Cf==" are the base64
+# encodings of ESC (0x1b), LF (0x0a) and TAB (0x09), so b64dec turns them into
+# raw bytes. This is what an attacker-influenced log field may carry when it is
+# emitted without "+E".
+#
+# Without "-s", "show events" dumps them verbatim: the ESC sequence reaches the
+# operator's terminal, and the LF splits one record into two, forging a log
+# line. With "-s", the ESC and LF become '?', and TAB becomes a space, so each
+# record stays on a single line.
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    ring myring
+        size 16384
+        format raw
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        log ring@myring local0
+        log-format "BEG%[str(Gw==),b64dec][2JMID%[str(Cg==),b64dec]FORGED%[str(Cf==),b64dec]END"
+        http-request return status 200
+} -start
+
+# two requests, hence two records, so that the record delimiter can be checked
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+} -run
+
+delay 0.2
+
+# the default output is byte-for-byte faithful: the raw LF is still there, so a
+# single record shows up as two lines
+haproxy h1 -cli {
+    send "show events myring"
+    expect ~ "MID\nFORGED\tEND"
+}
+
+# with -s the LF is turned into a space, so the forged line is joined back onto
+# the real one, and the ESC is replaced with '?'
+haproxy h1 -cli {
+    send "show events myring -s"
+    expect ~ "BEG\\?\\[2JMID\\?FORGED END"
+}
+
+# "-0" delimits records with a NUL byte instead of a LF. Combined with "-s" the
+# delimiter must still be emitted, otherwise consecutive records get glued
+# together and the end of one cannot be told from the start of the next.
+haproxy h1 -cli {
+    send "show events myring -0 -s"
+    expect !~ "ENDBEG"
+}
