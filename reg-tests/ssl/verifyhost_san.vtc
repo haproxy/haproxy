@@ -1,0 +1,79 @@
+#REGTEST_TYPE=bug
+#
+# Check that verifyhost adheres to RFC 6125: when a Subject Alternative Name
+# (SAN) extension of type dNSName is present on a server certificate, HAProxy
+# must verify the hostname using only the SAN entries and must NOT fall back
+# to the Subject Common Name (CN).
+#
+varnishtest "Test verifyhost SAN vs CN matching (issue #3486)"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+    rxreq
+    txresp -body "response from backend"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # Listeners simulating backend SSL endpoints
+    listen srv_san_match
+        bind "${tmpdir}/match_ssl.sock" ssl crt "${testdir}/certs/verifyhost_san_match.pem"
+        server s1 ${s1_addr}:${s1_port}
+
+    listen srv_no_san
+        bind "${tmpdir}/nosan_ssl.sock" ssl crt "${testdir}/certs/verifyhost_no_san.pem"
+        server s1 ${s1_addr}:${s1_port}
+
+    listen srv_san_mismatch
+        bind "${tmpdir}/mismatch_ssl.sock" ssl crt "${testdir}/certs/verifyhost_san_mismatch.pem"
+        server s1 ${s1_addr}:${s1_port}
+
+    # Frontends testing HAProxy backend SSL verification with verifyhost
+    frontend fe_test
+        bind "fd@${fe}"
+        use_backend be_san_match    if { path /san-match }
+        use_backend be_no_san       if { path /no-san }
+        use_backend be_san_mismatch if { path /san-mismatch }
+
+    backend be_san_match
+        server srv "${tmpdir}/match_ssl.sock" ssl verify required ca-file "${testdir}/certs/verifyhost_ca.crt" verifyhost backend.example.com no-sni-auto
+
+    backend be_no_san
+        server srv "${tmpdir}/nosan_ssl.sock" ssl verify required ca-file "${testdir}/certs/verifyhost_ca.crt" verifyhost backend.example.com no-sni-auto
+
+    backend be_san_mismatch
+        server srv "${tmpdir}/mismatch_ssl.sock" ssl verify required ca-file "${testdir}/certs/verifyhost_ca.crt" verifyhost backend.example.com no-sni-auto
+} -start
+
+# 1. SAN matches (SAN: backend.example.com, CN: other.example.com) -> should succeed (200)
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/san-match"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# 2. No SAN extension on cert, CN matches (CN: backend.example.com) -> fallback to CN allowed -> should succeed (200)
+client c2 -connect ${h1_fe_sock} {
+    txreq -url "/no-san"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# 3. SAN is present but mismatched, CN matches (SAN: other.example.com, CN: backend.example.com) -> RFC 6125 forbids CN check -> should fail (503)
+client c3 -connect ${h1_fe_sock} {
+    txreq -url "/san-mismatch"
+    rxresp
+    expect resp.status == 503
+} -run
