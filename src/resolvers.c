@@ -2341,7 +2341,6 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 	/* process all pending input messages */
 	while (1) {
 		/* read message received */
-		memset(buf, '\0', resolvers->accepted_payload_size + 1);
 		if ((buflen = dns_recv_nameserver(ns, (void *)buf, sizeof(buf))) <= 0) {
 			break;
 		}
