@@ -2325,7 +2325,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 	struct dns_counters   *tmpcounters;
 	struct resolvers  *resolvers;
 	struct resolv_resolution *res;
-	unsigned char  buf[DNS_MAX_UDP_MESSAGE + 1];
+	unsigned char  buf[DNS_MAX_MSG_SIZE + 1];
 	unsigned char *bufend;
 	int buflen, dns_resp;
 	int max_answer_records;
@@ -3923,9 +3923,9 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		i = atoi(args[1]);
-		if (i < DNS_HEADER_SIZE || i > DNS_MAX_UDP_MESSAGE) {
+		if (i < DNS_HEADER_SIZE || i > DNS_MAX_MSG_SIZE) {
 			ha_alert("parsing [%s:%d] : '%s' must be between %d and %d inclusive (was %s).\n",
-				 file, linenum, args[0], DNS_HEADER_SIZE, DNS_MAX_UDP_MESSAGE, args[1]);
+				 file, linenum, args[0], DNS_HEADER_SIZE, DNS_MAX_MSG_SIZE, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

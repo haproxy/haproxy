@@ -40,7 +40,6 @@ extern struct pool_head *resolv_requester_pool;
  */
 #define DNS_MAX_LABEL_SIZE   63
 #define DNS_MAX_NAME_SIZE    255
-#define DNS_MAX_UDP_MESSAGE  65535
 
 /* DNS minimum record size: 1 char + 1 NULL + type + class */
 #define DNS_MIN_RECORD_SIZE  (1 + 1 + 2 + 2)
@@ -53,13 +52,13 @@ extern struct pool_head *resolv_requester_pool;
 #define DNS_MAX_QUERY_RECORDS 1
 
 /* maximum number of answer record in a DNS response */
-#define DNS_MAX_ANSWER_RECORDS ((DNS_MAX_UDP_MESSAGE - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE)
+#define DNS_MAX_ANSWER_RECORDS ((DNS_MAX_MSG_SIZE - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE)
 
 /* size of dns_buffer used to store responses from the buffer
  * dns_buffer is used to store data collected from records found in a response.
  * Before using it, caller will always check that there is at least DNS_MAX_NAME_SIZE bytes
  * available */
-#define DNS_ANALYZE_BUFFER_SIZE DNS_MAX_UDP_MESSAGE + DNS_MAX_NAME_SIZE
+#define DNS_ANALYZE_BUFFER_SIZE (DNS_MAX_MSG_SIZE + DNS_MAX_NAME_SIZE)
 
 /* DNS error messages */
 #define DNS_TOO_LONG_FQDN       "hostname too long"

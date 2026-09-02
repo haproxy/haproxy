@@ -41,7 +41,7 @@ static THREAD_LOCAL char *dns_msg_trash;
 
 DECLARE_STATIC_TYPED_POOL(dns_session_pool, "dns_session", struct dns_session);
 DECLARE_STATIC_TYPED_POOL(dns_query_pool, "dns_query", struct dns_query);
-DECLARE_STATIC_POOL(dns_msg_buf, "dns_msg_buf", DNS_TCP_MSG_RING_MAX_SIZE);
+DECLARE_STATIC_POOL(dns_msg_buf, "dns_msg_buf", DNS_MSG_RING_MAX_SIZE);
 
 /* Opens an UDP socket on the namesaver's IP/Port, if required. Returns 0 on
  * success, -1 otherwise. ns->dgram must be defined.
@@ -171,7 +171,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 				struct ist myist;
 
 				myist = ist2(buf, len);
-				ret = dns_ring_write(ns->dgram->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+				ret = dns_ring_write(ns->dgram->ring_req, DNS_MAX_MSG_SIZE, NULL, 0, &myist, 1);
 				if (!ret) {
 					ns->counters->snd_error++;
 					HA_SPIN_UNLOCK(DNS_LOCK, &dgram->lock);
@@ -194,7 +194,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 		struct ist myist;
 
 		myist = ist2(buf, len);
-		ret = dns_ring_write(ns->stream->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+		ret = dns_ring_write(ns->stream->ring_req, DNS_MAX_MSG_SIZE, NULL, 0, &myist, 1);
 		if (!ret) {
 			ns->counters->snd_error++;
 			return -1;
@@ -420,7 +420,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 			break;
 		cnt += len;
 		BUG_ON(msg_len + ofs + cnt + 1 > b_data(buf));
-		if (unlikely(msg_len > DNS_TCP_MSG_MAX_SIZE)) {
+		if (unlikely(msg_len > DNS_MAX_MSG_SIZE)) {
 			/* too large a message to ever fit, let's skip it */
 			ofs += cnt + msg_len;
 			continue;
@@ -477,7 +477,7 @@ int dns_dgram_init(struct dns_nameserver *ns, struct sockaddr_storage *sk)
 	HA_SPIN_INIT(&dgram->conn.lock);
 
 	dgram->ofs_req = ~0; /* init ring offset */
-	dgram->ring_req = dns_ring_new(2*DNS_TCP_MSG_RING_MAX_SIZE);
+	dgram->ring_req = dns_ring_new(2*DNS_MSG_RING_MAX_SIZE);
 	if (!dgram->ring_req) {
 		ha_alert("memory allocation error initializing the ring for nameserver.\n");
 		goto out;
@@ -1166,7 +1166,7 @@ struct dns_session *dns_session_new(struct dns_stream_server *dss)
 	if (!ds->tx_ring_area)
 		goto error;
 
-	dns_ring_init(&ds->ring, ds->tx_ring_area, DNS_TCP_MSG_RING_MAX_SIZE);
+	dns_ring_init(&ds->ring, ds->tx_ring_area, DNS_MSG_RING_MAX_SIZE);
 	/* never fail because it is the first watcher attached to the ring */
 	DISGUISE(dns_ring_attach(&ds->ring));
 
@@ -1244,7 +1244,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 			break;
 		cnt += len;
 		BUG_ON(msg_len + ofs + cnt + 1 > b_data(buf));
-		if (unlikely(msg_len > DNS_TCP_MSG_MAX_SIZE)) {
+		if (unlikely(msg_len > DNS_MAX_MSG_SIZE)) {
 			/* too large a message to ever fit, let's skip it */
 			ofs += cnt + msg_len;
 			continue;
@@ -1259,7 +1259,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 		if (!LIST_ISEMPTY(&dss->free_sess)) {
 			ds = LIST_NEXT(&dss->free_sess, struct dns_session *, list);
 
-			if (dns_ring_write(&ds->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1) > 0) {
+			if (dns_ring_write(&ds->ring, DNS_MAX_MSG_SIZE, NULL, 0, &myist, 1) > 0) {
 				ds->nb_queries++;
 				if (ds->nb_queries >= DNS_STREAM_MAX_PIPELINED_REQ)
 					LIST_DEL_INIT(&ds->list);
@@ -1280,7 +1280,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 				ds = LIST_NEXT(&dss->idle_sess, struct dns_session *, list);
 
 				/* ring is empty so this dns_ring_write should never fail */
-				dns_ring_write(&ds->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+				dns_ring_write(&ds->ring, DNS_MAX_MSG_SIZE, NULL, 0, &myist, 1);
 				ds->nb_queries++;
 				LIST_DEL_INIT(&ds->list);
 
@@ -1305,7 +1305,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 			ads = dns_session_new(dss);
 			if (ads) {
 				/* ring is empty so this dns_ring_write should never fail */
-				dns_ring_write(&ads->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
+				dns_ring_write(&ads->ring, DNS_MAX_MSG_SIZE, NULL, 0, &myist, 1);
 				ads->nb_queries++;
 				LIST_INSERT(&dss->free_sess, &ads->list);
 			}
@@ -1356,7 +1356,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	dss->maxconn = srv->maxconn;
 
 	dss->ofs_req = ~0; /* init ring offset */
-	dss->ring_req = dns_ring_new(2*DNS_TCP_MSG_RING_MAX_SIZE);
+	dss->ring_req = dns_ring_new(2*DNS_MSG_RING_MAX_SIZE);
 	if (!dss->ring_req) {
 		ha_alert("memory allocation error initializing the ring for dns tcp server '%s'.\n", srv->id);
 		goto out;
@@ -1438,7 +1438,7 @@ void dns_nameserver_deinit(struct dns_nameserver *ns)
 
 int init_dns_buffers()
 {
-	dns_msg_trash = malloc(DNS_TCP_MSG_MAX_SIZE);
+	dns_msg_trash = malloc(DNS_MAX_MSG_SIZE);
 	if (!dns_msg_trash)
 		return 0;
 
