@@ -443,6 +443,7 @@ int quic_build_post_handshake_frames(struct quic_conn *qc,
 	struct quic_frame *frm, *frmbak;
 	struct list frm_list = LIST_HEAD_INIT(frm_list);
 	struct eb64_node *node;
+	uint64_t first_seq_num = qc->next_cid_seq_num;
 
 	TRACE_ENTER(QUIC_EV_CONN_IO_CB, qc);
 
@@ -537,15 +538,16 @@ int quic_build_post_handshake_frames(struct quic_conn *qc,
 	list_for_each_entry_safe(frm, frmbak, &frm_list, list)
 		qc_frm_free(qc, &frm);
 
-	/* The first CID sequence number value used to allocated CIDs by this function is 1,
-	 * 0 being the sequence number of the CID for this connection.
+	/* Delete the CIDs registered by this very call. They have not been
+	 * advertised, so give their sequence numbers back to keep the ones
+	 * really issued consecutive (RFC 9000 5.1.1).
 	 */
-	node = eb64_lookup_ge(qc->cids, 1);
+	node = eb64_lookup_ge(qc->cids, first_seq_num);
 	while (node) {
 		struct quic_connection_id *conn_id;
 
 		conn_id = eb64_entry(node, struct quic_connection_id, seq_num);
-		if (conn_id->seq_num.key >= max)
+		if (conn_id->seq_num.key >= qc->next_cid_seq_num)
 			break;
 
 		node = eb64_next(node);
@@ -554,6 +556,8 @@ int quic_build_post_handshake_frames(struct quic_conn *qc,
 		eb64_delete(&conn_id->seq_num);
 		pool_free(pool_head_quic_connection_id, conn_id);
 	}
+
+	qc->next_cid_seq_num = first_seq_num;
 	goto leave;
 }
 
