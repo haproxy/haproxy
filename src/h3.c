@@ -2383,7 +2383,7 @@ static int h3_encode_header(struct buffer *buf,
  * Returns the amount of consumed bytes from <htx> buffer or a negative error
  * code.
  */
-static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
+static int h3_req_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 {
 	int err;
 	struct http_hdr list[global.tune.max_http_hdr * 2];
@@ -2577,6 +2577,10 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
 	while (blk) {
 		type = htx_get_blk_type(blk);
 		ret += htx_get_blksz(blk);
+		if (blk->flags & HTX_BLK_FL_EOM) {
+			TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+			*fin = 1;
+		}
 		blk = htx_remove_blk(htx, blk);
 		if (type == HTX_BLK_EOH)
 			break;
@@ -2604,7 +2608,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx)
  * Returns the amount of consumed bytes from <htx> buffer or a negative error
  * code.
  */
-static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
+static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 {
 	struct h3s *h3s = qcs->ctx;
 	int err;
@@ -2793,6 +2797,10 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	while (blk) {
 		type = htx_get_blk_type(blk);
 		ret += htx_get_blksz(blk);
+		if (blk->flags & HTX_BLK_FL_EOM) {
+			TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+			*fin = 1;
+		}
 		blk = htx_remove_blk(htx, blk);
 		if (type == HTX_BLK_EOH)
 			break;
@@ -2838,7 +2846,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
  * Returns the amount of consumed bytes from <htx> buffer or a negative error
  * code.
  */
-static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
+static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 {
 	int err;
 	struct buffer headers_buf = BUF_NULL;
@@ -2885,17 +2893,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		 * frame. Mux will send an empty QUIC STREAM frame with FIN.
 		 */
 		TRACE_DATA("skipping trailer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-
-		/* Truncate UNUSED / EOT HTX blocks. */
-		blk = htx_get_head_blk(htx);
-		while (blk) {
-			type = htx_get_blk_type(blk);
-			ret += htx_get_blksz(blk);
-			blk = htx_remove_blk(htx, blk);
-			if (type == HTX_BLK_EOT)
-				break;
-		}
-		goto end;
+		goto truncate_htx;
 	}
 
 	list[hdr].n = ist("");
@@ -2981,11 +2979,16 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
 		b_add(res, b_data(&headers_buf));
 	}
 
+ truncate_htx:
 	/* Encoding success, truncate HTX blocks until EOT. */
 	blk = htx_get_head_blk(htx);
 	while (blk) {
 		type = htx_get_blk_type(blk);
 		ret += htx_get_blksz(blk);
+		if (blk->flags & HTX_BLK_FL_EOM) {
+			TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+			*fin = 1;
+		}
 		blk = htx_remove_blk(htx, blk);
 		if (type == HTX_BLK_EOT)
 			break;
@@ -3010,7 +3013,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx)
  * in case of a fatal error which should caused a connection closure.
  */
 static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
-                             struct buffer *buf, size_t count)
+                             struct buffer *buf, size_t count, char *fin)
 {
 	int err;
 	struct buffer outbuf;
@@ -3113,8 +3116,13 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	total += fsize;
 	count -= fsize;
 
-	if (fsize == bsize)
+	if (fsize == bsize) {
+		if (blk->flags & HTX_BLK_FL_EOM) {
+			TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+			*fin = 1;
+		}
 		htx_remove_blk(htx, blk);
+	}
 	else
 		htx_cut_data_blk(htx, blk, fsize);
 
@@ -3145,22 +3153,18 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
  */
 static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char *fin)
 {
-	struct h3s *h3s = qcs->ctx;
 	size_t total = 0;
 	enum htx_blk_type btype;
 	struct htx *htx;
 	struct htx_blk *blk;
 	uint32_t bsize;
 	int32_t idx;
-	char eom;
 	int ret = 0;
 
 	TRACE_ENTER(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 
 	*fin = 0;
 	htx = htx_from_buf(buf);
-	/* EOM is saved here, useful if 0-copy is performed with HTX buf. */
-	eom = htx->flags & HTX_FL_HAS_EOM;
 
 	while (count && !htx_is_empty(htx) && qcc_stream_can_send(qcs) && ret >= 0) {
 		idx = htx_get_head(htx);
@@ -3170,7 +3174,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 
 		switch (btype) {
 		case HTX_BLK_REQ_SL:
-			ret = h3_req_headers_send(qcs, htx);
+			ret = h3_req_headers_send(qcs, htx, fin);
 			if (ret > 0) {
 				total += ret;
 				count -= ret;
@@ -3181,7 +3185,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 
 		case HTX_BLK_RES_SL:
 			/* start-line -> HEADERS h3 frame (FE side) */
-			ret = h3_resp_headers_send(qcs, htx);
+			ret = h3_resp_headers_send(qcs, htx, fin);
 			if (ret > 0) {
 				total += ret;
 				count -= ret;
@@ -3191,7 +3195,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 			break;
 
 		case HTX_BLK_DATA:
-			ret = h3_resp_data_send(qcs, htx, buf, count);
+			ret = h3_resp_data_send(qcs, htx, buf, count, fin);
 			if (ret > 0) {
 				/* Reload HTX. This is necessary if 0-copy was performed. */
 				htx = htx_from_buf(buf);
@@ -3205,7 +3209,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 
 		case HTX_BLK_TLR:
 		case HTX_BLK_EOT:
-			ret = h3_resp_trailers_send(qcs, htx);
+			ret = h3_resp_trailers_send(qcs, htx, fin);
 			if (ret > 0) {
 				total += ret;
 				count -= ret;
@@ -3250,8 +3254,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 	 * which results in transfers reported as prematurely aborted (cL--).
 	 */
 #if 0
-	if (unlikely((htx->flags & HTX_FL_HAS_EOM) && htx_is_empty(htx)) &&
-	             !qcs_is_close_remote(qcs)) {
+	if (unlikely(*fin && !qcs_is_close_remote(qcs))) {
 	        /* Generate a STOP_SENDING if full response transferred before
 	         * receiving the full request.
 	         */
@@ -3260,12 +3263,7 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 #endif
 
  out:
-	if (eom && htx_is_empty(htx) && !(h3s->flags & H3_SF_SENT_INTERIM)) {
-		TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
-		*fin = 1;
-	}
 	htx_to_buf(htx, buf);
-
 	TRACE_LEAVE(H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
 	return total;
 }
