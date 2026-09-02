@@ -381,8 +381,12 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	/* The compression is finished and we must now restore the EOM flog on
 	 * the HTX message.
 	 */
-	if ((st->flags & (COMP_STATE_PROCESSING|COMP_STATE_EOM_SEEN)) == COMP_STATE_EOM_SEEN)
-		htx->flags |= HTX_FL_EOM;
+	if ((st->flags & (COMP_STATE_PROCESSING|COMP_STATE_EOM_SEEN)) == COMP_STATE_EOM_SEEN) {
+		unsigned int data = htx->data;
+
+		htx_set_eom(htx);
+		to_forward += htx->data - data;
+	}
 
 	if (to_forward != consumed)
 		flt_update_offsets(filter, msg->chn, to_forward - consumed);
