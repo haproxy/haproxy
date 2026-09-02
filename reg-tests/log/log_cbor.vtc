@@ -1,0 +1,120 @@
+varnishtest "Check that the +cbor output passes the logged bytes through"
+feature ignore_unknown_macro
+
+# The encoding of section 8.6 of the config manual, which turns every byte
+# outside the 32..126 range into a '#' followed by its two hex digits,
+# deliberately does not apply to the cbor encoding, and this test makes sure it
+# stays that way, as it's too easy to break log encoding by forgetting about
+# this special case.
+#
+# Regarding expect rules below, the first byte of a CBOR text string is 0x60
+# plus its length, that of a byte string is 0x40 plus its length, or 0x5F for
+# an indefinite one, closed by 0xFF. The whole thing is then hex-rendered, so
+# each of those bytes appears as two hex characters.
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    ring myring
+        size 16384
+        format raw
+
+    defaults common
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        log ring@myring local0
+
+    frontend fe from common
+        bind "fd@${fe}"
+        capture request header x len 64
+        log-format "%{+cbor}[capture.req.hdr(0)]"
+        http-request return status 200
+
+    # a binary sample, which goes to a byte string instead of a text string
+    frontend fe_bin from common
+        bind "fd@${fe_bin}"
+        log-format "%{+cbor}o%(v)[str(qq==),b64dec]"
+        http-request return status 200
+
+    # the raw output form
+    frontend fe_raw from common
+        bind "fd@${fe_raw}"
+        capture request header x len 64
+        log-format "%{+cbor,+bin}o%(v)[capture.req.hdr(0)]"
+        http-request return status 200
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/lone" -hdr "x: A\xaaB"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+    txreq -url "/utf8" -hdr "x: A\xc3\xa9B"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c3 -connect ${h1_fe_sock} {
+    txreq -url "/hash" -hdr "x: Aa#bB"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c4 -connect ${h1_fe_bin_sock} {
+    txreq -url "/bin"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c5 -connect ${h1_fe_raw_sock} {
+    txreq -url "/raw" -hdr "x: A\x01B"
+    rxresp
+    expect resp.status == 200
+} -run
+
+delay 0.2
+
+# 3 bytes kept as they are: 0x63, then 'A', the 0xAA and 'B'
+haproxy h1 -cli {
+    send "show events myring"
+    expect ~ "6341AA42"
+}
+
+# a UTF-8 sequence is not touched either, so 4 bytes: 0x64, 'A', 0xC3 0xA9, 'B'
+haproxy h1 -cli {
+    send "show events myring"
+    expect ~ "6441C3A942"
+}
+
+# a '#' coming from the request is not doubled, so 5 bytes: 0x65 then "Aa#bB"
+haproxy h1 -cli {
+    send "show events myring"
+    expect ~ "654161236242"
+}
+
+# the binary sample: 0x5F opens an indefinite byte string, 0x41 is a one-byte
+# chunk holding the 0xAA of the sample, and 0xFF closes it
+haproxy h1 -cli {
+    send "show events myring"
+    expect ~ "5F41AAFF"
+}
+
+# in the raw form the CBOR bytes are not hex-rendered, so the 0x01 of the
+# request is a raw byte in the ring, which "-s" replaces with a '?'
+haproxy h1 -cli {
+    send "show events myring -s"
+    expect ~ "A\\?B"
+}
+
+# and it was not encoded on the way
+haproxy h1 -cli {
+    send "show events myring"
+    expect !~ "A#01B"
+}
