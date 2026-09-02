@@ -298,6 +298,16 @@ int qpack_decode_fs(const unsigned char *raw, uint64_t len, struct buffer *tmp,
 		goto out;
 	}
 
+	/* RFC 9204 4.5.1.1
+	 * haproxy advertises a null dynamic table capacity, so a conformant
+	 * encoder cannot produce a non null Encoded Required Insert Count.
+	 */
+	if (enc_ric) {
+		qpack_debug_printf(stderr, "##ERR@%d\n", __LINE__);
+		ret = -QPACK_RET_DECOMP;
+		goto out;
+	}
+
 	chunk_reset(tmp);
 	qpack_debug_printf(stderr, "enc_ric: %llu db: %llu s=%d\n", 
 	                   (unsigned long long)enc_ric, (unsigned long long)db, !!s);
