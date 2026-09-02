@@ -2222,6 +2222,48 @@ static inline char *_lf_rfc5424_escape_byte(char *start, char *stop,
 	return start;
 }
 
+/* Writes at <start> the JSON escape sequence for byte <byte>, which is assumed
+ * to require escaping (i.e. to be tagged in json_escape_map). The two-character
+ * form is used for the characters which have one, and the six-character \u00XX
+ * form for the others.
+ *
+ * The function returns the address of the byte immediately after the last
+ * written byte, or NULL if the sequence does not fit before <stop>. It will not
+ * append a terminating NULL byte.
+ */
+static inline char *_lf_json_escape_seq(char *start, char *stop, unsigned char byte)
+{
+	char shortcut = 0;
+
+	switch (byte) {
+	case '"':  shortcut = '"';  break;
+	case '\\': shortcut = '\\'; break;
+	case '\b': shortcut = 'b';  break;
+	case '\f': shortcut = 'f';  break;
+	case '\n': shortcut = 'n';  break;
+	case '\r': shortcut = 'r';  break;
+	case '\t': shortcut = 't';  break;
+	}
+
+	if (shortcut) {
+		if (start + 2 >= stop)
+			return NULL;
+		*start++ = '\\';
+		*start++ = shortcut;
+		return start;
+	}
+
+	if (start + 6 >= stop)
+		return NULL;
+	*start++ = '\\';
+	*start++ = 'u';
+	*start++ = '0';
+	*start++ = '0';
+	*start++ = hextab[(byte >> 4) & 15];
+	*start++ = hextab[byte & 15];
+	return start;
+}
+
 /* helper function for _lf_encode_bytes() to encode a single byte
  * and escape it with <escape> if found in <map> or escape it with
  * '\' if found in json_escape_map
@@ -2240,12 +2282,8 @@ static inline char *_lf_json_escape_byte(char *start, char *stop,
 	if (!ha_bit_test((unsigned char)(*byte), map)) {
 		if (!ha_bit_test((unsigned char)(*byte), json_escape_map))
 			*start++ = *byte;
-		else {
-			if (start + 2 >= stop)
-				return NULL;
-			*start++ = '\\';
-			*start++ = *byte;
-		}
+		else
+			start = _lf_json_escape_seq(start, stop, *byte);
 	}
 	else
 		start = _lf_escape_byte(start, stop, *byte, escape);
@@ -2398,6 +2436,35 @@ static char *lf_encode_chunk(char *start, char *stop,
 	                        ctx);
 }
 
+/* Same as escape_string() but for a JSON string content: the bytes tagged in
+ * json_escape_map cannot all be expressed with the two-character form that
+ * escape_string() emits, the others need the \u00XX one.
+ *
+ * Return the address of the \0 character, or NULL on error
+ */
+static char *_lf_json_escape_string(char *start, char *stop,
+                                    const char *string, const char *string_stop)
+{
+	if (start < stop) {
+		stop--; /* reserve one byte for the final '\0' */
+		while (start < stop && string < string_stop && *string != '\0') {
+			if (!ha_bit_test((unsigned char)(*string), json_escape_map))
+				*start++ = *string;
+			else {
+				char *next = _lf_json_escape_seq(start, stop, *string);
+
+				if (!next)
+					break; /* does not fit, truncate here */
+				start = next;
+			}
+			string++;
+		}
+		*start = '\0';
+		return start;
+	}
+	return NULL;
+}
+
 /*
  * Write a raw string in the log string
  * Take care of escape option
@@ -2415,9 +2482,7 @@ static inline char *_lf_text_len(char *dst, const char *src,
 	const long *escape_map = NULL;
 	char *ret;
 
-	if (ctx->options & LOG_OPT_ENCODE_JSON)
-		escape_map = json_escape_map;
-	else if (ctx->options & LOG_OPT_ESC)
+	if (ctx->options & LOG_OPT_ESC)
 		escape_map = rfc5424_escape_map;
 
 	if (src && len) {
@@ -2444,6 +2509,14 @@ static inline char *_lf_text_len(char *dst, const char *src,
 		/* escape_string and strlcpy2 will both try to add terminating NULL-byte
 		 * to dst
 		 */
+		else if (ctx->options & LOG_OPT_ENCODE_JSON) {
+			char *ret;
+
+			ret = _lf_json_escape_string(dst, dst + size, src, src + len);
+			if (ret == NULL)
+				return NULL;
+			len = ret - dst;
+		}
 		else if (escape_map) {
 			char *ret;
 
@@ -3701,7 +3774,15 @@ static void init_log()
 		tmp++;
 	}
 
-	/* Initialize the escape map for JSON strings : '"\' */
+	/* Initialize the escape map for JSON strings. Section 8.6 states that
+	 * only the characters from 32 to 126 are emitted as-is in the logs, all
+	 * the others being encoded, and there is no reason for the JSON encoding
+	 * to be more permissive than the plain one: escaping them all also
+	 * spares us from having to care about the UTF-8 validity that RFC 8259
+	 * #8.1 demands, since a header value is made of arbitrary bytes and not
+	 * of text. On top of that, RFC 8259 #7 mandates escaping the double
+	 * quote, the backslash and everything below 0x20.
+	 */
 	memset(json_escape_map, 0, sizeof(json_escape_map));
 
 	tmp = "\"\\";
@@ -3709,6 +3790,11 @@ static void init_log()
 		ha_bit_set(*tmp, json_escape_map);
 		tmp++;
 	}
+
+	for (i = 0; i < 0x20; i++)
+		ha_bit_set(i, json_escape_map);
+	for (i = 0x7f; i < 256; i++)
+		ha_bit_set(i, json_escape_map);
 
 	/* initialize the log header encoding map : '{|}"#' should be encoded with
 	 * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
