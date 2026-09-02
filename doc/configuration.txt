@@ -20391,10 +20391,24 @@ accepted_payload_size <nb>
 
 nameserver <name> <address>[:port] [param*]
   Used to configure a nameserver. <name> of the nameserver should ne unique.
-  By default the <address> is considered of type datagram. This means if an
-  IPv4 or IPv6 is configured without special address prefixes (paragraph 11.)
-  the UDP protocol will be used.  If an stream protocol address prefix is used,
-  the nameserver will be considered as a stream server (TCP for instance) and
+  By default an IPv4, IPv6 or hostname <address> is queried over UDP. When a
+  valid UDP response has its truncated (TC) flag set, the same query is retried
+  over TCP against the same address and port. The TCP connection is established
+  lazily, only after a truncated response is received, and uses the regular DNS
+  stream connection pooling, pipelining, timeouts and idle connection cleanup.
+
+  An explicit datagram address prefix such as "udp@", "udp4@", "udp6@" or
+  "dgram+" forces UDP-only operation and disables TCP fallback. An explicit
+  stream address prefix such as "tcp@" forces TCP-only operation.
+
+  A failure to connect or send over TCP is handled by the regular resolver
+  timeout and retry mechanism. Starting TCP fallback does not consume a retry
+  or switch the query between A and AAAA. A truncated response received over
+  TCP follows the normal resolver error path and does not start another
+  fallback.
+
+  If a stream protocol address prefix is used, the nameserver will be
+  considered as a stream server (TCP for instance) and
   "server" parameters found in 5.2 paragraph which are relevant for DNS
   resolving will be considered.  Note: currently, in TCP mode, 4 queries are
   pipelined on the same connections. A batch of idle connections are removed
@@ -20404,7 +20418,8 @@ nameserver <name> <address>[:port] [param*]
 parse-resolv-conf
   Adds all nameservers found in /etc/resolv.conf to this resolvers nameservers
   list. Ordered as if each nameserver in /etc/resolv.conf was individually
-  placed in the resolvers section in place of this directive.
+  placed in the resolvers section in place of this directive. These nameservers
+  use UDP normally and retry truncated responses over TCP.
 
 hold <status> <period>
   Upon receiving the DNS response <status>, determines whether a server's state

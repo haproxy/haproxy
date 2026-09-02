@@ -43,4 +43,10 @@ static inline int dns_server_type_is_stream(enum dns_server_type type)
 	return type == DNS_SERVER_STREAM;
 }
 
+/* Returns nonzero if <ns> owns both servers needed for TCP fallback. */
+static inline int dns_nameserver_has_fallback(const struct dns_nameserver *ns)
+{
+	return ns->dgram && ns->stream;
+}
+
 #endif // _HAPROXY_DNS_H

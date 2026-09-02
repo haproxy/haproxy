@@ -218,6 +218,7 @@ struct resolv_resolution {
 	int                   try;                 /* current resolution try */
 	int                   nb_queries;          /* count number of queries sent */
 	int                   nb_responses;        /* count number of responses received */
+	int                   nb_tcp_fallback;     /* count TCP fallback responses still outstanding */
 
 	struct resolv_response response;           /* structure hosting the DNS response */
 	struct resolv_query_item response_query_records[DNS_MAX_QUERY_RECORDS]; /* <response> query records */

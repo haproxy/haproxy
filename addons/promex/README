@@ -430,5 +430,6 @@ listed below. Metrics from extra counters are not listed.
 | haproxy_resolver_other                             |
 | haproxy_resolver_invalid                           |
 | haproxy_resolver_too_big                           |
+| haproxy_resolver_tcp_fallback                      |
 | haproxy_resolver_outdated                          |
 +----------------------------------------------------+

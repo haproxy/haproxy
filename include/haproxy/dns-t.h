@@ -154,7 +154,7 @@ struct dns_nameserver {
 
 	int (*process_responses)(struct dns_nameserver *ns, enum dns_server_type type); /* callback used to process responses */
 	struct dns_dgram_server *dgram;  /* used for dgram dns */
-	struct dns_stream_server *stream; /* used for tcp dns */
+	struct dns_stream_server *stream; /* used for stream DNS and TCP fallback */
 
 	EXTRA_COUNTERS(extra_counters);
 	char *extra_counters_storage;    /* storage used for extra_counters above */
@@ -184,7 +184,8 @@ struct dns_counters {
 			long long invalid;      /* - malformed DNS response */
 			long long too_big;      /* - too big response */
 			long long outdated;     /* - outdated response (server slower than the other ones) */
-			long long truncated;    /* - truncated response */;
+			long long truncated;    /* - truncated response */
+			long long tcp_fallback; /* - truncated response retried over TCP */
 		} resolver;
 	} app;         /* application specific counteurs */
 };

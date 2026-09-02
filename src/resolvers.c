@@ -96,28 +96,30 @@ enum {
 	RSLV_STAT_INVALID,
 	RSLV_STAT_TOO_BIG,
 	RSLV_STAT_TRUNCATED,
+	RSLV_STAT_TCP_FALLBACK,
 	RSLV_STAT_OUTDATED,
 	RSLV_STAT_END,
 };
 
 static struct stat_col resolv_stats[] = {
-	[RSLV_STAT_ID]          = { .name = "id",          .desc = "ID" },
-	[RSLV_STAT_PID]         = { .name = "pid",         .desc = "Parent ID" },
-	[RSLV_STAT_SENT]        = { .name = "sent",        .desc = "Sent" },
-	[RSLV_STAT_SND_ERROR]   = { .name = "send_error",  .desc = "Send error" },
-	[RSLV_STAT_VALID]       = { .name = "valid",       .desc = "Valid" },
-	[RSLV_STAT_UPDATE]      = { .name = "update",      .desc = "Update" },
-	[RSLV_STAT_CNAME]       = { .name = "cname",       .desc = "CNAME" },
-	[RSLV_STAT_CNAME_ERROR] = { .name = "cname_error", .desc = "CNAME error" },
-	[RSLV_STAT_ANY_ERR]     = { .name = "any_err",     .desc = "Any errors" },
-	[RSLV_STAT_NX]          = { .name = "nx",          .desc = "NX" },
-	[RSLV_STAT_TIMEOUT]     = { .name = "timeout",     .desc = "Timeout" },
-	[RSLV_STAT_REFUSED]     = { .name = "refused",     .desc = "Refused" },
-	[RSLV_STAT_OTHER]       = { .name = "other",       .desc = "Other" },
-	[RSLV_STAT_INVALID]     = { .name = "invalid",     .desc = "Invalid" },
-	[RSLV_STAT_TOO_BIG]     = { .name = "too_big",     .desc = "Too big" },
-	[RSLV_STAT_TRUNCATED]   = { .name = "truncated",   .desc = "Truncated" },
-	[RSLV_STAT_OUTDATED]    = { .name = "outdated",    .desc = "Outdated" },
+	[RSLV_STAT_ID]           = { .name = "id",           .desc = "ID" },
+	[RSLV_STAT_PID]          = { .name = "pid",          .desc = "Parent ID" },
+	[RSLV_STAT_SENT]         = { .name = "sent",         .desc = "Sent" },
+	[RSLV_STAT_SND_ERROR]    = { .name = "send_error",   .desc = "Send error" },
+	[RSLV_STAT_VALID]        = { .name = "valid",        .desc = "Valid" },
+	[RSLV_STAT_UPDATE]       = { .name = "update",       .desc = "Update" },
+	[RSLV_STAT_CNAME]        = { .name = "cname",        .desc = "CNAME" },
+	[RSLV_STAT_CNAME_ERROR]  = { .name = "cname_error",  .desc = "CNAME error" },
+	[RSLV_STAT_ANY_ERR]      = { .name = "any_err",      .desc = "Any errors" },
+	[RSLV_STAT_NX]           = { .name = "nx",           .desc = "NX" },
+	[RSLV_STAT_TIMEOUT]      = { .name = "timeout",      .desc = "Timeout" },
+	[RSLV_STAT_REFUSED]      = { .name = "refused",      .desc = "Refused" },
+	[RSLV_STAT_OTHER]        = { .name = "other",        .desc = "Other" },
+	[RSLV_STAT_INVALID]      = { .name = "invalid",      .desc = "Invalid" },
+	[RSLV_STAT_TOO_BIG]      = { .name = "too_big",      .desc = "Too big" },
+	[RSLV_STAT_TRUNCATED]    = { .name = "truncated",    .desc = "Truncated" },
+	[RSLV_STAT_TCP_FALLBACK] = { .name = "tcp_fallback", .desc = "TCP fallback" },
+	[RSLV_STAT_OUTDATED]     = { .name = "outdated",     .desc = "Outdated" },
 };
 
 static struct dns_counters dns_counters;
@@ -184,6 +186,9 @@ static int resolv_fill_stats(struct stats_module *mod, struct extra_counters *ct
 			break;
 		case RSLV_STAT_TRUNCATED:
 			metric = mkf_u64(FN_GAUGE, counters->app.resolver.truncated);
+			break;
+		case RSLV_STAT_TCP_FALLBACK:
+			metric = mkf_u64(FN_GAUGE, counters->app.resolver.tcp_fallback);
 			break;
 		case RSLV_STAT_OUTDATED:
 			metric = mkf_u64(FN_GAUGE, counters->app.resolver.outdated);
@@ -454,9 +459,10 @@ static int resolv_send_query(struct resolv_resolution *resolution)
 	int len;
 
 	/* Update resolution */
-	resolution->nb_queries   = 0;
-	resolution->nb_responses = 0;
-	resolution->last_query   = now_ms;
+	resolution->nb_queries      = 0;
+	resolution->nb_responses    = 0;
+	resolution->nb_tcp_fallback = 0;
+	resolution->last_query      = now_ms;
 
 	len = resolv_build_query(resolution->query_id, resolution->query_type,
 	                      resolvers->accepted_payload_size,
@@ -481,6 +487,34 @@ static int resolv_send_query(struct resolv_resolution *resolution)
 	LIST_DEL_INIT(&resolution->list);
 	LIST_APPEND(&resolvers->resolutions.curr, &resolution->list);
 	return 0;
+}
+
+/* Retries query type <query_type> over the stream server of nameserver <ns>.
+ * Returns 1 if the query was queued and 0 otherwise.
+ */
+static int resolv_send_tcp_fallback(struct resolv_resolution *resolution,
+                                    struct dns_nameserver *ns, int query_type)
+{
+	struct resolvers *resolvers = resolution->resolvers;
+	int len;
+
+	len = resolv_build_query(resolution->query_id, query_type,
+	                        resolvers->accepted_payload_size,
+	                        resolution->hostname_dn, resolution->hostname_dn_len,
+	                        trash.area, trash.size);
+	if (len < 0)
+		return 0;
+
+	if (dns_send_nameserver(ns, DNS_SERVER_STREAM, trash.area, len) < 0)
+		return 0;
+
+	resolution->nb_queries++;
+	resolution->nb_tcp_fallback++;
+	resolution->last_query = now_ms;
+	LIST_DEL_INIT(&resolution->list);
+	LIST_APPEND(&resolvers->resolutions.curr, &resolution->list);
+	ns->counters->app.resolver.tcp_fallback++;
+	return 1;
 }
 
 /* Prepares and sends a DNS resolution. It returns 1 if the query was sent, 0 if
@@ -577,6 +611,7 @@ static void resolv_reset_resolution(struct resolv_resolution *resolution)
 	resolution->last_resolution = now_ms;
 	resolution->nb_queries      = 0;
 	resolution->nb_responses    = 0;
+	resolution->nb_tcp_fallback = 0;
 	resolution->query_type      = resolution->prefered_query_type;
 
 	/* clean up query id */
@@ -1009,12 +1044,14 @@ srv_found:
  *
  * The result is stored in <resolution>' response, buf_response,
  * response_query_records and response_answer_records members.
+ * A truncated SRV response may be parsed when <allow_truncated_srv> is set.
  *
  * This function returns one of the RSLV_RESP_* code to indicate the type of
  * error found.
  */
 static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufend,
-                                        struct resolv_resolution *resolution, int max_answer_records)
+                                        struct resolv_resolution *resolution, int max_answer_records,
+                                        int allow_truncated_srv)
 {
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
@@ -1148,10 +1185,20 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 	query->class = reader[0] * 256 + reader[1];
 	reader += 2;
 
+	/* A and AAAA responses may arrive after the query type switched. */
+	if (query->class != DNS_RCLASS_IN ||
+	    (query->type != resolution->query_type &&
+	     !((query->type == DNS_RTYPE_A || query->type == DNS_RTYPE_AAAA) &&
+	       (resolution->query_type == DNS_RTYPE_A ||
+	        resolution->query_type == DNS_RTYPE_AAAA))))
+		goto invalid_resp;
+
 	/* TRUNCATED flag must be checked after we could read the query type
 	 * because a TRUNCATED SRV query type response can still be exploited
+	 * when no TCP fallback can be performed.
 	 */
-	if (query->type != DNS_RTYPE_SRV && flags & DNS_FLAG_TRUNCATED) {
+	if ((flags & DNS_FLAG_TRUNCATED) &&
+	    (query->type != DNS_RTYPE_SRV || !allow_truncated_srv)) {
 		cause = RSLV_RESP_TRUNCATED;
 		goto return_error;
 	}
@@ -2377,11 +2424,16 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 
 		/* known query id means a resolution in progress */
 		res = eb32_entry(eb, struct resolv_resolution, qid);
+		if (dns_server_type_is_stream(type) &&
+		    dns_nameserver_has_fallback(ns) && res->nb_tcp_fallback)
+			res->nb_tcp_fallback--;
 		/* number of responses received */
 		res->nb_responses++;
 
 		max_answer_records = (max_payload_size - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE;
-		dns_resp = resolv_validate_dns_response(buf, bufend, res, max_answer_records);
+		dns_resp = resolv_validate_dns_response(buf, bufend, res, max_answer_records,
+		                                       !(dns_server_type_is_dgram(type) &&
+		                                         dns_nameserver_has_fallback(ns)));
 
 		switch (dns_resp) {
 			case RSLV_RESP_VALID:
@@ -2417,6 +2469,11 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 			case RSLV_RESP_TRUNCATED:
 				res->status = RSLV_STATUS_OTHER;
 				ns->counters->app.resolver.truncated++;
+				if (dns_server_type_is_dgram(type) &&
+				    dns_nameserver_has_fallback(ns) &&
+				    resolv_send_tcp_fallback(res, ns,
+				                            res->response_query_records[0].type))
+					continue;
 				break;
 
 			case RSLV_RESP_NO_EXPECTED_RECORD:
@@ -2560,8 +2617,12 @@ struct task *process_resolvers(struct task *t, void *context, unsigned int state
 		}
 		else {
 			/* Otherwise resend the DNS query and requeue the resolution */
-			if (!res->nb_responses || res->prefered_query_type != res->query_type) {
-				/* No response received (a real timeout) or fallback already done */
+			if (!res->nb_responses || res->nb_tcp_fallback ||
+			    res->prefered_query_type != res->query_type) {
+				/* No response was received, a TCP fallback response is
+				 * still outstanding, or the query-type fallback was
+				 * already performed.
+				 */
 				res->query_type = res->prefered_query_type;
 				res->try--;
 			}
@@ -3109,21 +3170,22 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 			list_for_each_entry_from(ns, &resolvers->nameservers, list) {
 				chunk_reset(&trash);
 				chunk_appendf(&trash, " nameserver %s:\n", ns->id);
-				chunk_appendf(&trash, "  sent:        %lld\n", ns->counters->sent);
-				chunk_appendf(&trash, "  snd_error:   %lld\n", ns->counters->snd_error);
-				chunk_appendf(&trash, "  valid:       %lld\n", ns->counters->app.resolver.valid);
-				chunk_appendf(&trash, "  update:      %lld\n", ns->counters->app.resolver.update);
-				chunk_appendf(&trash, "  cname:       %lld\n", ns->counters->app.resolver.cname);
-				chunk_appendf(&trash, "  cname_error: %lld\n", ns->counters->app.resolver.cname_error);
-				chunk_appendf(&trash, "  any_err:     %lld\n", ns->counters->app.resolver.any_err);
-				chunk_appendf(&trash, "  nx:          %lld\n", ns->counters->app.resolver.nx);
-				chunk_appendf(&trash, "  timeout:     %lld\n", ns->counters->app.resolver.timeout);
-				chunk_appendf(&trash, "  refused:     %lld\n", ns->counters->app.resolver.refused);
-				chunk_appendf(&trash, "  other:       %lld\n", ns->counters->app.resolver.other);
-				chunk_appendf(&trash, "  invalid:     %lld\n", ns->counters->app.resolver.invalid);
-				chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters->app.resolver.too_big);
-				chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters->app.resolver.truncated);
-				chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->app.resolver.outdated);
+				chunk_appendf(&trash, "  sent:         %lld\n", ns->counters->sent);
+				chunk_appendf(&trash, "  snd_error:    %lld\n", ns->counters->snd_error);
+				chunk_appendf(&trash, "  valid:        %lld\n", ns->counters->app.resolver.valid);
+				chunk_appendf(&trash, "  update:       %lld\n", ns->counters->app.resolver.update);
+				chunk_appendf(&trash, "  cname:        %lld\n", ns->counters->app.resolver.cname);
+				chunk_appendf(&trash, "  cname_error:  %lld\n", ns->counters->app.resolver.cname_error);
+				chunk_appendf(&trash, "  any_err:      %lld\n", ns->counters->app.resolver.any_err);
+				chunk_appendf(&trash, "  nx:           %lld\n", ns->counters->app.resolver.nx);
+				chunk_appendf(&trash, "  timeout:      %lld\n", ns->counters->app.resolver.timeout);
+				chunk_appendf(&trash, "  refused:      %lld\n", ns->counters->app.resolver.refused);
+				chunk_appendf(&trash, "  other:        %lld\n", ns->counters->app.resolver.other);
+				chunk_appendf(&trash, "  invalid:      %lld\n", ns->counters->app.resolver.invalid);
+				chunk_appendf(&trash, "  too_big:      %lld\n", ns->counters->app.resolver.too_big);
+				chunk_appendf(&trash, "  truncated:    %lld\n", ns->counters->app.resolver.truncated);
+				chunk_appendf(&trash, "  tcp_fallback: %lld\n", ns->counters->app.resolver.tcp_fallback);
+				chunk_appendf(&trash, "  outdated:     %lld\n", ns->counters->app.resolver.outdated);
 				if (applet_putchk(appctx, &trash) == -1)
 					goto full;
 				ctx->ns = ns;
@@ -3491,6 +3553,53 @@ void resolvers_setup_proxy(struct proxy *px)
 	px->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON;
 }
 
+/* Adds the stream transport used for TCP fallback, named <name> and targeting
+ * <sk>, to <ns>. Errors are stored in <errmsg> when it is non-NULL. Returns a
+ * combination of ERR_* flags.
+ */
+static int resolv_add_tcp_fallback(struct dns_nameserver *ns, const char *file,
+                                   int linenum, const char *name,
+                                   const struct sockaddr_storage *sk,
+                                   char **errmsg)
+{
+	char *address = NULL;
+	char *tcp_addr = NULL;
+	char *tcp_args[5] = { "nameserver", NULL, NULL, "", "" };
+	int err_code = 0;
+
+	address = sa2str(sk, get_host_port(sk), 0);
+	if (!address || !memprintf(&tcp_addr, "tcp@%s", address)) {
+		if (errmsg)
+			memprintf(errmsg, "parsing [%s:%d] : out of memory.", file, linenum);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+	tcp_args[1] = (char *)name;
+	tcp_args[2] = tcp_addr;
+	err_code |= parse_server(file, linenum, tcp_args, curr_resolvers->px, NULL,
+	                         SRV_PARSE_PARSE_ADDR|SRV_PARSE_INITIAL_RESOLVE);
+	if (err_code & (ERR_FATAL|ERR_ABORT)) {
+		if (errmsg && !*errmsg)
+			memprintf(errmsg, "parsing [%s:%d] : failed to initialize TCP fallback for nameserver '%s'.",
+			          file, linenum, name);
+		err_code |= ERR_ABORT;
+		goto out;
+	}
+
+	if (dns_stream_init(ns, proxy_last_server(curr_resolvers->px)) < 0) {
+		if (errmsg)
+			memprintf(errmsg, "parsing [%s:%d] : out of memory.", file, linenum);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+
+ out:
+	ha_free(&address);
+	ha_free(&tcp_addr);
+	return err_code;
+}
+
 static int parse_resolve_conf(char **errmsg, char **warnmsg)
 {
 	struct dns_nameserver *newnameserver = NULL;
@@ -3587,6 +3696,14 @@ static int parse_resolve_conf(char **errmsg, char **warnmsg)
 			if (errmsg)
 				memprintf(errmsg, "parsing [/etc/resolv.conf:%d] : out of memory.", resolv_linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			free(newnameserver);
+			goto resolv_out;
+		}
+
+		err_code |= resolv_add_tcp_fallback(newnameserver, "/etc/resolv.conf",
+		                                   resolv_linenum, address, sk, errmsg);
+		if (err_code & (ERR_FATAL|ERR_ABORT)) {
+			dns_nameserver_deinit(newnameserver);
 			free(newnameserver);
 			goto resolv_out;
 		}
@@ -3757,7 +3874,9 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct dns_nameserver *newnameserver = NULL;
 		struct sockaddr_storage *sk;
+		struct net_addr_type addr_type;
 		int port1, port2;
+		int add_fallback = 0;
 		struct protocol *proto;
 
 		if (!*args[2]) {
@@ -3785,7 +3904,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto, NULL,
+		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto, &addr_type,
 		                  &errmsg, NULL, NULL, NULL,
 		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
 		if (!sk) {
@@ -3793,6 +3912,10 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		add_fallback = (addr_type.xprt_type == PROTO_TYPE_DGRAM &&
+		                !addr_type.explicit_type &&
+		                (sk->ss_family == AF_INET || sk->ss_family == AF_INET6));
 
 		if ((newnameserver = calloc(1, sizeof(*newnameserver))) == NULL) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -3816,11 +3939,26 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 		}
-		else if (dns_dgram_init(newnameserver, sk) < 0) {
-			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			free(newnameserver);
-			goto out;
+		else {
+			if (dns_dgram_init(newnameserver, sk) < 0) {
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				free(newnameserver);
+				goto out;
+			}
+
+			if (add_fallback) {
+				err_code |= resolv_add_tcp_fallback(newnameserver, file,
+				                                    linenum, args[1], sk, &errmsg);
+				if (err_code & (ERR_FATAL|ERR_ABORT)) {
+					if (errmsg)
+						ha_alert("%s\n", errmsg);
+					err_code |= ERR_ABORT;
+					dns_nameserver_deinit(newnameserver);
+					free(newnameserver);
+					goto out;
+				}
+			}
 		}
 
 		if ((newnameserver->conf.file = strdup(file)) == NULL) {
