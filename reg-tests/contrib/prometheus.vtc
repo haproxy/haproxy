@@ -55,6 +55,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_server.*"
 	expect resp.body ~ ".*haproxy_sticktable.*"
 	expect resp.body ~ ".*haproxy_resolver.*"
+	expect resp.body ~ ".*haproxy_resolver_tcp_fallback.*"
 
 	# test well known labels presence
 	expect resp.body ~ ".*haproxy_process_build_info{version=\".*\"} 1.*"

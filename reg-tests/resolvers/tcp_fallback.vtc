@@ -1,0 +1,174 @@
+varnishtest "DNS UDP to TCP fallback"
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+#REGTEST_TYPE=devel
+
+feature ignore_unknown_macro
+feature cmd "python3 --version"
+
+# Reserve two random local ports, then release their TCP listeners so the
+# Python fixtures can bind UDP and TCP to the same port.
+server s10 {} -start
+server s10 -break
+
+server s11 {} -start
+server s11 -break
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+process p1 "python3 ${testdir}/tcp_fallback.py --port ${s10_port} --log ${tmpdir}/dns.log --srv-port ${s1_port}" -start
+process p1 -expect-text 0 0 "READY"
+
+process p2 "python3 ${testdir}/tcp_fallback.py --port ${s11_port} --log ${tmpdir}/dns-udp-only.log --udp-only" -start
+process p2 -expect-text 0 0 "READY"
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    resolvers fallback
+        nameserver dns 127.0.0.1:${s10_port}
+        timeout resolve 30s
+        timeout retry 200ms
+        resolve_retries 2
+        hold valid 30s
+
+    resolvers disabled
+        nameserver dns udp@127.0.0.1:${s10_port}
+        accepted_payload_size 8192
+        timeout resolve 30s
+        timeout retry 200ms
+        resolve_retries 1
+
+    resolvers family_prefix
+        nameserver dns ipv4@127.0.0.1:${s10_port}
+        timeout resolve 30s
+        timeout retry 200ms
+        resolve_retries 1
+
+    resolvers unavailable
+        nameserver dns 127.0.0.1:${s11_port}
+        accepted_payload_size 8192
+        timeout resolve 30s
+        timeout retry 200ms
+        resolve_retries 2
+
+    resolvers tcp_only
+        nameserver dns tcp@127.0.0.1:${s10_port}
+        accepted_payload_size 8192
+        timeout resolve 30s
+        timeout retry 200ms
+        resolve_retries 1
+
+    frontend fe
+        bind "fd@${fe}"
+        acl disabled hdr(host) -i disabled.test
+        acl family_prefix hdr(host) -i family-prefix.test
+        acl unavailable hdr(host) -i unavailable.test
+        acl tcp_only hdr(host) -i tcp-only.test
+        http-request do-resolve(txn.ip,disabled,ipv4) hdr(host) if disabled
+        http-request do-resolve(txn.ip,family_prefix,ipv4) hdr(host) if family_prefix
+        http-request do-resolve(txn.ip,unavailable,ipv4) hdr(host) if unavailable
+        http-request do-resolve(txn.ip,tcp_only,ipv4) hdr(host) if tcp_only
+        http-request do-resolve(txn.ip,fallback,ipv4) hdr(host) if !disabled !family_prefix !unavailable !tcp_only
+        http-request return status 200 hdr x-ip %[var(txn.ip)] if { var(txn.ip) -m found }
+        http-request return status 503
+
+    backend srv
+        server-template srv 1 _service._tcp.srv.test resolvers fallback init-addr none
+
+    backend truncated_srv
+        server-template truncated 1 _truncated._tcp.srv.test resolvers tcp_only init-addr none
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -hdr "Host: fallback.test"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ip == "192.0.2.123"
+
+    txreq -hdr "Host: late-a.test"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ip == "192.0.2.123"
+
+    txreq -hdr "Host: direct.test"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ip == "192.0.2.123"
+
+    txreq -hdr "Host: wrong-question.test"
+    rxresp
+    expect resp.status == 503
+
+    txreq -hdr "Host: wrong-type.test"
+    rxresp
+    expect resp.status == 503
+
+    txreq -hdr "Host: wrong-class.test"
+    rxresp
+    expect resp.status == 503
+
+    txreq -hdr "Host: family-prefix.test"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ip == "192.0.2.123"
+
+    txreq -hdr "Host: disabled.test"
+    rxresp
+    expect resp.status == 503
+
+    txreq -hdr "Host: unavailable.test"
+    rxresp
+    expect resp.status == 503
+
+    txreq -hdr "Host: tcp-only.test"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ip == "192.0.2.123"
+} -run
+
+delay 1.2
+
+haproxy h1 -cli {
+    send "show resolvers fallback"
+    expect ~ "truncated: +[1-9][0-9]*"
+    send "show resolvers fallback"
+    expect ~ "tcp_fallback: +[1-9][0-9]*"
+    send "show resolvers fallback"
+    expect ~ "invalid: +[1-9][0-9]*"
+    send "show stat domain resolvers"
+    expect ~ "tcp_fallback"
+    send "show resolvers disabled"
+    expect ~ "truncated: +[1-9][0-9]*"
+    send "show resolvers unavailable"
+    expect ~ "tcp_fallback: +[1-9][0-9]*"
+    send "show servers state srv"
+    expect ~ "srv 1 srv1 127\\.0\\.0\\.1 .* node\\.srv\\.test ${s1_port} _service\\._tcp\\.srv\\.test"
+    send "show servers state truncated_srv"
+    expect ~ "truncated_srv 1 truncated1 127\\.0\\.0\\.1 .* node\\.srv\\.test ${s1_port} _truncated\\._tcp\\.srv\\.test"
+} -wait
+
+shell "awk '$1 == \"tcp\" && $2 == \"fallback.test\" && $4 > 1232 { found = 1 } END { exit !found }' ${tmpdir}/dns.log"
+shell "test \"$(awk '$2 == \"fallback.test\" { print $1 }' ${tmpdir}/dns.log | head -n 2 | tr '\\n' ' ')\" = \"udp tcp \""
+shell "test \"$(awk '$2 == \"late-a.test\" { print $1 \":\" $3 }' ${tmpdir}/dns.log | tr '\\n' ' ')\" = \"udp:1 udp:1 tcp:1 \""
+shell "! grep -q '^tcp direct.test ' ${tmpdir}/dns.log"
+shell "! grep -q '^tcp wrong-question.test ' ${tmpdir}/dns.log"
+shell "! grep -q '^tcp wrong-type.test ' ${tmpdir}/dns.log"
+shell "! grep -q '^tcp wrong-class.test ' ${tmpdir}/dns.log"
+shell "! grep -q '^tcp disabled.test ' ${tmpdir}/dns.log"
+shell "grep -q '^udp family-prefix.test 1 ' ${tmpdir}/dns.log"
+shell "grep -q '^tcp family-prefix.test 1 ' ${tmpdir}/dns.log"
+shell "awk '$1 == \"tcp\" && $2 == \"tcp-only.test\" { count++ } END { exit count != 1 }' ${tmpdir}/dns.log"
+shell "! grep -q '^udp tcp-only.test ' ${tmpdir}/dns.log"
+shell "grep -q '^udp _service._tcp.srv.test 33 ' ${tmpdir}/dns.log"
+shell "grep -q '^tcp _service._tcp.srv.test 33 ' ${tmpdir}/dns.log"
+shell "grep -q '^tcp _truncated._tcp.srv.test 33 ' ${tmpdir}/dns.log"
+shell "! grep -q '^udp _truncated._tcp.srv.test 33 ' ${tmpdir}/dns.log"
+shell "grep -q '^udp unavailable.test 1 ' ${tmpdir}/dns-udp-only.log"
