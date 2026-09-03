@@ -182,6 +182,8 @@ void protocol_localize_rx_fds(void)
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }
 
+static uint getsocks_busy;
+
 /*
  * Collect file descriptor from other thread groups, if they have their
  * own file descriptors table.
@@ -193,12 +195,21 @@ int protocol_getsocks_foreign_fds(struct receiver ***orxs, int **ofds)
 	struct receiver **rxs;
 	int *fds;
 	int nb, filled, done, i;
+	uint idle = 0;
 
 	*orxs = NULL;
 	*ofds = NULL;
 
 	if (MAX_TGROUPS < 2 || !(global.tune.options & GTUNE_NO_TG_FD_SHARING) || global.nbtgroups < 2)
 		return 0;
+
+	/* a concurrent collection would overwrite the per-receiver slots, and
+	 * two of them blocking their groups' runner threads would deadlock.
+	 */
+	if (!HA_ATOMIC_CAS(&getsocks_busy, &idle, 1)) {
+		ha_warning("_getsocks: a collection is already in progress, giving up.\n");
+		return -1;
+	}
 
 	/* first pass: count the candidates */
 	nb = 0;
@@ -214,14 +225,18 @@ int protocol_getsocks_foreign_fds(struct receiver ***orxs, int **ofds)
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 
-	if (!nb)
+	if (!nb) {
+		HA_ATOMIC_STORE(&getsocks_busy, 0);
 		return 0;
+	}
 
 	rxs = calloc(nb, sizeof(*rxs));
 	fds = calloc(nb, sizeof(*fds));
 	if (!rxs || !fds) {
 		free(rxs);
 		free(fds);
+		HA_ATOMIC_STORE(&getsocks_busy, 0);
+		ha_warning("Failed to allocate memory to transfer other groups' sockets\n");
 		return -1;
 	}
 
@@ -281,6 +296,8 @@ int protocol_getsocks_foreign_fds(struct receiver ***orxs, int **ofds)
 		fds[done] = f;
 		done++;
 	}
+
+	HA_ATOMIC_STORE(&getsocks_busy, 0);
 
 	if (!done) {
 		free(rxs);

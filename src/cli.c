@@ -2619,10 +2619,8 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	 * a separate file descriptor table.
 	 */
 	nb_foreign = protocol_getsocks_foreign_fds(&foreign_rxs, &foreign_fds);
-	if (nb_foreign < 0) {
-		ha_warning("Failed to allocate memory to transfer other groups' sockets\n");
+	if (nb_foreign < 0)
 		goto out;
-	}
 
 	/*
 	 * First, calculates the total number of FD, so that we can let
