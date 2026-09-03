@@ -1992,6 +1992,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			h3s->demux_frame_len = flen;
 			total += hlen;
 			TRACE_PROTO("parsing a new frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+			h3_inc_frame_type_cnt(h3c->prx_counters, ftype);
 
 			if ((ret = h3_check_frame_valid(h3c, qcs, ftype))) {
 				TRACE_ERROR("received an invalid frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
@@ -2074,7 +2075,6 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		if (last_stream_frame && h3s->flags & H3_SF_HAVE_CLEN && h3_check_body_size(qcs, last_stream_frame))
 			break;
 
-		h3_inc_frame_type_cnt(h3c->prx_counters, ftype);
 		switch (ftype) {
 		case H3_FT_DATA:
 			ret = h3_data_to_htx(qcs, b, flen, last_stream_frame);
