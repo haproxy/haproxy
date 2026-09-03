@@ -1,6 +1,98 @@
 ChangeLog :
 ===========
 
+2026/09/03 : 3.5-dev6
+    - OPTIM: log/tools: switch from function pointer design to dual mode HEX/BIN design for CBOR encoding
+    - IMPORT: slz/uslz: support SLZ_FMT_NONE format and force its value to 0
+    - MINOR: haload: add -get/-head/-post options to select the HTTP method
+    - BUG/MINOR: haload: count timed-out requests as errors, not successes
+    - BUG/MINOR: haload: make -e react to request timeouts too
+    - MINOR: haload: add -ee to probe and ramp back up after an error
+    - MINOR: quic: add tune.quic.sec.stateless-reset-rate
+    - BUG/MINOR: haload: split the rate exactly across threads
+    - BUG/MINOR: haload: -ee could burst past its floor when many users fail at once
+    - CLEANUP: haload: factor out the per-thread rate share computation
+    - CLEANUP: haload: factor out two more duplicated -ee blocks
+    - MINOR: haload: keep old-scheduled users under -ee's floor rate
+    - BUILD: ssl: avoid a potential null-dereference warning on OpenSSL 1.0.2
+    - BUG/MEDIUM: mux-h1: close the connection on a short content-length
+    - MEDIUM: mux-h2: don't report EOM on a short content-length message
+    - BUG/MEDIUM: connection: fix an infinite loop in the fc_pp_tlv() fetch
+    - BUG/MEDIUM: sink: do not hold the sft lock around ring_dispatch_messages()
+    - MEDIUM: threads: always abort when calling thread_isolated() under a lock
+    - MEDIUM: ring: attach readers under the tail lock instead of isolating
+    - BUG/MEDIUM: cache: ignore cache on redundant origin/referer
+    - BUG/MINOR: fcgi-app: allow explicit filter declaration with non-cache/non-compression filters
+    - BUG/MINOR: flt-http-comp: Don't read next block to detect end of data
+    - BUG/MEDIUM: flt-http-comp: Block HTX_FL_EOM flag till the end of compression
+    - BUG/MEDIUM: sink: initialize the settings of the implicit log server
+    - BUG/MEDIUM: sink: do not create one implicit ring per logger copy
+    - CLEANUP: sink: initialize and finalize the implicit forward proxy
+    - MINOR: haload: add -T to add a think time after each response
+    - MINOR: haload: always track and resend cookies per user
+    - BUG/MINOR: haload: fix hld_new_usr()'s error path
+    - MINOR: haload: add -P to report ttfb/ttlb percentiles
+    - BUG/MINOR: cache: Manage collisions on primary key
+    - BUG/MINOR: cache: Seed cache primary hash
+    - OPTIM: server: remember the lowest known unused server ID
+    - BUG/MEDIUM: mux-spop: Properly handle parsing of split HELLO/DISCONNECT frames
+    - MEDIUM: servers: Do not allow reverse HTTP with per-tg fd tables
+    - BUG/MEDIUM: server: Fix server-template with default-server
+    - MINOR: buf: make b_rep_blk() wrapping-proof
+    - MINOR: (de)compression: add decompression infrastructure
+    - MEDIUM: flt-decomp: implement decomp-req and decomp-res filters
+    - MINOR: flt-http-comp: Check request headers for response compression earlier
+    - MINOR: flt-decomp: add support for HTTP decompression
+    - DOC: config: add documentation for decompression filter
+    - REG-TESTS: decompression: add basic decompression test
+    - MINOR: flt-decomp: warn if built without USE_SLZ
+    - MEDIUM: filters: implicitly enable "decomp-req" and "decomp-res" when decompression options are used
+    - REG-TESTS: decompression: check the response header rewriting
+    - REGTESTS: decomp: Add more scripts to test HTTP/TCP decompression
+    - BUILD: flt-decomp: Remove unused stream_get_decomp() function
+    - MINOR: haload: enable per-thread-group FD tables when available
+    - BUG/MINOR: quic: fix zero value of tune.quic.sec.stateless-reset-rate
+    - BUG/MINOR: payload: fix the cipher_len bound check in smp_client_hello_parse()
+    - BUG/MINOR: payload: bound ClientHello extension lists by the extension length
+    - BUG/MEDIUM: quic: crash on key update phase change after a failed one
+    - BUG/MINOR: quic: late packets of the first key phase are dropped
+    - CLEANUP: quic: remove the unused packet number of the key phase structure
+    - BUG/MEDIUM: filters: check the filter name before comparing it
+    - IMPORT: uslz: do not replay the header-detection bytes on the raw deflate path
+    - IMPORT: slz: get rid of the bogus USE_64BIT_QUEUE and check siezof(long) instead
+    - MEDIUM: ssl: do not fall back to Subject CN when a SAN dNSName is present
+    - REGTESTS: ssl: add verifyhost SAN vs CN matching test
+    - MINOR: haload: rename <hld_http_ver> to <hld_proto>
+    - MINOR: mux-fcgi: also skip sc_opposite() for haload streams
+    - MINOR: haload: add FastCGI support
+    - BUN/MINOR: hlua: reset hlua_body variable after per-thread files loading
+    - BUG/MEDIUM: resolvers: Use the right server to init DNS streams
+    - BUG/MINOR: resolvers: classify empty truncated responses
+    - CLEANUP: resolvers: stop clearing the DNS response buffer
+    - MINOR: tools: report explicit address type selection
+    - CLEANUP: dns: use a single maximum DNS message size
+    - MINOR: dns: select the nameserver server type explicitly
+    - MEDIUM: resolvers: accept full-size DNS messages over streams
+    - MEDIUM: resolvers: retry truncated UDP responses over TCP
+    - REGTEST: resolvers: cover UDP to TCP fallback
+    - MINOR: quic: protect the ChaCha20 header protection context from being freed
+    - BUG/MINOR: qpack: encoder and decoder stream data is never consumed
+    - BUG/MINOR: qpack: accept a Required Insert Count which cannot be reached
+    - BUG/MINOR: quic: delete the wrong CIDs when post-handshake frames fail
+    - MINOR: ring: add "-s" flag to "show events" to sanitize the output
+    - REGTESTS: log: add a test for "show events -s"
+    - REGTESTS: log: check which log-format tags escape control characters
+    - BUG/MINOR: tools: support the documented NULL in cbor_encode_bytes_prefix_bin()
+    - BUG/MEDIUM: log: encode the whole non-printable range in the +json output
+    - REGTESTS: log: check the escaping performed by the +json option
+    - DOC: config: mention that section 8.6 does not apply to the cbor encoding
+    - REGTESTS: log: check that the +cbor output passes the logged bytes through
+    - BUG/MINOR: debug: restore complain tail jumps with clang
+    - MEDIUM: mux-h1: Harden test for short data at end of stream
+    - BUG/MEDIUM: mux-h2: Make sure we remove H2_SF_NOTIFIED on subscribe
+    - BUG/MAJOR: h3: reject H3 truncated frames
+    - CLEANUP: h2: remove dead code around FND_AUTH in h2_prepare_htx_reqline()
+
 2026/08/21 : 3.5-dev5
     - MINOR: config: support "all" and "none" on "tune.defaults.purge"
     - BUG/MINOR: proxy: release watcher in various commands on CLI abort
