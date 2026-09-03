@@ -3265,6 +3265,12 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				 */
 			}
 			else if (h1m->flags & H1_MF_CHNK) {
+				if (h1m->curr_len) {
+					COUNT_IF(1, "chunk smaller than announced");
+					TRACE_ERROR("chunk smaller than announced",
+						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+					goto error;
+				}
 				/* Emit last chunk for chunked messages only */
 				if (!chunk_memcat(&outbuf, "0\r\n", 3))
                                         goto full;
