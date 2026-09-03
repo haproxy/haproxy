@@ -744,6 +744,15 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 
+	if (!len) {
+		/* Reject empty frame as it lacks at least any mandatory pseudo-header. */
+		TRACE_ERROR("reject empty HEADERS frame", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
+	}
+
 	/* TODO support trailer parsing in this function */
 
 	/* TODO support buffer wrapping */
@@ -1242,6 +1251,15 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 
+	if (!len) {
+		/* Reject empty frame as it lacks at least any mandatory pseudo-header. */
+		TRACE_ERROR("reject empty HEADERS frame", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
+	}
+
 	/* TODO support buffer wrapping */
 	BUG_ON(b_head(buf) + len > b_wrap(buf));
 	ret = qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
@@ -1505,18 +1523,29 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 
-	/* TODO support buffer wrapping */
-	BUG_ON(b_head(buf) + len > b_wrap(buf));
-	ret = qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
-	                    list, sizeof(list) / sizeof(list[0]));
-	if (ret < 0) {
-		TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		if ((qpack_err = qpack_err_decode(ret)) >= 0) {
-			h3c->err = qpack_err;
-			qcc_report_glitch(qcs->qcc, 1);
-		}
-		len = -1;
+	if (!len && !fin) {
+		/* Ignore empty frame to prevent unnecessary appbuf alloc. Not
+		 * performed though if FIN is set as HTX EOM must be reported.
+		 */
+		TRACE_STATE("skip parsing of empty HEADERS frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 		goto out;
+	}
+
+	if (len) {
+		/* TODO support buffer wrapping */
+		BUG_ON(b_head(buf) + len > b_wrap(buf));
+
+		ret = qpack_decode_fs((const unsigned char *)b_head(buf), len,
+		                      tmp, list, sizeof(list) / sizeof(list[0]));
+		if (ret < 0) {
+			TRACE_ERROR("QPACK decoding error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			if ((qpack_err = qpack_err_decode(ret)) >= 0) {
+				h3c->err = qpack_err;
+				qcc_report_glitch(qcs->qcc, 1);
+			}
+			len = -1;
+			goto out;
+		}
 	}
 
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
@@ -1541,6 +1570,20 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			sl->flags |= HTX_SL_F_BODYLESS;
 		else
 			TRACE_ERROR("cannot notify missing body after trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+	}
+
+	if (!len) {
+		/* Ensure EOM is reported when an empty frame is handled. */
+		if (!htx_set_eom(htx)) {
+			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
+			              muxc_tevt_type_internal_err);
+			len = -1;
+			goto out;
+		}
+
+		TRACE_STATE("EOM reported after empty frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+		goto out;
 	}
 
 	prs_status = http_trailers_to_htx(list, htx);
