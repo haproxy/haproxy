@@ -252,8 +252,6 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 	else {
 		/* usual schemes with or without authority, use origin form */
 		uri = phdr[H2_PHDR_IDX_PATH];
-		if (fields & H2_PHDR_FND_AUTH)
-			flags |= HTX_SL_F_HAS_AUTHORITY;
 	}
 
 	/* The method is a non-empty token (RFC7231#4.1) */
