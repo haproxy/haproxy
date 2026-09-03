@@ -4588,14 +4588,14 @@ static void http_end_request(struct stream *s)
 		 * direction, and sometimes for a close to be effective.
 		 */
 		if (txn->flags & TX_CON_WANT_TUN) {
-			/* Tunnel mode will not have any analyser so it needs to
-			 * poll for reads.
-			 */
+			/* Tunnel mode needs to poll for reads. */
 			channel_auto_read(&s->req);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 			s->scb->flags &= ~SC_FL_NOHALF;
 			if (txn->rsp.msg_state != HTTP_MSG_TUNNEL)
 				s->res.flags |= CF_WAKE_ONCE;
+			else if (s->tunnel_timeout)
+				s->scf->ioto = s->scb->ioto = s->tunnel_timeout;
 		}
 		else {
 			/* we're not expecting any new data to come for this
@@ -4708,6 +4708,8 @@ static void http_end_response(struct stream *s)
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 			if (txn->req.msg_state != HTTP_MSG_TUNNEL)
 				s->req.flags |= CF_WAKE_ONCE;
+			else if (s->tunnel_timeout)
+				s->scf->ioto = s->scb->ioto = s->tunnel_timeout;
 		}
 		else {
 			/* we're not expecting any new data to come for this

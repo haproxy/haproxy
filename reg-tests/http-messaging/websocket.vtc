@@ -28,6 +28,7 @@ server s1 {
 
         recv 4
 	send "PONG"
+	expect_close
 } -start
 
 # non-conformant server: no websocket key
@@ -111,6 +112,13 @@ haproxy hap -conf {
 
 	listen fe1
 	bind "fd@${fe1}"
+	timeout client 100ms
+	timeout server 100ms
+	timeout tunnel 1s
+	filter bwlim-in upload default-limit 1m default-period 1s
+	filter bwlim-out download default-limit 1m default-period 1s
+	http-request set-bandwidth-limit upload
+	http-request set-bandwidth-limit download
 	server s1 ${s1_addr}:${s1_port}
 
 	listen fe2
@@ -141,8 +149,10 @@ client c1 -connect ${hap_fe1_sock} {
 	expect resp.http.upgrade == "websocket"
 	expect resp.http.sec-websocket-accept == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
 
+	delay 0.2
 	send "PING"
 	recv 4
+	expect_close
 } -run
 
 # missing websocket key
