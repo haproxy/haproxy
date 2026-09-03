@@ -30590,6 +30590,10 @@ escape character '#' itself is also encoded to avoid any ambiguity ("#23"). It
 is the same for the character '"' which becomes "#22", as well as '{', '|' and
 '}' when logging headers.
 
+This does not apply to the cbor encoding, which already uses either safe hex
+digits, or properly delimited binary blocks that will not be sent to a terminal
+but will be consumed by a CBOR parser.
+
 Note that the space character (' ') is not encoded in headers, which can cause
 issues for tools relying on space count to locate fields. A typical header
 containing spaces is "User-Agent".
