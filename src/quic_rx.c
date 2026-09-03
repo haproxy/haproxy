@@ -186,6 +186,21 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 	                       rx_ctx, tls_ctx->rx.aead, rx_key, iv);
 	if (!ret) {
 		TRACE_ERROR("quic_tls_decrypt() failed", QUIC_EV_CONN_RXPKT, qc);
+
+		/* RFC 9001 6.6. Limits on AEAD Usage
+		 *
+		 * If the total number of received packets that fail
+		 * authentication within the connection, across all keys,
+		 * exceeds the integrity limit for the selected AEAD, the
+		 * endpoint MUST immediately close the connection with a
+		 * connection error of type AEAD_LIMIT_REACHED and not process
+		 * any more packets.
+		 */
+		if (++qc->rx.auth_fails > quic_aead_integrity_limit(tls_ctx->rx.aead)) {
+			TRACE_ERROR("AEAD integrity limit reached", QUIC_EV_CONN_RXPKT, qc);
+			quic_set_connection_close(qc, quic_err_transport(QC_ERR_AEAD_LIMIT_REACHED));
+		}
+
 		goto leave;
 	}
 

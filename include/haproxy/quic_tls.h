@@ -182,6 +182,44 @@ static inline const QUIC_AEAD *tls_aead(const SSL_CIPHER *cipher)
 	}
 }
 
+/* Return the number of packets which may fail authentication with <aead> as
+ * AEAD algorithm, as stated by RFC 9001 6.6.
+ */
+static inline uint64_t quic_aead_integrity_limit(const QUIC_AEAD *aead)
+{
+	/* Note that QUIC_AEAD_API is defined only if OPENSSL_IS_AWSLC is defined.
+	 *
+	 * tls_aead() may only return, depending on the library:
+	 *   AWS-LC        : aes_128_gcm, aes_256_gcm, chacha20_poly1305
+	 *   wolfSSL       : aes_128_gcm, aes_256_gcm, chacha20_poly1305
+	 *   LibreSSL < 4.0: aes_128_gcm, aes_256_gcm, aes_128_ccm
+	 *   others        : the four of them
+	 */
+#ifdef QUIC_AEAD_API
+	if (aead == EVP_aead_chacha20_poly1305())
+		return 1ULL << 36;
+	if (aead == EVP_aead_aes_128_gcm() ||
+	    aead == EVP_aead_aes_256_gcm())
+		return 1ULL << 52;
+#else /* !QUIC_AEAD_API */
+	switch (EVP_CIPHER_nid(aead)) {
+#if !defined(USE_OPENSSL_WOLFSSL)
+	case NID_aes_128_ccm:
+		/* 2^21.5 */
+		return 2965820;
+#endif
+#if (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER >= 0x4000000fL)
+	case NID_chacha20_poly1305:
+		return 1ULL << 36;
+#endif
+	case NID_aes_128_gcm:
+	case NID_aes_256_gcm:
+		return 1ULL << 52;
+	}
+#endif
+	return 0;
+}
+
 static inline const EVP_MD *tls_md(const SSL_CIPHER *cipher)
 {
 	switch (SSL_CIPHER_get_id(cipher)) {

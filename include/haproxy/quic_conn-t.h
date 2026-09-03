@@ -386,6 +386,9 @@ struct quic_conn {
 		/* first unhandled streams ID, set by MUX after release */
 		uint64_t stream_max_uni;
 		uint64_t stream_max_bidi;
+
+		/* Number of received packets which failed authentication. */
+		uint64_t auth_fails;
 	} rx;
 	struct {
 		struct quic_tls_kp prv_rx;
