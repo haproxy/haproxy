@@ -3471,11 +3471,21 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	struct tm tm;
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
-	struct connection *conn;
+	struct sedesc *sdf, *sdb;
+	struct connection *connf, *connb;
 	struct appctx *tmpctx;
 	uint64_t request_ts;
 	uint strm_tgid = ha_thread_info[strm->task->tid].tgid;
 	const struct fdtab *strm_fdtab = ha_tgroup_ctx[strm_tgid - 1].fdtab;
+
+	/* note: seb, connf and connb may be NULL */
+
+	scf = strm->scf;
+	scb = strm->scb;
+	sdf = scf->sedesc;
+	sdb = scb->sedesc;
+	connf = objt_conn(strm_orig(strm));
+	connb = sdb ? sc_conn(strm->scb) : NULL;
 
 	pfx = pfx ? pfx : "";
 
@@ -3499,17 +3509,15 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	chunk_appendf(buf, " id=%u proto=%s",
 		     strm->uniq_id, strm_li(strm) ? strm_li(strm)->rx.proto->name : "?");
 
-	conn = objt_conn(strm_orig(strm));
-
 	/* be careful not to allocate RAM from a signal handler! */
-	if (conn && !conn->src && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
-		conn_get_src(conn);
+	if (connf && !connf->src && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
+		conn_get_src(connf);
 
-	switch (conn && conn->src ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (connf && connf->src ? addr_to_str(connf->src, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " source=%s:%d\n",
-		              HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
+		              HA_ANON_STR(anon_key, pn), get_host_port(connf->src));
 		break;
 	case AF_UNIX:
 	case AF_CUST_ABNS:
@@ -3542,14 +3550,14 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		     strm_li(strm) ? strm_li(strm)->luid : 0);
 
 	/* be careful not to allocate RAM from a signal handler! */
-	if (conn && !conn->dst && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
-		conn_get_dst(conn);
+	if (connf && !connf->dst && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
+		conn_get_dst(connf);
 
-	switch (conn && conn->dst ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (connf && connf->dst ? addr_to_str(connf->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " addr=%s:%d\n",
-			     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
+			     HA_ANON_STR(anon_key, pn), get_host_port(connf->dst));
 		break;
 	case AF_UNIX:
 	case AF_CUST_ABNS:
@@ -3570,17 +3578,15 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 	else
 		chunk_appendf(buf, "%s  backend=<NONE> (id=-1 mode=-)", pfx);
 
-	conn = sc_conn(strm->scb);
-
 	/* be careful not to allocate RAM from a signal handler! */
-	if (conn && !conn->src && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
-		conn_get_src(conn);
+	if (connb && !connb->src && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
+		conn_get_src(connb);
 
-	switch (conn && conn->src ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (connb && connb->src ? addr_to_str(connb->src, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " addr=%s:%d\n",
-			     HA_ANON_STR(anon_key, pn), get_host_port(conn->src));
+			     HA_ANON_STR(anon_key, pn), get_host_port(connb->src));
 		break;
 	case AF_UNIX:
 	case AF_CUST_ABNS:
@@ -3602,14 +3608,14 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		chunk_appendf(buf, "%s  server=<NONE> (id=-1)", pfx);
 
 	/* be careful not to allocate RAM from a signal handler! */
-	if (conn && !conn->dst && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
-		conn_get_dst(conn);
+	if (connb && !connb->dst && !(th_ctx->flags & TH_FL_IN_ANY_HANDLER))
+		conn_get_dst(connb);
 
-	switch (conn && conn->dst ? addr_to_str(conn->dst, pn, sizeof(pn)) : AF_UNSPEC) {
+	switch (connb && connb->dst ? addr_to_str(connb->dst, pn, sizeof(pn)) : AF_UNSPEC) {
 	case AF_INET:
 	case AF_INET6:
 		chunk_appendf(buf, " addr=%s:%d\n",
-			     HA_ANON_STR(anon_key, pn), get_host_port(conn->dst));
+			     HA_ANON_STR(anon_key, pn), get_host_port(connb->dst));
 		break;
 	case AF_UNIX:
 	case AF_CUST_ABNS:
@@ -3657,57 +3663,62 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 		chunk_memcat(buf, "\n", 1);
 	}
 
-	scf = strm->scf;
 	chunk_appendf(buf, "%s  scf=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d in=%llu out=%llu", pfx,
 		      scf, scf->flags, human_time(scf->ioto, TICKS_TO_MS(1000)), sc_state_str(scf->state),
-		      (sc_ep_test(scf, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-		      scf->sedesc->se, sc_ep_get(scf), scf->wait_event.events, scf->bytes_in, scf->bytes_out);
-	chunk_appendf(buf, " rex=%s",
-		      sc_ep_rcv_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " wex=%s",
-		      sc_ep_snd_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " rto=%s",
-		      tick_isset(scf->sedesc->lra) ? human_time(TICKS_TO_MS(tick_add(scf->sedesc->lra, scf->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " wto=%s\n",
-		      tick_isset(scf->sedesc->fsb) ? human_time(TICKS_TO_MS(tick_add(scf->sedesc->fsb, scf->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		      (sdf && se_fl_test(sdf, SE_FL_T_MUX) ? "CONN" : (sdf && se_fl_test(sdf, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
+		      sdf ? sdf->se : NULL, sdf ? se_fl_get(sdf) : 0, scf->wait_event.events, scf->bytes_in, scf->bytes_out);
 
-	chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
-		      scf->sedesc->iobuf.flags,
-		      scf->sedesc->iobuf.pipe ? scf->sedesc->iobuf.pipe->data : 0,
-		      scf->sedesc->iobuf.buf ? (unsigned int)b_data(scf->sedesc->iobuf.buf): 0,
-		      scf->sedesc->iobuf.buf ? b_orig(scf->sedesc->iobuf.buf): NULL,
-		      scf->sedesc->iobuf.buf ? (unsigned int)b_head_ofs(scf->sedesc->iobuf.buf): 0,
-		      scf->sedesc->iobuf.buf ? (unsigned int)b_size(scf->sedesc->iobuf.buf): 0);
+	if (sdf) {
+		chunk_appendf(buf, " rex=%s",
+		              sdf && sc_ep_rcv_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(buf, " wex=%s",
+		              sdf && sc_ep_snd_ex(scf) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scf) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(buf, " rto=%s",
+		              sdf && tick_isset(sdf->lra) ? human_time(TICKS_TO_MS(tick_add(sdf->lra, scf->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(buf, " wto=%s\n",
+		              sdf && tick_isset(sdf->fsb) ? human_time(TICKS_TO_MS(tick_add(sdf->fsb, scf->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	}
 
-	if ((conn = sc_conn(scf)) != NULL) {
-		if (conn->mux && conn->mux->show_sd) {
+	chunk_appendf(buf, "\n");
+
+	if (sdf)
+		chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
+		              sdf->iobuf.flags,
+		              sdf->iobuf.pipe ? sdf->iobuf.pipe->data : 0,
+		              sdf->iobuf.buf ? (unsigned int)b_data(sdf->iobuf.buf): 0,
+		              sdf->iobuf.buf ? b_orig(sdf->iobuf.buf): NULL,
+		              sdf->iobuf.buf ? (unsigned int)b_head_ofs(sdf->iobuf.buf): 0,
+		              sdf->iobuf.buf ? (unsigned int)b_size(sdf->iobuf.buf): 0);
+
+	if (connf) {
+		if (connf->mux && connf->mux->show_sd) {
 			char muxpfx[100] = "";
 
 			snprintf(muxpfx, sizeof(muxpfx), "%s      ", pfx);
 			chunk_appendf(buf, "%s     ", pfx);
-			conn->mux->show_sd(buf, scf->sedesc, muxpfx);
+			connf->mux->show_sd(buf, sdf, muxpfx);
 			chunk_appendf(buf, "\n");
 		}
 
 		chunk_appendf(buf,
 		              "%s      co0=%p ctrl=%s xprt=%s mux=%s target=%s:%p\n", pfx,
-			      conn,
-			      conn_get_ctrl_name(conn),
-			      conn_get_xprt_name(conn),
-			      conn_get_mux_name(conn),
-		              obj_type_name(conn->target),
-		              obj_base_ptr(conn->target));
+			      connf,
+			      conn_get_ctrl_name(connf),
+			      conn_get_xprt_name(connf),
+			      conn_get_mux_name(connf),
+		              obj_type_name(connf->target),
+		              obj_base_ptr(connf->target));
 
 		chunk_appendf(buf,
 		              "%s      flags=0x%08x fd=%u/%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
-		              conn->flags,
+		              connf->flags,
 		              strm_tgid,
-		              conn_fd(conn),
-		              conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].state : 0,
-		              conn_fd(conn) >= 0 ? !!(strm_fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
-			      conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].thread_mask: 0);
+		              conn_fd(connf),
+		              conn_fd(connf) >= 0 ? strm_fdtab[connf->handle.fd].state : 0,
+		              conn_fd(connf) >= 0 ? !!(strm_fdtab[connf->handle.fd].update_mask & ti->ltid_bit) : 0,
+			      conn_fd(connf) >= 0 ? strm_fdtab[connf->handle.fd].thread_mask: 0);
 	}
-	else if ((tmpctx = sc_appctx(scf)) != NULL) {
+	else if (sdf && (tmpctx = sc_appctx(scf)) != NULL) {
 		chunk_appendf(buf,
 		              "%s      app0=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n", pfx,
 			      tmpctx,
@@ -3719,57 +3730,63 @@ static void __strm_dump_to_buffer(struct buffer *buf, const struct show_sess_ctx
 			      read_freq_ctr_period_estimate(&tmpctx->call_rate, MS_TO_TICKS(1000)));
 	}
 
-	scb = strm->scb;
 	chunk_appendf(buf, "%s  scb=%p flags=0x%08x ioto=%s state=%s endp=%s,%p,0x%08x sub=%d in=%llu out=%llu", pfx,
 		      scb, scb->flags, human_time(scb->ioto, TICKS_TO_MS(1000)), sc_state_str(scb->state),
-		      (sc_ep_test(scb, SE_FL_T_MUX) ? "CONN" : (sc_ep_test(scb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
-		      scb->sedesc->se, sc_ep_get(scb), scb->wait_event.events, scb->bytes_in, scb->bytes_out);
-	chunk_appendf(buf, " rex=%s",
-		      sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " wex=%s",
-		      sc_ep_snd_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " rto=%s",
-		      tick_isset(scb->sedesc->lra) ? human_time(TICKS_TO_MS(tick_add(scb->sedesc->lra, scb->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
-	chunk_appendf(buf, " wto=%s\n",
-		      tick_isset(scb->sedesc->fsb) ? human_time(TICKS_TO_MS(tick_add(scb->sedesc->fsb, scb->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		      (sdb && se_fl_test(sdb, SE_FL_T_MUX) ? "CONN" : (sdb && se_fl_test(sdb, SE_FL_T_APPLET) ? "APPCTX" : "NONE")),
+		      sdb ? sdb->se : NULL, sdb ? se_fl_get(sdb) : 0, scb->wait_event.events, scb->bytes_in, scb->bytes_out);
 
-	chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
-		      scb->sedesc->iobuf.flags,
-		      scb->sedesc->iobuf.pipe ? scb->sedesc->iobuf.pipe->data : 0,
-		      scb->sedesc->iobuf.buf ? (unsigned int)b_data(scb->sedesc->iobuf.buf): 0,
-		      scb->sedesc->iobuf.buf ? b_orig(scb->sedesc->iobuf.buf): NULL,
-		      scb->sedesc->iobuf.buf ? (unsigned int)b_head_ofs(scb->sedesc->iobuf.buf): 0,
-		      scb->sedesc->iobuf.buf ? (unsigned int)b_size(scb->sedesc->iobuf.buf): 0);
+	if (sdb) {
+		chunk_appendf(buf, " rex=%s",
+		              sc_ep_rcv_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_rcv_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(buf, " wex=%s",
+		              sc_ep_snd_ex(scb) ? human_time(TICKS_TO_MS(sc_ep_snd_ex(scb) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(buf, " rto=%s",
+		              tick_isset(sdb->lra) ? human_time(TICKS_TO_MS(tick_add(sdb->lra, scb->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+		chunk_appendf(buf, " wto=%s",
+		              tick_isset(sdb->fsb) ? human_time(TICKS_TO_MS(tick_add(sdb->fsb, scb->ioto) - now_ms), TICKS_TO_MS(1000)) : "<NEVER>");
+	}
 
-	if ((conn = sc_conn(scb)) != NULL) {
-		if (conn->mux && conn->mux->show_sd) {
+	chunk_appendf(buf, "\n");
+
+	if (sdb) {
+		chunk_appendf(&trash, "%s    iobuf.flags=0x%08x .pipe=%d .buf=%u@%p+%u/%u\n", pfx,
+		              sdb->iobuf.flags,
+		              sdb->iobuf.pipe ? sdb->iobuf.pipe->data : 0,
+		              sdb->iobuf.buf ? (unsigned int)b_data(sdb->iobuf.buf): 0,
+		              sdb->iobuf.buf ? b_orig(sdb->iobuf.buf): NULL,
+		              sdb->iobuf.buf ? (unsigned int)b_head_ofs(sdb->iobuf.buf): 0,
+		              sdb->iobuf.buf ? (unsigned int)b_size(sdb->iobuf.buf): 0);
+	}
+
+	if (connb) {
+		if (connb->mux && connb->mux->show_sd) {
 			char muxpfx[100] = "";
 
 			snprintf(muxpfx, sizeof(muxpfx), "%s      ", pfx);
 			chunk_appendf(buf, "%s     ", pfx);
-			conn->mux->show_sd(buf, scb->sedesc, muxpfx);
+			connb->mux->show_sd(buf, sdb, muxpfx);
 			chunk_appendf(buf, "\n");
 		}
 
 		chunk_appendf(buf,
 		              "%s      co1=%p ctrl=%s xprt=%s mux=%s target=%s:%p\n", pfx,
-			      conn,
-			      conn_get_ctrl_name(conn),
-			      conn_get_xprt_name(conn),
-			      conn_get_mux_name(conn),
-		              obj_type_name(conn->target),
-		              obj_base_ptr(conn->target));
+			      connb,
+			      conn_get_ctrl_name(connb),
+			      conn_get_xprt_name(connb),
+			      conn_get_mux_name(connb),
+		              obj_type_name(connb->target),
+		              obj_base_ptr(connb->target));
 
 		chunk_appendf(buf,
 		              "%s      flags=0x%08x fd=%u/%d fd.state=%02x updt=%d fd.tmask=0x%lx\n", pfx,
-		              conn->flags,
+		              connb->flags,
 		              strm_tgid,
-		              conn_fd(conn),
-		              conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].state : 0,
-		              conn_fd(conn) >= 0 ? !!(strm_fdtab[conn->handle.fd].update_mask & ti->ltid_bit) : 0,
-			      conn_fd(conn) >= 0 ? strm_fdtab[conn->handle.fd].thread_mask: 0);
+		              conn_fd(connb),
+		              conn_fd(connb) >= 0 ? strm_fdtab[connb->handle.fd].state : 0,
+		              conn_fd(connb) >= 0 ? !!(strm_fdtab[connb->handle.fd].update_mask & ti->ltid_bit) : 0,
+			      conn_fd(connb) >= 0 ? strm_fdtab[connb->handle.fd].thread_mask: 0);
 	}
-	else if ((tmpctx = sc_appctx(scb)) != NULL) {
+	else if (sdb && (tmpctx = sc_appctx(scb)) != NULL) {
 		chunk_appendf(buf,
 		              "%s      app1=%p st0=%d st1=%d applet=%s tid=%d nice=%d calls=%u rate=%u\n", pfx,
 			      tmpctx,
