@@ -2726,6 +2726,14 @@ static int hlua_socket_init(struct appctx *appctx)
 	struct hlua_csk_ctx *csk_ctx = appctx->svcctx;
 	struct stream *s;
 
+	/* The lua socket owner was released, by the garbage collector or by an
+	 * explicit close, before any connect attempt. There is nothing to
+	 * initialize, just report an error. This way, the applet is released by
+	 * the thread owning it.
+	 */
+	if (csk_ctx->die)
+		goto error;
+
 	if (appctx_finalize_startup(appctx, socket_proxy, &BUF_NULL) == -1)
 		goto error;
 
@@ -2793,18 +2801,21 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 
 	ctx = container_of(peer, struct hlua_csk_ctx, xref);
 
+	/* Notify the applet it must die and wake it up. It is important to do
+	 * so before disconnecting the xref: the applet may be owned by another
+	 * thread and, once the xref is disconnected, it is free to be released
+	 * at any time. <ctx> is part of the applet's context, so it must no
+	 * longer be dereferenced after that point.
+	 *
+	 * Note the applet may not be initialized yet (no connect performed). In
+	 * this case, waking it up is safe: its init callback function will fail
+	 * and the applet will be released by the thread owning it.
+	 */
+	ctx->die = 1;
+	appctx_wakeup(ctx->appctx);
+
 	/* Remove all reference between the Lua stack and the coroutine stream. */
 	xref_disconnect(&socket->xref, peer);
-
-	if (se_fl_test(ctx->appctx->sedesc, SE_FL_ORPHAN)) {
-		/* The applet was never initialized, just release it */
-		appctx_free(ctx->appctx);
-	}
-	else {
-		/* Otherwise, notify it that is must die and wake it up */
-		ctx->die = 1;
-		appctx_wakeup(ctx->appctx);
-	}
 
 	return 0;
 }
