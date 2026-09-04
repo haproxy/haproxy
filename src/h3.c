@@ -2215,12 +2215,26 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			ret = flen;
 			break;
 		default:
-			/* RFC 9114 Section 9. Extensions to HTTP/3
-			 *
-			 * Implementations MUST discard frames [...] that have unknown
-			 * or unsupported types.
-			 */
-			ret = flen;
+			if (quic_stream_is_bidi(qcs->id) && last_stream_frame) {
+				/* No header seen, HTTP message is malformed. */
+				if (h3s->st_req == H3S_ST_REQ_BEFORE) {
+					TRACE_ERROR("malformed request closed by unknown frame without any header", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+					h3s->err = H3_ERR_MESSAGE_ERROR;
+					qcc_report_glitch(qcs->qcc, 1);
+					ret = -1;
+				}
+
+				/* Reuse wrapper function to easily set EOM on HTX message. */
+				if (qcs_http_handle_standalone_fin(qcs)) {
+					TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+					qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
+					              muxc_tevt_type_internal_err);
+					goto err;
+				}
+			}
+
+			if (ret >= 0)
+				ret = flen;
 			break;
 		}
 
