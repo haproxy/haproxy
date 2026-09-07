@@ -821,14 +821,26 @@ static inline int htx_is_empty_noerr(const struct htx *htx)
 	return (htx_is_empty(htx) && !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)));
 }
 
+/* Return true if the htx message is not empty and HTX_FL_HAS_EOM flag is set on
+ * the tail block. Otherwise, false is returned.
+ */
+static inline int htx_has_eom(const struct htx *htx)
+{
+	struct htx_blk *blk = htx_get_tail_blk(htx);
+
+	/* htx_remove_blk() must take care to never leave unused blocks on head and tail of the message */
+	BUG_ON_HOT(blk && (blk->flags & HTX_BLK_FL_EOM) && htx_get_blk_type(blk) == HTX_BLK_UNUSED);
+	return (blk != NULL && !!(blk->flags & HTX_BLK_FL_EOM));
+}
+
 /* Returns 1 if more data are expected for the message <htx>. Otherwise it
  * returns 0. Note that it is illegal to call this with htx == NULL. This
- * function relies on the HTX_FL_HAS_EOM flags. It means tunneled data are
- * not considered here.
+ * function relies on htx_has_eom() function. It means more data are always
+ * expected on tunnel mode.
  */
 static inline int htx_expect_more(const struct htx *htx)
 {
-	return !(htx->flags & HTX_FL_HAS_EOM);
+	return !htx_has_eom(htx);
 }
 
 /* Set EOM flag in <htx>. This function must always be called to report the end
