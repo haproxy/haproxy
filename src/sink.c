@@ -363,7 +363,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 
 	if (!*args[1]) {
 		/* no arg => report the list of supported sink */
-		chunk_printf(&trash, "Supported events sinks are listed below. Add -0(zero), -w(wait), -n(new), -r(raw), -s(anitize). Any key to stop.\n");
+		chunk_printf(&trash, "Supported events sinks are listed below. Add combinations of -0(zero), -w(wait), -n(new), -r(raw), -s(anitize). Any key to stop.\n");
 		list_for_each_entry(sink, &sink_list, sink_list) {
 			chunk_appendf(&trash, "    %-10s : type=%s, %u dropped, %s\n",
 				      sink->name,
@@ -389,20 +389,21 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 
 	ring_flags = 0;
 	for (arg = 2; *args[arg]; arg++) {
-		if (strcmp(args[arg], "-w") == 0)
-			ring_flags |= RING_WF_WAIT_MODE;
-		else if (strcmp(args[arg], "-n") == 0)
-			ring_flags |= RING_WF_SEEK_NEW;
-		else if (strcmp(args[arg], "-0") == 0)
-			ring_flags |= RING_WF_END_ZERO;
-		else if (strcmp(args[arg], "-nw") == 0 || strcmp(args[arg], "-wn") == 0)
-			ring_flags |= RING_WF_WAIT_MODE | RING_WF_SEEK_NEW;
-		else if (strcmp(args[arg], "-s") == 0)
-			ring_flags |= RING_WF_SANITIZE;
-		else if (strcmp(args[arg], "-r") == 0)
-			ring_flags &= ~RING_WF_SANITIZE;
-		else
-			return cli_err(appctx, "unknown option");
+		const char *p = args[arg];
+
+		if (*p != '-')
+			continue;
+
+		while (*++p) {
+			switch (*p) {
+			case '0' : ring_flags |= RING_WF_END_ZERO;  break;
+			case 'n' : ring_flags |= RING_WF_SEEK_NEW;  break;
+			case 'w' : ring_flags |= RING_WF_WAIT_MODE; break;
+			case 's' : ring_flags |= RING_WF_SANITIZE;  break;
+			case 'r' : ring_flags &= ~RING_WF_SANITIZE; break;
+			default: return cli_err(appctx, "unknown option");
+			}
+		}
 	}
 	return ring_attach_cli(sink->ctx.ring, appctx, ring_flags);
 }
@@ -1497,7 +1498,7 @@ REGISTER_POST_CHECK(sink_postcheck);
 REGISTER_POST_DEINIT(sink_deinit);
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "events", NULL }, "show events [<sink>] [-w] [-n] [-0]     : show event sink state", cli_parse_show_events, NULL, NULL },
+	{ { "show", "events", NULL }, "show events [<sink>] [-0nrsw]*          : show event sink state", cli_parse_show_events, NULL, NULL },
 	{{},}
 }};
 

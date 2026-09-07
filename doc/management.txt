@@ -3193,8 +3193,7 @@ show events [<sink>] [-w] [-n] [-0] [-r] [-s]
   them. It is possible to stop the operation by entering any input (which will
   be discarded) or by closing the session. Finally, option "-n" is used to
   directly seek to the end of the buffer, which is often convenient when
-  combined with "-w" to only report new events. For convenience, "-wn" or "-nw"
-  may be used to enable both options at once. By default, all events are
+  combined with "-w" to only report new events. By default, all events are
   delimited by a line feed character ('\n' or 10 or 0x0A). It is possible to
   change this to the NUL character ('\0' or 0) by passing the "-0" argument.
   Option "-s" sanitizes the output, so that binary contents resulting from
@@ -3208,7 +3207,8 @@ show events [<sink>] [-w] [-n] [-0] [-r] [-s]
   not be interpreted as special (e.g. monitoring scripts whose output is copied
   verbatim into reports). Finally, "-r" undoes "-s" and may be appended in
   cases where "-s" was unconditionally appended, or as a future-proof way to
-  ensure long-term compatibility in case the default changes.
+  ensure long-term compatibility in case the default changes. All options
+  starting with "-" may conveniently be combined (e.g. "-nsw").
 
 show fd [-!plcfbs]* [[<tgid>]/[<fd>] | <fd>]
   Dump the list of either all open file descriptors or just the one number <fd>
