@@ -438,7 +438,7 @@ void haproxy_init_args(int argc, char **argv)
 	hbuf_appendf(&gbuf, "global\n");
 	hbuf_appendf(&gbuf, "\ttune.memory.hot-size 3145728\n");
 	hbuf_appendf(&gbuf, "\tssl-server-verify none\n");
-#ifdef CLONE_FILES
+#ifdef HA_HAVE_UNSHARE
 	/* required for "tune.fd.tables" below */
 	hbuf_appendf(&gbuf, "\texpose-experimental-directives\n");
 	hbuf_appendf(&gbuf, "\ttune.fd.tables per-thread-group\n");

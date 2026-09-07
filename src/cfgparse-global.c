@@ -1521,7 +1521,7 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 		return 0;
 	}
 	else if (strcmp(args[0], "tune.fd.tables") == 0) {
-#ifdef CLONE_FILES
+#ifdef HA_HAVE_UNSHARE
 		if (strcmp(args[1], "per-thread-group") == 0)
 			global.tune.options |= GTUNE_NO_TG_FD_SHARING;
 		else if (strcmp(args[1], "shared") == 0)

@@ -355,6 +355,11 @@ typedef struct { } empty_t;
 #define IPPROTO_MPTCP 262
 #endif
 
+#if defined(CLONE_FILES) && !defined(__NetBSD__)
+/* NetBSD defines CLONE_FILES but don't have unshare */
+#define HA_HAVE_UNSHARE
+#endif
+
 #endif /* _HAPROXY_COMPAT_H */
 
 /*

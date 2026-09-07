@@ -242,7 +242,7 @@ void *start_extra_tgroup_threads(void *arg)
 	struct tgroup_info *tgi = (struct tgroup_info *)arg;
 	int i;
 
-#ifdef CLONE_FILES
+#ifdef HA_HAVE_UNSHARE
 	if (global.tune.options & GTUNE_NO_TG_FD_SHARING)
 		if (unshare(CLONE_FILES) != 0) {
 			ha_alert("unshare(CLONE_FILES) failed while trying to use one FD table per thread group (%s)\n", strerror(errno));
