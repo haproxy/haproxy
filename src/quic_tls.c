@@ -1189,7 +1189,50 @@ void quic_tls_rotate_keys(struct quic_conn *qc)
 	qc->ku.nxt_tx.iv     = curr_iv;
 	qc->ku.nxt_tx.key    = curr_key;
 
+	/* The new keys have not encrypted any packet yet. */
+	tls_ctx->tx.count = 0;
+	/* Store the lowest packet number to be sent with the new keys. */
+	tls_ctx->tx.pn = qc->ael->pktns->tx.next_pn + 1;
+
 	TRACE_LEAVE(QUIC_EV_CONN_RXPKT, qc);
+}
+
+/* Initiate a key update for <qc> connection. This is the local counterpart of
+ * the key update triggered by the peer.
+ * Return 1 if succeeded, 0 if not.
+ */
+int quic_tls_initiate_key_update(struct quic_conn *qc)
+{
+	struct quic_tls_ctx *tls_ctx = &qc->ael->tls_ctx;
+	int ret = 0;
+
+	TRACE_ENTER(QUIC_EV_CONN_KP, qc);
+
+	/* The next keys may be missing if a previous update failed. */
+	if ((!qc->ku.nxt_rx.ctx || !qc->ku.nxt_tx.ctx) &&
+	    !quic_tls_key_update(qc)) {
+		TRACE_ERROR("quic_tls_key_update() failed", QUIC_EV_CONN_KP, qc);
+		goto leave;
+	}
+
+	quic_tls_rotate_keys(qc);
+	/* Toggle the Key Phase bit */
+	tls_ctx->flags ^= QUIC_FL_TLS_KP_BIT_SET;
+	/* The peer keeps sending with the previous key phase for at least one
+	 * round trip. Its packets must be decrypted with the previous keys.
+	 */
+	tls_ctx->flags |= QUIC_FL_TLS_KP_LOCAL_IN_PROGRESS;
+
+	/* Prepare the next key update. On failure, the keys are derived again
+	 * at the next key phase change.
+	 */
+	if (!quic_tls_key_update(qc))
+		TRACE_ERROR("quic_tls_key_update() failed", QUIC_EV_CONN_KP, qc);
+
+	ret = 1;
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_KP, qc);
+	return ret;
 }
 
 /* Release the memory allocated for the QUIC TLS context with <ctx> as address. */

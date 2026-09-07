@@ -81,6 +81,11 @@
 /* The ciphersuites for AEAD QUIC-TLS have 16-bytes authentication tags */
 #define QUIC_TLS_TAG_LEN    16 /* bytes */
 
+/* Returned by quic_aead_confidentiality_limit() for an AEAD whose limit is
+ * greater than the number of possible packets, and may be disregarded.
+ */
+#define QUIC_AEAD_NO_CONFIDENTIALITY_LIMIT  UINT64_MAX
+
 /* The TLS extensions for QUIC transport parameters */
 #define TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS       0x0039
 #define TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS_DRAFT 0xffa5
@@ -203,8 +208,12 @@ struct quic_tls_kp {
 	unsigned char flags;
 };
 
-/* Key update phase bit */
+/* Key phase bit of the packets we send */
 #define QUIC_FL_TLS_KP_BIT_SET   (1 << 0)
+/* A key phase update initiated locally is in progress: the peer has not
+ * switched to the new key phase yet.
+ */
+#define QUIC_FL_TLS_KP_LOCAL_IN_PROGRESS (1 << 1)
 
 struct quic_tls_secrets {
 	QUIC_AEAD_CTX *ctx;
@@ -224,8 +233,16 @@ struct quic_tls_secrets {
 	size_t ivlen;
 	unsigned char *key;
 	size_t keylen;
-	/* Used only on the RX part to store the largest received packet number */
+	/* Frontier between the current and the previous key phase. On RX, the
+	 * lowest packet number received with the current keys: a packet with a
+	 * lower number was protected with the previous ones. On TX, the lowest
+	 * packet number sent with the current keys, compared against the largest
+	 * acknowledged one to know whether a new key update may be initiated
+	 * (RFC 9001 6.1).
+	 */
 	int64_t pn;
+	/* Used only on the TX part to count the packets encrypted with these keys */
+	uint64_t count;
 };
 
 struct quic_tls_ctx {

@@ -139,6 +139,7 @@ int quic_tls_hp_encrypt(unsigned char *out,
 
 int quic_tls_key_update(struct quic_conn *qc);
 void quic_tls_rotate_keys(struct quic_conn *qc);
+int quic_tls_initiate_key_update(struct quic_conn *qc);
 
 static inline const QUIC_AEAD *tls_aead(const SSL_CIPHER *cipher)
 {
@@ -215,6 +216,42 @@ static inline uint64_t quic_aead_integrity_limit(const QUIC_AEAD *aead)
 	case NID_aes_128_gcm:
 	case NID_aes_256_gcm:
 		return 1ULL << 52;
+	}
+#endif
+	return 0;
+}
+
+/* Return the number of packets which may be encrypted with the same keys with
+ * <aead> as AEAD algorithm, as stated by RFC 9001 6.6.
+ */
+static inline uint64_t quic_aead_confidentiality_limit(const QUIC_AEAD *aead)
+{
+	/* See quic_aead_integrity_limit() about QUIC_AEAD_API and the
+	 * algorithms tls_aead() may return.
+	 *
+	 * The limit for ChaCha20-Poly1305 is greater than the number of
+	 * possible packets, so it may be disregarded.
+	 */
+#ifdef QUIC_AEAD_API
+	if (aead == EVP_aead_chacha20_poly1305())
+		return QUIC_AEAD_NO_CONFIDENTIALITY_LIMIT;
+	if (aead == EVP_aead_aes_128_gcm() ||
+	    aead == EVP_aead_aes_256_gcm())
+		return 1ULL << 23;
+#else /* !QUIC_AEAD_API */
+	switch (EVP_CIPHER_nid(aead)) {
+#if !defined(USE_OPENSSL_WOLFSSL)
+	case NID_aes_128_ccm:
+		/* 2^21.5 */
+		return 2965820;
+#endif
+#if (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER >= 0x4000000fL)
+	case NID_chacha20_poly1305:
+		return QUIC_AEAD_NO_CONFIDENTIALITY_LIMIT;
+#endif
+	case NID_aes_128_gcm:
+	case NID_aes_256_gcm:
+		return 1ULL << 23;
 	}
 #endif
 	return 0;
@@ -791,6 +828,8 @@ static inline void quic_tls_ctx_reset(struct quic_tls_ctx *ctx)
 	ctx->rx.key = NULL;
 	ctx->rx.keylen = 0;
 	ctx->rx.pn = 0;
+	/* Not used on the RX path. */
+	ctx->rx.count = 0;
 
 	ctx->tx.ctx = NULL;
 	ctx->tx.aead = NULL;
@@ -803,8 +842,8 @@ static inline void quic_tls_ctx_reset(struct quic_tls_ctx *ctx)
 	ctx->tx.ivlen = 0;
 	ctx->tx.key = NULL;
 	ctx->tx.keylen = 0;
-	/* Not used on the TX path. */
 	ctx->tx.pn = 0;
+	ctx->tx.count = 0;
 
 	ctx->flags = 0;
 }

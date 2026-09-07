@@ -126,7 +126,7 @@ static int qc_do_rm_hp(struct quic_conn *qc,
 static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
                           struct quic_rx_packet *pkt)
 {
-	int ret, kp_changed;
+	int ret, kp_changed, kp_prv;
 	unsigned char iv[QUIC_TLS_IV_LEN];
 	struct quic_tls_ctx *tls_ctx =
 		qc_select_tls_ctx(qc, qel, pkt->type, pkt->version);
@@ -139,13 +139,15 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 
 	ret = 0;
 	kp_changed = 0;
+	kp_prv = 0;
 
 	if (pkt->type == QUIC_PACKET_TYPE_SHORT) {
 		/* The two tested bits are not at the same position,
 		 * this is why they are first both inversed.
 		 */
 		if (!(*pkt->data & QUIC_PACKET_KEY_PHASE_BIT) ^ !(tls_ctx->flags & QUIC_FL_TLS_KP_BIT_SET)) {
-			if (pkt->pn < tls_ctx->rx.pn) {
+			if ((tls_ctx->flags & QUIC_FL_TLS_KP_LOCAL_IN_PROGRESS) ||
+			    pkt->pn < tls_ctx->rx.pn) {
 				/* The previous key phase secrets are only
 				 * available after a first key update.
 				 */
@@ -157,6 +159,7 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 				rx_ctx = qc->ku.prv_rx.ctx;
 				rx_iv  = qc->ku.prv_rx.iv;
 				rx_key = qc->ku.prv_rx.key;
+				kp_prv = 1;
 			}
 			else if (pkt->pn > qel->pktns->rx.largest_pn) {
 				/* Next key phase */
@@ -216,6 +219,11 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 		 */
 		if (!quic_tls_key_update(qc))
 			TRACE_ERROR("quic_tls_key_update() failed", QUIC_EV_CONN_RXPKT, qc);
+	}
+	else if (!kp_prv && (tls_ctx->flags & QUIC_FL_TLS_KP_LOCAL_IN_PROGRESS)) {
+		/* The peer has switched to the new key phase. */
+		tls_ctx->flags &= ~QUIC_FL_TLS_KP_LOCAL_IN_PROGRESS;
+		tls_ctx->rx.pn = pkt->pn;
 	}
 
 	/* Update the packet length (required to parse the frames). */
