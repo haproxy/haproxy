@@ -3196,6 +3196,8 @@ show events  [-[wn0rs]*] [<sink>]
         character ('\0' or 0), which might be more convenient for external
         tools.
 
+    -h  show the help message.
+
     -n  directly seeks to the end of the buffer, which is generally combined
         with "-w" to only report new events (like "tail -f").
 

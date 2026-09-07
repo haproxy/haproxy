@@ -379,6 +379,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 			case 'w' : ring_flags |= RING_WF_WAIT_MODE; break;
 			case 's' : ring_flags |= RING_WF_SANITIZE;  break;
 			case 'r' : ring_flags &= ~RING_WF_SANITIZE; break;
+			case 'h' : goto show_help;
 			default: return cli_err(appctx, "unknown option");
 			}
 		}
@@ -386,6 +387,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 
 	if (!name) {
 		/* no arg => report the list of supported sink */
+	show_help:
 		chunk_printf(&trash, "Supported events sinks are listed below. Add combinations of -0(zero), -w(wait), -n(new), -r(raw), -s(anitize). Any key to stop.\n");
 		list_for_each_entry(sink, &sink_list, sink_list) {
 			chunk_appendf(&trash, "    %-10s : type=%s, %u dropped, %s\n",
@@ -1503,7 +1505,7 @@ REGISTER_POST_CHECK(sink_postcheck);
 REGISTER_POST_DEINIT(sink_deinit);
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "events", NULL }, "show events [-0nrsw]* [<sink>]          : show event sink state", cli_parse_show_events, NULL, NULL },
+	{ { "show", "events", NULL }, "show events [-0hnrsw]* [<sink>]         : show event sink state", cli_parse_show_events, NULL, NULL },
 	{{},}
 }};
 
