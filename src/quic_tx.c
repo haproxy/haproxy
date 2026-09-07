@@ -66,6 +66,9 @@ static void quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 		*fail = 1;
 		enc_debug_info_init(&edi, payload, payload_len, aad, aad_len, pn);
 	}
+	else {
+		tls_ctx->tx.count++;
+	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_ENCPKT, qc);
 }
@@ -122,6 +125,34 @@ void qc_txb_release(struct quic_conn *qc)
 		b_free(buf);
 		offer_buffers(NULL, 1);
 	}
+}
+
+/* Return 1 if a packet may be encrypted with the keys currently in use to
+ * protect <qel>, 0 if their confidentiality limit is reached. <cc> is set when
+ * this packet carries the CONNECTION_CLOSE frame.
+ *
+ * The number of packets encrypted with a given key must never exceed the
+ * confidentiality limit of its AEAD algorithm, the CONNECTION_CLOSE frame
+ * included. One packet of the budget is therefore reserved for that frame, so
+ * that the peer can always be notified before the keys are exhausted.
+ */
+static int quic_tls_tx_allowed(const struct quic_conn *qc,
+                               const struct quic_enc_level *qel, int cc)
+{
+	uint64_t count, limit;
+
+	if (qel != qc->ael)
+		return 1;
+
+	if (!quic_tls_has_tx_sec(qel) || !qel->tls_ctx.tx.aead)
+		return 1;
+
+	count = qel->tls_ctx.tx.count;
+	limit = quic_aead_confidentiality_limit(qel->tls_ctx.tx.aead);
+	if (limit == QUIC_AEAD_NO_CONFIDENTIALITY_LIMIT)
+		return 1;
+
+	return cc ? count < limit : count + 1 < limit;
 }
 
 /* Return the TX buffer dedicated to the "connection close" datagram to be built
@@ -216,11 +247,16 @@ static int qc_may_build_pkt(struct quic_conn *qc, struct list *frms,
 	 * if there is nothing to send, i.e. if no CONNECTION_CLOSE or ACK are required
 	 * and if there is no more packets to send upon PTO expiration
 	 * and if there is no more ack-eliciting frames to send or in flight
-	 * congestion control limit is reached for prepared data
+	 * congestion control limit is reached for prepared data.
+	 *
+	 * Also do not build any packet if the confidentiality limit of the keys
+	 * in use is reached with no possible key update: no more packet may
+	 * consume them, except the one carrying the CONNECTION_CLOSE frame.
 	 */
 	if (!quic_tls_has_tx_sec(qel) ||
 	    (!cc && !probe && !*must_ack &&
-	     (LIST_ISEMPTY(frms) || qc->path->prep_in_flight >= qc->path->cwnd))) {
+	     (LIST_ISEMPTY(frms) || qc->path->prep_in_flight >= qc->path->cwnd)) ||
+	    !quic_tls_tx_allowed(qc, qel, cc)) {
 		return 0;
 	}
 
@@ -878,6 +914,81 @@ static int qc_prep_pkts(struct quic_conn *qc, struct buffer *buf,
 	return -1;
 }
 
+/* Check the AEAD confidentiality limit of RFC 9001 6.6 for <qc> connection.
+ * Initiate a key update before the limit is reached, and close the connection
+ * if it is reached without any possible key update.
+ *
+ * This must be called before preparing packets, to initiate a key update or
+ * arm an immediate close before selecting the TX buffer. As a single call may
+ * encrypt several packets, qc_may_build_pkt() also checks the remaining budget
+ * before building each packet.
+ */
+static void qc_check_aead_confidentiality_limit(struct quic_conn *qc)
+{
+	struct quic_tls_ctx *tls_ctx;
+	uint64_t count, limit;
+	int can_update;
+
+	TRACE_ENTER(QUIC_EV_CONN_KP, qc);
+
+	if (qc->flags & (QUIC_FL_CONN_IMMEDIATE_CLOSE|QUIC_FL_CONN_CLOSING|
+	                 QUIC_FL_CONN_DRAINING))
+		goto leave;
+
+	/* The 1-RTT encryption level may be allocated without usable secrets. */
+	if (!quic_tls_has_tx_sec(qc->ael) || !qc->ael->tls_ctx.tx.aead)
+		goto leave;
+
+	tls_ctx = &qc->ael->tls_ctx;
+	count = tls_ctx->tx.count;
+	limit = quic_aead_confidentiality_limit(tls_ctx->tx.aead);
+	if (!limit) {
+		TRACE_ERROR("unknown AEAD algorithm", QUIC_EV_CONN_KP, qc);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_INTERNAL_ERROR));
+		goto leave;
+	}
+
+	/* RFC 9001 6.6: the limit of this AEAD is greater than the number of
+	 * possible packets, so it may be disregarded.
+	 */
+	if (limit == QUIC_AEAD_NO_CONFIDENTIALITY_LIMIT)
+		goto leave;
+
+	/* Start the key update before the limit is reached, to leave enough
+	 * room for the acknowledgement required by the next one.
+	 */
+	if (count < limit - (limit >> 3))
+		goto leave;
+
+	/* RFC 9001 6.1. Initiating a Key Update
+	 *
+	 * An endpoint MUST NOT initiate a key update prior to having confirmed
+	 * the handshake (Section 4.1.2). An endpoint MUST NOT initiate a
+	 * subsequent key update unless it has received an acknowledgment for a
+	 * packet that was sent protected with keys from the current key phase.
+	 */
+	can_update = count + 1 < limit &&
+	             qc->state >= QUIC_HS_ST_CONFIRMED &&
+	             !(tls_ctx->flags & QUIC_FL_TLS_KP_LOCAL_IN_PROGRESS) &&
+	             tls_ctx->tx.pn <= qc->ael->pktns->rx.largest_acked_pn;
+	if (can_update && quic_tls_initiate_key_update(qc))
+		goto leave;
+
+	/* No key update is possible, and the keys may not encrypt any more
+	 * regular packet: no more than the confidentiality limit of the AEAD
+	 * algorithm may be consumed, the CONNECTION_CLOSE frame included. Close
+	 * the connection now, while the packet reserved for that frame is still
+	 * available.
+	 */
+	if (!can_update && count + 1 >= limit) {
+		TRACE_ERROR("AEAD confidentiality limit reached", QUIC_EV_CONN_KP, qc);
+		quic_set_connection_close(qc, quic_err_transport(QC_ERR_AEAD_LIMIT_REACHED));
+	}
+
+ leave:
+	TRACE_LEAVE(QUIC_EV_CONN_KP, qc);
+}
+
 /* Encode frames and send them as packets for <qc> connection. Input frames are
  * specified via quic_enc_level <send_list> through their send_frms member. Set
  * <old_data> when reemitted duplicated data.
@@ -900,6 +1011,13 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 	struct buffer *buf;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
+
+	/* The AEAD confidentiality limit is checked here, before anything is
+	 * prepared: an immediate close armed by that check is sent by the caller
+	 * or the connection layer, from its own dedicated buffer, so that no
+	 * further packet may be built with exhausted keys.
+	 */
+	qc_check_aead_confidentiality_limit(qc);
 
 	buf = qc_get_txb(qc);
 	if (!buf) {
