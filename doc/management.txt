@@ -3185,30 +3185,42 @@ show errors [<iid>|<proxy>] [request|response]
     error was at byte 23. This is the slash ('/') in header name
     "header/bizarre", which is not a valid HTTP character for a header name.
 
-show events [<sink>] [-w] [-n] [-0] [-r] [-s]
-  With no option, this lists all known event sinks and their types. With an
-  option, it will dump all available events in the designated sink if it is of
-  type buffer. If option "-w" is passed after the sink name, then once the end
-  of the buffer is reached, the command will wait for new events and display
-  them. It is possible to stop the operation by entering any input (which will
-  be discarded) or by closing the session. Finally, option "-n" is used to
-  directly seek to the end of the buffer, which is often convenient when
-  combined with "-w" to only report new events. By default, all events are
-  delimited by a line feed character ('\n' or 10 or 0x0A). It is possible to
-  change this to the NUL character ('\0' or 0) by passing the "-0" argument.
-  Option "-s" sanitizes the output, so that binary contents resulting from
-  captured or decoded data do not alter the terminal's rendering. Whitespace
-  characters (space and tab) are replaced with a space so that each record
-  stays on a single line, and the other control characters (0x00 to 0x1F and
-  0x7F) as well as non-ASCII chars (0x80 and above) are replaced with a '?'.
-  The output length is preserved. This way, dumping a ring cannot inject ANSI
-  escape sequences nor writing direction codes into the operator's terminal,
-  which is useful when dumping to a terminal, or to a program whose input must
-  not be interpreted as special (e.g. monitoring scripts whose output is copied
-  verbatim into reports). Finally, "-r" undoes "-s" and may be appended in
-  cases where "-s" was unconditionally appended, or as a future-proof way to
-  ensure long-term compatibility in case the default changes. All options
-  starting with "-" may conveniently be combined (e.g. "-nsw").
+show events  [-[wn0rs]*] [<sink>]
+  With no option, this lists all known event sinks and their types. Arguments
+  not starting with "-" are taken for a sink name, whose events will be dumped
+  if it is of type buffer. The command also supports a variety of options
+  beginning with "-", and optionally grouped together behind the same "-":
+
+    -0  by default, all events are delimited on output by a line feed character
+        ('\n' or 10 or 0x0A). Option "-0" changes this delimiter to the NUL
+        character ('\0' or 0), which might be more convenient for external
+        tools.
+
+    -n  directly seeks to the end of the buffer, which is generally combined
+        with "-w" to only report new events (like "tail -f").
+
+    -r  undoes "-s", i.e. switches the output to raw mode in case it was
+        already in sanitized mode (via a previous option). This is recommended
+        for tools that want to be future-proof in case the default format
+        eventually changes.
+
+    -s  sanitizes the output, so that binary contents resulting from captured
+        or decoded data do not alter the terminal's rendering. Whitespace
+        characters (spaces and tabs) are replaced with a space so that each
+        record stays on a single line, and the other control characters (0x00
+        to 0x1F and 0x7F) as well as non-ASCII chars (0x80 and above) are
+        replaced with a '?'. The output length is preserved. This way, dumping
+        a ring cannot inject ANSI escape sequences nor writing direction codes
+        into the operator's terminal, which is useful when dumping to a
+        terminal, or to a program whose input must not be interpreted as
+        special (e.g. monitoring scripts whose output is copied verbatim into
+        reports).
+
+    -w  once the end of the buffer is reached, the command will wait for new
+        events and display them. It is possible to stop the operation by
+        entering any input (which will be discarded) or by closing the session.
+        Note that using "echo show events -w | socat ..." does close the input
+        and interrupt the dump.
 
 show fd [-!plcfbs]* [[<tgid>]/[<fd>] | <fd>]
   Dump the list of either all open file descriptors or just the one number <fd>

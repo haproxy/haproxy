@@ -356,12 +356,35 @@ leave:
 static int cli_parse_show_events(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct sink *sink;
+	const char *name = NULL;
 	uint ring_flags;
 	int arg;
 
-	args++; // make args[1] the 1st arg
+	ring_flags = 0;
+	for (arg = 2; *args[arg]; arg++) {
+		const char *p = args[arg];
 
-	if (!*args[1]) {
+		if (*p != '-') {
+			/* that's a sink name */
+			if (name)
+				return cli_err(appctx, "only one sink name may be specified.");
+			name = p;
+			continue;
+		}
+
+		while (*++p) {
+			switch (*p) {
+			case '0' : ring_flags |= RING_WF_END_ZERO;  break;
+			case 'n' : ring_flags |= RING_WF_SEEK_NEW;  break;
+			case 'w' : ring_flags |= RING_WF_WAIT_MODE; break;
+			case 's' : ring_flags |= RING_WF_SANITIZE;  break;
+			case 'r' : ring_flags &= ~RING_WF_SANITIZE; break;
+			default: return cli_err(appctx, "unknown option");
+			}
+		}
+	}
+
+	if (!name) {
 		/* no arg => report the list of supported sink */
 		chunk_printf(&trash, "Supported events sinks are listed below. Add combinations of -0(zero), -w(wait), -n(new), -r(raw), -s(anitize). Any key to stop.\n");
 		list_for_each_entry(sink, &sink_list, sink_list) {
@@ -380,31 +403,13 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
 
-	sink = sink_find(args[1]);
+	sink = sink_find(name);
 	if (!sink)
 		return cli_err(appctx, "No such event sink");
 
 	if (sink->type != SINK_TYPE_BUFFER)
 		return cli_msg(appctx, LOG_NOTICE, "Nothing to report for this sink");
 
-	ring_flags = 0;
-	for (arg = 2; *args[arg]; arg++) {
-		const char *p = args[arg];
-
-		if (*p != '-')
-			continue;
-
-		while (*++p) {
-			switch (*p) {
-			case '0' : ring_flags |= RING_WF_END_ZERO;  break;
-			case 'n' : ring_flags |= RING_WF_SEEK_NEW;  break;
-			case 'w' : ring_flags |= RING_WF_WAIT_MODE; break;
-			case 's' : ring_flags |= RING_WF_SANITIZE;  break;
-			case 'r' : ring_flags &= ~RING_WF_SANITIZE; break;
-			default: return cli_err(appctx, "unknown option");
-			}
-		}
-	}
 	return ring_attach_cli(sink->ctx.ring, appctx, ring_flags);
 }
 
@@ -1498,7 +1503,7 @@ REGISTER_POST_CHECK(sink_postcheck);
 REGISTER_POST_DEINIT(sink_deinit);
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "events", NULL }, "show events [<sink>] [-0nrsw]*          : show event sink state", cli_parse_show_events, NULL, NULL },
+	{ { "show", "events", NULL }, "show events [-0nrsw]* [<sink>]          : show event sink state", cli_parse_show_events, NULL, NULL },
 	{{},}
 }};
 
