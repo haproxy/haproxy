@@ -865,7 +865,6 @@ static inline int htx_set_eom(struct htx *htx)
 	       htx_get_blk_type(blk) != HTX_BLK_EOT &&
 	       htx_get_blk_type(blk) != HTX_BLK_DATA);
 	blk->flags |= HTX_BLK_FL_EOM;
-	htx->flags |= HTX_FL_HAS_EOM;
 	return 1;
 }
 
