@@ -272,7 +272,7 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t ${VTEST_TIMEOUT} -L $verbose $debug $jobcount $vtestparams $testlist"
+  cmd="$VTEST_PROGRAM -b $((4<<20)) -k -t ${VTEST_TIMEOUT} -L $verbose $debug $jobcount $vtestparams $testlist"
   eval $cmd
   _vtresult=$?
   grep -rE --include="LOG" 'sh: -c: line [0-9]+: syntax error|syntax error near unexpected token|Syntax error' "$TESTDIR"
