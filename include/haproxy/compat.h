@@ -25,6 +25,10 @@
 #include <limits.h>
 #include <unistd.h>
 #include <fcntl.h>
+/* for CLONE_FILES, tested by HA_HAVE_UNSHARE below */
+#ifdef _POSIX_PRIORITY_SCHEDULING
+#include <sched.h>
+#endif
 /* This is needed on Linux for Netfilter includes */
 #include <sys/param.h>
 #include <sys/types.h>
