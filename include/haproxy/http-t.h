@@ -110,6 +110,18 @@ enum {
 	HTTP_ERR_SIZE
 };
 
+/* HTTP parser error codes */
+enum http_parser_status {
+	HTTP_PRS_SUCCESS = 0,
+	HTTP_PRS_INV_HNAME, /* invalid character in header/trailer name */
+	HTTP_PRS_INV_HVAL,  /* invalid character in header/trailer value */
+	HTTP_PRS_PHDR_TRL,  /* pseudo-header in trailer */
+	HTTP_PRS_FORB_TRL,  /* forbidden trailer name */
+	HTTP_PRS_TOO_MANY,  /* too many header/trailer fields */
+	HTTP_PRS_TOO_LARGE, /* failed to add header/trailer (too large hdr block) */
+	HTTP_PRS_OTHER,     /* other unreferenced error (mostly for default statement) */
+};
+
 /* Note: the strings below make use of chunks. Chunks may carry an allocated
  * size in addition to the length. The size counts from the beginning (str)
  * to the end. If the size is unknown, it MUST be zero, in which case the
