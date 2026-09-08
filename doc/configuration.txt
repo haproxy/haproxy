@@ -1790,6 +1790,7 @@ The following keywords are supported in the "global" section :
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
+   - jwt.allow_none_alg
    - jwt.decrypt_alg_list
    - jwt.decrypt_enc_list
    - key-base
@@ -2895,6 +2896,12 @@ issuers-chain-path <dir>
 
   The OCSP features are able to use the completed chain when no .issuer was
   used, or no chain was provided in the PEM.
+
+jwt.allow_none_alg
+  Allow JWT signed token with the "none" algorithm in the 'jwt_verify'
+  converter. They will always be considered valid when this option is set. By
+  default unsigned tokens are rejected since they are considered unsafe (see
+  RFC8725 section 3.1).
 
 jwt.decrypt_alg_list <list>
   Set the list of algorithms allowed in the jwt_decrypt_XXX converters. JWT
@@ -22375,8 +22382,12 @@ jwt_verify(<alg>,<key>)
    | PS256        | RSASSA-PSS using SHA-256 and MGF1 with SHA-256          |
    | PS384        | RSASSA-PSS using SHA-384 and MGF1 with SHA-384          |
    | PS512        | RSASSA-PSS using SHA-512 and MGF1 with SHA-512          |
-   | none         | No digital signature or MAC performed                   |
+   | none         | No digital signature or MAC performed (see note below)  |
    +--------------+---------------------------------------------------------+
+
+   Please note that the "none" algorithm is not allowed by default to follow
+   the recommendations in RFC8725 section 3.2. Set global option
+   'jwt.allow_none_alg' to explicitely allow it.
 
   - <key> can be either a string or a variable name (See also "set-var") that
     holds a secret or a public key path.

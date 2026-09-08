@@ -30,6 +30,8 @@
 /* Tree into which the public certificates used to validate JWTs will be stored. */
 static struct eb_root jwt_cert_tree = EB_ROOT_UNIQUE;
 
+/* Set whether "none" algorithm should be allowed or not */
+static int jwt_verify_allow_none_alg = 0;
 
 /*
  * The possible algorithm strings that can be found in a JWS's JOSE header are
@@ -508,6 +510,9 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	if (ctx.alg == JWT_ALG_DEFAULT)
 		return JWT_VRFY_UNKNOWN_ALG;
 
+	if (ctx.alg == JWS_ALG_NONE && !jwt_verify_allow_none_alg)
+		return JWT_VRFY_UNMANAGED_ALG;
+
 	if (jwt_tokenize(token, items, item_num))
 		return JWT_VRFY_INVALID_TOKEN;
 
@@ -575,6 +580,23 @@ end:
 	return retval;
 }
 
+/* Parse 'jwt.allow_none_arg' option */
+static int cfg_parse_global_jwt_none_alg(char **args, int section_type, struct proxy *curpx,
+                                         const struct proxy *defpx, const char *file, int linenum, char **err)
+{
+	if (*args[1]) {
+		memprintf(err, "parsing [%s:%d]: keyword '%s' in '%s' section does not take any arguments.\n", file, linenum, args[0], cursection);
+		goto error;
+	}
+
+	jwt_verify_allow_none_alg = 1;
+
+	return 0;
+
+error:
+	return -1;
+}
+
 
 static void jwt_deinit(void)
 {
@@ -591,6 +613,13 @@ static void jwt_deinit(void)
 	}
 }
 REGISTER_POST_DEINIT(jwt_deinit);
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "jwt.allow_none_alg", cfg_parse_global_jwt_none_alg },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 
 #endif /* USE_OPENSSL */
