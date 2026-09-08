@@ -7416,6 +7416,12 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 	struct htx_blk *blk;
 	struct htx_ret htxret;
 	size_t ret = 0;
+	int eom;
+
+	/* Removed blocks may carry the EOM flag. In this case, the flag must be
+	 * set again on the last remaining block to keep the message complete.
+	 */
+	eom = htx_has_eom(htx);
 
 	/* Be sure <len> is always the amount of DATA to remove */
 	if (htx->data == offset+len && htx_get_tail_type(htx) == HTX_BLK_DATA) {
@@ -7487,10 +7493,20 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 	}
 
 end:
+	if (eom && !htx_has_eom(htx)) {
+		unsigned int data = htx->data;
+
+		/* Restore the EOM flag. An EOT block may be added to carry it if
+		 * the message is now empty. In this case, it must be accounted
+		 * for as inserted data.
+		 */
+		htx_set_eom(htx);
+		ret -= (htx->data - data);
+	}
 	flt_update_offsets(filter, msg->chn, -ret);
 	flt_ctx->cur_len[CHN_IDX(msg->chn)] -= ret;
-	/* WARNING: we don't call htx_to_buf() on purpose, because we don't want
-	 *          to loose the EOM flag if the message is empty.
+	/* WARNING: we don't call htx_to_buf() on purpose, because the caller may
+	 *          still add data in the message.
 	 */
 }
 
@@ -7914,7 +7930,8 @@ __LJMP static int hlua_http_msg_unset_eom(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "set_eom"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
-	htx->flags &= ~HTX_FL_HAS_EOM;
+	if (!htx_has_eom(htx))
+		return 0;
 
 	for (blk = htx_get_tail_blk(htx); blk; blk = htx_get_prev_blk(htx, blk)) {
 		if (blk->flags & HTX_BLK_FL_EOM) {

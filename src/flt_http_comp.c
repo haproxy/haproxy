@@ -26,7 +26,6 @@
 #include <haproxy/tools.h>
 
 #define COMP_STATE_PROCESSING 0x01
-#define COMP_STATE_EOM_SEEN   0x02
 
 const char *http_comp_req_flt_id = "comp-req filter";
 const char *http_comp_res_flt_id = "comp-res filter";
@@ -129,7 +128,7 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	comp_type = NULL;
 
 	/* compress only if body size is >= than the min size */
-	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_HAS_EOM)) &&
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || htx_has_eom(htx)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_req)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_req)))) {
 		/* small requests should not be compressed */
@@ -287,15 +286,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	blk = htxret.blk;
 	offset = htxret.ret;
 
-	/* Remove EOM flag from HTX message to be sure to not expose it too
-	 * early to next filters. But save the information to be able to restore
-	 * the flag at the end of the compression.
-	 */
-	if (htx->flags & HTX_FL_HAS_EOM) {
-		st->flags |= COMP_STATE_EOM_SEEN;
-		htx->flags &= ~HTX_FL_HAS_EOM;
-	}
-
 	for (next = NULL; blk && len; blk = next) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
@@ -340,8 +330,22 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 				len -= ret;
 				consumed += ret;
 				to_forward += b_data(&trash);
-				if (last)
+				if (last) {
 					st->flags &= ~COMP_STATE_PROCESSING;
+
+					/* The compression is finished. The EOM flag was
+					 * carried by this block. It was lost if the block
+					 * was removed and was the last one of the
+					 * message. In this case, it must be restored,
+					 * adding an EOT block to support it.
+					 */
+					if (!htx_has_eom(htx)) {
+						unsigned int data = htx->data;
+
+						htx_set_eom(htx);
+						to_forward += htx->data - data;
+					}
+				}
 				break;
 
 			case HTX_BLK_TLR:
@@ -376,16 +380,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	}
 
   end:
-	/* The compression is finished and we must now restore the EOM flog on
-	 * the HTX message.
-	 */
-	if ((st->flags & (COMP_STATE_PROCESSING|COMP_STATE_EOM_SEEN)) == COMP_STATE_EOM_SEEN) {
-		unsigned int data = htx->data;
-
-		htx_set_eom(htx);
-		to_forward += htx->data - data;
-	}
-
 	if (to_forward != consumed)
 		flt_update_offsets(filter, msg->chn, to_forward - consumed);
 
@@ -409,9 +403,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	return to_forward;
 
   error:
-	/* On error, restore HTX_FL_HAS_EOM flag */
-	if (st->flags & COMP_STATE_EOM_SEEN)
-		htx->flags |= HTX_FL_HAS_EOM;
 	return -1;
 }
 
@@ -695,7 +686,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		goto fail;
 
 	/* compress only if body size is >= than the min size */
-	if (((msg->flags & HTTP_MSGF_CNT_LEN) || (htx->flags & HTX_FL_HAS_EOM)) &&
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || htx_has_eom(htx)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_res)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_res)))) {
 		/* small responses should not be compressed */

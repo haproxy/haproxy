@@ -827,8 +827,6 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 				goto stop;
 			}
 			last_dstblk->flags = blk->flags;
-			if (last_dstblk->flags & HTX_BLK_FL_EOM)
-				dst->flags |= HTX_FL_HAS_EOM;
 			break;
 
 		default:
@@ -845,8 +843,6 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			last_dstblk->flags = blk->flags;
 			last_dstblk->info = blk->info;
 			htx_memcpy(htx_get_blk_ptr(dst, last_dstblk), htx_get_blk_ptr(src, blk), sz);
-			if (last_dstblk->flags & HTX_BLK_FL_EOM)
-				dst->flags |= HTX_FL_HAS_EOM;
 			last_dstblk_sz = sz;
 			count -= meta_sz + sz;
 			ret += meta_sz + sz;
@@ -1296,7 +1292,6 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 		newblk->info = blk->info;
 		htx_memcpy(htx_get_blk_ptr(dst, newblk), htx_get_blk_ptr(src, blk), blksz);
 	}
-	dst->flags |= (src->flags & HTX_FL_HAS_EOM);
 	return 1;
 
   error:

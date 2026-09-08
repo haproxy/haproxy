@@ -181,6 +181,35 @@ static int decomp_stream_blk_drain(struct stream *s, struct filter *f, struct ch
 	return drainable;
 }
 
+/* Skips <data> bytes, consumed by the decompression at the beginning of the HTX
+ * block <*blk>, and updates the filter offsets accordingly. Because it is not
+ * supported to leave an empty HTX data block, the block is removed if all its
+ * data are skipped. In this case, <*blk> is set to NULL and <*next> is set to
+ * the following block, if any, to tell the caller not to look for it by
+ * itself. Otherwise, <*blk> is updated to point on the possibly reallocated
+ * block and <*next> is left untouched.
+ *
+ * The EOM flag, if any, is saved in the filter context because it is lost when
+ * the last block of an empty message is removed. It is restored once the
+ * decompression is finished.
+ */
+static void decomp_stream_blk_skip(struct filter *f, struct channel *chn, struct htx *htx,
+                                   struct htx_blk **blk, struct htx_blk **next, struct ist data)
+{
+	struct decomp_state *st = f->ctx;
+
+	flt_update_offsets(f, chn, -data.len);
+
+	if (data.len == htx_get_blksz(*blk)) {
+		if ((*blk)->flags & HTX_BLK_FL_EOM)
+			st->flags |= DECOMP_STATE_EOM_SEEN;
+		*next = htx_remove_blk(htx, *blk);
+		*blk = NULL; // make sure we don't use the old block
+	}
+	else
+		*blk = htx_replace_blk_value(htx, *blk, data, ist2("", 0));
+}
+
 /* Reads input stream and decompress as many bytes as possible which will be removed
  * from the stream, then try to write as many decoded bytes as possible in the stream.
  */
@@ -205,15 +234,6 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 	htxret = htx_find_offset(htx, offset);
 	offset = htxret.ret;
 	blk = htxret.blk;
-
-	/* Remove EOM flag from HTX message to be sure to not expose it too
-	 * early to next filters. But save the information to be able to restore
-	 * the flag at the end of the decompression.
-	 */
-	if (htx->flags & HTX_FL_HAS_EOM) {
-		st->flags |= DECOMP_STATE_EOM_SEEN;
-		htx->flags &= ~HTX_FL_HAS_EOM;
-	}
 
 	while (blk && len) {
 		blk_remain = 0;
@@ -260,17 +280,7 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 					 * happen if the input is not garbage filled and
 					 * decompression library consumed all data
 					 */
-					flt_update_offsets(f, chn, -val.len);
-
-					/* skip consumed bytes: remove the block if empty due to skipping
-					 * bytes because it is not supported to leave empty htx data block
-					 */
-					if (val.len == htx_get_blksz(blk)) {
-						next = htx_remove_blk(htx, blk);
-						blk = NULL; // make sure we don't use the old block
-					}
-					else
-						blk = htx_replace_blk_value(htx, blk, ist2(val.ptr, val.len), ist2("", 0));
+					decomp_stream_blk_skip(f, chn, htx, &blk, &next, val);
 
 					blk_remain -= val.len;
 					len -= val.len;
@@ -301,17 +311,7 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 					}
 				}
 				else {
-					flt_update_offsets(f, chn, -consumed);
-
-					/* skip consumed bytes: remove the block if empty due to skipping
-					 * bytes because it is not supported to leave empty htx data block
-					 */
-					if (consumed == htx_get_blksz(blk)) {
-						next = htx_remove_blk(htx, blk);
-						blk = NULL; // make sure we don't use the old block
-					}
-					else
-						blk = htx_replace_blk_value(htx, blk, ist2(val.ptr, consumed), ist2("", 0));
+					decomp_stream_blk_skip(f, chn, htx, &blk, &next, ist2(val.ptr, consumed));
 				}
 				break;
 
@@ -398,11 +398,10 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 	if ((st->decomp_ctx->flags & DECOMP_CTX_FL_DONE) && !st->decomp_ctx->drain_len) {
 		st->flags &= ~DECOMP_STATE_PROCESSING;
 
-		/* The decompression is finished and we must now restore the EOM
-		 * flag on the HTX message. We must also take care to forward
-		 * any EOT block added to support the EOM flag.
+		/* The decompression is finished and we must now be sure to
+		 * restore EOM on last block (possibly by adding an EOT).
 		 */
-		if (st->flags & DECOMP_STATE_EOM_SEEN) {
+		if ((st->flags & DECOMP_STATE_EOM_SEEN) && !htx_has_eom(htx)) {
 			unsigned int data = htx->data;
 
 			BUG_ON(!(st->decomp_ctx->flags & DECOMP_CTX_FL_DONE) || st->decomp_ctx->drain_len);
@@ -410,14 +409,12 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 			total += htx->data - data;
 		}
 	}
+
   end:
 	htx_to_buf(htx, &chn->buf);
 	return total;
 
   error:
-	/* On error, restore HTX_FL_HAS_EOM flag */
-	if (st->flags & DECOMP_STATE_EOM_SEEN)
-		htx_set_eom(htx);
 	htx_to_buf(htx, &chn->buf);
 	return -1;
 }
