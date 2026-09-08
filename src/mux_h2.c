@@ -6161,6 +6161,7 @@ static int h2c_dec_hdrs(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, 
 	struct buffer *tmp = get_trash_chunk();
 	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct buffer *copy = NULL;
+	enum http_parser_status prs_status;
 	unsigned int msgf;
 	struct htx *htx = NULL;
 	int flen = 0; // header frame len
@@ -6484,9 +6485,30 @@ next_frame:
 	}
 
 	/* Trailers terminate a DATA sequence */
-	if (http_trailers_to_htx(list, htx) != HTTP_PRS_SUCCESS) {
-		h2c_report_glitch(h2c, 1, "failed to append HTX trailers into rxbuf");
-		TRACE_STATE("failed to append HTX trailers into rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
+	prs_status = http_trailers_to_htx(list, htx);
+	if (prs_status != HTTP_PRS_SUCCESS) {
+		switch (prs_status) {
+		case HTTP_PRS_INV_HNAME:
+			h2c_report_glitch(h2c, 1, "invalid character in trailer name");
+			TRACE_STATE("invalid character in trailer name", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
+			break;
+		case HTTP_PRS_INV_HVAL:
+			h2c_report_glitch(h2c, 1, "invalid character in trailer value");
+			TRACE_STATE("invalid character in trailer value", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
+			break;
+		case HTTP_PRS_PHDR_TRL:
+			h2c_report_glitch(h2c, 1, "pseudo-header field in trailers");
+			TRACE_STATE("pseudo-header field in trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
+			break;
+		case HTTP_PRS_FORB_TRL:
+			h2c_report_glitch(h2c, 1, "forbidden trailer name");
+			TRACE_STATE("forbidden trailer name", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
+			break;
+		default:
+			h2c_report_glitch(h2c, 1, "failed to append HTX trailers into rxbuf");
+			TRACE_STATE("failed to append HTX trailers into rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
+			break;
+		}
 		htx->flags |= HTX_FL_PARSING_ERROR;
 		goto fail;
 	}
