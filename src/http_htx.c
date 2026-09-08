@@ -1991,6 +1991,134 @@ int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
 	return 0;
 }
 
+/* Takes an HTTP trailers list <list> terminated by a name being <NULL,0> and
+ * emits the equivalent HTX trailers blocks. The output contents are emitted in
+ * <htx>, and an HTTP_PRS_SUCCESS status code is returned if some bytes were
+ * emitted. In case of error, another code is returned, indicating the nature
+ * of the problem. The caller must have verified that the message in the buffer
+ * is compatible with receipt of trailers.
+ *
+ * The trailers list <list> must be composed of :
+ *   - n.name != NULL, n.len  > 0 : literal trailer name
+ *   - n.name == NULL, n.len  > 0 : reserved for indexed pseudo headers
+ *   - n.name ignored, n.len == 0 : end of list
+ *   - in all cases except the end of list, v.name and v.len must designate a
+ *     valid value.
+ */
+enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *htx)
+{
+	uint32_t data_ofs = htx->data; /* used to rollback on error */
+	enum http_parser_status ret = HTTP_PRS_SUCCESS;
+	const char *ctl;
+	struct ist v;
+	uint32_t idx;
+	int i;
+
+	for (idx = 0; list[idx].n.len != 0; idx++) {
+		if (!isttest(list[idx].n) ||           // indexed pseudo header
+		    istmatch(list[idx].n, ist(":"))) { // raw pseudo header
+			/* RFC 9114 4.3. HTTP Control Data
+			 * RFC 9113 8.3. HTTP Control Data
+			 * Pseudo-header fields MUST NOT appear in trailer sections.
+			 */
+			ret = HTTP_PRS_PHDR_TRL;
+			goto fail;
+		}
+
+		/* RFC 9113 8.2.1. Field Validity:
+		 *
+		 *   An implementation that validates fields according to the
+		 *   definitions in Sections 5.1 and 5.5 of [HTTP] only needs
+		 *   an additional check that field names do not include
+		 *   uppercase characters.
+		 *
+		 * RFC 9110 5.1. Field Names:
+		 *   field-name     = token
+		 */
+		for (i = 0; i < list[idx].n.len; i++) {
+			if ((uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A' ||
+			    !HTTP_IS_TOKEN(list[idx].n.ptr[i])) {
+				ret = HTTP_PRS_INV_HNAME;
+				goto fail;
+			}
+		}
+
+		/* All field names affecting decoding or routing are forbidden
+		 * in trailers.
+		 */
+		if (isteq(list[idx].n, ist("host")) ||
+		    isteq(list[idx].n, ist("content-length")) ||
+		    isteq(list[idx].n, ist("connection")) ||
+		    isteq(list[idx].n, ist("proxy-connection")) ||
+		    isteq(list[idx].n, ist("keep-alive")) ||
+		    isteq(list[idx].n, ist("upgrade")) ||
+		    isteq(list[idx].n, ist("te")) ||
+		    isteq(list[idx].n, ist("transfer-encoding"))) {
+			ret = HTTP_PRS_FORB_TRL;
+			goto fail;
+		}
+
+		/* RFC 9113 8.2.1. Field validity
+		 *
+		 *   A field value MUST NOT contain the zero value (ASCII NUL,
+		 *   0x00), line feed (ASCII LF, 0x0a), or carriage return (ASCII
+		 *   CR, 0x0d) at any position.
+		 *
+		 * RFC 9114 10.3 Intermediary-Encapsulation Attacks
+		 *
+		 *   While most values that can be encoded will not alter field
+		 *   parsing, carriage return (ASCII 0x0d), line feed (ASCII 0x0a),
+		 *   and the null character (ASCII 0x00) might be exploited by an
+		 *   attacker if they are translated verbatim. Any request or
+		 *   response that contains a character not permitted in a field
+		 *   value MUST be treated as malformed
+		 */
+		ctl = ist_find_ctl(list[idx].v);
+		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl)) {
+			ret = HTTP_PRS_INV_HVAL;
+			goto fail;
+		}
+
+		/* trim leading/trailing LWS as per RC9113#8.2.1 */
+		for (v = list[idx].v; v.len; v.len--) {
+			if (unlikely(HTTP_IS_LWS(*v.ptr)))
+				v.ptr++;
+			else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
+				break;
+		}
+
+		if (!htx_add_trailer(htx, list[idx].n, v)) {
+			ret = HTTP_PRS_TOO_MANY;
+			goto fail;
+		}
+	}
+
+	/* Check the number of trailers against "tune.http.maxhdr" value
+	 * before adding EOT block
+	 */
+	if (idx > global.tune.max_http_hdr) {
+		ret = HTTP_PRS_TOO_MANY;
+		goto fail;
+	}
+
+	/* now finalize the trailers block */
+	if (!htx_add_endof(htx, HTX_BLK_EOT)) {
+		ret = HTTP_PRS_TOO_LARGE;
+		goto fail;
+	}
+
+	return HTTP_PRS_SUCCESS;
+
+ fail:
+	/* Rollback the partial conversion. Note that a pointer on the tail
+	 * block cannot be used for this because it encodes a block position
+	 * and adding blocks may compact the block table, so rely on the
+	 * amount of data that was present on entry instead.
+	 */
+	htx_truncate(htx, data_ofs);
+	return ret;
+}
+
 /* Parses the "errorloc[302|303]" proxy keyword */
 static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 				  const struct proxy *defpx, const char *file, int line,

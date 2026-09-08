@@ -74,6 +74,8 @@ int http_scheme_based_normalize(struct htx *htx);
 void http_cookie_register(struct http_hdr *list, int idx, int *first, int *last);
 int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first);
 
+enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *htx);
+
 struct buffer *http_load_errorfile(const char *file, char **errmsg);
 struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **errmsg);
 struct buffer *http_parse_errorfile(int status, const char *file, char **errmsg);
