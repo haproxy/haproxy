@@ -210,7 +210,6 @@ extern struct h2_frame_definition h2_frame_definition[H2_FT_ENTRIES];
 int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned long long *body_len);
 int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len, int relaxed);
 int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len, char *upgrade_protocol);
-int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx);
 
 /*
  * Some helpful debugging functions.
