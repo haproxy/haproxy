@@ -1499,11 +1499,9 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct htx_sl *sl;
 	uint32_t data_ofs = 0; /* used to rollback on error */
 	struct http_hdr list[global.tune.max_http_hdr * 2];
-	int hdr_idx, ret;
-	const char *ctl;
+	enum http_parser_status prs_status;
 	int qpack_err;
-	struct ist v;
-	int i;
+	int ret;
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 
@@ -1545,51 +1543,28 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			TRACE_ERROR("cannot notify missing body after trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 	}
 
-	hdr_idx = 0;
-	while (1) {
-		if (isteq(list[hdr_idx].n, ist("")))
-			break;
+	prs_status = http_trailers_to_htx(list, htx);
+	switch (prs_status) {
+	case HTTP_PRS_SUCCESS:
+		break;
 
+	case HTTP_PRS_PHDR_TRL:
 		/* RFC 9114 4.3. HTTP Control Data
 		 *
-		 * Pseudo-header
-		 * fields MUST NOT appear in trailer sections.
+		 * Pseudo-header fields MUST NOT appear in trailer sections.
 		 */
-		if (istmatch(list[hdr_idx].n, ist(":"))) {
-			TRACE_ERROR("pseudo-header field in trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			h3s->err = H3_ERR_MESSAGE_ERROR;
-			qcc_report_glitch(h3c->qcc, 1);
-			len = -1;
-			goto out;
-		}
+		TRACE_ERROR("pseudo-header field in trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		goto fail_with_glitch;
 
-		for (i = 0; i < list[hdr_idx].n.len; ++i) {
-			const char c = list[hdr_idx].n.ptr[i];
-			if ((uint8_t)(c - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(c)) {
-				TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-				h3s->err = H3_ERR_MESSAGE_ERROR;
-				qcc_report_glitch(h3c->qcc, 1);
-				len = -1;
-				goto out;
-			}
-		}
+	case HTTP_PRS_INV_HNAME:
+		TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		goto fail_with_glitch;
 
-		/* forbidden HTTP/3 headers, cf h3_req_headers_to_htx() */
-		if (isteq(list[hdr_idx].n, ist("host")) ||
-		    isteq(list[hdr_idx].n, ist("content-length")) ||
-		    isteq(list[hdr_idx].n, ist("connection")) ||
-		    isteq(list[hdr_idx].n, ist("proxy-connection")) ||
-		    isteq(list[hdr_idx].n, ist("keep-alive")) ||
-		    isteq(list[hdr_idx].n, ist("upgrade")) ||
-		    isteq(list[hdr_idx].n, ist("te")) ||
-		    isteq(list[hdr_idx].n, ist("transfer-encoding"))) {
-			TRACE_ERROR("forbidden HTTP/3 headers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			h3s->err = H3_ERR_MESSAGE_ERROR;
-			qcc_report_glitch(h3c->qcc, 1);
-			len = -1;
-			goto out;
-		}
+	case HTTP_PRS_FORB_TRL:
+		TRACE_ERROR("forbidden HTTP/3 headers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		goto fail_with_glitch;
 
+	case HTTP_PRS_INV_HVAL:
 		/* RFC 9114 10.3 Intermediary-Encapsulation Attacks
 		 *
 		 * While most values that can be encoded will not alter field
@@ -1599,44 +1574,16 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		 * response that contains a character not permitted in a field
 		 * value MUST be treated as malformed
 		 */
+		TRACE_ERROR("control character present in trailer value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		goto fail_with_glitch;
 
-		/* look for forbidden control characters in the trailer value */
-		ctl = ist_find_ctl(list[hdr_idx].v);
-		if (unlikely(ctl) && http_header_has_forbidden_char(list[hdr_idx].v, ctl)) {
-			TRACE_ERROR("control character present in trailer value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			h3s->err = H3_ERR_MESSAGE_ERROR;
-			qcc_report_glitch(h3c->qcc, 1);
-			len = -1;
-			goto out;
-		}
-
-		/* trim leading/trailing LWS */
-		for (v = list[hdr_idx].v; v.len; v.len--) {
-			if (unlikely(HTTP_IS_LWS(*v.ptr)))
-				v.ptr++;
-			else if (!unlikely(HTTP_IS_LWS(v.ptr[v.len - 1])))
-				break;
-		}
-
-		if (!htx_add_trailer(htx, list[hdr_idx].n, v)) {
-			TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-			len = -1;
-			goto out;
-		}
-
-		++hdr_idx;
-	}
-
-	/* Check the number of blocks against "tune.http.maxhdr" value before adding EOT block */
-	if (hdr_idx > global.tune.max_http_hdr) {
-		len = -1;
-		goto out;
-	}
-
-	if (!htx_add_endof(htx, HTX_BLK_EOT)) {
+	default:
+		/* Not a protocol error, only the trailers block could not
+		 * be emitted, so do not count a glitch (note: this might be
+		 * caused by too large trailers).
+		 */
 		TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		len = -1;
-		goto out;
+		goto fail;
 	}
 
 	if (fin)
@@ -1659,6 +1606,13 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 	return len;
+
+ fail_with_glitch:
+	qcc_report_glitch(h3c->qcc, 1);
+	h3s->err = H3_ERR_MESSAGE_ERROR;
+ fail:
+	TRACE_DEVEL("leaving on error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+	return -1;
 }
 
 /* Copy from buffer <buf> a H3 DATA frame of length <len> in QUIC stream <qcs>
