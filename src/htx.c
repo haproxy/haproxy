@@ -18,6 +18,9 @@
 
 struct htx htx_empty = { .size = 0, .data = 0, .head  = -1, .tail = -1, .first = -1 };
 
+
+struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data);
+
 /* tests show that 63% of these calls are for 64-bit chunks, so better avoid calling
  * memcpy() for that!
  */
@@ -74,17 +77,17 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 		switch (type) {
 			case HTX_BLK_DATA:
 				if (blk != oldblk) {
-					newblk = htx_add_data_atonce(tmp, htx_get_blk_value(htx, oldblk));
+					newblk = __htx_add_data_atonce(tmp, htx_get_blk_value(htx, oldblk));
 					break;
 				}
 				__fallthrough;
 			default:
 				if (blk == oldblk && blkinfo) {
-					newblk = htx_add_blk(tmp, type, __htx_blkinfo_size(blkinfo));
+					newblk = __htx_add_blk(tmp, type, __htx_blkinfo_size(blkinfo));
 					newblk->info = blkinfo;
 				}
 				else {
-					newblk = htx_add_blk(tmp, type, blksz);
+					newblk = __htx_add_blk(tmp, type, blksz);
 					newblk->info = oldblk->info;
 				}
 				htx_memcpy(htx_get_blk_ptr(tmp, newblk), htx_get_blk_ptr(htx, oldblk), blksz);
@@ -350,8 +353,13 @@ static int htx_prepare_blk_expansion(struct htx *htx, struct htx_blk *blk, int32
 
 /* Adds a new block of type <type> in the HTX message <htx>. Its content size is
  * passed but it is the caller responsibility to do the copy.
+ *
+ * This is the unsafe version. It does not check the message was not already
+ * ended. It must only be used by the HTX API itself, to temporarily add a block
+ * after the one carrying the EOM flag, before moving it at the right place. Any
+ * other caller must use htx_add_blk() instead.
  */
-struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
+struct htx_blk *__htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
 {
 	struct htx_blk *blk;
 
@@ -368,6 +376,18 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
 	if (type < HTX_BLK_EOH)
 		htx->hdrs_data += blksz;
 	return blk;
+}
+
+/* Adds a new block of type <type> in the HTX message <htx>. Its content size is
+ * passed but it is the caller responsibility to do the copy.
+ *
+ * Nothing must be added in a message already ended. Otherwise HTTP data and
+ * tunneled data could be mixed. The message must be fully consumed first.
+ */
+struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
+{
+	BUG_ON(htx_has_eom(htx));
+	return __htx_add_blk(htx, type, blksz);
 }
 
 /* Removes the block <blk> from the HTX message <htx>. The function returns the
@@ -565,8 +585,13 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
  * returned. Otherwise, on success, the updated block (or the new one) is
  * returned. Due to its nature this function can be expensive and should be
  * avoided whenever possible.
+ *
+ * This is the unsafe version. It does not check the message was not already
+ * ended. It must only be used by the HTX API itself, to temporarily add a block
+ * after the one carrying the EOM flag, before moving it at the right place. Any
+ * other caller must use htx_add_data_atonce() instead.
  */
-struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
+struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data)
 {
 	struct htx_blk *blk, *tailblk;
 	void *ptr;
@@ -632,7 +657,7 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	goto end;
 
   add_new_block:
-	blk = htx_add_blk(htx, HTX_BLK_DATA, data.len);
+	blk = __htx_add_blk(htx, HTX_BLK_DATA, data.len);
 	if (!blk)
 		return NULL;
 	blk->info += data.len;
@@ -645,6 +670,21 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	BUG_ON(htx->end_addr > htx->tail_addr);
 	BUG_ON(htx->head_addr > htx->end_addr);
 	return blk;
+}
+
+/* Tries to append data to the last inserted block, if the type matches and if
+ * there is enough space to take it all. If the space wraps, the buffer is
+ * defragmented and a new block is inserted. If an error occurred, NULL is
+ * returned. Otherwise, on success, the updated block (or the new one) is
+ * returned.
+ *
+ * No data must be added in a message already ended. Otherwise HTTP data and
+ * tunneled data could be mixed. The message must be fully consumed first.
+ */
+struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
+{
+	BUG_ON(htx_has_eom(htx));
+	return __htx_add_data_atonce(htx, data);
 }
 
 /* Replaces a value part of a block by a new one. The new part can be smaller or
@@ -785,6 +825,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 	uint32_t max, last_dstblk_sz;
 	int dst_full = 0;
 
+	BUG_ON(htx_has_eom(dst));
 
 	last_dstblk = NULL;
 	last_dstblk_sz = 0;
@@ -1050,6 +1091,8 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
 	int32_t len = htx_free_data_space(htx);
 	uint32_t flags = 0;
 
+	BUG_ON(htx_has_eom(htx));
+
 	if (!len)
 		return (struct htx_ret){.ret = 0, .blk = NULL};
 
@@ -1124,6 +1167,8 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	uint32_t sz, room;
 	int32_t len = data.len;
 	uint32_t flags = 0;
+
+	BUG_ON(htx_has_eom(htx));
 
 	/* Not enough space to store data */
 	if (len > htx_free_data_space(htx))
@@ -1209,8 +1254,14 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 {
 	struct htx_blk *blk, *pblk;
+	int eom = htx_has_eom(htx);
 
-	blk = htx_add_data_atonce(htx, data);
+	/* Data may be added in a message already ended. In this case, the block
+	 * is first appended, after the block carrying the EOM flag, and then
+	 * moved after the last DATA block. So the unsafe version is used here and
+	 * the EOM flag is transferred below.
+	 */
+	blk = __htx_add_data_atonce(htx, data);
 	if (!blk)
 		return NULL;
 
@@ -1231,6 +1282,10 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 		blk = pblk;
 	}
 
+	/* The EOM flag was transferred on the new DATA block, or moved with the
+	 * blocks placed after it. So a message already ended must still be ended.
+	 */
+	BUG_ON_HOT(eom && !htx_has_eom(htx));
 	return blk;
 }
 
@@ -1281,6 +1336,8 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 	struct htx_blk *blk, *newblk;
 	enum htx_blk_type type;
 	uint32_t blksz, offset = dst->data;
+
+	BUG_ON(htx_has_eom(dst));
 
 	for (blk = htx_get_head_blk(src); blk; blk = htx_get_next_blk(src, blk)) {
 		type = htx_get_blk_type(blk);

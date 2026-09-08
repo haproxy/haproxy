@@ -33,6 +33,7 @@
 extern struct htx htx_empty;
 
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t info);
+struct htx_blk *__htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz);
 struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz);
 struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk);
 struct htx_ret htx_find_offset(struct htx *htx, uint32_t offset);
@@ -260,6 +261,19 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	struct htx_blk *blk = htx_get_tail_blk(htx);
 
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
+}
+
+/* Return true if the HTX message is not empty and the HTX_BLK_FL_EOM flag is set
+ * on the tail block, which means the message is complete. Otherwise, false is
+ * returned.
+ */
+static inline int htx_has_eom(const struct htx *htx)
+{
+	struct htx_blk *blk = htx_get_tail_blk(htx);
+
+	/* htx_remove_blk() must take care to never leave unused blocks on head and tail of the message */
+	BUG_ON_HOT(blk && (blk->flags & HTX_BLK_FL_EOM) && htx_get_blk_type(blk) == HTX_BLK_UNUSED);
+	return (blk != NULL && !!(blk->flags & HTX_BLK_FL_EOM));
 }
 
 /* Returns the position of block immediately before the one pointed by <pos>. If
@@ -517,16 +531,22 @@ static inline struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type t
 
 /* Adds an HTX block of type HDR in <htx>. It returns the new block on
  * success. Otherwise, it returns NULL. The header name is always lower cased.
+ *
+ * A header may be added in a message already ended. This function is
+ * responsible to move the header before any EOH block. So before any block that
+ * can carry the EOM flag. The unsafe version can be used to add the block here.
  */
 static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
 					     const struct ist value)
 {
 	struct htx_blk *blk, *prevblk;
+	int eom;
 
 	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
-	blk = htx_add_blk(htx, HTX_BLK_HDR, name.len + value.len);
+	eom = htx_has_eom(htx);
+	blk = __htx_add_blk(htx, HTX_BLK_HDR, name.len + value.len);
 	if (!blk)
 		return NULL;
 
@@ -545,21 +565,32 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 		blk = prevblk;
 	}
 
+	/* The new block was moved before any block of a greater type, and the
+	 * EOM flag can only be carried by such a block. So a message already
+	 * ended must still be ended.
+	 */
+	BUG_ON_HOT(eom && !htx_has_eom(htx));
 	return blk;
 }
 
 /* Adds an HTX block of type TLR in <htx>. It returns the new block on
  * success. Otherwise, it returns NULL. The trailer name is always lower cased.
+ *
+ * A trailer may be added in a message already ended. This function is
+ * responsible to move the trailer before any EOT block. The EOM, if set must be
+ * carried by a EOT block. The unsafe version can be used to add the block here.
  */
 static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
 					      const struct ist value)
 {
 	struct htx_blk *blk, *prevblk;
+	int eom;
 
 	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
-	blk = htx_add_blk(htx, HTX_BLK_TLR, name.len + value.len);
+	eom = htx_has_eom(htx);
+	blk = __htx_add_blk(htx, HTX_BLK_TLR, name.len + value.len);
 	if (!blk)
 		return NULL;
 
@@ -578,6 +609,11 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 		blk = prevblk;
 	}
 
+	/* The new block was moved before any block of a greater type, and the
+	 * EOM flag can only be carried by such a block. So a message already
+	 * ended must still be ended.
+	 */
+	BUG_ON_HOT(eom && !htx_has_eom(htx));
 	return blk;
 }
 
@@ -819,18 +855,6 @@ static inline int htx_is_not_empty(const struct htx *htx)
 static inline int htx_is_empty_noerr(const struct htx *htx)
 {
 	return (htx_is_empty(htx) && !(htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)));
-}
-
-/* Return true if the htx message is not empty and HTX_FL_HAS_EOM flag is set on
- * the tail block. Otherwise, false is returned.
- */
-static inline int htx_has_eom(const struct htx *htx)
-{
-	struct htx_blk *blk = htx_get_tail_blk(htx);
-
-	/* htx_remove_blk() must take care to never leave unused blocks on head and tail of the message */
-	BUG_ON_HOT(blk && (blk->flags & HTX_BLK_FL_EOM) && htx_get_blk_type(blk) == HTX_BLK_UNUSED);
-	return (blk != NULL && !!(blk->flags & HTX_BLK_FL_EOM));
 }
 
 /* Returns 1 if more data are expected for the message <htx>. Otherwise it
