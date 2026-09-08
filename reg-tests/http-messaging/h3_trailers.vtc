@@ -1,0 +1,144 @@
+# This test checks the H3 trailers parsing. Since vtest doesn't speak H3, two
+# HTTP layers are chained inside the same haproxy: the H2 requests emitted by
+# vtest are converted to H3 and sent over a local qmux connection to a second
+# frontend which converts them back to H2 for the vtest servers. Trailers must
+# survive this round trip with their leading and trailing spaces removed, in
+# both directions.
+#
+# Note: invalid trailers are only checked in h2_trailers.vtc. They cannot be
+# emitted here because they are all rejected or sanitized before being sent
+# over H3 (HTX lower cases the trailer names and the H3 mux drops the trailers
+# which are forbidden on the wire).
+
+varnishtest "H3 trailers parsing"
+feature ignore_unknown_macro
+
+# TODO to adjust once QMux compilation is QUIC/SSL free
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1)'"
+
+# H2 server used to check the request trailers forwarded by haproxy. Note that
+# haproxy doesn't ack the server's settings before it has something else to
+# send, hence the absence of a second "rxsettings" below.
+server s1 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxhdrs
+		expect req.method == "POST"
+		rxdata
+		expect req.bodylen == 5
+		rxhdrs
+		expect req.http.x-tlr1 == "value1"
+		expect req.http.x-tlr2 == "value2"
+		expect req.http.x-tlr3 == ""
+		expect req.http.x-tlr4 == "value4"
+		txresp
+	} -run
+} -start
+
+# H2 server used to emit response trailers
+server s2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxhdrs
+		expect req.method == "GET"
+		txresp -nostrend
+		txdata -data "world" -nostrend
+		txresp -noadd -hdr "x-rtlr1" "rvalue1" -hdr "x-rtlr2" "  rvalue2 	"
+	} -run
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+	expose-experimental-directives
+	ssl-server-verify none
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # second layer: parses the H3 trailers and converts them back to H2. It
+    # must be declared first for its address to be known below.
+    frontend fe_h3
+	bind "fd@${fe_h3}" ssl crt ${testdir}/certs/common.pem alpn h3
+	use_backend be_rsp if { path /rsp }
+	default_backend be_req
+
+    backend be_req
+	server s1 ${s1_addr}:${s1_port} proto h2
+
+    backend be_rsp
+	server s2 ${s2_addr}:${s2_port} proto h2
+
+    # first layer: converts the H2 requests to H3
+    frontend fe_h2
+	bind "fd@${fe_h2}" proto h2
+	default_backend be_h3
+
+    backend be_h3
+	server h3 ${h1_fe_h3_addr}:${h1_fe_h3_port} ssl alpn h3
+} -start
+
+# valid request trailers, forwarded up to the H2 server
+client c1 -connect ${h1_fe_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -scheme http -url /req -hdr "host" "localhost" -nostrend
+		txdata -data "hello" -nostrend
+		# note: vtest cannot decode an empty value if it's the last one
+		txreq -noadd \
+		  -hdr "x-tlr1" "value1" \
+		  -hdr "x-tlr2" " 	value2	 " \
+		  -hdr "x-tlr3" "" \
+		  -hdr "x-tlr4" "value4"
+		rxresp
+		expect resp.status == 200
+	} -run
+} -run
+
+# valid response trailers, forwarded back to the H2 client
+client c2 -connect ${h1_fe_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -scheme http -url /rsp -hdr "host" "localhost"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.bodylen == 5
+		rxhdrs
+		expect resp.http.x-rtlr1 == "rvalue1"
+		expect resp.http.x-rtlr2 == "rvalue2"
+	} -run
+} -run

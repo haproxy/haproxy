@@ -1,0 +1,297 @@
+# This test checks the H2 trailers parsing. Valid trailers must be forwarded to
+# the other side with their leading and trailing spaces removed, while invalid
+# ones must cause the stream to be reset. Both the request and the response
+# paths are checked since they rely on the same parser.
+
+varnishtest "H2 trailers parsing"
+feature ignore_unknown_macro
+
+# H2 server used to check the request trailers forwarded by haproxy. Note that
+# haproxy doesn't ack the server's settings before it has something else to
+# send, hence the absence of a second "rxsettings" below.
+server s1 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxhdrs
+		expect req.method == "POST"
+		rxdata
+		expect req.bodylen == 5
+		rxhdrs
+		expect req.http.x-tlr1 == "value1"
+		expect req.http.x-tlr2 == "value2"
+		expect req.http.x-tlr3 == ""
+		expect req.http.x-tlr4 == "value4"
+		txresp
+	} -run
+} -start
+
+# H2 server used to emit response trailers
+server s2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxhdrs
+		expect req.method == "GET"
+		txresp -nostrend
+		txdata -data "world" -nostrend
+		txresp -noadd -hdr "x-rtlr1" "rvalue1" -hdr "x-rtlr2" " 	rvalue2	 "
+	} -run
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # forwards the request trailers to an H2 server
+    listen fe_req
+	bind "fd@${fe_req}" proto h2
+	server s1 ${s1_addr}:${s1_port} proto h2
+
+    # receives the response trailers from an H2 server
+    listen fe_rsp
+	bind "fd@${fe_rsp}" proto h2
+	server s2 ${s2_addr}:${s2_port} proto h2
+
+    # used to check the rejected trailers. The request body is waited for so
+    # that the invalid trailers are detected while the stream is still open,
+    # and there's no server involved at all here.
+    listen fe_err
+	bind "fd@${fe_err}" proto h2
+	option http-buffer-request
+	http-request return status 200
+} -start
+
+# valid request trailers, forwarded to the H2 server
+client c1 -connect ${h1_fe_req_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -nostrend
+		txdata -data "hello" -nostrend
+		# note: vtest cannot decode an empty value if it's the last one
+		txreq -noadd \
+		  -hdr "x-tlr1" "value1" \
+		  -hdr "x-tlr2" " 	value2	 " \
+		  -hdr "x-tlr3" "" \
+		  -hdr "x-tlr4" "value4"
+		rxresp
+		expect resp.status == 200
+	} -run
+} -run
+
+# valid response trailers, forwarded to the H2 client
+client c2 -connect ${h1_fe_rsp_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.bodylen == 5
+		rxhdrs
+		expect resp.http.x-rtlr1 == "rvalue1"
+		expect resp.http.x-rtlr2 == "rvalue2"
+	} -run
+} -run
+
+# invalid trailers: all of them must cause a stream error. The window update
+# emitted after the request headers is consumed before sending the trailers so
+# that the next frame to be received is necessarily the reset.
+client c3 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	# valid trailers first, to validate the test itself
+	stream 1 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "x-tlr" "value"
+		rxresp
+		expect resp.status == 200
+	} -run
+
+	# a literal pseudo-header is forbidden in trailers
+	stream 3 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr ":method" "GET"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	# an indexed pseudo-header is forbidden in trailers as well. The frame
+	# sent below is a HEADERS frame on stream 5 with ES+EH set, whose
+	# payload is a single indexed field (":method: GET" from the static
+	# table).
+	stream 5 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		sendhex "00 00 01  01  05  00 00 00 05   82"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	# upper case letters are forbidden in trailer names
+	stream 7 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "X-Tlr" "value"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	# a trailer name must be a valid token
+	stream 9 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "x tlr" "value"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	# NUL, CR and LF are forbidden in trailer values
+	stream 11 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "x-tlr" "val\rue"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 13 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "x-tlr" "val\nue"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	# a NUL in the value cannot be emitted by vtest, so the trailers frame
+	# is crafted by hand below: it's a HEADERS frame on stream 15 with
+	# ES+EH set, carrying the literal field "x-tlr: val<NUL>ue".
+	stream 15 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		sendhex "00 00 0e  01  05  00 00 00 0f"
+		sendhex "00 05 782d746c72 06 76616c007565"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
+
+# the fields affecting the message framing or the routing are forbidden in
+# trailers, each of them is checked on its own stream
+client c4 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "host" "www.example.com"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 3 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "content-length" "5"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 5 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "connection" "close"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 7 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "proxy-connection" "close"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 9 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "keep-alive" "timeout=5"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 11 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "upgrade" "websocket"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 13 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "te" "trailers"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+
+	stream 15 {
+		txreq -req POST -url / -nostrend
+		rxwinup
+		txreq -noadd -hdr "transfer-encoding" "chunked"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
