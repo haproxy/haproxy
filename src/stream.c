@@ -58,6 +58,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace.h>
+#include <haproxy/twork.h>
 #include <haproxy/vars.h>
 
 
@@ -3445,17 +3446,37 @@ void list_services(FILE *out)
 #define CLI_SHOWSESS_F_BACKEND  0x00000008   /* show only streams attached to this backend */
 #define CLI_SHOWSESS_F_FRONTEND 0x00000010   /* show only streams attached to this frontend */
 
+struct show_sess_req;
+
 struct show_sess_ctx {
 	struct bref bref;	/* back-reference from the session being dumped */
 	void *target;		/* session we want to dump, or NULL for all */
 	void *filter;           /* element to filter on (e.g. server if CLI_SHOWSESS_F_SERVER) */
+	struct show_sess_req *req; /* in-flight prefetch, or NULL */
 	unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
 	unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
 	unsigned int min_age;   /* minimum age of streams to dump */
 	unsigned int flags;     /* CLI_SHOWSESS_* */
+	struct stream *pf_done; /* stream last prefetched, dumped as-is */
 	int section;		/* section of the session being dumped */
 	int pos;		/* last position of the current session's buffer */
 };
+
+/* max src/dst resolutions per prefetch round, bounds its run time */
+#ifndef SHOW_SESS_PREFETCH_BATCH
+#define SHOW_SESS_PREFETCH_BATCH 100
+#endif
+
+/* prefetch of a foreign group's stream addresses, run on the owning thread;
+ * outlives the applet, hence separately allocated.
+ */
+struct show_sess_req {
+	struct twork twk;      /* posted to the owning thread */
+	struct bref bref;      /* pins the prefetch's start stream */
+	struct appctx *appctx; /* applet to wake, NULL once it gave up */
+};
+
+DECLARE_STATIC_POOL(pool_head_show_sess_req, "show_sess_req", sizeof(struct show_sess_req));
 
 /* This function appends a complete dump of a stream state onto the buffer,
  * possibly anonymizing using the specified anon_key. The caller is responsible
@@ -4075,6 +4096,113 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	return 0;
 }
 
+/* Owning-thread side: resolve src/dst for a batch of this thread's streams,
+ * caching them in the connections. The list is this thread's own, hence stable.
+ */
+static union twork_arg show_sess_prefetch(union twork_arg arg)
+{
+	struct show_sess_req *req = arg.ptr;
+	struct list *head = &ha_thread_ctx[tid].streams;
+	struct list *elem = req->bref.ref;
+	int syscalls = 0;
+
+	while (elem != head && syscalls < SHOW_SESS_PREFETCH_BATCH) {
+		struct stream *s = LIST_ELEM(elem, struct stream *, list);
+		struct connection *cf = objt_conn(strm_orig(s));
+		struct connection *cb = s->scb ? sc_conn(s->scb) : NULL;
+
+		if (cf) {
+			if (!cf->src && conn_get_src(cf))
+				syscalls++;
+			if (!cf->dst && conn_get_dst(cf))
+				syscalls++;
+		}
+		if (cb) {
+			if (!cb->src && conn_get_src(cb))
+				syscalls++;
+			if (!cb->dst && conn_get_dst(cb))
+				syscalls++;
+		}
+		elem = elem->n;
+	}
+
+	LIST_DEL_INIT(&req->bref.users);
+	return twk_u64(0);
+}
+
+/* Completion on the posting (CLI) thread: wake the applet, or reclaim the
+ * request if it already gave up. Cannot race the applet's release (same thread).
+ */
+static void show_sess_prefetched(union twork_arg arg, union twork_arg ret)
+{
+	struct show_sess_req *req = arg.ptr;
+	struct appctx *appctx = req->appctx;
+
+	if (appctx) {
+		struct show_sess_ctx *ctx = appctx->svcctx;
+
+		ctx->req = NULL;
+		appctx_wakeup(appctx);
+	}
+	pool_free(pool_head_show_sess_req, req);
+}
+
+/* If <curr_strm> is in another group and misses an address, ask its owning
+ * thread to resolve a batch, then yield. A stream already prefetched for
+ * (ctx->pf_done) is dumped as-is, so a failed resolution can't stall the walk.
+ * Returns 1 if a yield is needed, and 0 otherwise.
+ */
+static int sess_dump_prefetch(struct appctx *appctx, struct show_sess_ctx *ctx,
+                              struct stream *curr_strm)
+{
+	struct connection *cf, *cb;
+	struct show_sess_req *req;
+
+	if (!fd_tables_are_split() ||
+	    ha_thread_info[curr_strm->task->tid].tgid == tgid)
+		return 0;
+
+	/* already prefetched: dump as-is, never loop back here */
+	if (curr_strm == ctx->pf_done) {
+		ctx->pf_done = NULL;
+		return 0;
+	}
+
+	cf = objt_conn(strm_orig(curr_strm));
+	cb = curr_strm->scb ? sc_conn(curr_strm->scb) : NULL;
+	if ((!cf || (cf->src && cf->dst)) && (!cb || (cb->src && cb->dst)))
+		return 0; /* nothing a prefetch could add */
+
+	req = pool_alloc(pool_head_show_sess_req);
+	if (!req)
+		return 0; /* OOM: dump uncached */
+
+	twork_init(&req->twk);
+	LIST_INIT(&req->bref.users);
+	req->appctx = appctx;
+	ctx->req = req;
+
+	/* pin our resume point and the prefetch's start; a freed stream moves
+	 * these back-refs forward rather than leaving them dangling.
+	 */
+	LIST_APPEND(&curr_strm->back_refs, &ctx->bref.users);
+	LIST_APPEND(&curr_strm->back_refs, &req->bref.users);
+	req->bref.ref = &curr_strm->list;
+
+	if (!twork_call_on(&req->twk, curr_strm->task->tid, show_sess_prefetch,
+	                   twk_ptr(req), show_sess_prefetched)) {
+		/* owning thread gone (stopping): dump uncached */
+		LIST_DEL_INIT(&ctx->bref.users);
+		LIST_DEL_INIT(&req->bref.users);
+		ctx->req = NULL;
+		pool_free(pool_head_show_sess_req, req);
+		return 0;
+	}
+
+	ctx->pf_done = curr_strm;
+	return 1;
+}
+
 /* This function dumps all streams' states onto the stream connector's
  * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero. It proceeds in an isolated
@@ -4084,6 +4212,9 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
 	struct connection *conn;
+
+	if (ctx->req)
+		return 0; /* a prefetch is in flight, wait for its completion */
 
 	thread_isolate();
 
@@ -4121,6 +4252,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 
 		if (done) {
 			ctx->thr++;
+			ctx->pf_done = NULL;
 			if (ctx->thr >= global.nbthread)
 				break;
 			ctx->bref.ref = ha_thread_ctx[ctx->thr].streams.n;
@@ -4157,6 +4289,11 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			if (ctx->target != (void *)-1 && ctx->target != curr_strm)
 				goto next_sess;
 
+			if (sess_dump_prefetch(appctx, ctx, curr_strm)) {
+				thread_release();
+				return 0;
+			}
+
 			LIST_APPEND(&curr_strm->back_refs, &ctx->bref.users);
 			/* call the proper dump() function and return if we're missing space */
 			if (!stats_dump_full_strm_to_buffer(appctx, curr_strm))
@@ -4171,6 +4308,11 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			}
 			else
 				goto next_sess;
+		}
+
+		if (sess_dump_prefetch(appctx, ctx, curr_strm)) {
+			thread_release();
+			return 0;
 		}
 
 		chunk_appendf(&trash,
@@ -4320,8 +4462,15 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 static void cli_release_show_sess(struct appctx *appctx)
 {
 	struct show_sess_ctx *ctx = appctx->svcctx;
+	struct show_sess_req *req = ctx->req;
 
-	if (ctx->thr < global.nbthread) {
+	if (req) {
+		/* in-flight prefetch: detach its completion from this ctx */
+		ctx->req = NULL;
+		req->appctx = NULL;
+	}
+
+	if (ctx->thr < global.nbthread || req) {
 		/* a dump was aborted, either in error or timeout. We need to
 		 * safely detach from the target stream's list. It's mandatory
 		 * to lock because a stream on the target thread could be moving
@@ -4330,6 +4479,12 @@ static void cli_release_show_sess(struct appctx *appctx)
 		thread_isolate();
 		if (!LIST_ISEMPTY(&ctx->bref.users))
 			LIST_DELETE(&ctx->bref.users);
+		if (req && twork_cancel(&req->twk)) {
+			/* cancelled before it ran: unpin and free it ourselves */
+			if (!LIST_ISEMPTY(&req->bref.users))
+				LIST_DELETE(&req->bref.users);
+			pool_free(pool_head_show_sess_req, req);
+		}
 		thread_release();
 	}
 }
