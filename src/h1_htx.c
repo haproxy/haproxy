@@ -978,6 +978,7 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 {
 	struct http_hdr hdrs[global.tune.max_http_hdr];
 	struct h1m tlr_h1m;
+	uint parser_flags;
 	int ret = 0;
 
 	if (b_data(srcbuf) == ofs) {
@@ -1014,7 +1015,10 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 		goto output_full;
 	}
 
-	if (!htx_add_all_trailers(dsthtx, hdrs))
+	parser_flags = HTTP_PF_UPCASE_OK;
+	parser_flags |= (h1m->flags & H1_MF_RESP) ? HTTP_PF_DIR_RES : 0;
+
+	if (http_trailers_to_htx(hdrs, dsthtx, parser_flags) != HTTP_PRS_SUCCESS)
 		goto error;
 
 	h1m->state = H1_MSG_DONE;
