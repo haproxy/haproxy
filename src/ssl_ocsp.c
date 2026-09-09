@@ -473,7 +473,6 @@ static void ssl_sock_free_ocsp_data(struct certificate_ocsp *ocsp)
 		ha_free(&ocsp->uri);
 	}
 	ha_free(&ocsp->last_update_error);
-	free(ocsp);
 }
 
 /*
@@ -494,8 +493,10 @@ void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
 		 * ckch_store was deleted or changed (via cli commands for
 		 * instance).
 		 */
-		if (ocsp->refcount <= 0)
+		if (ocsp->refcount <= 0) {
 			ssl_sock_free_ocsp_data(ocsp);
+			free(ocsp);
+		}
 	}
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 }
@@ -514,9 +515,10 @@ void ssl_sock_free_ocsp_instance(struct certificate_ocsp *ocsp)
 		 * ckch_store was deleted or changed (via cli commands for
 		 * instance).
 		 */
-		if (ocsp->refcount_store <= 0)
+		if (ocsp->refcount_store <= 0) {
 			ssl_sock_free_ocsp_data(ocsp);
-
+			free(ocsp);
+		}
 	}
 	HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 }
