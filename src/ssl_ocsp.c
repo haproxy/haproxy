@@ -2087,9 +2087,15 @@ static int ssl_ocsp_set_status_var(struct ocsp_clt_check_ctx *ctx, struct ocsp_c
 	struct buffer *value = get_trash_chunk();
 
 	if (istlen(conf->status_var)) {
+		const char *cert_status = "unknown";
+
+		if (ctx)
+			cert_status = (ctx->state == OCSP_CLT_NO_OCSP) ? "inapplicable" :
+				OCSP_cert_status_str(ctx->ocsp_status);
+
 		smp_set_owner(&smp, sess->fe, sess, stream, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 
-		if (chunk_printf(value, "%s", ctx ? OCSP_cert_status_str(ctx->ocsp_status) : "unknown") <= 0)
+		if (chunk_printf(value, "%s", cert_status) <= 0)
 			return 1;
 
 		smp.data.type = SMP_T_STR;
