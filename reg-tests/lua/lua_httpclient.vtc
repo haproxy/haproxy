@@ -41,6 +41,7 @@ haproxy h1 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+	chroot /
 
         tune.lua.openlibs string
         tune.lua.bool-sample-conversion normal
@@ -68,6 +69,8 @@ haproxy h1 -conf {
 } -start
 
 client c0 -connect ${h1_fe1_sock} {
+    # will cause the fe1 client to attempt a connection to each of these ports,
+    # the last one being a local UNIX socket (li1).
     txreq -url "/" -hdr "vtcport: ${s1_port}" -hdr "vtcport2: ${s2_port}" -hdr "vtcport3: unix@${tmpdir}/srv3"
     rxresp
     expect resp.status == 200
