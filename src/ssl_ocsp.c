@@ -65,6 +65,10 @@
 #include <haproxy/time.h>
 #include <haproxy/trace.h>
 #include <haproxy/ssl_trace.h>
+#include <haproxy/vars.h>
+#include <haproxy/sample.h>
+#include <haproxy/http_rules.h>
+#include <haproxy/tcp_rules.h>
 
 #ifdef HAVE_SSL_OCSP
 
@@ -97,7 +101,8 @@ typedef enum {
 	OCSP_CHECK_ERR_NO_RESPONSE,
 	OCSP_CHECK_ERR_UNABLE_TO_GET_ISSUER_CERT,
 	OCSP_CHECK_ERR_WRONG_CID,
-	OCSP_CHECK_ERR_MEMORY
+	OCSP_CHECK_ERR_MEMORY,
+	OCSP_CHECK_ERR_TIMEOUT
 } ocsp_check_error;
 
 #ifndef OPENSSL_NO_OCSP
@@ -1005,6 +1010,8 @@ end:
 
 struct task *ocsp_update_task __read_mostly = NULL;
 static struct proxy *httpclient_ocsp_update_px;
+static struct proxy *httpclient_clt_ocsp_px;
+
 
 static struct ssl_ocsp_task_ctx {
 	struct certificate_ocsp *cur_ocsp;
@@ -1490,6 +1497,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		hc->ops.res_payload = ocsp_update_response_body_cb;
 		hc->ops.res_end = ocsp_update_response_end_cb;
 
+
 		if (!httpclient_start(hc)) {
 			goto leave;
 		}
@@ -1580,9 +1588,24 @@ static int ssl_ocsp_update_precheck()
 	return ERR_NONE;
 }
 
+
+/*
+ * Initialize the proxy for the client certificate OCSP check.
+ */
+static int ssl_clt_ocsp_precheck()
+{
+	httpclient_clt_ocsp_px = httpclient_create_proxy("<CLT-OCSP-CHK>");
+	if (!httpclient_clt_ocsp_px)
+		return ERR_RETRYABLE;
+	httpclient_clt_ocsp_px->logformat.str = httpclient_log_format;
+
+	return ERR_NONE;
+}
+
 /* initialize the proxy and servers for the HTTP client */
 
 REGISTER_PRE_CHECK(ssl_ocsp_update_precheck);
+REGISTER_PRE_CHECK(ssl_clt_ocsp_precheck);
 
 
 static int cli_parse_update_ocsp_response(char **args, char *payload, struct appctx *appctx, void *private)
@@ -1666,6 +1689,566 @@ end:
 }
 
 #endif  /* !defined OPENSSL_IS_BORINGSSL */
+
+
+/* OCSP check statemachine states */
+enum {
+	OCSP_CLT_INIT,
+	OCSP_CLT_WAITING,
+	OCSP_CLT_DONE,
+	OCSP_CLT_ERR,
+	OCSP_CLT_NO_OCSP
+};
+
+/* "wait-for-ocsp" action behaviour in case of error */
+enum {
+	OCSP_ACT_DFLT = 0,
+	OCSP_ACT_DENY = 0,
+	OCSP_ACT_NO_DENY = 1
+};
+
+struct ocsp_clt_check_ctx {
+	struct task *task;
+	struct httpclient *hc;
+	SSL *ssl;
+	OCSP_CERTID *cid;
+	X509 *issuer;
+	int state;
+	ocsp_check_error ocsp_error;
+	int ocsp_status;
+};
+
+/* Struct used to store "wait-for-ocsp" action parameters */
+struct ocsp_check_conf {
+	struct ist status_var;
+	struct ist reason_var;
+	int deny;
+};
+
+/* Convert OCSP error to string */
+static const char *ssl_ocsp_check_err_to_str(int errcode)
+{
+	switch(errcode) {
+	case OCSP_CHECK_ERR_OK:
+		return "";
+	case OCSP_CHECK_ERR_VERIFY_FAILED:
+		return "OCSP verification failed";
+	case OCSP_CHECK_ERR_CERT_UNKNOWN:
+		return "OCSP unknown cert";
+	case OCSP_CHECK_ERR_RESP_INVALID:
+		return "OCSP response(s) invalid";
+	case OCSP_CHECK_ERR_SIGNATURE_FAILURE:
+		return "OCSP response signature verification failure";
+	case OCSP_CHECK_ERR_NOT_YET_VALID:
+		return "OCSP response not yet valid (contains a date in the future)";
+	case OCSP_CHECK_ERR_HAS_EXPIRED:
+		return "OCSP response has expired";
+	case OCSP_CHECK_ERR_NO_RESPONSE:
+		return "no OCSP response available for certificate or responder unreachable";
+	case OCSP_CHECK_ERR_UNABLE_TO_GET_ISSUER_CERT:
+		return "unable to get issuer certificate";
+	case OCSP_CHECK_ERR_WRONG_CID:
+		return "CID mismatch";
+	case OCSP_CHECK_ERR_MEMORY:
+		return "Memory allocation failed";
+	case OCSP_CHECK_ERR_TIMEOUT:
+		return "Timeout";
+	default:
+		return "";
+	}
+}
+
+/*
+ * Look for the issuer certificate for <cert> in the issuer tree built out of
+ * the "issuer-chain-path" parameters. The found issuer is set in <issuer_cert>
+ * if found.
+ * Return 0 in case of success, 1 otherwise.
+ */
+static int get_issuer_from_chain(X509 *cert, X509 **issuer_cert)
+{
+	struct issuer_chain *issuer_chain = NULL;
+	STACK_OF(X509) *chain = NULL;
+	int i = 0;
+
+	if (!issuer_cert)
+		return 1;
+	*issuer_cert = NULL;
+
+	issuer_chain = ssl_get0_issuer_chain(cert);
+	if (issuer_chain)
+		chain = issuer_chain->chain;
+
+	if (chain) {
+		/* check if one of the certificate of the chain is the issuer */
+		for (i = 0; i < sk_X509_num(chain); i++) {
+			X509 *ti = sk_X509_value(chain, i);
+			if (X509_check_issued(ti, cert) == X509_V_OK) {
+				*issuer_cert = ti;
+				break;
+			}
+		}
+	}
+
+	return (*issuer_cert == NULL);
+}
+
+/*
+ * Free the contents of <ctx> without freeing the structure itself.
+ */
+void clear_ocsp_clt_check_ctx(struct ocsp_clt_check_ctx **ctx)
+{
+	if (!ctx || !*ctx)
+		return;
+
+	(*ctx)->task = NULL;
+
+	if ((*ctx)->hc) {
+		httpclient_stop_and_destroy((*ctx)->hc);
+		(*ctx)->hc = NULL;
+	}
+
+	SSL_free((*ctx)->ssl);
+	(*ctx)->ssl = NULL;
+
+	OCSP_CERTID_free((*ctx)->cid);
+	(*ctx)->cid = NULL;
+
+	X509_free((*ctx)->issuer);
+	(*ctx)->issuer = NULL;
+
+	(*ctx)->state = OCSP_CLT_INIT;
+	(*ctx)->ocsp_status = V_OCSP_CERTSTATUS_UNKNOWN;
+}
+
+
+/*
+ * Main http client callback used in OCSP client certificate check.
+ */
+static void ocsp_clt_httpclient_end(struct httpclient *hc)
+{
+	struct ocsp_clt_check_ctx *ctx = hc->caller;
+
+	if (!ctx)
+		return;
+
+	ctx->state = OCSP_CLT_DONE;
+
+	task_wakeup(ctx->task, TASK_WOKEN_MSG);
+}
+
+/*
+ * Create an OCSP request for client certificate extracted from <ssl>.
+ * The OCSP responder uri is extracted from the certificate. The certificate's
+ * issuer should already be in the issuer tree (see 'issuers-chain-path'
+ * option).
+ * Set <timeout> as a limit for the http_client used to send the request.
+ * Return 0 in case of success, 1 otherwise.
+ */
+int ssl_ocsp_send_request(struct ocsp_clt_check_ctx **ctx, SSL *ssl, int timeout)
+{
+	struct buffer *ocsp_uri = NULL;
+	struct buffer *req_body = NULL;
+	struct httpclient *hc = NULL;
+	X509 *cert = NULL;
+	char *err = NULL;
+
+	int retval = 1;
+
+	if (!ssl)
+		goto end;
+
+	cert = SSL_get_peer_certificate(ssl);
+	if (!cert) {
+		retval = 0; /* Not an error, nothing to do */
+		(*ctx)->state = OCSP_CLT_NO_OCSP;
+		goto end;
+	}
+
+	ocsp_uri = alloc_trash_chunk();
+	if (!ocsp_uri)
+		goto end;
+
+	if (ssl_ocsp_get_uri_from_cert(cert, ocsp_uri, &err)) {
+		retval = 0; /* Not an error, nothing to do */
+		(*ctx)->state = OCSP_CLT_NO_OCSP;
+		goto end;
+	}
+
+	if ((*ctx)->issuer) {
+		X509_free((*ctx)->issuer);
+		(*ctx)->issuer = NULL;
+	}
+
+	if (get_issuer_from_chain(cert, &(*ctx)->issuer)) {
+		(*ctx)->ocsp_error = OCSP_CHECK_ERR_UNABLE_TO_GET_ISSUER_CERT;
+		goto end;
+	}
+	X509_up_ref((*ctx)->issuer);
+
+	OCSP_CERTID_free((*ctx)->cid);
+	(*ctx)->cid = OCSP_cert_to_id(0, cert, (*ctx)->issuer);
+	if (!(*ctx)->cid)
+		goto end;
+
+	req_body = alloc_trash_chunk();
+	if (!req_body)
+		goto end;
+
+	/* Create ocsp request */
+	if (ssl_ocsp_create_request_details((*ctx)->cid, ocsp_uri, req_body, NULL) != 0)
+		goto end;
+
+	/* Depending on the processing that occurred in
+	 * ssl_ocsp_create_request_details we could either have to send
+	 * a GET or a POST request. */
+	hc = httpclient_new_from_proxy(httpclient_clt_ocsp_px, (*ctx),
+				       b_data(req_body) ? HTTP_METH_POST : HTTP_METH_GET,
+				       ist2(b_orig(ocsp_uri), b_data(ocsp_uri)));
+	if (!hc)
+		goto end;
+
+	httpclient_set_timeout(hc, timeout);
+
+	(*ctx)->hc = hc;
+
+	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth,
+			       b_data(req_body) ? ocsp_request_hdrs : NULL,
+			       b_data(req_body) ? ist2(b_orig(req_body), b_data(req_body)) : IST_NULL) != ERR_NONE) {
+		goto end;
+	}
+
+	hc->ops.res_end = ocsp_clt_httpclient_end;
+
+	if (!httpclient_start(hc))
+		goto end;
+
+	retval = 0;
+
+end:
+	free_trash_chunk(ocsp_uri);
+	free_trash_chunk(req_body);
+	if (retval)
+		clear_ocsp_clt_check_ctx(ctx);
+	free(err);
+	X509_free(cert);
+	return retval;
+}
+
+/*
+ * Check the contents of an OCSP response found in the response buffer of the
+ * http_client stored in <ctx>. The response is not stored in the OCSP response
+ * tree, the 'ssl_sock_load_ocsp_response' is called with a "fake" ocsp_response
+ * in order to make use of the validity checks and parsing already performed
+ * inside.
+ * Return 0 in case of success, 1 otherwise.
+ */
+int ssl_ocsp_check_ocsp_response(struct ocsp_clt_check_ctx *ctx)
+{
+	struct httpclient *hc = ctx->hc;
+	struct certificate_ocsp ocsp = {};
+	struct http_hdr *hdr;
+	int found = 0;
+	int retval = 1;
+	char *err = NULL;
+
+	if (!hc || hc->res.status != 200) {
+		ctx->ocsp_error = OCSP_CHECK_ERR_NO_RESPONSE;
+		goto leave;
+	}
+
+	/* Look for "Content-Type" header which should have
+	 * "application/ocsp-response" value. */
+	for (hdr = hc->res.hdrs; isttest(hdr->v); hdr++) {
+		if (isteqi(hdr->n, ist("Content-Type")) &&
+		    isteqi(hdr->v, ist("application/ocsp-response"))) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found) {
+		ctx->ocsp_error = OCSP_CHECK_ERR_NO_RESPONSE;
+		goto leave;
+	}
+
+	/*
+	 * Verify the ocsp_response against the issuer certificate.
+	 * The actual parsing of the response is done in
+	 * ssl_sock_load_ocsp_response.
+	 */
+	if (ssl_ocsp_check_response(NULL, ctx->issuer, &hc->res.buf,
+				    &ctx->ocsp_error, &err))
+		goto leave;
+
+	/*
+	 * Provide a local ocsp_response structure in order to use the validity
+	 * checks and parsing of the response done in this function without
+	 * trying to insert the response in the tree.
+	 */
+	if (ssl_sock_load_ocsp_response(&hc->res.buf, &ocsp, ctx->cid,
+	                                &ctx->ocsp_status,
+					&ctx->ocsp_error, &err))
+		goto leave;
+
+	retval = 0;
+
+leave:
+	if (hc)
+		httpclient_stop_and_destroy(hc);
+
+	if (retval && !ctx->ocsp_error)
+		ctx->ocsp_error = OCSP_CHECK_ERR_VERIFY_FAILED;
+
+	ctx->hc = NULL;
+	free(err);
+	ssl_sock_free_ocsp_data(&ocsp);
+	return retval;
+}
+
+/*
+ * Check the validity of the client certificate from <ssl> by sending an OCSP
+ * request in 'ssl_ocsp_send_request' and checking the received OCSP response
+ * (if any) in 'ssl_ocsp_check_ocsp_response'. The task will be woken up by the
+ * http_client main callback or in case a timeout is reached.
+ * Returns 0 in case of success, 1 if the caller needs to yield (ongoing ocsp
+ * request), -1 in case of error.
+ */
+int ssl_ocsp_check_client_cert(struct task *task, SSL *ssl, struct ocsp_clt_check_ctx **ctx, int timeout)
+{
+	int retval = 1;
+
+	if (!ctx)
+		return -1;
+
+	if (!*ctx) {
+		*ctx = calloc(1, sizeof(**ctx));
+		if (!*ctx) {
+			retval = -1;
+			goto end;
+		}
+		if (!ssl) {
+			retval = -1;
+			goto end;
+		}
+	}
+
+	(*ctx)->ocsp_status = V_OCSP_CERTSTATUS_UNKNOWN;
+
+	(*ctx)->task = task;
+
+	switch((*ctx)->state) {
+	case OCSP_CLT_INIT:
+		if (ssl_ocsp_send_request(ctx, ssl, timeout)) {
+			if (!(*ctx)->ocsp_error)
+				(*ctx)->ocsp_error = OCSP_CHECK_ERR_VERIFY_FAILED;
+			(*ctx)->state = OCSP_CLT_ERR;
+			retval = -1;
+			goto end;
+		}
+		else if ((*ctx)->state != OCSP_CLT_NO_OCSP)
+			(*ctx)->state = OCSP_CLT_WAITING;
+		break;
+	case OCSP_CLT_WAITING:
+		/* Nothing to do, OCSP response was not received yet */
+		break;
+	case OCSP_CLT_DONE:
+		if (ssl_ocsp_check_ocsp_response(*ctx)) {
+			(*ctx)->state = OCSP_CLT_ERR;
+			retval = -1;
+			goto end;
+		}
+		break;
+	case OCSP_CLT_ERR:
+		retval = -1;
+		goto end;
+	case OCSP_CLT_NO_OCSP:
+		/* No OCSP uri in the client certificate, nothing to do */
+		break;
+	}
+
+	retval = 0;
+
+end:
+	if (!retval) {
+		if (*ctx)
+			return ((*ctx)->state == OCSP_CLT_WAITING);
+	}
+	return retval;
+}
+
+/*
+ * Set the OCSP status in the optional 'status-var' variable specified by the
+ * user, and the error reason (if any) in the optional 'reason-var' variable.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int ssl_ocsp_set_status_var(struct ocsp_clt_check_ctx *ctx, struct ocsp_check_conf *conf,
+                                   struct session *sess, struct stream *stream)
+{
+	struct sample smp;
+	struct buffer *value = get_trash_chunk();
+
+	if (istlen(conf->status_var)) {
+		smp_set_owner(&smp, sess->fe, sess, stream, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+
+		if (chunk_printf(value, "%s", ctx ? OCSP_cert_status_str(ctx->ocsp_status) : "unknown") <= 0)
+			return 1;
+
+		smp.data.type = SMP_T_STR;
+		smp.data.u.str.area = b_orig(value);
+		smp.data.u.str.data = b_data(value);
+		vars_set_by_name(istptr(conf->status_var), istlen(conf->status_var), &smp);
+	}
+
+	if (istlen(conf->reason_var)) {
+		const char *errstr = ssl_ocsp_check_err_to_str(ctx ? ctx->ocsp_error : OCSP_CHECK_ERR_MEMORY);
+
+		smp_set_owner(&smp, sess->fe, sess, stream, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+
+		smp.data.type = SMP_T_STR;
+		smp.data.u.str.area = (char*)errstr;
+		smp.data.u.str.data = strlen(errstr);
+		vars_set_by_name(istptr(conf->reason_var), istlen(conf->reason_var), &smp);
+	}
+
+	return 0;
+}
+
+
+/*
+ * Main function for 'wait-for-ocsp' action which pauses the action processing
+ * until an OCSP response is recovered from the proper OCSP responder for the
+ * client's certificate.
+ * By default the request is rejected if the OCSP response cannot be fetched or
+ * if the returned status is not 'good'. The status of the OCSP response and the
+ * whole client OCSP check status can be stored in user provided variables
+ * (status-var and reason-var).
+ * This action will yield after the OCSP request is sent until the response is
+ * retrieved (or a timeout is reached).
+ */
+static enum act_return ocsp_action_wait_for_ocsp(struct act_rule *rule, struct proxy *px,
+						 struct session *sess, struct stream *s, int flags)
+{
+        struct connection *conn;
+        SSL *ssl;
+	int ret = 0;
+	int retval = ACT_RET_CONT;
+	struct ocsp_clt_check_ctx **ctx = (struct ocsp_clt_check_ctx **)&rule->arg.act.p[0];
+	struct ocsp_check_conf *conf = rule->arg.act.p[1];
+
+	if (flags & ACT_OPT_FINAL)
+		goto end;
+
+	if (!tick_isset(s->req.analyse_exp))
+		s->req.analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
+
+	if (tick_is_expired(s->req.analyse_exp, now_ms)) {
+		if (*ctx && !(*ctx)->ocsp_error)
+			(*ctx)->ocsp_error = OCSP_CHECK_ERR_TIMEOUT;
+		ret = -1;
+	} else {
+		conn = objt_conn(sess->origin);
+		ssl = ssl_sock_get_ssl_object(conn);
+
+		ret = ssl_ocsp_check_client_cert(s->task, ssl, ctx, s->be->timeout.httpreq);
+	}
+
+	if (ret == 1)
+		/* yield and come back to process ocsp response later */
+		return ACT_RET_YIELD;
+
+	ssl_ocsp_set_status_var(rule->arg.act.p[0], conf, sess, s);
+
+	if (conf->deny != OCSP_ACT_NO_DENY &&
+	    ((ret) || ((*ctx)->state != OCSP_CLT_NO_OCSP &&
+		       (*ctx)->ocsp_status != V_OCSP_CERTSTATUS_GOOD)))
+		retval = ACT_RET_DENY;
+
+end:
+	clear_ocsp_clt_check_ctx(ctx);
+	ha_free(ctx);
+	return retval;
+}
+
+static void clear_ocsp_check_conf(struct ocsp_check_conf *conf)
+{
+	if (!conf)
+		return;
+
+	istfree(&conf->status_var);
+	istfree(&conf->reason_var);
+}
+
+/*
+ * Clear ocsp_clt_check_ctx and ocsp_check_conf.
+ */
+static inline void release_wait_for_ocsp_action(struct act_rule *rule)
+{
+	clear_ocsp_clt_check_ctx((struct ocsp_clt_check_ctx**)&rule->arg.act.p[0]);
+	ha_free(&rule->arg.act.p[0]);
+	clear_ocsp_check_conf(rule->arg.act.p[1]);
+	ha_free(&rule->arg.act.p[1]);
+}
+
+/*
+ * Parse the 'wait-for-ocsp' action.
+ *	wait-for-ocsp [ status-var <varname> ] [ reason-var <varname> ] [ no-deny | deny ]
+ */
+static enum act_parse_ret parse_wait_for_ocsp(const char **args, int *orig_arg, struct proxy *px,
+                                              struct act_rule *rule, char **err)
+{
+	struct ocsp_check_conf *conf = NULL;
+	int cur_arg;
+
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = ocsp_action_wait_for_ocsp;
+	rule->release_ptr = release_wait_for_ocsp_action;
+
+	cur_arg = *orig_arg;
+
+	conf = calloc(1, sizeof(*conf));
+	if (!conf)
+		goto parse_err;
+	rule->arg.act.p[1] = conf;
+
+	while (*args[cur_arg]) {
+
+		if (strcmp(args[cur_arg], "status-var") == 0) {
+			++cur_arg;
+			if (!*args[cur_arg])
+				goto parse_err;
+			conf->status_var = ist(strdup(args[cur_arg]));
+			if (!istlen(conf->status_var))
+				goto parse_err;
+		} else if (strcmp(args[cur_arg], "reason-var") == 0) {
+			++cur_arg;
+			if (!*args[cur_arg])
+				goto parse_err;
+			conf->reason_var = ist(strdup(args[cur_arg]));
+			if (!istlen(conf->reason_var))
+				goto parse_err;
+		} else if (strcmp(args[cur_arg], "no-deny") == 0) {
+			conf->deny = OCSP_ACT_NO_DENY;
+		} else if (strcmp(args[cur_arg], "deny") == 0) {
+			conf->deny = OCSP_ACT_DENY;
+		} else
+			goto parse_err;
+
+		++cur_arg;
+	}
+
+	if (conf->deny == OCSP_ACT_NO_DENY && !istlen(conf->status_var))
+		/* We expect an explicit status variable name if auto deny is disabled */
+		goto parse_err;
+
+	*orig_arg = cur_arg;
+	return ACT_RET_PRS_OK;
+
+parse_err:
+	memprintf(err, "Can't parse '%s'%s%s. Expects '[status-var <varname>] [reason-var <varname>] [(no-)deny]'.",
+				  args[cur_arg], *err ? ": " : "", *err ? *err : "");
+
+	return ACT_RET_PRS_ERR;
+}
+
 
 
 #endif /* (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) */
@@ -2242,6 +2825,23 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+static struct action_kw_list http_req_actions = {
+	.kw = {
+		{ "wait-for-ocsp",            parse_wait_for_ocsp,                0 },
+		{ /* END */ }
+	}
+};
+
+INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
+
+
+static struct action_kw_list tcp_req_cont_actions = {ILH, {
+	{ "wait-for-ocsp",            parse_wait_for_ocsp,                0 },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_actions);
 
 REGISTER_CONFIG_POSTPARSER("ocsp-update", ocsp_update_postparser_init);
 
