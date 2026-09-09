@@ -40,7 +40,7 @@ void ssl_sock_free_ocsp_instance(struct certificate_ocsp *ocsp);
 
 int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
                                 struct certificate_ocsp *ocsp,
-                                OCSP_CERTID *cid, char **err);
+                                OCSP_CERTID *cid, int *status, char **err);
 int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err);
 void ssl_sock_ocsp_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp);
 
