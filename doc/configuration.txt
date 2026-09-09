@@ -15572,6 +15572,7 @@ unset-var                      -           X     X     X     X            X   X 
 use-service                    -           -     -     X     -            X   -   -
 wait-for-body                  -           -     -     -     -            X   X   -
 wait-for-handshake             -           -     -     -     -            X   -   -
+wait-for-ocsp                  -           -     -     X     -            X   -   -
 --keyword---------------QUIC--Ini---TCP--RqCon-RqSes-RqCnt-RsCnt---HTTP--Req-Res-Aft-
 
 
@@ -17253,6 +17254,76 @@ wait-for-handshake
   This will delay the processing of the request until the SSL handshake
   happened. This is mostly useful to delay processing early data until we're
   sure they are valid.
+
+
+wait-for-ocsp [ status-var <varname> ] [ reason-var <varname> ] [ no-deny | deny ]
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          -  |   -  |   X  |   -  |          X |  - |  -
+
+  This action performs an OCSP check on the client certificate presented during
+  the TLS handshake. It contacts the OCSP responder whose URL is extracted from
+  the certificate's Authority Information Access extension, then verifies the
+  response against an issuer certificate that must be provided via the
+  'issuers-chain-path' option.
+  This action delays all other processing of the request until an OCSP status
+  is retrieved, an error occurs during the OCSP request/response process or a
+  timeout is reached.
+
+  If the client certificate has no OCSP URI, or no client certificate was
+  presented, the action continues without performing any check and set the
+  optional 'status-var' to "inapplicable".
+
+  By default, the connection is denied if the OCSP check fails or the
+  certificate status is not "good". The "no-deny" option disables this
+  automatic denial, which is useful when the OCSP result is only needed for
+  logging or routing via the "status-var" and "reason-var" variables.
+
+  Arguments :
+
+    status-var <varname>
+              Optional. The name of a variable where the OCSP certificate
+              status will be stored as a string. The value will be one of
+              "good", "revoked", "unknown", or "inapplicable" (no client
+              certificate was presented, or it had no OCSP URI). The variable
+              scope must be specified as part of the name (e.g.
+              "txn.ocsp_status").
+
+    reason-var <varname>
+              Optional. The name of a variable where a human-readable
+              description of the OCSP check outcome will be stored. On
+              success the value is empty. On failure it describes the reason
+              (e.g. "OCSP response has expired", "OCSP unknown cert"). The
+              variable scope must be specified as part of the name (e.g.
+              "txn.ocsp_reason").
+
+    no-deny   Do not automatically deny the connection on OCSP check failure
+              or when the certificate status is not "good". When this option
+              is set, "status-var" must also be specified so that the caller
+              can act on the result.
+
+    deny      Explicitly deny the connection on OCSP check failure or when
+              the certificate status is not "good". This is the default
+              behaviour and is only present for users wanting to make the
+              default behaviour more explicit.
+
+  This action requires HAProxy to be built with SSL support and is only
+  available when the OpenSSL library supports OCSP.
+
+  Example:
+    # Deny revoked certificates and expose OCSP result in variables
+    tcp-request inspect-delay 5s
+    tcp-request content wait-for-ocsp status-var txn.ocsp_status \
+                                      reason-var txn.ocsp_reason
+
+    # Perform OCSP check but let the config decide what to do with the result
+    http-request wait-for-ocsp status-var txn.ocsp_status \
+                               reason-var txn.ocsp_reason no-deny
+    http-request deny if { var(txn.ocsp_status) -m str revoked }
+    # Also deny if no check could be performed (no client certificate, or
+    # the certificate had no OCSP URI)
+    http-request deny if { var(txn.ocsp_status) -m str inapplicable }
+
+  See also : "wait-for-handshake", "issuers-chain-path"
 
 
 5. Bind and server options
