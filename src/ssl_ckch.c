@@ -1426,6 +1426,8 @@ void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e)
 	if (!ca_e)
 		return;
 
+	sk_X509_NAME_pop_free(ca_e->ca_list, X509_NAME_free);
+
 	X509_STORE_free(ca_e->ca_store);
 
 	list_for_each_entry_safe(link, link_s, &ca_e->ckch_inst_link, list) {
