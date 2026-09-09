@@ -159,6 +159,23 @@ haproxy h1 -conf {
         http-request normalize-uri fragment-strip
         default_backend be
 
+    # A normalizer with an optional sub-option that is followed by a
+    # condition instead of the sub-option must still select the right
+    # normalizer and not fall back to the first one of the enum.
+    frontend fe_cond
+        bind "fd@${fe_cond}"
+
+        acl always_match always_true
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri percent-decode-unreserved if always_match
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
     backend be
         server s1 ${s1_addr}:${s1_port}
 
@@ -549,4 +566,14 @@ client c11 -connect ${h1_fe_fragment_block_sock} {
     txreq -url "/#foo"
     rxresp
     expect resp.status == 400
+} -run
+
+client c12 -connect ${h1_fe_cond_sock} {
+    # the percent sequence must be decoded and the duplicate slashes must
+    # be left alone, which would not be the case if path-merge-slashes was
+    # selected instead.
+    txreq -url "/a//b/%62"
+    rxresp
+    expect resp.http.before == "/a//b/%62"
+    expect resp.http.after == "/a//b/b"
 } -run
