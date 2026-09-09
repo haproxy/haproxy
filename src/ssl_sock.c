@@ -1565,7 +1565,7 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_store 
 	ret = 0;
 
 	warn = NULL;
-	if (data->ocsp_response && ssl_sock_load_ocsp_response(data->ocsp_response, iocsp, data->ocsp_cid, NULL, &warn)) {
+	if (data->ocsp_response && ssl_sock_load_ocsp_response(data->ocsp_response, iocsp, data->ocsp_cid, NULL, NULL, &warn)) {
 		memprintf(&warn, "Loading: %s. Content will be ignored", warn ? warn : "failure");
 		ha_warning("%s.\n", warn);
 	}

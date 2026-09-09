@@ -86,6 +86,20 @@
 
 static struct sockaddr_storage *ocsp_update_dst;
 
+typedef enum {
+	OCSP_CHECK_ERR_OK,
+	OCSP_CHECK_ERR_VERIFY_FAILED,
+	OCSP_CHECK_ERR_CERT_UNKNOWN,
+	OCSP_CHECK_ERR_RESP_INVALID,
+	OCSP_CHECK_ERR_SIGNATURE_FAILURE,
+	OCSP_CHECK_ERR_NOT_YET_VALID,
+	OCSP_CHECK_ERR_HAS_EXPIRED,
+	OCSP_CHECK_ERR_NO_RESPONSE,
+	OCSP_CHECK_ERR_UNABLE_TO_GET_ISSUER_CERT,
+	OCSP_CHECK_ERR_WRONG_CID,
+	OCSP_CHECK_ERR_MEMORY
+} ocsp_check_error;
+
 #ifndef OPENSSL_NO_OCSP
 int ocsp_ex_index = -1;
 
@@ -292,7 +306,8 @@ end:
  */
 int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
                                 struct certificate_ocsp *ocsp,
-                                OCSP_CERTID *cid, int *status, char **err)
+                                OCSP_CERTID *cid, int *status,
+                                unsigned int *errcode, char **err)
 {
 	OCSP_RESPONSE *resp;
 	OCSP_BASICRESP *bs = NULL;
@@ -303,6 +318,7 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	ASN1_GENERALIZEDTIME *revtime, *thisupd, *nextupd = NULL;
 	int reason;
 	int ret = 1;
+	int check_err = OCSP_CHECK_ERR_OK;
 #ifdef HAVE_ASN1_TIME_TO_TM
 	struct tm nextupd_tm = {0};
 #else
@@ -322,12 +338,14 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	rc = OCSP_response_status(resp);
 	if (rc != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
 		memprintf(err, "OCSP response status not successful");
+		check_err = OCSP_CHECK_ERR_CERT_UNKNOWN;
 		goto out;
 	}
 
 	bs = OCSP_response_get1_basic(resp);
 	if (!bs) {
 		memprintf(err, "Failed to get basic response from OCSP Response");
+		check_err = OCSP_CHECK_ERR_CERT_UNKNOWN;
 		goto out;
 	}
 
@@ -340,6 +358,7 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	sr = OCSP_resp_get0(bs, 0);
 	if (!sr) {
 		memprintf(err, "Failed to get OCSP single response");
+		check_err = OCSP_CHECK_ERR_CERT_UNKNOWN;
 		goto out;
 	}
 
@@ -350,23 +369,27 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 		*status = rc;
 	if (rc != V_OCSP_CERTSTATUS_GOOD && rc != V_OCSP_CERTSTATUS_REVOKED) {
 		memprintf(err, "OCSP single response: certificate status is unknown");
+		check_err = OCSP_CHECK_ERR_CERT_UNKNOWN;
 		goto out;
 	}
 
 	if (!nextupd) {
 		memprintf(err, "OCSP single response: missing nextupdate");
+		check_err = OCSP_CHECK_ERR_RESP_INVALID;
 		goto out;
 	}
 
 	rc = OCSP_check_validity(thisupd, nextupd, OCSP_MAX_RESPONSE_TIME_SKEW, -1);
 	if (!rc) {
 		memprintf(err, "OCSP single response: no longer valid.");
+		check_err = OCSP_CHECK_ERR_HAS_EXPIRED;
 		goto out;
 	}
 
 	if (cid) {
 		if (OCSP_id_cmp(id, cid)) {
 			memprintf(err, "OCSP single response: Certificate ID does not match certificate and issuer");
+			check_err = OCSP_CHECK_ERR_WRONG_CID;
 			goto out;
 		}
 	}
@@ -415,6 +438,7 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	if (ASN1_TIME_to_tm(nextupd, &nextupd_tm) == 0) {
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
+		check_err = OCSP_CHECK_ERR_RESP_INVALID;
 		goto out;
 	}
 	ocsp->expire = my_timegm(&nextupd_tm) - OCSP_MAX_RESPONSE_TIME_SKEW;
@@ -423,6 +447,7 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	if (expire < 0) {
 		HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
 		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
+		check_err = OCSP_CHECK_ERR_RESP_INVALID;
 		goto out;
 	}
 	ocsp->expire = expire;
@@ -431,11 +456,16 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 
 	if (ocsp->expire < date.tv_sec) {
 		memprintf(err, "OCSP single response: no longer valid. Must be valid during at least %ds.", OCSP_MAX_RESPONSE_TIME_SKEW);
+		check_err = OCSP_CHECK_ERR_HAS_EXPIRED;
 		goto out;
 	}
 
 	ret = 0;
 out:
+	if (ret && errcode && *errcode == 0) {
+		*errcode = check_err ? check_err : OCSP_CHECK_ERR_VERIFY_FAILED;
+	}
+
 	ERR_clear_error();
 
 	if (bs)
@@ -455,7 +485,7 @@ out:
  */
 int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 {
-	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, NULL, err);
+	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, NULL, NULL, err);
 }
 
 
@@ -878,7 +908,7 @@ end:
  * Return 0 in case of success, 1 otherwise.
  */
 int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
-                            struct buffer *respbuf, char **err)
+                            struct buffer *respbuf, unsigned int *errcode, char **err)
 {
 	int ret = 1;
 	int n;
@@ -886,15 +916,18 @@ int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
 	OCSP_BASICRESP *basic = NULL;
 	X509_STORE *store = NULL;
 	const unsigned char *start = (const unsigned char*)b_orig(respbuf);
+	int check_err = OCSP_CHECK_ERR_OK;
 
 	if (!chain && !issuer) {
 		memprintf(err, "check_ocsp_response needs a certificate validation chain or an issuer certificate");
 		goto end;
 	}
 
+
 	response = d2i_OCSP_RESPONSE(NULL, &start, b_data(respbuf));
 	if (!response) {
 		memprintf(err, "d2i_OCSP_RESPONSE() failed");
+		check_err = OCSP_CHECK_ERR_RESP_INVALID;
 		goto end;
 	}
 
@@ -903,12 +936,14 @@ int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
 	if (n != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
 		memprintf(err, "OCSP response not successful (%d: %s)",
 		        n, OCSP_response_status_str(n));
+		check_err = OCSP_CHECK_ERR_CERT_UNKNOWN;
 		goto end;
 	}
 
 	basic = OCSP_response_get1_basic(response);
 	if (basic == NULL) {
 		memprintf(err, "OCSP_response_get1_basic() failed");
+		check_err = OCSP_CHECK_ERR_RESP_INVALID;
 		goto end;
 	}
 
@@ -937,12 +972,16 @@ int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
 
 	if (OCSP_basic_verify(basic, chain, store, OCSP_TRUSTOTHER) != 1) {
 		memprintf(err, "OCSP_basic_verify() failed");
+		check_err = OCSP_CHECK_ERR_SIGNATURE_FAILURE;
 		goto end;
 	}
 
 	ret = 0;
 
 end:
+	if (ret && errcode) {
+		*errcode = check_err;
+	}
 	X509_STORE_free(store);
 	OCSP_RESPONSE_free(response);
 	OCSP_BASICRESP_free(basic);
@@ -1312,7 +1351,7 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			/* Process the body that must be complete since
 			 * HC_OCSP_RES_END is set. */
 			if (ctx->flags & HC_OCSP_RES_BODY) {
-				if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, &err)) {
+				if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, NULL, &err)) {
 					ctx->update_status = OCSP_UPDT_ERR_CHECK;
 					goto http_error;
 				}
