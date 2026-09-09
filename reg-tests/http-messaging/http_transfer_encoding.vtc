@@ -76,6 +76,54 @@ server s2 {
         -hdr "Transfer-Encoding: gzip"
 } -start
 
+# Valid trailers must be forwarded in both directions. vtest is not able to
+# parse HTTP/1 trailers, so they are read using "recv" and only the number of
+# bytes emitted by haproxy is verified. This is sufficient to prove that the
+# the spaces surrounding the values were trimmed, since it changes the length.
+# A second, trailer-less message is then exchanged over the same connection to
+# make sure nothing was emitted after the trailers.
+server s3 {
+    rxreqhdrs
+    expect req.url == "/tlr-1"
+    expect req.http.transfer-encoding == "chunked"
+    # "5\r\nhello\r\n0\r\nx-tlr1: value1\r\nx-tlr2: value2\r\n\r\n"
+    recv 47
+    send "HTTP/1.1 200 OK\r\n"
+    send "Transfer-Encoding: chunked\r\n\r\n"
+    send "5\r\nworld\r\n"
+    send "0\r\nx-tlr1: value1\r\nX-Tlr2: \tvalue2\t \r\n\r\n"
+
+    rxreq
+    expect req.url == "/tlr-2"
+    expect req.bodylen == 0
+    txresp
+} -start
+
+# Invalid response trailers must be rejected as a server error. Each response
+# is emitted at once so that haproxy sees the invalid trailers before it has
+# forwarded the response headers to the client, otherwise it can only abort
+# the stream.
+server s4 {
+    rxreq
+    send "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nx tlr: value\r\n\r\n"
+
+    accept
+    rxreq
+    send "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nx-tlr value\r\n\r\n"
+
+    accept
+    rxreq
+    send "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n:status: 200\r\n\r\n"
+
+    accept
+    rxreq
+    send "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n: value\r\n\r\n"
+
+    accept
+    rxreq
+    send "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nx-tlr: val\rue\r\n\r\n"
+} -start
+
 haproxy h1 -conf {
     global
     .if feature(THREAD)
@@ -95,6 +143,23 @@ haproxy h1 -conf {
     listen fe2
         bind "fd@${fe2}"
         server s2 ${s2_addr}:${s2_port}
+
+    listen fe3
+        bind "fd@${fe3}"
+        server s3 ${s3_addr}:${s3_port}
+
+    listen fe4
+        bind "fd@${fe4}"
+        server s4 ${s4_addr}:${s4_port}
+
+    # The request body is waited for so that the invalid trailers below are
+    # rejected before the request is forwarded anywhere. Note that each
+    # request must be emitted at once, otherwise haproxy can only abort the
+    # stream instead of responding with a 400.
+    listen fe5
+        bind "fd@${fe5}"
+        option http-buffer-request
+        http-request return status 200
 } -start
 
 client c1 -connect ${h1_fe1_sock} {
@@ -205,3 +270,72 @@ client c11 -connect ${h1_fe2_sock} {
     rxresp
     expect resp.status == 502
 } -run -repeat 4
+
+# valid trailers, forwarded in both directions
+client c12 -connect ${h1_fe3_sock} {
+    txreq -method POST -url "/tlr-1" -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -body "5\r\nhello\r\n0\r\nx-tlr1: value1\r\nX-Tlr2: \tvalue2\t \r\n\r\n"
+    rxresphdrs
+    expect resp.status == 200
+    expect resp.http.transfer-encoding == "chunked"
+    # "5\r\nworld\r\n0\r\nx-tlr1: value1\r\nx-tlr2: value2\r\n\r\n"
+    recv 47
+
+    txreq -url "/tlr-2"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# invalid response trailers : invalid token in the name, missing colon,
+# pseudo-header, empty name and bare CR in the value
+client c13 -connect ${h1_fe4_sock} {
+    txreq
+    rxresp
+    expect resp.status == 502
+} -run -repeat 5
+
+# a trailer name must be a valid token
+client c14 -connect ${h1_fe5_sock} {
+    txreq -method POST -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -body "5\r\nhello\r\n0\r\nx tlr: value\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# a trailer must have a colon
+client c15 -connect ${h1_fe5_sock} {
+    txreq -method POST -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -body "5\r\nhello\r\n0\r\nx-tlr value\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# pseudo-headers are not valid tokens either
+client c16 -connect ${h1_fe5_sock} {
+    txreq -method POST -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -body "5\r\nhello\r\n0\r\n:method: GET\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# a trailer name cannot be empty
+client c17 -connect ${h1_fe5_sock} {
+    txreq -method POST -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -body "5\r\nhello\r\n0\r\n: value\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# a CR not followed by an LF is forbidden in a trailer value
+client c18 -connect ${h1_fe5_sock} {
+    txreq -method POST -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -body "5\r\nhello\r\n0\r\nx-tlr: val\rue\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
