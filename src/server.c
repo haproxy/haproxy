@@ -6979,14 +6979,93 @@ leave:
 	return ret;
 }
 
+/* Removes <srv> server from its various attach points in other objects, most
+ * notably in its parent proxy and global trees. This liberates the server name
+ * slot in the proxy and the global GUID value which can be reused by a newly
+ * added instance. This also schedules deletion of any active check and
+ * agent-check.
+ *
+ * This operation is mandatory prior the runtime removal of a server. Once
+ * detached, the server is flagged for deletion and the associated event is
+ * published. The server instance will be finally freed when its refcount
+ * reaches zero.
+ *
+ * This function cannot fail. This operation is not thread-safe and must only
+ * be called under thread isolation.
+ */
+void srv_unregister(struct server *srv)
+{
+	struct server *next;
+	struct watcher *srv_watch;
+	int i;
+
+	/* Only servers in maintenance can be deleted at runtime. */
+	BUG_ON(!(srv->cur_admin & SRV_ADMF_MAINT));
+
+	/* removing cannot fail anymore when we reach this:
+	 * publishing EVENT_HDL_SUB_SERVER_DEL
+	 */
+	srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DEL, srv, 1);
+
+	/* remove srv from tracking list */
+	if (srv->track)
+		release_server_track(srv);
+
+	/* stop the check task if running */
+	if (srv->check.state & CHK_ST_CONFIGURED)
+		check_purge(&srv->check);
+	if (srv->agent.state & CHK_ST_CONFIGURED)
+		check_purge(&srv->agent);
+
+	if (srv->proxy->lbprm.ops && srv->proxy->lbprm.ops->server_deinit)
+		srv->proxy->lbprm.ops->server_deinit(srv);
+
+	/* reattach all currently present watchers to the next proxy server */
+	next = proxy_next_server(srv);
+	BUG_ON(next && next->flags & SRV_F_DELETED);
+	while (!MT_LIST_ISEMPTY(&srv->watcher_list)) {
+		srv_watch = MT_LIST_NEXT(&srv->watcher_list, struct watcher *, el);
+		watcher_next(srv_watch, next);
+	}
+
+	/* detach the server from the proxy linked list */
+	srv_detach(srv);
+
+	/* Mark the server as being deleted (ie removed from its proxy list)
+	 * but not yet purged from memory. Any module still referencing this
+	 * server must manipulate it with precaution and are expected to
+	 * release its refcount as soon as possible.
+	 */
+	srv->flags |= SRV_F_DELETED;
+
+	/* Inc proxy refcount until the server is finally freed. */
+	proxy_take(srv->proxy);
+
+	/* remove srv from proxy trees (IDs, names and addresses) */
+	if (srv->puid < srv->proxy->conf.first_unused_id)
+		srv->proxy->conf.first_unused_id = srv->puid; // search from there for next add.
+	ceb32_item_delete(&srv->proxy->conf.used_server_id, conf.puid_node, puid, srv);
+	cebuis_item_delete(&srv->proxy->conf.used_server_name, conf.name_node, id, srv);
+	cebuis_item_delete(&srv->proxy->used_server_addr, addr_node, addr_key, srv);
+
+	/* remove srv from global GUID tree */
+	guid_remove(&srv->guid);
+
+	/* remove srv from global tree for idle conn cleanup */
+	for (i = 0; i < global.nbthread; ++i)
+		eb32_delete(&srv->per_thr[i].idle_node);
+
+	/* set LSB bit (odd bit) for reuse_cnt */
+	srv_id_reuse_cnt |= 1;
+}
+
 /* Parse a "del server" command
  * Returns 0 if the server has been successfully initialized, 1 on failure.
  */
 static int cli_parse_delete_server(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *be;
-	struct server *srv, *next;
-	struct watcher *srv_watch;
+	struct server *srv;
 	const char *be_name, *sv_name, *msg;
 	int ret;
 
@@ -7015,64 +7094,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		goto out;
 	}
 
-	/* removing cannot fail anymore when we reach this:
-	 * publishing EVENT_HDL_SUB_SERVER_DEL
-	 */
-	srv_event_hdl_publish(EVENT_HDL_SUB_SERVER_DEL, srv, 1);
-
-	/* remove srv from tracking list */
-	if (srv->track)
-		release_server_track(srv);
-
-	/* stop the check task if running */
-	if (srv->check.state & CHK_ST_CONFIGURED)
-		check_purge(&srv->check);
-	if (srv->agent.state & CHK_ST_CONFIGURED)
-		check_purge(&srv->agent);
-
-	if (srv->proxy->lbprm.ops && srv->proxy->lbprm.ops->server_deinit)
-		srv->proxy->lbprm.ops->server_deinit(srv);
-
-	next = proxy_next_server(srv);
-	BUG_ON(next && next->flags & SRV_F_DELETED);
-	while (!MT_LIST_ISEMPTY(&srv->watcher_list)) {
-		srv_watch = MT_LIST_NEXT(&srv->watcher_list, struct watcher *, el);
-		watcher_next(srv_watch, next);
-	}
-
-	/* detach the server from the proxy linked list
-	 * The proxy servers list is currently not protected by a lock, so this
-	 * requires thread_isolate/release.
-	 */
-	srv_detach(srv);
-
-	/* Mark the server as being deleted (ie removed from its proxy list)
-	 * but not yet purged from memory. Any module still referencing this
-	 * server must manipulate it with precaution and are expected to
-	 * release its refcount as soon as possible.
-	 */
-	srv->flags |= SRV_F_DELETED;
-
-	/* Inc proxy refcount until the server is finally freed. */
-	proxy_take(srv->proxy);
-
-	/* remove srv from proxy trees (IDs, names and addresses) */
-	if (srv->puid < be->conf.first_unused_id)
-		be->conf.first_unused_id = srv->puid; // search from there for next add.
-	ceb32_item_delete(&be->conf.used_server_id, conf.puid_node, puid, srv);
-	cebuis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
-	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
-
-	/* remove srv from global GUID tree */
-	guid_remove(&srv->guid);
-
-	/* remove srv from global tree for idle conn cleanup */
-	for (ret = 0; ret < global.nbthread; ret++)
-		eb32_delete(&srv->per_thr[ret].idle_node);
-
-	/* set LSB bit (odd bit) for reuse_cnt */
-	srv_id_reuse_cnt |= 1;
-
+	srv_unregister(srv);
 	thread_release();
 
 	ha_notice("Server deleted.\n");
