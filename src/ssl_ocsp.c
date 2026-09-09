@@ -829,6 +829,8 @@ end:
  * certid we will either append data to the <req_url> to create a proper URL
  * that will be sent with a GET command, or the <req_body> will be constructed
  * in case of a POST.
+ * The provided OCSP_CERTID will be duplicated before being added to the
+ * OCSP_REQUEST so the caller is expected to free the provided certid if needed.
  * Returns 0 in case of success.
  */
 int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *req_url,
@@ -838,6 +840,7 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 	OCSP_REQUEST *ocsp;
 	struct buffer *bin_request = get_trash_chunk();
 	unsigned char *outbuf = (unsigned char*)b_orig(bin_request);
+	OCSP_CERTID *cid = NULL;
 
 	ocsp = OCSP_REQUEST_new();
 	if (ocsp == NULL) {
@@ -845,8 +848,15 @@ int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *re
 		goto end;
 	}
 
-	if (OCSP_request_add0_id(ocsp, (OCSP_CERTID*)certid) == NULL) {
+	cid = OCSP_CERTID_dup((OCSP_CERTID*)certid);
+	if (!cid) {
+		memprintf(err, "%sOCSP_CERTID_dup() error\n", *err ? *err : "");
+		goto end;
+	}
+
+	if (OCSP_request_add0_id(ocsp, cid) == NULL) {
 		memprintf(err, "%sOCSP_request_add0_id() error\n", *err ? *err : "");
+		OCSP_CERTID_free(cid);
 		goto end;
 	}
 
@@ -1505,12 +1515,14 @@ leave:
 	ctx->hc = NULL;
 	free_trash_chunk(req_url);
 	free_trash_chunk(req_body);
+	OCSP_CERTID_free(certid);
 	task->expire = tick_add(now_ms, next_wakeup);
 	return task;
 
 wait:
 	free_trash_chunk(req_url);
 	free_trash_chunk(req_body);
+	OCSP_CERTID_free(certid);
 	task->expire = TICK_ETERNITY;
 	return task;
 
