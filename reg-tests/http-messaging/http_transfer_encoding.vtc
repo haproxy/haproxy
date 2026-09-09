@@ -339,3 +339,12 @@ client c18 -connect ${h1_fe5_sock} {
     rxresp
     expect resp.status == 400
 } -run
+
+# however, header names affecting routing or framing are rejected.
+client c19 -connect ${h1_fe5_sock} {
+    txreq -method POST -nolen \
+        -hdr "Transfer-Encoding: chunked" \
+        -body "5\r\nhello\r\n0\r\nX-Tlr: value\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\nTE: trailers\r\nHost: foo\r\nConnection: close\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
