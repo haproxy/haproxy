@@ -1996,7 +1996,9 @@ int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
  * <htx>, and an HTTP_PRS_SUCCESS status code is returned if some bytes were
  * emitted. In case of error, another code is returned, indicating the nature
  * of the problem. The caller must have verified that the message in the buffer
- * is compatible with receipt of trailers.
+ * is compatible with receipt of trailers. The <flags> is a union of HTTP_PF_*
+ * describing the parser's state and permissions (direction, pseudo-headers,
+ * etc).
  *
  * The trailers list <list> must be composed of :
  *   - n.name != NULL, n.len  > 0 : literal trailer name
@@ -2005,7 +2007,7 @@ int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
  *   - in all cases except the end of list, v.name and v.len must designate a
  *     valid value.
  */
-enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *htx)
+enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *htx, uint flags)
 {
 	uint32_t data_ofs = htx->data; /* used to rollback on error */
 	enum http_parser_status ret = HTTP_PRS_SUCCESS;

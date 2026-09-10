@@ -1586,7 +1586,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	prs_status = http_trailers_to_htx(list, htx);
+	prs_status = http_trailers_to_htx(list, htx, (qcs->qcc->flags & QC_CF_IS_BACK) ? HTTP_PF_DIR_RES : 0);
 	switch (prs_status) {
 	case HTTP_PRS_SUCCESS:
 		break;

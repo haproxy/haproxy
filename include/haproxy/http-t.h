@@ -110,6 +110,10 @@ enum {
 	HTTP_ERR_SIZE
 };
 
+/* Flags used by HTTP parsers */
+#define HTTP_PF_DIR_RES      0x00000001 /* direction: 0: request; 1: response */
+
+
 /* HTTP parser error codes */
 enum http_parser_status {
 	HTTP_PRS_SUCCESS = 0,

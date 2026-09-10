@@ -6485,7 +6485,7 @@ next_frame:
 	}
 
 	/* Trailers terminate a DATA sequence */
-	prs_status = http_trailers_to_htx(list, htx);
+	prs_status = http_trailers_to_htx(list, htx, (h2c->flags & H2_CF_IS_BACK) ? HTTP_PF_DIR_RES : 0);
 	if (prs_status != HTTP_PRS_SUCCESS) {
 		switch (prs_status) {
 		case HTTP_PRS_INV_HNAME:
