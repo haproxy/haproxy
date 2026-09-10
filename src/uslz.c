@@ -107,8 +107,20 @@ static int gen_huffman_table(unsigned int symbols,
 	for (i = 1; i < 16; i++)
 		total_count += length_count[i];
 
-	if (total_count == 0)
-		return allow_no_symbols;
+	if (total_count == 0) {
+		if (!allow_no_symbols)
+			return 0;
+		/* No symbol at all: the table is deliberately left empty by the
+		 * caller, but its storage may alias the persistent header-detection
+		 * buffer (see hdr_detect in struct uslz_stream). Make the two root
+		 * entries terminal with an out-of-range symbol so that any code
+		 * decoded against this table is rejected instead of making gethuff()
+		 * walk stale/aliased memory.
+		 */
+		table[0] = 0x7fff;
+		table[1] = 0x7fff;
+		return 1;
+	}
 	else if (total_count == 1) {
 		for (i = 0; i < symbols; i++) {
 			if (lengths[i] != 0) {
