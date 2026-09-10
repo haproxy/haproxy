@@ -53,6 +53,14 @@ extern int poller_wr_pipe[MAX_THREADS];
 
 extern volatile int ha_used_fds; // Number of FDs we're currently using
 
+/* Non-zero when FD tables are split per thread group, i.e. an FD is only
+ * usable from within its owner group.
+ */
+static inline int fd_tables_are_split(void)
+{
+	return (global.tune.options & GTUNE_NO_TG_FD_SHARING) && global.nbtgroups > 1;
+}
+
 /* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
  */
