@@ -112,6 +112,8 @@ enum {
 
 /* Flags used by HTTP parsers */
 #define HTTP_PF_DIR_RES      0x00000001 /* direction: 0: request; 1: response */
+#define HTTP_PF_UPCASE_OK    0x00000002 /* upper case hdr names: 0: forbidden (h2/h3); 1: ok (h1) */
+#define HTTP_PF_PSEUDO_OK    0x00000004 /* pseudo headers: 0: forbidden (h1); 1: ok (h2/h3) */
 
 
 /* HTTP parser error codes */

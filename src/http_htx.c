@@ -2038,8 +2038,13 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 		 *   field-name     = token
 		 */
 		for (i = 0; i < list[idx].n.len; i++) {
-			if ((uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A' ||
-			    !HTTP_IS_TOKEN(list[idx].n.ptr[i])) {
+			if (!(flags & HTTP_PF_UPCASE_OK) &&
+			    (uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A') {
+				ret = HTTP_PRS_INV_HNAME;
+				goto fail;
+			}
+
+			if (!HTTP_IS_TOKEN(list[idx].n.ptr[i])) {
 				ret = HTTP_PRS_INV_HNAME;
 				goto fail;
 			}
@@ -2048,14 +2053,14 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 		/* All field names affecting decoding or routing are forbidden
 		 * in trailers.
 		 */
-		if (isteq(list[idx].n, ist("host")) ||
-		    isteq(list[idx].n, ist("content-length")) ||
-		    isteq(list[idx].n, ist("connection")) ||
-		    isteq(list[idx].n, ist("proxy-connection")) ||
-		    isteq(list[idx].n, ist("keep-alive")) ||
-		    isteq(list[idx].n, ist("upgrade")) ||
-		    isteq(list[idx].n, ist("te")) ||
-		    isteq(list[idx].n, ist("transfer-encoding"))) {
+		if (isteqi(list[idx].n, ist("host")) ||
+		    isteqi(list[idx].n, ist("content-length")) ||
+		    isteqi(list[idx].n, ist("connection")) ||
+		    isteqi(list[idx].n, ist("proxy-connection")) ||
+		    isteqi(list[idx].n, ist("keep-alive")) ||
+		    isteqi(list[idx].n, ist("upgrade")) ||
+		    isteqi(list[idx].n, ist("te")) ||
+		    isteqi(list[idx].n, ist("transfer-encoding"))) {
 			ret = HTTP_PRS_FORB_TRL;
 			goto fail;
 		}
