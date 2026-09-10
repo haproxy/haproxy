@@ -5867,39 +5867,77 @@ static const char *srv_update_server_name(struct server *srv, const char *new_na
 	return NULL;
 }
 
-
-/* Expects to find a backend and a server in <arg> under the form <backend>/<server>,
- * and returns the pointer to the server. Otherwise, display adequate error messages
- * on the CLI, sets the CLI's state to CLI_ST_PRINT and returns NULL. This is only
- * used for CLI commands requiring a server name.
- * Important: the <arg> is modified to remove the '/'.
+/* Parses <arg> as the form 'backend'/'server' and update output parameters
+ * <bename> and <svname> with the extracted values. In case the argument is
+ * malformed, <msg> will point to the error description.
+ *
+ * Note that <arg> input string is modified as '/' separator is blanked.
+ *
+ * Returns 0 on success, non-zero if argument is malformed.
  */
-struct server *cli_find_server(struct appctx *appctx, char *arg)
+int parse_be_srv(char *arg, const char **bename, const char **svname,
+                 const char **msg)
+{
+	struct ist ist_be, ist_sv = ist(arg);
+
+	ist_be = istsplit(&ist_sv, '/');
+	if (!istlen(ist_sv)) {
+		*msg = "Require 'backend/server'.\n";
+		return 1;
+	}
+
+	*bename = ist0(ist_be);
+	*svname = ist0(ist_sv);
+	return 0;
+}
+
+/* Lookup a server instance named <svname> in proxy named <bename>. If the
+ * server is not found, <msg> will point to the error description.
+ *
+ * Returns the found server or NULL.
+ */
+struct server *find_be_srv(const char *bename, const char *svname,
+                           const char **msg)
 {
 	struct proxy *px;
 	struct server *sv;
-	struct ist be_name, sv_name = ist(arg);
 
-	be_name = istsplit(&sv_name, '/');
-	if (!istlen(sv_name)) {
-		cli_err(appctx, "Require 'backend/server'.\n");
+	if (!(px = proxy_be_by_name(bename))) {
+		*msg = "No such backend.\n";
 		return NULL;
 	}
-
-	if (!(px = proxy_be_by_name(ist0(be_name)))) {
-		cli_err(appctx, "No such backend.\n");
-		return NULL;
-	}
-	if (!(sv = server_find(px, ist0(sv_name)))) {
-		cli_err(appctx, "No such server.\n");
+	if (!(sv = server_find(px, svname))) {
+		*msg = "No such server.\n";
 		return NULL;
 	}
 
 	if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) {
-		cli_err(appctx, "Proxy is disabled.\n");
+		*msg = "Proxy is disabled.\n";
 		return NULL;
 	}
 
+	return sv;
+}
+
+/* High-level server parsing function for server lookup using <arg> argument of
+ * the form 'backend'/'server'. As an extra convenience, error message is
+ * printed on CLI output if argument is malformed or server instance not found.
+ *
+ * Returns the found server or NULL.
+ */
+struct server *cli_find_server(struct appctx *appctx, char *arg)
+{
+	struct server *sv;
+	const char *bename, *svname, *msg;
+
+	if (parse_be_srv(arg, &bename, &svname, &msg)) {
+		cli_err(appctx, msg);
+		return NULL;
+	}
+
+	sv = find_be_srv(bename, svname, &msg);
+	if (!sv)
+		cli_err(appctx, msg);
 	return sv;
 }
 
@@ -6948,9 +6986,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 {
 	struct proxy *be;
 	struct server *srv, *next;
-	struct ist be_name, sv_name;
 	struct watcher *srv_watch;
-	const char *msg;
+	const char *be_name, *sv_name, *msg;
 	int ret;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -6966,14 +7003,12 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 */
 	thread_isolate_full();
 
-	sv_name = ist(args[1]);
-	be_name = istsplit(&sv_name, '/');
-	if (!istlen(sv_name)) {
-		cli_err(appctx, "Require 'backend/server'.\n");
+	if (parse_be_srv(args[1], &be_name, &sv_name, &msg)) {
+		cli_err(appctx, msg);
 		goto out;
 	}
 
-	ret = srv_check_for_deletion(ist0(be_name), ist0(sv_name), &be, &srv, &msg);
+	ret = srv_check_for_deletion(be_name, sv_name, &be, &srv, &msg);
 	if (ret <= 0) {
 		/* failure (recoverable or not) */
 		cli_err(appctx, msg);

@@ -77,7 +77,13 @@ void srv_compute_all_admin_states(struct proxy *px);
 int srv_set_addr_via_libc(struct server *srv, int *err_code);
 int srv_postinit(struct server *srv);
 int srv_init_addr(void);
+
+int parse_be_srv(char *arg, const char **bename, const char **svname,
+                 const char **msg);
+struct server *find_be_srv(const char *bename, const char *svname,
+                           const char **msg);
 struct server *cli_find_server(struct appctx *appctx, char *arg);
+
 int cli_clear_counters_server(struct appctx *appctx, char *arg, int force);
 struct server *new_server(struct proxy *proxy);
 void srv_take(struct server *srv);
