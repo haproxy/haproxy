@@ -63,6 +63,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
+#include <haproxy/twork.h>
 #include <haproxy/version.h>
 
 #define MAX_PAYLOAD_PATTERN_SIZE 64
@@ -103,12 +104,31 @@ struct show_env_ctx {
 #define CLI_SHOWFD_F_CO  0x00000014   /* conn: fe+sv       */
 #define CLI_SHOWFD_F_ANY 0x0000001f   /* any type          */
 
+/*
+ * All that is required for a thread group to dump information about its
+ * fds.
+ */
+struct show_fd_req {
+	struct twork twk;      /* used to post the dump to the owner group */
+	struct appctx *appctx; /* applet to wake up, NULL once it gave up */
+	struct buffer *buf;    /* dump produced for this round */
+	int filled;            /* set once the dump was produced */
+	int done;              /* set if the group has no more FD to dump */
+	int grp;               /* thread group being dumped (1-based) */
+	int fd;                /* next FD to dump in that group */
+	uint match;            /* CLI_SHOWFD_F_xxx */
+	int show_one;          /* only dump <fd> */
+};
+
+DECLARE_STATIC_POOL(pool_head_show_fd_req, "show_fd_req", sizeof(struct show_fd_req));
+
 struct show_fd_ctx {
 	int fd;          /* first FD to show, -1=wildcard */
 	int tgid;        /* 0=unspecified, -1=wildcard, >0=specific tgid */
 	int cur_tgid;    /* thread group being dumped (1-based), 0=not started */
 	int show_one;    /* stop after showing one FD */
 	uint show_mask;  /* CLI_SHOWFD_F_xxx */
+	struct show_fd_req *req; /* dump round in progress or ready to emit */
 };
 
 /* CLI context for the "show cli sockets" command */
@@ -1481,48 +1501,25 @@ static int cli_io_handler_show_env(struct appctx *appctx)
  * in svcctx, only dumps one entry if ->show_one is non-zero, and (re)starts
  * from ->fd.
  */
-static int cli_io_handler_show_fd(struct appctx *appctx)
+/* Dumps into <out> the FDs of thread group <grp>, starting at *<fd_ptr>, and
+ * stops either when <out> is full or when the group's table is exhausted,
+ * updating *<fd_ptr> on the way. Returns non-zero if the group is done. The
+ * threads are isolated here since this reads a whole FD table, possibly on
+ * behalf of a CLI applet running in another thread group.
+ */
+static int show_fd_dump_group(struct buffer *out, int grp, int *fd_ptr,
+                              uint match, int show_one)
 {
-	struct show_fd_ctx *fdctx = appctx->svcctx;
-	uint match = fdctx->show_mask;
-	int fd = fdctx->fd;
-	const struct fdtab *tab;
-	const struct polled_mask *pmsk;
-	int grp, last_grp;
-	int ret = 1;
-
-	chunk_reset(&trash);
-
-	/* With per-thread-group FD tables, each thread group has its own
-	 * table: a specific tgid only dumps that group's table, while both
-	 * the wildcard and the unspecified forms visit all the groups in
-	 * turn. With a shared table, all the groups' tables alias the same
-	 * one, so a single pass is always enough and the requested tgid
-	 * makes no difference.
-	 */
-	if (fdctx->tgid > 0)
-		grp = last_grp = fdctx->tgid;
-	else if (global.tune.options & GTUNE_NO_TG_FD_SHARING) {
-		grp = 1;
-		last_grp = global.nbtgroups;
-	}
-	else
-		grp = last_grp = 1;
-
-	if (fdctx->cur_tgid)
-		grp = fdctx->cur_tgid;
-
-	tab = ha_tgroup_ctx[grp - 1].fdtab;
-	pmsk = ha_tgroup_ctx[grp - 1].polled_mask;
+	const struct fdtab *tab = ha_tgroup_ctx[grp - 1].fdtab;
+	const struct polled_mask *pmsk = ha_tgroup_ctx[grp - 1].polled_mask;
+	int fd = *fd_ptr;
+	int done = 1;
 
 	/* isolate the threads once per round. We're limited to a buffer worth
 	 * of output anyway, it cannot last very long.
 	 */
 	thread_isolate();
 
-	/* we have two inner loops here, one for the proxy, the other one for
-	 * the buffer.
-	 */
 	while (fd >= 0 && fd < global.maxsock) {
 		struct fdtab fdt;
 		const struct listener *li = NULL;
@@ -1714,40 +1711,212 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 #endif
 		chunk_appendf(&trash, "%s\n", suspicious ? " !" : "");
 
-		if (applet_putchk(appctx, &trash) == -1) {
-			fdctx->fd = fd;
-			fdctx->cur_tgid = grp;
-			ret = 0;
-			goto end;
+		/* the line is complete in the trash, move it to the output
+		 * buffer, or stop here if it wouldn't fit.
+		 */
+		if (b_room(out) < trash.data) {
+			done = 0;
+			goto stop;
 		}
+		chunk_memcat(out, trash.area, trash.data);
 	skip:
-		if (fdctx->show_one) {
-			/* for the "/<fd>" wildcard form, show the same FD in
-			 * the next group's table.
-			 */
-			if (grp >= last_grp)
-				break;
-			grp++;
-			tab = ha_tgroup_ctx[grp - 1].fdtab;
-			pmsk = ha_tgroup_ctx[grp - 1].polled_mask;
-			continue;
+		if (show_one) {
+			/* only this FD was wanted in this group */
+			fd++;
+			break;
 		}
 
 		fd++;
-		if (fd >= global.maxsock && grp < last_grp) {
-			/* this group's table is done, proceed with the next one */
-			grp++;
-			tab = ha_tgroup_ctx[grp - 1].fdtab;
-			pmsk = ha_tgroup_ctx[grp - 1].polled_mask;
-			fd = 0;
-		}
+	}
+ stop:
+	thread_release();
+	*fd_ptr = fd;
+	return done;
+}
+
+/* Produces one round of dump for <req>, from the thread group owning the FDs.
+ * <req>->filled is deliberately not set here: it is what tells the applet it
+ * may consume and release the request, and this must not happen before the
+ * work item completed, which only the completion below can tell.
+ */
+static void show_fd_dump_req(struct show_fd_req *req)
+{
+	req->done = show_fd_dump_group(req->buf, req->grp, &req->fd,
+	                               req->match, req->show_one);
+}
+
+/* twork entry point, runs on a thread of the group owning the FDs */
+static union twork_arg show_fd_dump_remote(union twork_arg arg)
+{
+	show_fd_dump_req(arg.ptr);
+	return twk_u64(0);
+}
+
+/* Completion of the above, running on the thread which posted the request,
+ * hence the one running the CLI applet. It cannot race with the applet's
+ * release, so a request the applet gave up on is simply released here.
+ */
+static void show_fd_dumped(union twork_arg arg, union twork_arg ret)
+{
+	struct show_fd_req *req = arg.ptr;
+
+	if (req->appctx) {
+		req->filled = 1;
+		appctx_wakeup(req->appctx);
+	}
+	else {
+		free_trash_chunk(req->buf);
+		pool_free(pool_head_show_fd_req, req);
+	}
+}
+
+/* Allocates a dump round for group <grp> starting at FD <fd>, and attaches it
+ * to the applet's context. Returns NULL on allocation failure.
+ */
+static struct show_fd_req *show_fd_new_req(struct appctx *appctx, int grp, int fd)
+{
+	struct show_fd_ctx *fdctx = appctx->svcctx;
+	struct show_fd_req *req;
+
+	req = pool_alloc(pool_head_show_fd_req);
+	if (!req)
+		return NULL;
+
+	req->buf = alloc_trash_chunk();
+	if (!req->buf) {
+		pool_free(pool_head_show_fd_req, req);
+		return NULL;
 	}
 
- end:
-	/* dump complete */
+	twork_init(&req->twk);
+	req->appctx   = appctx;
+	req->filled   = 0;
+	req->done     = 0;
+	req->grp      = grp;
+	req->fd       = fd;
+	req->match    = fdctx->show_mask;
+	req->show_one = fdctx->show_one;
+	fdctx->req    = req;
+	return req;
+}
 
-	thread_release();
-	return ret;
+/* releases the applet's current dump round, which must not be in flight */
+static void show_fd_free_req(struct show_fd_ctx *fdctx)
+{
+	struct show_fd_req *req = fdctx->req;
+
+	fdctx->req = NULL;
+	free_trash_chunk(req->buf);
+	pool_free(pool_head_show_fd_req, req);
+}
+
+static int cli_io_handler_show_fd(struct appctx *appctx)
+{
+	struct show_fd_ctx *fdctx = appctx->svcctx;
+	int fd = fdctx->fd;
+	int grp, last_grp;
+
+	/* With per-thread-group FD tables, each thread group has its own
+	 * table: a specific tgid only dumps that group's table, while both
+	 * the wildcard and the unspecified forms visit all the groups in
+	 * turn. With a shared table, all the groups' tables alias the same
+	 * one, so a single pass is always enough and the requested tgid
+	 * makes no difference.
+	 */
+	if (fdctx->tgid > 0)
+		grp = last_grp = fdctx->tgid;
+	else if (fd_tables_are_split()) {
+		grp = 1;
+		last_grp = global.nbtgroups;
+	}
+	else
+		grp = last_grp = 1;
+
+	if (fdctx->cur_tgid)
+		grp = fdctx->cur_tgid;
+
+	while (grp <= last_grp) {
+		struct show_fd_req *req = fdctx->req;
+
+		if (req) {
+			/* a round is in progress, it knows where we are */
+			grp = req->grp;
+		}
+		else {
+			req = show_fd_new_req(appctx, grp, fd);
+			if (!req)
+				return 1;
+
+			/* keep the context in sync, we may return at any time
+			 * below and come back on another thread.
+			 */
+			fdctx->fd = fd;
+			fdctx->cur_tgid = grp;
+
+			if (fd_tables_are_split() && grp != tgid) {
+				/* those FDs are only valid in their owner group,
+				 * which dumps them for us. It needs to run, so
+				 * this must not be done under isolation.
+				 */
+				if (twork_call_tgroup(&req->twk, grp, show_fd_dump_remote,
+				                      twk_ptr(req), show_fd_dumped))
+					return 0; /* the owner group will wake us up */
+
+				/* that group is not running, skip it */
+				req->filled = 1;
+				req->done = 1;
+			}
+			else {
+				show_fd_dump_req(req);
+				req->filled = 1;
+			}
+		}
+
+		if (!req->filled)
+			return 0; /* still being dumped by its owner group */
+
+		if (b_data(req->buf) && applet_putchk(appctx, req->buf) == -1) {
+			/* no more room, we'll send this round again later */
+			fdctx->fd = fd;
+			fdctx->cur_tgid = grp;
+			return 0;
+		}
+
+		fd = req->fd;
+		if (req->done) {
+			/* this group is done, proceed with the next one */
+			grp++;
+			if (!fdctx->show_one)
+				fd = 0;
+		}
+		show_fd_free_req(fdctx);
+		fdctx->fd = fd;
+		fdctx->cur_tgid = grp;
+	}
+
+	/* dump complete */
+	return 1;
+}
+
+/* Releases the "show fd" context, cancelling a dump possibly in progress in
+ * another thread group. This runs on the same thread as the completion, so
+ * either the request is cancelled and we own it, or the completion will
+ * release it once it runs.
+ */
+static void cli_release_show_fd(struct appctx *appctx)
+{
+	struct show_fd_ctx *fdctx = appctx->svcctx;
+	struct show_fd_req *req = fdctx->req;
+
+	if (!req)
+		return;
+
+	fdctx->req = NULL;
+	req->appctx = NULL;
+	if (twork_cancel(&req->twk)) {
+		free_trash_chunk(req->buf);
+		pool_free(pool_head_show_fd_req, req);
+	}
 }
 
 /*
@@ -4289,7 +4458,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "env",  NULL },              "show env [var]                          : dump environment variables known to the process",         cli_parse_show_env, cli_io_handler_show_env, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "sockets",  NULL },   "show cli sockets                        : dump list of cli sockets",                                cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
 	{ { "show", "cli", "level", NULL },      "show cli level                          : display the level of the current CLI session",            cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "show", "fd", NULL },                "show fd [-!plcfbs]* [num]               : dump list of file descriptors in use or a specific one",  cli_parse_show_fd, cli_io_handler_show_fd, NULL },
+	{ { "show", "fd", NULL },                "show fd [-!plcfbs]* [num]               : dump list of file descriptors in use or a specific one",  cli_parse_show_fd, cli_io_handler_show_fd, cli_release_show_fd },
 	{ { "show", "version", NULL },           "show version                            : show version of the current process",                     cli_parse_show_version, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
