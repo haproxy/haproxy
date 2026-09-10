@@ -1,0 +1,53 @@
+#commit 7646c657af79b304c6bff76564d310af5c7de67f
+#    BUG/MEDIUM: map: do not overwrite the fetch context in pat_match_regm()
+#
+#    pat_match_regm() stored the address of the thread-local <pmatch> array
+#    into <smp->ctx.a[0]>. This slot belongs to the sample fetch, which uses
+#    it to keep an iteration cursor. When map_regm is used inside an ACL over
+#    an iterating fetch (req.hdr() with no occurrence), the second iteration
+#    read the <pmatch> pointer as its cursor and crashed the process.
+
+varnishtest "map_regm inside an ACL over an iterating fetch"
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=bug
+
+haproxy h1 -conf {
+  global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+  defaults
+    mode http
+    timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+  frontend fe
+    bind "fd@${fe}"
+    # req.hdr() with no occurrence iterates over all X-Agent values.
+    acl is_bot req.hdr(X-Agent),map_regm(${testdir}/map_regm_in_acl.map,unknown) -m str bot
+    http-request deny deny_status 403 if is_bot
+    http-request return status 200 content-type text/plain hdr x-mapped "%[req.hdr(X-Agent),map_regm(${testdir}/map_regm_in_acl.map,unknown)]" string "OK\n"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    # One value mapped to "browser": the ACL does not match and runs a
+    # second iteration of the fetch. This crashed before the fix.
+    txreq -hdr "X-Agent: Mozilla/5.0"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-mapped == "browser"
+
+    # Back-reference: "name-bot" is mapped to "\1", that is "bot".
+    txreq -hdr "X-Agent: name-bot"
+    rxresp
+    expect resp.status == 403
+
+    # Two values: the first one does not match, the second one does.
+    # The 403 proves the fetch cursor survived the first iteration.
+    txreq -hdr "X-Agent: Mozilla/5.0" -hdr "X-Agent: name-bot"
+    rxresp
+    expect resp.status == 403
+} -run

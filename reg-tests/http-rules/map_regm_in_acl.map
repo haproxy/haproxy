@@ -1,0 +1,2 @@
+^Mozilla/.*	browser
+^name-(.*)$	\1
