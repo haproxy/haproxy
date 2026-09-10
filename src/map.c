@@ -236,7 +236,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *pr
 				len = exp_replace(str->area, str->size,
 				                  tmptrash->area,
 				                  pat->data->u.str.area,
-				                  (regmatch_t *)smp->ctx.a[0]);
+				                  pmatch);
 				free_trash_chunk(tmptrash);
 
 				if (len == -1)

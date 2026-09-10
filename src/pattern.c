@@ -618,7 +618,6 @@ struct pattern *pat_match_regm(struct sample *smp, struct pattern_expr *expr, in
 		if (regex_exec_match2(pattern->ptr.reg, smp->data.u.str.area, smp->data.u.str.data,
 		                      MAX_MATCH, pmatch, 0)) {
 			ret = pattern;
-			smp->ctx.a[0] = pmatch;
 			break;
 		}
 	}
