@@ -159,7 +159,14 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	struct htx_blk *blk;
 	uint32_t tail, headroom, tailroom;
 
-	if (blksz > htx_free_data_space(htx))
+	/* A block descriptor must always be reserved, even for a zero-sized
+	 * block. htx_free_data_space() returns 0 when there is not even enough
+	 * room for a descriptor, so it cannot be used alone here: a zero-sized
+	 * block would pass the test and a descriptor would then be placed
+	 * outside of the blocks table, overwriting the payload.
+	 */
+	if (blksz > htx_free_data_space(htx) ||
+	    htx_free_space(htx) < sizeof(struct htx_blk))
 		return NULL; /* full */
 
 	if (htx->head == -1) {
@@ -184,7 +191,6 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	else if (htx->head > 0) {
 		htx_defrag_blks(htx);
 		tail = htx->tail + 1;
-		BUG_ON(htx_pos_to_addr(htx, tail) < htx->tail_addr);
 	}
 	else
 		goto defrag;
@@ -218,6 +224,7 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 		/* need to defragment the message before inserting upfront */
 		htx_defrag(htx, NULL, 0);
 		tail = htx->tail + 1;
+		BUG_ON(htx_pos_to_addr(htx, tail) < htx->tail_addr + blksz);
 		blk = htx_get_blk(htx, tail);
 		blk->addr = htx->tail_addr;
 		htx->tail_addr += blksz;
