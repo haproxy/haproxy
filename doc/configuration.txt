@@ -21249,6 +21249,56 @@ Some sample fetch methods have deprecated aliases that are used to maintain
 compatibility with existing configurations. They are then explicitly marked as
 deprecated and should not be used in new setups.
 
+Samples are typed. A sample's type determines how it may be matched against
+patterns, which converters may be applied to it, and how it is converted when
+another type is expected. The following types are used:
+
+  - boolean: a true or false value, as returned by the fetch methods which
+    only report a condition. Such samples are matched without any "-m" option.
+    An integer is considered true when it is not zero, and a string is first
+    parsed as an integer.
+
+  - integer: a signed 64-bit integer, that is a value between -2^63 and 2^63-1
+    (-9223372036854775808 and 9223372036854775807). When a string is cast to an
+    integer, the conversion stops at the first non-digit character that is not
+    the leading sign character ('+' or '-'). The value formed by the digits
+    read is used, which is zero if there was none, but empty strings fail to
+    convert. Values which do not fit are bound to the smallest or the largest
+    representable integer.
+
+  - IPv4 address and IPv6 address: these are two distinct types, even though
+    most places which accept one also accept the other and are simply
+    documented as taking an address. An IPv4 address may be cast to an
+    integer, which gives the 32-bit value of the address, and to an IPv6
+    address, which gives its IPv4-mapped form ("::ffff:a.b.c.d"). The reverse
+    casts are more limited: an IPv6 address has no integer form at all, and it
+    only converts to an IPv4 address if it is an IPv4-mapped, IPv4-compatible
+    or 6to4 address.
+
+  - string: a series of bytes stopping at the first NUL character (0x00), which
+    is not part of the string (use the binary type if an embedded NUL character
+    is needed). No encoding is inferred: haproxy does not try to interpret
+    these bytes as characters, and whether they represent text at all, in which
+    charset, and how they are rendered, solely depends on what the string is
+    used for. Casting a binary sample to a string therefore silently drops
+    everything from the first NUL character on, whether the cast is explicit or
+    implicit.
+
+  - binary: a block of bytes whose length is known, each byte being able to
+    take any value from 0 to 255, NUL included. This is what the fetch methods
+    extracting raw data return, such as a request body or the contents of a
+    binary protocol. Such a sample cannot be cast to a boolean, an integer nor
+    an address, and must either be matched as a binary block using "-m bin"
+    (see section 7.1.5) or be turned into a printable form first, for instance
+    using the "hex" converter. The opposite cast is free, since a string is
+    always a valid binary block.
+
+  - method: an HTTP method. The methods known to haproxy are represented by
+    an identifier, the others keep their original string.
+
+The converters table below also uses "any" to designate the converters which
+accept any input type.
+
 The ACL derivatives are also indicated when available, with their respective
 matching methods. These ones all have a well defined default pattern matching
 method, so it is never necessary (though allowed) to pass the "-m" option to
