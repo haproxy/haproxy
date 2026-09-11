@@ -412,6 +412,12 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #define __X509_NAME_CONST__
 #endif
 
+/* ASN1_STRING_length() was deprecated in OpenSSL 4.1 */
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x40100000L) && !defined(OPENSSL_IS_AWSLC) && \
+    !defined(LIBRESSL_VERSION_NUMBER) && !defined(USE_OPENSSL_WOLFSSL)
+#define ASN1_STRING_length(x) ASN1_STRING_get_length(x)
+#endif
+
 /* ERR_remove_state() was deprecated in 1.0.0 in favor of
  * ERR_remove_thread_state(), which was in turn deprecated in
  * 1.1.0 and does nothing anymore. Let's simply silently kill
