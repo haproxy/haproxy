@@ -983,6 +983,15 @@ static inline int h2s_may_append_to_rxbuf(const struct h2s *h2s)
 		return 0;
 
 	htx = htxbuf(rxbuf);
+
+	/* Nothing must be added in a message already ended. For a tunneled
+	 * stream, the end of the HTTP message is reported just after the
+	 * headers. So tunneled data must be stored in a separate buffer to
+	 * never mix HTTP data and tunneled data.
+	 */
+	if (htx_has_eom(htx))
+		return 0;
+
 	return !!htx_free_data_space(htx);
 }
 
@@ -8055,8 +8064,21 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		htx_to_buf(h2s_htx, rxbuf);
 		goto end;
 	}
-	ret += h2s_htx->data;
 	buf_htx = htx_from_buf(buf);
+
+	/* Nothing must be added in a message already ended. For a tunneled
+	 * stream, the end of the HTTP message is reported just after the
+	 * headers while tunneled data are stored in a separate buffer. So
+	 * these data must be transferred only once the upper layer has
+	 * consumed the HTTP part.
+	 */
+	if (htx_has_eom(buf_htx)) {
+		htx_to_buf(buf_htx, buf);
+		htx_to_buf(h2s_htx, rxbuf);
+		goto end;
+	}
+
+	ret += h2s_htx->data;
 
 	/* <buf> is empty and the message is small enough, swap the
 	 * buffers. */
