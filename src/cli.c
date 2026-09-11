@@ -1009,6 +1009,8 @@ int cli_try_realloc_payload(struct appctx *appctx, struct buffer *buf, size_t ne
 {
 	char *old, *new;
 
+	BUG_ON(new_size == 0);
+
 	if (new_size > appctx->cli_ctx.max_payload_sz)
 		new_size = appctx->cli_ctx.max_payload_sz;
 
@@ -1048,6 +1050,9 @@ int cli_parse_cmdline(struct appctx *appctx)
 
 	while (1) {
 		struct buffer *buf;
+
+		if (!b_data(&appctx->inbuf))
+			break;
 
 		/* payload doesn't take escapes nor does it end on semi-colons,
 		 * so we use the regular getline. Normal mode however must stop
