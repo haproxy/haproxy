@@ -368,16 +368,6 @@ static inline enum htx_blk_type htx_get_first_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Returns 1 if <blk> is the block is the only one inside the HTX message <htx>,
- * excluding all unused blocks. Otherwise, it returns 0. If 1 is returned, this
- * means that there is only <blk> and eventually some unused ones in <htx>.
- */
-static inline int htx_is_unique_blk(const struct htx *htx,
-				    const struct htx_blk *blk)
-{
-	return (htx_get_blksz(blk) == htx->data);
-}
-
 /* Changes the size of the value. It is the caller responsibility to change the
  * value itself, make sure there is enough space and update allocated
  * value. This function updates the HTX message accordingly.
