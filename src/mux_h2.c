@@ -6475,6 +6475,29 @@ next_frame:
 
  trailers:
 	/* This is the last HEADERS frame hence a trailer */
+	if ((*flags & H2_SF_BODY_TUNNEL) ||
+	    (!(h2c->flags & H2_CF_IS_BACK) && (*flags & H2_SF_TUNNEL_ABRT))) {
+		/* No trailers are expected on a tunneled stream. The end of the
+		 * HTTP message was already reported, just after the headers, so
+		 * only tunneled data may be received now.
+		 *
+		 * On the request side, this remains true when the tunnel attempt
+		 * was aborted, because the early end of the message was already
+		 * reported for the CONNECT request. But not on the response
+		 * side: an aborted tunnel means the response is a regular one,
+		 * with a payload and thus possibly with trailers. In this case,
+		 * no early end of the message was reported.
+		 *
+		 * Note: Regarding the RFC, it is not strickly speaking
+		 * forbidden. But internally, we don't know how to handle such
+		 * frames. So better to reject them.
+		 */
+		h2c_report_glitch(h2c, 1, "rcvd trailers on a tunneled stream");
+		TRACE_STATE("rcvd trailers on a tunneled stream", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR|H2_EV_PROTO_ERR, h2c->conn);
+		HA_ATOMIC_INC(&h2c->px_counters->strm_proto_err);
+		goto fail;
+	}
+
 	if (!(h2c->dff & H2_F_HEADERS_END_STREAM)) {
 		/* It's a trailer but it's missing ES flag */
 		h2c_report_glitch(h2c, 1, "missing EH on trailers frame");
