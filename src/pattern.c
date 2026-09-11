@@ -499,6 +499,13 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
+	/* Patterns never contain a NUL byte, so a sample with an embedded
+	 * NUL cannot be an exact match. Without this check, the tree lookup
+	 * would stop at the NUL and match on the prefix only.
+	 */
+	if (memchr(smp->data.u.str.area, 0, smp->data.u.str.data))
+		return NULL;
+
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
 		if (!pat_match_ensure_str(smp))
