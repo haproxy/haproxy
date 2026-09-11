@@ -2654,7 +2654,11 @@ int url_decode(char *string, int in_form)
 		case '%' :
 			if (!ishex(in[1]) || !ishex(in[2]))
 				goto end;
-			*out++ = (hex2i(in[1]) << 4) + hex2i(in[2]);
+			*out = (hex2i(in[1]) << 4) + hex2i(in[2]);
+			/* forbid %00 which cannot be represented in a string */
+			if (!*out)
+				goto end;
+			out++;
 			in += 2;
 			break;
 		case '?':

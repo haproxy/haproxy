@@ -4703,6 +4703,10 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 				return 0;
 			}
 
+			/* mjson might return an embedded \0 that is not valid as a string */
+			if (memchr(trash->area, 0, len))
+				return 0;
+
 			trash->data = len;
 			smp->data.u.str = *trash;
 			smp->data.type = SMP_T_STR;
@@ -4965,6 +4969,10 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 	ret = base64urldec(items[member].start, items[member].length,
 	                   decoded_header->area, decoded_header->size);
 	if (ret == -1)
+		goto end;
+
+	/* mjson might return an embedded \0 that is not valid as a string */
+	if (memchr(decoded_header->area, 0, ret))
 		goto end;
 
 	decoded_header->data = ret;
