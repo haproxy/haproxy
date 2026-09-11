@@ -1024,11 +1024,11 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
 	int32_t len = htx_free_data_space(htx);
 	uint32_t flags = 0;
 
-	if (htx->head == -1)
-		goto rsv_new_block;
-
 	if (!len)
 		return (struct htx_ret){.ret = 0, .blk = NULL};
+
+	if (htx->head == -1)
+		goto rsv_new_block;
 
 	/* get the tail and head block */
 	tailblk = htx_get_tail_blk(htx);
