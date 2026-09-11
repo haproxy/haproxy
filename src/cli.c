@@ -1112,6 +1112,11 @@ int cli_parse_cmdline(struct appctx *appctx)
 				continue;
 			}
 
+			while (*str && (*str == ' ' || *str == '\t')) {
+				str++;
+				len--;
+			}
+
 			if (!len)
 				goto process_cmdline;
 
@@ -1145,6 +1150,11 @@ int cli_parse_cmdline(struct appctx *appctx)
 
 			if (strncmp(last_arg, PAYLOAD_PATTERN, strlen(PAYLOAD_PATTERN)) == 0) {
 				ssize_t pat_len = strlen(last_arg) - strlen(PAYLOAD_PATTERN);
+
+				if (str == last_arg) {
+					cli_err(appctx, "The payload cannot be passed without command.\n");
+					goto error;
+				}
 
 				/* A customized pattern can't be more than 64 characters
 				 * if it's more, don't make it a payload
