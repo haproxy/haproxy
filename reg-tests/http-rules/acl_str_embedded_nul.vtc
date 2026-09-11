@@ -1,0 +1,105 @@
+#commit 442f583f4fd2934ecc8f03c673d72a448073baaf
+#    BUG/MINOR: pattern: do not match a string with an embedded \0 on its prefix
+#
+#    pat_match_str() looks the sample up in the pattern tree with
+#    ebst_lookup(), which reads it as a C string and stops at the first \0.
+#    A sample "/public\0/admin" with <data> = 14 was thus matched as
+#    "/public" by the default case-sensitive "-m str" exact match, while the
+#    case-insensitive match, which uses the list, compares the length and
+#    rejected it.
+#
+#    Such samples are produced by converters that decode client data, e.g.
+#    url_dec ("%00") or json_query ("\u0000"), so an allow-list written as
+#    "http-request deny unless { path,url_dec -m str /public }" could be
+#    bypassed with "/public%00/admin".
+
+varnishtest "exact string match on a sample with an embedded NUL"
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=bug
+
+haproxy h1 -conf {
+  global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+  defaults
+    mode http
+    timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+  # case-sensitive exact match: must not match a longer string with a NUL
+  frontend fe_str
+    bind "fd@${fe_str}"
+    http-request deny deny_status 403 unless { path,url_dec -m str /public }
+    http-request return status 200 content-type text/plain string "OK\n"
+
+  # case-insensitive exact match: was already correct, used as a control
+  frontend fe_str_icase
+    bind "fd@${fe_str_icase}"
+    http-request deny deny_status 403 unless { path,url_dec -m str -i /public }
+    http-request return status 200 content-type text/plain string "OK\n"
+
+  # same check with the NUL coming from a JSON value
+  frontend fe_json
+    bind "fd@${fe_json}"
+    http-request deny deny_status 403 unless { req.hdr(x-j),json_query('$.u') -m str public }
+    http-request return status 200 content-type text/plain string "OK\n"
+
+  # the raw path has no NUL, so "%00" can be matched as text
+  frontend fe_raw
+    bind "fd@${fe_raw}"
+    http-request deny deny_status 403 unless { path -m str /public%00/admin }
+    http-request return status 200 content-type text/plain string "OK\n"
+} -start
+
+client c1 -connect ${h1_fe_str_sock} {
+    txreq -url "/public"
+    rxresp
+    expect resp.status == 200
+
+    txreq -url "/publicx"
+    rxresp
+    expect resp.status == 403
+
+    # "/public\0x" is not "/public": must not match
+    txreq -url "/public%00x"
+    rxresp
+    expect resp.status == 403
+
+    txreq -url "/public%00/admin"
+    rxresp
+    expect resp.status == 403
+} -run
+
+client c2 -connect ${h1_fe_str_icase_sock} {
+    txreq -url "/PUBLIC"
+    rxresp
+    expect resp.status == 200
+
+    txreq -url "/public%00/admin"
+    rxresp
+    expect resp.status == 403
+} -run
+
+client c3 -connect ${h1_fe_json_sock} {
+    txreq -hdr "X-J: {\"u\":\"public\"}"
+    rxresp
+    expect resp.status == 200
+
+    txreq -hdr "X-J: {\"u\":\"public\\u0000admin\"}"
+    rxresp
+    expect resp.status == 403
+} -run
+
+client c4 -connect ${h1_fe_raw_sock} {
+    txreq -url "/public%00/admin"
+    rxresp
+    expect resp.status == 200
+
+    txreq -url "/public"
+    rxresp
+    expect resp.status == 403
+} -run
