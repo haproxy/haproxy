@@ -138,7 +138,6 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		int forced = s->flags & SF_RULE_FYIELD;
 
 		rule = s->current_rule;
-		s->current_rule = NULL;
 		s->flags &= ~SF_RULE_FYIELD;
 		if (!(req->flags & SC_FL_ERROR) && !(req->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT))) {
 			s->waiting_entity.type = STRM_ENTITY_NONE;
