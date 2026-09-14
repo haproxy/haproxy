@@ -277,6 +277,9 @@ static inline int spoe_decode_data(char **buf, char *end, struct sample *smp)
 			/* All the buffer must be decoded */
 			if (spoe_decode_buffer(&p, end, &str, &sz) == -1)
 				return -1;
+			/* a string sample cannot contain a NUL byte */
+			if (type == SPOP_DATA_T_STR && memchr(str, 0, sz))
+				return -1;
 			smp->data.u.str.area = str;
 			smp->data.u.str.data = sz;
 			smp->data.type = (type == SPOP_DATA_T_STR) ? SMP_T_STR : SMP_T_BIN;
