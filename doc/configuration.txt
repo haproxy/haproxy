@@ -19906,7 +19906,7 @@ set-proxy-v2-tlv-fmt(<id>) <fmt>
   Example:
   server srv1 192.168.1.1:80 send-proxy-v2 set-proxy-v2-tlv-fmt(0x20) %[fc_pp_tlv(0x20)]
 
-  In this case, we fetch the TLV with the type 0x20 as a string and set as the value
+  In this case, we fetch the raw TLV with the type 0x20 and set it as the value
   of a newly created TLV that also has the type 0x20.
 
 proxy-v2-options <option>[,<option>]*
@@ -24789,7 +24789,7 @@ fc_http_major                                      integer
 fc_lost                                            integer
 fc_nb_streams                                      integer
 fc_pp_authority                                    string
-fc_pp_tlv(<id>)                                    string
+fc_pp_tlv(<id>)                                    binary
 fc_pp_unique_id                                    string
 fc_rcvd_proxy                                      boolean
 fc_reordering                                      integer
@@ -25367,10 +25367,13 @@ fc_nb_streams : integer
 
 fc_pp_authority : string
   Returns the first authority TLV sent by the client in the PROXY protocol
-  header, if any.
+  header, if any. If the value contains a NUL byte, it is considered malformed
+  and no data is returned.
 
-fc_pp_tlv(<id>) : string
-  Returns the TLV value for the given TLV ID. The ID must either be a numeric
+fc_pp_tlv(<id>) : binary
+  Returns the raw TLV value for the given TLV ID, which may contain NUL
+  bytes. Use "-m str" or a converter to match it as a string, in which case
+  the value ends at the first NUL byte. The ID must either be a numeric
   value between 0 and 255 or one of the following supported symbolic names
   that correspond to the TLV constant suffixes in the PPv2 spec:
   "ALPN": PP2_TYPE_ALPN, "AUTHORITY": PP2_TYPE_AUTHORITY,
@@ -25394,7 +25397,8 @@ fc_pp_tlv(<id>) : string
 
 fc_pp_unique_id : string
   Returns the first unique ID TLV sent by the client in the PROXY protocol
-  header, if any.
+  header, if any. If the value contains a NUL byte, it is considered malformed
+  and no data is returned.
 
 fc_rcvd_proxy : boolean
   Returns true if the client initiated the connection with a PROXY protocol

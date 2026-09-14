@@ -1,0 +1,64 @@
+varnishtest "PROXY v2 TLV fetches and values holding a \0 byte"
+feature ignore_unknown_macro
+
+# A string sample cannot contain a \0 byte. TLV values are copied as is
+# from the PROXY v2 header, so the sender can put a \0 in them. The text
+# fetches fc_pp_authority and fc_pp_unique_id must return nothing for such
+# a value instead of being matched by "-m str" on its prefix. fc_pp_tlv
+# returns the raw bytes and must keep the \0: the SSL TLV (0x20) sent by
+# send-proxy-v2-ssl holds \0 bytes in its <client> and <verify> fields, and
+# must still be readable.
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}" accept-proxy
+        http-request set-var-fmt(txn.auth) match if { fc_pp_authority -m str public }
+        http-request set-var-fmt(txn.uid) match  if { fc_pp_unique_id -m str public }
+        http-request return status 200 hdr authority %[var(txn.auth,nomatch)] hdr unique-id %[var(txn.uid,nomatch)] hdr tlv %[fc_pp_tlv(0xE1),hex] hdr ssl-tlv %[fc_pp_tlv(0x20),hex]
+} -start
+
+# Header layout:
+#   0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a    PROXY v2 signature
+#   21 11                                  version 2, PROXY, TCP4
+#   00 LL                                  length
+#   7f000001 7f000001 002a 0539            127.0.0.1:42 -> 127.0.0.1:1337
+#   02 00 LL <value>                       PP2_TYPE_AUTHORITY
+#   05 00 LL <value>                       PP2_TYPE_UNIQUE_ID
+#   e1 00 LL <value>                       custom TLV
+#   20 00 05 00 00000000                   PP2_TYPE_SSL: <client> = 0, <verify> = 0
+
+# all values "public", plus the SSL TLV
+client c1 -connect ${h1_fe1_sock} {
+    sendhex "0d0a0d0a000d0a515549540a 2111 002f 7f0000017f000001002a0539 020006 7075626c6963 050006 7075626c6963 e10006 7075626c6963 200005 0000000000"
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.authority == "match"
+    expect resp.http.unique-id == "match"
+    expect resp.http.tlv == "7075626C6963"
+    # a binary TLV keeps its \0 bytes
+    expect resp.http.ssl-tlv == "0000000000"
+} -run
+
+# all values "public\0x"
+client c2 -connect ${h1_fe1_sock} {
+    sendhex "0d0a0d0a000d0a515549540a 2111 002d 7f0000017f000001002a0539 020008 7075626c69630078 050008 7075626c69630078 e10008 7075626c69630078"
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.authority == "nomatch"
+    expect resp.http.unique-id == "nomatch"
+    # a raw TLV keeps its \0 byte
+    expect resp.http.tlv == "7075626C69630078"
+} -run

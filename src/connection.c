@@ -2741,7 +2741,8 @@ int smp_fetch_fc_pp_tlv(const struct arg *args, struct sample *smp, const char *
 	list_for_each_entry_from(conn_tlv, &conn->tlv_list, list) {
 		if (conn_tlv->type == idx) {
 			smp->flags |= SMP_F_NOT_LAST;
-			smp->data.type = SMP_T_STR;
+			/* a TLV value is a raw byte sequence */
+			smp->data.type = SMP_T_BIN;
 			smp->data.u.str.area = conn_tlv->value;
 			smp->data.u.str.data = conn_tlv->len;
 			smp->ctx.p = conn_tlv;
@@ -2755,28 +2756,37 @@ int smp_fetch_fc_pp_tlv(const struct arg *args, struct sample *smp, const char *
 	return 0;
 }
 
-/* fetch the authority TLV from a PROXY protocol header */
-int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const char *kw, void *private)
+/* Returns the first TLV of type <type> as a string. Fails if the value
+ * holds a NUL byte, since a string sample cannot contain one.
+ */
+static int smp_fetch_fc_pp_tlv_str(int type, struct sample *smp, const char *kw, void *private)
 {
 	struct arg tlv_arg;
 	int ret;
 
-	set_tlv_arg(PP2_TYPE_AUTHORITY, &tlv_arg);
+	set_tlv_arg(type, &tlv_arg);
 	ret = smp_fetch_fc_pp_tlv(&tlv_arg, smp, kw, private);
-	smp->flags &= ~SMP_F_NOT_LAST; // return only the first authority
-	return ret;
+	smp->flags &= ~SMP_F_NOT_LAST; // return only the first one
+	if (!ret)
+		return 0;
+
+	if (memchr(smp->data.u.str.area, 0, smp->data.u.str.data))
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	return 1;
+}
+
+/* fetch the authority TLV from a PROXY protocol header */
+int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	return smp_fetch_fc_pp_tlv_str(PP2_TYPE_AUTHORITY, smp, kw, private);
 }
 
 /* fetch the unique ID TLV from a PROXY protocol header */
 int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct arg tlv_arg;
-	int ret;
-
-	set_tlv_arg(PP2_TYPE_UNIQUE_ID, &tlv_arg);
-	ret = smp_fetch_fc_pp_tlv(&tlv_arg, smp, kw, private);
-	smp->flags &= ~SMP_F_NOT_LAST; // return only the first unique ID
-	return ret;
+	return smp_fetch_fc_pp_tlv_str(PP2_TYPE_UNIQUE_ID, smp, kw, private);
 }
 
 /* fetch the error code of a connection */
@@ -2914,7 +2924,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_nb_streams", smp_fetch_fc_nb_streams, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
-	{ "fc_pp_tlv", smp_fetch_fc_pp_tlv, ARG1(1, STR), smp_check_tlv_type, SMP_T_STR, SMP_USE_L5CLI },
+	{ "fc_pp_tlv", smp_fetch_fc_pp_tlv, ARG1(1, STR), smp_check_tlv_type, SMP_T_BIN, SMP_USE_L5CLI },
 	{ "fc_settings_streams_limit", smp_fetch_fc_streams_limit, 0, NULL, SMP_T_SINT, SMP_USE_L5CLI },
 	{ /* END */ },
 }};
