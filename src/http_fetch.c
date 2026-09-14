@@ -2012,6 +2012,10 @@ static int smp_fetch_param(char delim, const char *name, int name_len, const str
 		smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	}
 
+	/* a string sample cannot contain a NUL byte */
+	if (memchr(smp->data.u.str.area, 0, smp->data.u.str.data))
+		return 0;
+
 	/* Update context, check wrapping. */
 	chunks[0] = vend;
 	if (chunks[2] && vend >= chunks[2] && vend <= chunks[3]) {
