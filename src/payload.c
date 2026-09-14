@@ -986,6 +986,9 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 	smp->data.u.str.data = 0;
 
 	while (bleft > 0 && *data != '\r') {
+		/* a string sample cannot contain a NUL byte */
+		if (!*data)
+			goto not_cookie;
 		data++;
 		bleft--;
 	}

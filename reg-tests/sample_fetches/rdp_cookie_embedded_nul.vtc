@@ -1,0 +1,59 @@
+varnishtest "req.rdp_cookie must not return a string with a \0 byte"
+feature ignore_unknown_macro
+
+# A string sample cannot contain a \0 byte. The RDP cookie value is taken
+# from the raw packet up to the CR, so a client can put a \0 in it. Such a
+# value must not be matched by "-m str" on its prefix.
+
+syslog S1 -level info {
+    # c1: valid cookie
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: cookie=match$"
+    # c2: "public\0x" must not match "public"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: cookie=nomatch$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        nbthread 1
+
+    defaults
+        mode tcp
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        log ${S1_addr}:${S1_port} local0
+        log-format "cookie=%[var(txn.cookie,nomatch)]"
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-var-fmt(txn.cookie) match if { req.rdp_cookie(mstshash) -m str public }
+        tcp-request content reject
+} -start
+
+# cookie "public"
+client c1 -connect ${h1_fe1_sock} {
+    # TPKT header (length 36) and X.224 connection request
+    sendhex "03000024 06e00000000000"
+    send "Cookie: mstshash=public\r\n"
+    delay 0.3
+} -run
+
+# cookie "public\0x"
+client c2 -connect ${h1_fe1_sock} {
+    # TPKT header (length 38) and X.224 connection request
+    sendhex "03000026 06e00000000000"
+    send "Cookie: mstshash="
+    # value "public\0x" and CRLF, sent as hex since a string cannot hold a \0 byte:
+    # "public" "\0" "x" "\r\n"
+    sendhex "7075626c6963 00 78 0d0a"
+    delay 0.3
+} -run
+
+syslog S1 -wait
