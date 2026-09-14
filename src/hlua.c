@@ -1281,9 +1281,10 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 		break;
 
 	case LUA_TSTRING:
-		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		smp->data.u.str.area = (char *)lua_tolstring(L, ud, &smp->data.u.str.data);
+		/* a string sample cannot contain a NUL byte, a Lua string can */
+		smp->data.type = memchr(smp->data.u.str.area, 0, smp->data.u.str.data) ? SMP_T_BIN : SMP_T_STR;
 		/* We don't know the actual size of the underlying allocation, so be conservative. */
 		smp->data.u.str.size = smp->data.u.str.data+1; /* count the terminating null byte */
 		smp->data.u.str.head = 0;

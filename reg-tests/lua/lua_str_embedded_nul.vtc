@@ -1,0 +1,45 @@
+varnishtest "Lua strings with a \0 byte are binary samples"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+# A string sample cannot contain a \0 byte, but a Lua string can. A Lua
+# fetch, converter or set_var() returning such a string must produce a
+# binary sample: all its bytes are kept for binary converters such as hex,
+# and it is cut at the first \0 when used as a string. A Lua string without
+# a \0 byte is still a string sample.
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        tune.lua.bool-sample-conversion normal
+        lua-load ${testdir}/lua_str_embedded_nul.lua
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request lua.nul_var
+        http-request set-var-fmt(txn.plain) match   if  { lua.plain_str -m str public }
+        http-request set-var-fmt(txn.plain) nomatch if !{ lua.plain_str -m str public }
+        http-request return status 200 hdr plain %[var(txn.plain)] hdr fetch-hex %[lua.nul_str,hex] hdr fetch-len %[lua.nul_str,length] hdr conv-hex %[req.hdr(x-u),lua.nul_conv,hex] hdr conv-len %[req.hdr(x-u),lua.nul_conv,length] hdr var-hex %[var(txn.lua),hex] hdr var-len %[var(txn.lua),length]
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -url "/" -hdr "X-U: public"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.plain == "match"
+    # "public\0x": 8 bytes kept as binary, 6 when used as a string
+    expect resp.http.fetch-hex == "7075626C69630078"
+    expect resp.http.fetch-len == "6"
+    expect resp.http.conv-hex == "7075626C69630078"
+    expect resp.http.conv-len == "6"
+    expect resp.http.var-hex == "7075626C69630078"
+    expect resp.http.var-len == "6"
+} -run
