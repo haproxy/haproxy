@@ -1,7 +1,7 @@
                 -----------------------------------------------
                                    HTX API
-                                  Version 1.1
-                          ( Last update: 2021-02-24 )
+                                  Version 1.2
+                          ( Last update: 2026-09-11 )
                 -----------------------------------------------
                           Author : Christopher Faulet
                       Contact : cfaulet at haproxy dot com
@@ -162,13 +162,21 @@ there is no payload but it counts for a byte. It is important to not skip it
 when data are forwarded.
 
 As already said, a block is composed of metadata and a payload. Metadata are
-stored in the blocks part and are composed of 2 fields :
+stored in the blocks part and are composed of 3 fields :
 
     - info : It a 32 bits field containing the block's type on 4 bits followed
              by the payload length. See below for details.
 
     - addr : The payload's address, if any, relatively to the beginning the
-             array used to store part of the HTTP message itself.
+             array used to store part of the HTTP message itself. It is a 28
+             bits field, so the payloads part cannot exceed 256 MB. This is
+             enforced at configuration parsing time by limiting the buffer size
+             when HTTP is used.
+
+    - flags: A 4 bits field containing flags about the block itself
+             (HTX_BLK_FL_*). For now, only HTX_BLK_FL_EOM is defined. See
+             below for details. HTX_BLK_FL_NONE may be used to state no flag is
+             set.
 
 
   * Block's info representation :
@@ -210,13 +218,25 @@ HTX message. It is a response with status-code 101 or greater or equal to
 200. But it may be preceded by several 1xx informational responses. Such
 responses are part of the same HTX message.
 
-When the end of the message is reached a special flag is set on the message
-(HTX_FL_EOM). It means no more data are expected for this message, except
-tunneled data. But tunneled data will never be mixed with message data to avoid
-ambiguities. Thus once the flag marking the end of the message is set, it is
-easy to know the message ends. The end is reached if the HTX message is empty or
-on the tail HTX block in the HTX message. Once all blocks of the HTX message are
-consumed, tunneled data, if any, may be transferred.
+When the end of the message is reached, the HTX_BLK_FL_EOM flag is set on the
+last block of the message. It means no more data are expected for this message,
+except tunneled data. Only an EOH, an EOT or a DATA block may carry this flag,
+because only these blocks may end a message. If the message is empty, an EOT
+block is added to carry the flag.
+
+Because the flag is carried by the last block, it is always the tail block of
+the HTX message. So testing the tail block is enough to know whether a message
+is finished or not. It also means nothing must ever be added in a message
+already ended. In particular, tunneled data must never be mixed with message
+data. They must be stored in a separate buffer and only transferred once all
+blocks of the HTX message were consumed. The HTX API enforces this rule and
+will crash on any attempt to add a block in a message already ended. The only
+exception is the insertion of a header or a trailer, which are moved at the
+right place, before the corresponding end-of marker (see section 4.3).
+
+htx_set_eom() must always be used to report the end of the message and
+htx_has_eom() to test it. The flag must never be set by hand, except by the HTX
+API itself.
 
 
 3.1. The start-line
@@ -279,7 +299,9 @@ markers :
     - end-of-headers (EOH)
     - end-of-trailers (EOT)
 
-EOH is always present in an HTX message. EOT is optional.
+EOH is always present in an HTX message. EOT is optional. However, an EOT block
+is added by htx_set_eom() when the end of an empty message is reported, because
+the flag marking the end of the message must be carried by a block.
 
 
 4. The HTX API
@@ -322,7 +344,9 @@ Once with an HTX message, following functions may help to process it :
     - htx_free_space() and htx_free_data_space() return, respectively, the total
       free space in an HTX message and the free space available for the payload
       if a new HTX block is stored (so it is the total free space minus the size
-      of an HTX block).
+      of an HTX block). Note htx_free_data_space() returns 0 when there is not
+      even enough room left for a block's metadata. So it cannot be used alone
+      to know whether a zero-sized block may be added.
 
     - htx_is_empty() and htx_is_not_empty() are boolean functions to know if an
       HTX message is empty or not.
@@ -344,9 +368,13 @@ allocated in an HTX message. Then, there is an add function per block's type :
       flags of the start-line must be provided, as well as its three parts
       (method,uri,version or version,status-code,reason).
 
-    - htx_add_header() and htx_add_trailers() are similar. The name and the
+    - htx_add_header() and htx_add_trailer() are similar. The name and the
       value must be provided. The inserted HTX block is returned on success or
-      NULL if an error occurred.
+      NULL if an error occurred. Both functions take care to move the new block
+      at the right place, just before the corresponding end-of marker, so that
+      blocks remain ordered. It means a header or a trailer may be added in a
+      message already ended, the flag marking the end of the message being
+      preserved.
 
     - htx_add_endof() must be used to add any end-of marker. The block's type
       (EOH or EOT) must be specified. The inserted HTX block is returned on
@@ -370,17 +398,28 @@ allocated in an HTX message. Then, there is an add function per block's type :
       It tries to insert all the payload, this function returns the inserted
       block on success.  Otherwise it returns NULL.
 
+Except for headers and trailers, nothing must be added in a message already
+ended. All these functions will crash on such attempt. The message must be fully
+consumed first. Internally, the HTX API uses unsafe versions of some of these
+functions (prefixed with a double underscore) to temporarily add a block after
+the one carrying the end of the message, before moving it at the right place.
+These versions must never be used outside of the HTX API itself.
+
 When an HTX block is added, it is always the last one (the tail). But, if a
 block must be added at a specific place, it is not really handy. 2 functions may
 help (others could be added) :
 
     - htx_add_last_data() adds a DATA block just after all other DATA blocks and
-      before any trailers and EOT marker. It relies on htx_add_data_atonce(), so
-      a defragmentation may be performed.
+      before any trailers and EOT marker. A defragmentation may be performed.
+      Data may be added this way in a message already ended. In this case, the
+      flag marking the end of the message is transferred on the new block or
+      remains on the last block of the message.
 
-    - htx_move_blk_before() moves a specific block just after another one. Both
+    - htx_move_blk_before() moves a specific block just before another one. Both
       blocks must already be in the HTX message and the block to move must
-      always be placed after the "pivot".
+      always be placed after the "pivot". The flag marking the end of the
+      message, if any, is kept on the last block of the message. However it
+      remains the caller responsibility to take care the result is still valid.
 
 Once added, there are three functions to update the block's payload :
 
@@ -421,11 +460,10 @@ Once added, there are three functions to update the block's payload :
       size.
 
     - htx_remove_blk() removes a block from an HTX message. It returns the
-      following block or NULL if it is the tail block.
-
-Finally, a block may be removed using the function htx_remove_blk(). This
-function returns the block following the one removed or NULL if it is the tail
-block.
+      following used block or NULL if it was the tail block. Unused blocks are
+      skipped. In addition, the function takes care to never leave an unused
+      block on the head or on the tail of the message. This is important because
+      the tail block is tested to know whether the message is finished or not.
 
 
 4.4. The HTX start-line
@@ -486,15 +524,21 @@ good candidates to start a loop :
 For all these functions, if the HTX message is empty, -1 is returned for the
 block's position, NULL instead of a block and HTX_BLK_UNUSED for its type.
 
+The head block and the tail block are never unused blocks. htx_remove_blk()
+takes care of that. htx_get_first_blk() skips the unused blocks, if any.
+
 Then to iterate on blocks, foreword or backward :
 
     - htx_get_prev() and htx_get_next() return, respectively, the position of
       the previous block or the next block, given a specific position. Or -1 if
-      an edge is reached.
+      an edge is reached. These functions work on positions only, so an unused
+      block may be returned.
 
     - htx_get_prev_blk() and htx_get_next_blk() return, respectively, the
       previous block or the next one, given a specific block. Or NULL if an edge
-      is reached.
+      is reached. Unlike the functions above, these ones skip the unused blocks.
+      So a used block or NULL is always returned and there is no need to test
+      the block's type against HTX_BLK_UNUSED when looping on an HTX message.
 
 4.6. Access block content and info
 
@@ -518,10 +562,12 @@ block :
       (EOH or EOT), an empty string is returned. For other blocks an ist
       pointing on the block payload is returned.
 
-    - htx_is_unique_blk() may be used to know if a block is the only one
-      remaining inside an HTX message, excluding unused blocks. This function is
-      pretty useful to determine the end of a HTX message, in conjunction with
-      HTX_FL_EOM flag.
+    - htx_has_eom() may be used to know if the HTX message is finished. It
+      tests the HTX_BLK_FL_EOM flag on the tail block. htx_expect_more() is the
+      opposite function. Note that both rely on the tail block. So, once the
+      block carrying the flag was consumed, the message is no longer seen as
+      finished. This is what happens in tunnel mode, where more data are then
+      always expected.
 
 4.7. Advanced functions
 
@@ -551,9 +597,15 @@ message. These functions are used by HTX analyzers or by multiplexers.
             part can be xferred
           - HTX_XFER_HDRS_ONLY: Only the headers part is xferred
 
+      The destination HTX message must not be a message already ended. Blocks'
+      flags are transferred with the blocks, but only for the blocks that were
+      fully copied.
+
     - htx_append_msg() append an HTX message to another one. All the message is
       copied or nothing. So, if an error occurred, a rollback is performed. This
-      function returns 1 on success and 0 on error.
+      function returns 1 on success and 0 on error. The destination HTX message
+      must not be a message already ended. It remains the caller responsibility
+      to take care the result is still valid.
 
     - htx_reserve_max_data() Reserves the maximum possible size for an HTX data
       block, by extending an existing one or by creating a new one. It returns a
@@ -570,3 +622,8 @@ message. These functions are used by HTX analyzers or by multiplexers.
       unwraps the payloads part. A temporary buffer is used to do so. This
       function never fails. A referenced block may be provided. If so, the
       corresponding new block is returned. Otherwise, NULL is returned.
+
+    - htx_skip_msg_payload() removes all blocks except the headers part. The
+      trailers are removed too. If the removed part was carrying the end of the
+      message, it is reported again on the remaining part, possibly by adding an
+      EOT block if the message becomes empty.
