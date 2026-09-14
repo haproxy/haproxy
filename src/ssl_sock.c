@@ -1771,6 +1771,7 @@ static void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 				long timeout = SSL_SESSION_get_timeout(sess);
 				long ctx_timeout = SSL_CTX_get_timeout(SSL_get_SSL_CTX(ssl));
 				long elapsed = now - created;
+				long remaining;
 
 				/* reduce the timeout if it was decreased in the configuration since the session creation */
 				if (ctx_timeout < timeout)
@@ -1778,12 +1779,18 @@ static void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 				if (elapsed < 0)
 					elapsed = 0;
 
+				remaining = timeout - elapsed;
+
 #if HA_OPENSSL_VERSION_NUMBER >= 0x30400000L
 				SSL_SESSION_set_time_ex(sess, now);
 #else
 				SSL_SESSION_set_time(sess, now);
 #endif
-				SSL_SESSION_set_timeout(sess, elapsed < timeout ? timeout - elapsed : 0);
+				/* reset the timeout or remove the session */
+				if (remaining > 0)
+					SSL_SESSION_set_timeout(sess, remaining);
+				else
+					SSL_SESSION_set1_id_context(sess, (unsigned char *) "", 0);
 
 				ctx->xprt_st |= SSL_SOCK_SESS_TIMEOUT_SET;
 			}
