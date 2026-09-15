@@ -191,6 +191,14 @@ static inline enum htx_blk_type __htx_blkinfo_size(uint32_t info)
 	}
 }
 
+/* Returns 1 if <type> is a payload type, i.e. a block carrying data that may be
+ * partially consumed (HTTP data or tunneled data). Otherwise 0 is returned.
+ */
+static inline int htx_is_data_type(enum htx_blk_type type)
+{
+	return (type == HTX_BLK_DATA || type == HTX_BLK_RAW_DATA);
+}
+
 /* Returns the size of the block <blk>, depending of its type */
 static inline uint32_t htx_get_blksz(const struct htx_blk *blk)
 {
@@ -421,6 +429,7 @@ static inline void htx_set_blk_value_len(struct htx_blk *blk, uint32_t vlen)
 		case HTX_BLK_REQ_SL:
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_DATA:
+		case HTX_BLK_RAW_DATA:
 			blk->info = (type << 28) + vlen;
 			break;
 		default:
@@ -475,6 +484,7 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 		case HTX_BLK_REQ_SL:
 		case HTX_BLK_RES_SL:
 		case HTX_BLK_DATA:
+		case HTX_BLK_RAW_DATA:
 			ret = ist2(htx_get_blk_ptr(htx, blk),
 				   blk->info & 0xfffffff);
 			break;
@@ -875,6 +885,7 @@ static inline int htx_set_eom(struct htx *htx)
 	}
 
 	blk = ASSUME_NONNULL(htx_get_tail_blk(htx));
+
 	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_EOH &&
 	       htx_get_blk_type(blk) != HTX_BLK_EOT &&
 	       htx_get_blk_type(blk) != HTX_BLK_DATA);
@@ -942,6 +953,7 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_HDR:    return "HTX_BLK_HDR";
 		case HTX_BLK_EOH:    return "HTX_BLK_EOH";
 		case HTX_BLK_DATA:   return "HTX_BLK_DATA";
+		case HTX_BLK_RAW_DATA: return "HTX_BLK_RAW_DATA";
 		case HTX_BLK_TLR:    return "HTX_BLK_TLR";
 		case HTX_BLK_EOT:    return "HTX_BLK_EOT";
 		case HTX_BLK_UNUSED: return "HTX_BLK_UNUSED";

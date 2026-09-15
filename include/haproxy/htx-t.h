@@ -209,7 +209,8 @@ enum htx_blk_type {
 	HTX_BLK_DATA   =  4, /* data block */
 	HTX_BLK_TLR    =  5, /* trailer name/value block */
 	HTX_BLK_EOT    =  6, /* end-of-trailers block */
-	/* 7 .. 14 unused */
+	HTX_BLK_RAW_DATA = 7, /* raw data block (tunneled data) */
+	/* 8 .. 14 unused */
 	HTX_BLK_UNUSED = 15, /* unused/removed block */
 };
 
