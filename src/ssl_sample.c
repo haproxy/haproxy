@@ -1917,6 +1917,10 @@ smp_fetch_ssl_fc_npn(const struct arg *args, struct sample *smp, const char *kw,
 	if (!smp->data.u.str.area)
 		return 0;
 
+	/* a string sample cannot contain a NUL byte */
+	if (memchr(smp->data.u.str.area, 0, len))
+		return 0;
+
 	smp->data.u.str.data = len;
 	return 1;
 }
