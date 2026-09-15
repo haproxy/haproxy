@@ -5177,6 +5177,36 @@ smp_fetch_hostname(const struct arg *args, struct sample *smp, const char *kw, v
 	return 1;
 }
 
+/* returns the unique identifier of the master process. Fails when there is no
+ * master, i.e. when not running in master-worker mode.
+ */
+static int
+smp_fetch_master_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!global.master_id)
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	smp->data.u.str.area = global.master_id;
+	smp->data.u.str.data = strlen(global.master_id);
+	return 1;
+}
+
+/* returns the unique identifier of the current worker process */
+static int
+smp_fetch_worker_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	if (!global.worker_id)
+		return 0;
+
+	smp->data.type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	smp->data.u.str.area = global.worker_id;
+	smp->data.u.str.data = strlen(global.worker_id);
+	return 1;
+}
+
 /* returns the number of processes */
 static int
 smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -5834,6 +5864,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "date",         smp_fetch_date,  ARG2(0,SINT,STR), smp_check_date_unit, SMP_T_SINT, SMP_USE_CONST },
 	{ "date_us",      smp_fetch_date_us,  0,         NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "hostname",     smp_fetch_hostname, 0,         NULL, SMP_T_STR,  SMP_USE_CONST },
+	{ "master_id",    smp_fetch_master_id, 0,        NULL, SMP_T_STR,  SMP_USE_CONST },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "pid",          smp_fetch_pid,   0,            NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "proc",         smp_fetch_proc,  0,            NULL, SMP_T_SINT, SMP_USE_CONST },
@@ -5844,6 +5875,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "stopping",     smp_fetch_stopping, 0,         NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "uptime",       smp_fetch_uptime,   0,         NULL, SMP_T_SINT, SMP_USE_CONST },
 	{ "uuid",         smp_fetch_uuid,  ARG1(0, SINT),      smp_check_uuid, SMP_T_STR, SMP_USE_CONST },
+	{ "worker_id",    smp_fetch_worker_id, 0,        NULL, SMP_T_STR,  SMP_USE_CONST },
 
 	{ "cpu_calls",    smp_fetch_cpu_calls,  0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
 	{ "cpu_ns_avg",   smp_fetch_cpu_ns_avg, 0,       NULL, SMP_T_SINT, SMP_USE_INTRN },
