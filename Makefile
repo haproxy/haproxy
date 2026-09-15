@@ -995,6 +995,18 @@ ifneq ($(USE_TRACE:0=),)
   OBJS += src/trace.o
 endif
 
+# xz decoder, used to read the compressed symbol tables of stripped objects.
+# Only link it when the compiler produces ELF objects: its only user, the
+# symbol tables of sym.c, is not compiled for another object format, which
+# must not carry the decoder for nothing.
+# CRC64 support must be enabled as this is the integrity check that the "xz"
+# tool uses by default, and it also gates declarations in the public header.
+ifneq ($(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep -F __ELF__),)
+OPTIONS_CFLAGS += -DXZ_USE_CRC64
+OBJS += src/xz_dec_stream.o src/xz_dec_lzma2.o src/xz_crc32.o		\
+        src/xz_crc64.o
+endif
+
 HATERM_OBJS += $(OBJS) src/haterm_init.o src/hbuf.o
 
 HALOAD_OBJS += $(OBJS) src/haload_init.o src/haload.o src/hbuf.o
