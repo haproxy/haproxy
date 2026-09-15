@@ -371,14 +371,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if ((*args[2] && (!*args[3] || strcmp(args[2], "from") != 0)) ||
-		    alertif_too_many_args(3, file, linenum, args, &err_code)) {
-			if (rc & PR_CAP_FE) {
-				err_code |= ERR_ALERT | ERR_FATAL;
+		if (*args[2] && (!*args[3] || strcmp(args[2], "from") != 0)) {
+			/* the only form taking arguments is "<kw> <name> from <defaults>" */
+			if (rc & PR_CAP_FE)
 				ha_alert("parsing [%s:%d] : please use the 'bind' keyword for listening addresses.\n", file, linenum);
-			}
+			else
+				ha_alert("parsing [%s:%d] : '%s' cannot handle unexpected argument '%s'.\n",
+					 file, linenum, args[0], args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		if (alertif_too_many_args(3, file, linenum, args, &err_code))
+			goto out;
 	}
 
 	if (rc & PR_CAP_LISTEN) {  /* new proxy or defaults section */
