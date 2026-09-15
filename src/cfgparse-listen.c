@@ -58,12 +58,23 @@ static const char *common_kw_list[] = {
 	NULL /* must be last */
 };
 
+/* Options which are not described in the cfg_opts* arrays because they need a
+ * dedicated parsing, and which are only used as suggestions for mistyped
+ * words. This list must be kept in sync with the options which have a
+ * dedicated parsing below.
+ */
 static const char *common_options[] = {
-	"httpclose", "http-server-close", "http-keep-alive",
-	"redispatch", "httplog", "tcplog", "tcpka", "httpchk",
-	"ssl-hello-chk", "smtpchk", "pgsql-check", "redis-check",
-	"mysql-check", "ldap-check", "spop-check", "tcp-check",
-	"external-check", "forwardfor", "original-to", "forwarded",
+	"accept-invalid-http-request", "accept-invalid-http-response",
+	"external-check", "forceclose", "forwarded", "forwardfor",
+	"http-keep-alive", "http-restrict-req-hdr-names",
+	"http-server-close", "http-tunnel", "http_proxy", "httpchk",
+	"httpclose", "httplog", "httpslog", "ldap-check", "mysql-check",
+	"originalto", "pgsql-check", "redis-check", "redispatch", "smtpchk",
+#if defined(USE_SPOE)
+	"spop-check",
+#endif
+	"ssl-hello-chk", "tcp-check", "tcpka", "tcplog",
+	"use-small-buffers",
 	NULL /* must be last */
 };
 
