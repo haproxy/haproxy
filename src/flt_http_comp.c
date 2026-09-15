@@ -128,7 +128,7 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	comp_type = NULL;
 
 	/* compress only if body size is >= than the min size */
-	if (((msg->flags & HTTP_MSGF_CNT_LEN) || htx_has_eom(htx)) &&
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || htx_msg_ended(htx)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_req)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_req)))) {
 		/* small requests should not be compressed */
@@ -339,7 +339,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					 * message. In this case, it must be restored,
 					 * adding an EOT block to support it.
 					 */
-					if (!htx_has_eom(htx)) {
+					if (!htx_msg_ended(htx)) {
 						unsigned int data = htx->data;
 
 						htx_set_eom(htx);
@@ -686,7 +686,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		goto fail;
 
 	/* compress only if body size is >= than the min size */
-	if (((msg->flags & HTTP_MSGF_CNT_LEN) || htx_has_eom(htx)) &&
+	if (((msg->flags & HTTP_MSGF_CNT_LEN) || htx_msg_ended(htx)) &&
 	    ((s->be->comp && (comp_minsize = s->be->comp->minsize_res)) ||
 	     (strm_fe(s)->comp && (comp_minsize = strm_fe(s)->comp->minsize_res)))) {
 		/* small responses should not be compressed */

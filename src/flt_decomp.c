@@ -401,7 +401,7 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 		/* The decompression is finished and we must now be sure to
 		 * restore EOM on last block (possibly by adding an EOT).
 		 */
-		if ((st->flags & DECOMP_STATE_EOM_SEEN) && !htx_has_eom(htx)) {
+		if ((st->flags & DECOMP_STATE_EOM_SEEN) && !htx_msg_ended(htx)) {
 			unsigned int data = htx->data;
 
 			BUG_ON(!(st->decomp_ctx->flags & DECOMP_CTX_FL_DONE) || st->decomp_ctx->drain_len);

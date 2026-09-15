@@ -577,7 +577,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					goto out;
 				}
 
-				if (htx_has_eom(htx)) { /* check if a body need to be added */
+				if (htx_msg_ended(htx)) { /* check if a body need to be added */
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					applet_set_eoi(appctx);
 					goto out; /* we need to leave the IO handler once we wrote the request */
@@ -640,7 +640,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				htx = htxbuf(outbuf);
 
 				/* if the request contains the EOM, we finished the request part. */
-				if (htx_has_eom(htx)) {
+				if (htx_msg_ended(htx)) {
 					appctx->st0 = HTTPCLIENT_S_RES_STLINE;
 					applet_set_eoi(appctx);
 					goto out; /* we need to leave the IO handler once we wrote the request */
@@ -668,7 +668,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 				htx = htxbuf(inbuf);
 				if (htx_get_head_type(htx) != HTX_BLK_RES_SL)
 					goto error;
-				res_has_eom = htx_has_eom(htx);
+				res_has_eom = htx_msg_ended(htx);
 				blk = DISGUISE(htx_get_head_blk(htx));
 				sl = htx_get_blk_ptr(htx, blk);
 
@@ -725,7 +725,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 
 				htx = htxbuf(inbuf);
 				BUG_ON(htx_is_empty(htx));
-				res_has_eom = htx_has_eom(htx);
+				res_has_eom = htx_msg_ended(htx);
 				if (hc->options & HTTPCLIENT_O_RES_HTX) {
 					/* HTX mode transfers the header to the hc buffer */
 					struct htx *hc_htx;
@@ -814,7 +814,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 					applet_need_more_data(appctx);
 					goto out;
 				}
-				res_has_eom = htx_has_eom(htx);
+				res_has_eom = htx_msg_ended(htx);
 
 				if (!b_alloc(&hc->res.buf, DB_MUX_TX)) {
 					applet_wont_consume(appctx);

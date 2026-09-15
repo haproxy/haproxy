@@ -263,11 +263,11 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Return true if the HTX message is not empty and the HTX_BLK_FL_EOM flag is set
- * on the tail block, which means the message is complete. Otherwise, false is
- * returned.
+/* Returns true if the end of the message was reached, i.e. if the HTX message is
+ * not empty and the HTX_BLK_FL_EOM flag is set on the tail block. Otherwise,
+ * false is returned.
  */
-static inline int htx_has_eom(const struct htx *htx)
+static inline int htx_msg_ended(const struct htx *htx)
 {
 	struct htx_blk *blk = htx_get_tail_blk(htx);
 
@@ -535,7 +535,7 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
-	eom = htx_has_eom(htx);
+	eom = htx_msg_ended(htx);
 	blk = __htx_add_blk(htx, HTX_BLK_HDR, name.len + value.len);
 	if (!blk)
 		return NULL;
@@ -559,7 +559,7 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 	 * EOM flag can only be carried by such a block. So a message already
 	 * ended must still be ended.
 	 */
-	BUG_ON_HOT(eom && !htx_has_eom(htx));
+	BUG_ON_HOT(eom && !htx_msg_ended(htx));
 	return blk;
 }
 
@@ -579,7 +579,7 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
-	eom = htx_has_eom(htx);
+	eom = htx_msg_ended(htx);
 	blk = __htx_add_blk(htx, HTX_BLK_TLR, name.len + value.len);
 	if (!blk)
 		return NULL;
@@ -603,7 +603,7 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 	 * EOM flag can only be carried by such a block. So a message already
 	 * ended must still be ended.
 	 */
-	BUG_ON_HOT(eom && !htx_has_eom(htx));
+	BUG_ON_HOT(eom && !htx_msg_ended(htx));
 	return blk;
 }
 
@@ -849,12 +849,12 @@ static inline int htx_is_empty_noerr(const struct htx *htx)
 
 /* Returns 1 if more data are expected for the message <htx>. Otherwise it
  * returns 0. Note that it is illegal to call this with htx == NULL. This
- * function relies on htx_has_eom() function. It means more data are always
- * expected on tunnel mode.
+ * function relies on htx_msg_ended(). It means tunneled data are not
+ * considered here.
  */
 static inline int htx_expect_more(const struct htx *htx)
 {
-	return !htx_has_eom(htx);
+	return !htx_msg_ended(htx);
 }
 
 /* Set EOM flag in <htx>. This function must always be called to report the end

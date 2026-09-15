@@ -386,7 +386,7 @@ struct htx_blk *__htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t 
  */
 struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
 {
-	BUG_ON(htx_has_eom(htx));
+	BUG_ON(htx_msg_ended(htx));
 	return __htx_add_blk(htx, type, blksz);
 }
 
@@ -683,7 +683,7 @@ struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data)
  */
 struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 {
-	BUG_ON(htx_has_eom(htx));
+	BUG_ON(htx_msg_ended(htx));
 	return __htx_add_data_atonce(htx, data);
 }
 
@@ -825,7 +825,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 	uint32_t max, last_dstblk_sz;
 	int dst_full = 0;
 
-	BUG_ON(htx_has_eom(dst));
+	BUG_ON(htx_msg_ended(dst));
 
 	last_dstblk = NULL;
 	last_dstblk_sz = 0;
@@ -1091,7 +1091,7 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
 	int32_t len = htx_free_data_space(htx);
 	uint32_t flags = 0;
 
-	BUG_ON(htx_has_eom(htx));
+	BUG_ON(htx_msg_ended(htx));
 
 	if (!len)
 		return (struct htx_ret){.ret = 0, .blk = NULL};
@@ -1168,7 +1168,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	int32_t len = data.len;
 	uint32_t flags = 0;
 
-	BUG_ON(htx_has_eom(htx));
+	BUG_ON(htx_msg_ended(htx));
 
 	/* Not enough space to store data */
 	if (len > htx_free_data_space(htx))
@@ -1254,7 +1254,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 {
 	struct htx_blk *blk, *pblk;
-	int eom = htx_has_eom(htx);
+	int eom = htx_msg_ended(htx);
 
 	/* Data may be added in a message already ended. In this case, the block
 	 * is first appended, after the block carrying the EOM flag, and then
@@ -1285,7 +1285,7 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 	/* The EOM flag was transferred on the new DATA block, or moved with the
 	 * blocks placed after it. So a message already ended must still be ended.
 	 */
-	BUG_ON_HOT(eom && !htx_has_eom(htx));
+	BUG_ON_HOT(eom && !htx_msg_ended(htx));
 	return blk;
 }
 
@@ -1337,7 +1337,7 @@ int htx_append_msg(struct htx *dst, const struct htx *src)
 	enum htx_blk_type type;
 	uint32_t blksz, offset = dst->data;
 
-	BUG_ON(htx_has_eom(dst));
+	BUG_ON(htx_msg_ended(dst));
 
 	for (blk = htx_get_head_blk(src); blk; blk = htx_get_next_blk(src, blk)) {
 		type = htx_get_blk_type(blk);
