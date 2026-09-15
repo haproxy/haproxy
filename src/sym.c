@@ -648,6 +648,28 @@ static void *map_debug_file(const char *obj_path, size_t *dsz,
 	return NULL;
 }
 
+static const void *elf_find_section(const void *map, size_t sz, const ElfW(Ehdr) *eh,
+				    const char *shstr, size_t shstrsz,
+				    const char *name, size_t *psize)
+{
+	const ElfW(Shdr) *sh = (const ElfW(Shdr) *)((const char *)map + eh->e_shoff);
+	const void *data;
+	unsigned int i;
+
+	for (i = 0; i < eh->e_shnum; i++) {
+		if (sh[i].sh_type == SHT_NOBITS || sh[i].sh_name >= shstrsz)
+			continue;
+		if (strcmp(shstr + sh[i].sh_name, name) != 0)
+			continue;
+
+		data = (const char *)map + sh[i].sh_offset;
+		if (!in_map(data, sh[i].sh_size, map, sz) || !sh[i].sh_size)
+			return NULL;
+		*psize = sh[i].sh_size;
+		return data;
+	}
+	return NULL;
+}
 
 static void elf_find_symtab(const ElfW(Ehdr) *eh,
 			    const ElfW(Shdr) **symtab, const ElfW(Shdr) **strtab)
@@ -667,12 +689,6 @@ static void elf_find_symtab(const ElfW(Ehdr) *eh,
 
 /* Decompresses the xz-compressed ELF image
  */
-#if !defined(HA_HAVE_DL_ITERATE_PHDR)
-/* the loader callback is its only caller here; the file parsing which also
- * needs it comes next, and is itself kept compiled without the API.
- */
-__maybe_unused
-#endif
 static void collect_debugdata(struct sym_build *b, const struct sym_obj *obj,
 			      const unsigned char *blob, size_t size)
 {
@@ -745,7 +761,6 @@ static void collect_debugdata(struct sym_build *b, const struct sym_obj *obj,
 	xz_dec_end(dec);
 }
 
-
 /* Returns the build-id, if available */
 static const unsigned char *mem_build_id(const ElfW(Phdr) *phdr, unsigned int phnum,
 					 unsigned long base, size_t *len)
@@ -817,6 +832,8 @@ static int parse_object(struct sym_build *b, const char *path, const struct sym_
 	const ElfW(Ehdr) *eh, *deh = NULL;
 	void *map, *dmap = NULL;
 	size_t mapsz = 0, dmapsz = 0;
+	const void *blob = NULL;
+	size_t blobsz = 0;
 	const unsigned char *bid = NULL, *mbid;
 	const char *link = NULL, *shstr;
 	size_t bidlen = 0, mbidlen, linklen = 0, linksz = 0, shstrsz = 0;
@@ -855,8 +872,13 @@ static int parse_object(struct sym_build *b, const char *path, const struct sym_
 
 	elf_find_symtab(eh, &symtab, &strtab);
 
-	/* if the object is stripped (no symtab), try separate debug info */
+	/* if the object is stripped (no symtab), try separate debug info, then
+	 * the compressed table it may carry.
+	 */
 	if (!symtab) {
+		if (shstr)
+			blob = elf_find_section(map, mapsz, eh, shstr, shstrsz,
+					        ".gnu_debugdata", &blobsz);
 		dmap = map_debug_file(path, &dmapsz, bid, bidlen, link, linklen, linksz);
 		if (dmap) {
 			/* the debug file's symtab matches the object's vaddrs */
@@ -865,16 +887,29 @@ static int parse_object(struct sym_build *b, const char *path, const struct sym_
 		}
 	}
 
-	if (!symtab) {
+	before = b->n;
+
+	if (symtab) {
+		collect_syms(b, deh ? dmap : map, deh ? dmapsz : mapsz,
+			     symtab, strtab, obj->base, obj);
+	}
+	else if (blob) {
+		/* not loaded in memory by this object, but readable here. The
+		 * collected names point into the decompressed image, which the
+		 * builder owns, so the file mappings are not needed afterwards.
+		 */
+		collect_debugdata(b, obj, blob, blobsz);
+		munmap(map, mapsz);
+		if (dmap)
+			munmap(dmap, dmapsz);
+		return b->oom ? -1 : (b->n != before);
+	}
+	else {
 		munmap(map, mapsz);
 		if (dmap)
 			munmap(dmap, dmapsz);
 		return 0;
 	}
-
-	before = b->n;
-	collect_syms(b, deh ? dmap : map, deh ? dmapsz : mapsz,
-		     symtab, strtab, obj->base, obj);
 
 	if (b->n == before) {
 		munmap(map, mapsz);
