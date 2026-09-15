@@ -597,6 +597,15 @@ const char *proxy_find_best_option(const char *word, const char **extra)
 		}
 	}
 
+	for (index = 0; cfg_opts3[index].name; index++) {
+		make_word_fingerprint(list_sig, cfg_opts3[index].name);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_ptr = cfg_opts3[index].name;
+		}
+	}
+
 	while (extra && *extra) {
 		make_word_fingerprint(list_sig, *extra);
 		dist = word_fingerprint_distance(word_sig, list_sig);
