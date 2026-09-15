@@ -802,6 +802,10 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 				goto not_ssl_hello;
 
 			if (name_type == 0) { /* hostname */
+				/* a string sample cannot contain a NUL byte */
+				if (memchr(data + 9, 0, name_len))
+					goto not_ssl_hello;
+
 				smp->data.type = SMP_T_STR;
 				smp->data.u.str.area = (char *)data + 9;
 				smp->data.u.str.data = name_len;
@@ -889,6 +893,10 @@ smp_fetch_ssl_hello_alpn(const struct arg *args, struct sample *smp, const char 
 			name_len = data[name_offset];
 
 			if (name_len + name_offset - 3 > ext_len)
+				goto not_ssl_hello;
+
+			/* a string sample cannot contain a NUL byte */
+			if (memchr(data + name_offset + 1, 0, name_len))
 				goto not_ssl_hello;
 
 			smp->data.type = SMP_T_STR;

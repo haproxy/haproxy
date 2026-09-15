@@ -1,0 +1,79 @@
+varnishtest "req.ssl_sni and req.ssl_alpn must not return a string with a \0 byte"
+feature ignore_unknown_macro
+
+# A string sample cannot contain a \0 byte. The SNI and ALPN names are taken
+# from the raw ClientHello, so a client can put a \0 in them. Such a value
+# must not be matched by "-m str" on its prefix.
+
+syslog S1 -level info {
+    # c1: valid names, both match
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: sni=match alpn=match$"
+    # c2: "public\0x" in both names, none must match "public"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: sni=nomatch alpn=nomatch$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        nbthread 1
+
+    defaults
+        mode tcp
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        log ${S1_addr}:${S1_port} local0
+        log-format "sni=%[var(txn.sni,nomatch)] alpn=%[var(txn.alpn,nomatch)]"
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-var-fmt(txn.sni) match  if { req.ssl_sni -m str public }
+        tcp-request content set-var-fmt(txn.alpn) match if { req.ssl_alpn -m str public }
+        tcp-request content reject
+} -start
+
+# SNI "public", ALPN "public"
+client c1 -connect ${h1_fe1_sock} {
+    # TLS record: handshake, TLSv1.0, length 75
+    sendhex "16 0301 004b"
+    # handshake: ClientHello, length 71
+    sendhex "01 000047"
+    # client_version TLSv1.2, random[32]
+    sendhex "0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    # session_id_len 0, one cipher suite, one compression method
+    sendhex "00 0002 1301 01 00"
+    # extensions length 28
+    sendhex "001c"
+    # server_name: type 0, length 11, list length 9, host_name, length 6, "public"
+    sendhex "0000 000b 0009 00 0006 7075626c6963"
+    # ALPN: type 16, length 9, list length 7, name length 6, "public"
+    sendhex "0010 0009 0007 06 7075626c6963"
+    delay 0.3
+} -run
+
+# SNI "public\0x", ALPN "public\0x"
+client c2 -connect ${h1_fe1_sock} {
+    # TLS record: handshake, TLSv1.0, length 79
+    sendhex "16 0301 004f"
+    # handshake: ClientHello, length 75
+    sendhex "01 00004b"
+    # client_version TLSv1.2, random[32]
+    sendhex "0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    # session_id_len 0, one cipher suite, one compression method
+    sendhex "00 0002 1301 01 00"
+    # extensions length 32
+    sendhex "0020"
+    # server_name: type 0, length 13, list length 11, host_name, length 8, "public" "\0" "x"
+    sendhex "0000 000d 000b 00 0008 7075626c6963 00 78"
+    # ALPN: type 16, length 11, list length 9, name length 8, "public" "\0" "x"
+    sendhex "0010 000b 0009 08 7075626c6963 00 78"
+    delay 0.3
+} -run
+
+syslog S1 -wait
