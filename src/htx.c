@@ -518,7 +518,7 @@ void htx_truncate(struct htx *htx, uint32_t offset)
 	struct htx_ret htxret = htx_find_offset(htx, offset);
 
 	blk = htxret.blk;
-	if (blk && htxret.ret && htx_get_blk_type(blk) == HTX_BLK_DATA) {
+	if (blk && htxret.ret && htx_is_data_type(htx_get_blk_type(blk))) {
 		htx_change_blk_value_len(htx, blk, htxret.ret);
 		blk = htx_get_next_blk(htx, blk);
 	}
@@ -565,7 +565,7 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
 		if (sz > count) {
-			if (type == HTX_BLK_DATA) {
+			if (htx_is_data_type(type)) {
 				htx_cut_data_blk(htx, blk, count);
 				htxret.ret += count;
 			}
@@ -868,9 +868,10 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 		sz = htx_get_blksz(blk);
 		switch (type) {
 		case HTX_BLK_DATA:
+		case HTX_BLK_RAW_DATA:
 			v = htx_get_blk_value(src, blk);
 			v = isttrim(v, max);
-			v.len = htx_add_data(dst, v);
+			v.len = htx_add_data_type(dst, v, type);
 			if (!v.len) {
 				dst_full = 1;
 				goto stop;
@@ -964,7 +965,7 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 			 * block is not NULL, it means a partial copy was performed. So
 			 * cut the source block accordingly
 			 */
-			if (last_dstblk && blk2 && htx_get_blk_type(blk2) == HTX_BLK_DATA) {
+			if (last_dstblk && blk2 && htx_is_data_type(htx_get_blk_type(blk2))) {
 				htx_cut_data_blk(src, blk2, last_dstblk_sz);
 			}
 		}
