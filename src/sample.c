@@ -4451,6 +4451,20 @@ static int sample_conv_mqtt_field_value(const struct arg *arg_p, struct sample *
 	}
 
 	smp->data.u.str = ist2buf(value);
+
+	/* the password, will payload, correlation data and authentication
+	 * data are binary, the other fields are strings and cannot contain
+	 * a NUL byte
+	 */
+	if (fieldname_id == MQTT_FN_PASSWORD || fieldname_id == MQTT_FN_WILL_PAYLOAD ||
+	    fieldname_id == MQTT_FN_CORRELATION_DATA || fieldname_id == MQTT_FN_AUTHENTICATION_DATA)
+		smp->data.type = SMP_T_BIN;
+	else {
+		if (memchr(istptr(value), 0, istlen(value)))
+			return 0;
+		smp->data.type = SMP_T_STR;
+	}
+
 	smp->flags |= SMP_F_CONST;
 	return 1;
 }

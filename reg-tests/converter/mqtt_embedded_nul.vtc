@@ -1,0 +1,54 @@
+varnishtest "mqtt_field_value must not return a string with a \0 byte"
+feature ignore_unknown_macro
+
+# A string sample cannot contain a \0 byte. MQTT string fields are copied as
+# is from the packet, so a client can put a \0 in them. Such a value must not
+# be matched by "-m str" on its prefix.
+
+syslog S1 -level info {
+    # c1: username "public"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: user=match$"
+    # c2: username "public\0x" must not match "public"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: user=nomatch$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        nbthread 1
+
+    defaults
+        mode tcp
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        log ${S1_addr}:${S1_port} local0
+        log-format "user=%[var(txn.user,nomatch)]"
+
+        tcp-request inspect-delay 100ms
+        tcp-request content set-var-fmt(txn.user) match if { req.payload(0,0),mqtt_field_value(connect,username) -m str public }
+        tcp-request content reject
+} -start
+
+# MQTT 3.1.1 CONNECT packet: empty client id, username, password "passwd"
+
+# username "public"
+client c1 -connect ${h1_fe1_sock} {
+    sendhex "101c 00044d515454 04 c2 003c 0000 0006 7075626c6963 0006 706173737764"
+    delay 0.3
+} -run
+
+# username "public\0x"
+client c2 -connect ${h1_fe1_sock} {
+    sendhex "101e 00044d515454 04 c2 003c 0000 0008 7075626c69630078 0006 706173737764"
+    delay 0.3
+} -run
+
+syslog S1 -wait
