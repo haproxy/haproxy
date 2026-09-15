@@ -225,6 +225,8 @@ listed below. Metrics from extra counters are not listed.
 | haproxy_process_pool_allocated_bytes           |
 | haproxy_process_pool_used_bytes                |
 | haproxy_process_start_time_seconds             |
+| haproxy_process_master_id                      |
+| haproxy_process_worker_id                      |
 +------------------------------------------------+
 
 * Frontend metrics

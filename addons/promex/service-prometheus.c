@@ -460,6 +460,10 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 
 		switch (ctx->field_num) {
 			case ST_I_INF_NODE:
+			case ST_I_INF_MASTER_ID:
+			case ST_I_INF_WORKER_ID:
+				if (field_format(&val, 0) != FF_STR || !val.u.str)
+					continue;
 				labels[lb_idx].name  = name;
 				labels[lb_idx].value = ist(field_str(&val, 0));
 				lb_idx++;
