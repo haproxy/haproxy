@@ -28756,9 +28756,11 @@ internal.htx.free_data : integer
   a channel. The channel is chosen depending on the sample direction.
 
 internal.htx.has_eom : boolean
-  Returns true if the HTX message associated to a channel contains the
-  end-of-message flag (EOM). Otherwise, it returns false. The channel is chosen
-  depending on the sample direction.
+  Returns true if the HTX message associated to a channel contains a block
+  carrying the end-of-message flag (EOM). Otherwise, it returns false. Note the
+  block carrying this flag may already have been consumed, in which case false
+  is returned while the end of the message was already reached. The channel is
+  chosen depending on the sample direction.
 
 internal.htx.nbblks : integer
   Returns the number of blocks present in the HTX message associated to a

@@ -2822,6 +2822,7 @@ smp_fetch_htx_has_eom(const struct arg *arg_p, struct sample *smp, const char *k
 {
 	struct channel *chn;
 	struct htx *htx;
+	struct htx_blk *blk;
 
 	if (!smp->strm)
 		return 0;
@@ -2831,7 +2832,20 @@ smp_fetch_htx_has_eom(const struct arg *arg_p, struct sample *smp, const char *k
 	if (!htx)
 		return 0;
 
-	smp->data.u.sint = htx_msg_ended(htx);
+	/* Look for a block carrying the EOM flag. htx_msg_ended() cannot be
+	 * used here because it also reports the end of the message when the
+	 * block carrying the flag was already consumed. Here we really want to
+	 * know if the HTX message contains such block. Note it is not
+	 * necessarily the tail block because tunneled data may be stored after
+	 * the end of the message.
+	 */
+	smp->data.u.sint = 0;
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		if (blk->flags & HTX_BLK_FL_EOM) {
+			smp->data.u.sint = 1;
+			break;
+		}
+	}
 	smp->data.type   = SMP_T_BOOL;
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
