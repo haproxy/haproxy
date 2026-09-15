@@ -509,9 +509,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->conf.line_prev = line_prev;
 
 		if (curr_defproxy) {
-			err_code = proxy_ref_defaults(curproxy, curr_defproxy, &errmsg);
-			if (err_code)
+			int ret = proxy_ref_defaults(curproxy, curr_defproxy, &errmsg);
+
+			if (ret)
 				ha_alert("parsing [%s:%d]: %s.\n", file, linenum, errmsg);
+			err_code |= ret;
 		}
 
 		if (rc & PR_CAP_DEF) {
