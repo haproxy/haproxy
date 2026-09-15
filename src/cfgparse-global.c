@@ -1586,6 +1586,18 @@ static int cfg_parse_global_tune_debug_opts(char **args, int section_type,
 			return -1;
 		global.tune.debug |= GDBG_NO_ELF_SYMS;
 	}
+	else if (strcmp(args[0], "tune.debug-file-directory") == 0) {
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+		if (!*args[1]) {
+			memprintf(err, "'%s' expects a directory path.", args[0]);
+			return -1;
+		}
+		if (sym_add_debug_dir(args[1]) < 0) {
+			memprintf(err, "out of memory while adding '%s' for '%s'.", args[1], args[0]);
+			return -1;
+		}
+	}
 	else {
 		BUG_ON(1, "Triggered in cfg_parse_global_tune_debug_opts() by unsupported keyword.");
 		return -1;
@@ -1995,6 +2007,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "tune.comp.maxlevel", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.debug-file-directory", cfg_parse_global_tune_debug_opts },
 	{ CFG_GLOBAL, "tune.defaults.purge", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.disable-elf-symbols", cfg_parse_global_tune_debug_opts },
 	{ CFG_GLOBAL, "tune.disable-fast-forward", cfg_parse_global_tune_forward_opts },

@@ -16,10 +16,12 @@
  * linker exposes dl_iterate_phdr(), from the exported symbols of the
  * executable and of every loaded shared library, read straight from their
  * memory image (what dladdr() sees, but lock-free and usable in a chroot).
- * The compressed symbol tables that objects may embed in a loadable
- * .gnu_debugdata section (the MiniDebugInfo format that gdb also reads) are
- * decompressed and parsed as well, which brings the local/static functions
- * and works even on a stripped or unreadable file.
+ * When the ELF files are readable, their .symtab (which includes local/static
+ * functions) is parsed too, and for stripped objects separate debug info is
+ * looked up via the GNU build-id and .gnu_debuglink mechanisms. Finally, the
+ * compressed symbol tables that objects may embed in a loadable
+ * .gnu_debugdata section (the MiniDebugInfo format gdb also reads) are
+ * decompressed and parsed, which works even on a stripped or unreadable file.
  *
  * Lookups (sym_resolve()) are lock-free and async-signal-safe: they only read
  * an immutable snapshot, replaced only while no thread is running and
@@ -37,7 +39,6 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #if defined(__linux__) && defined(__GLIBC__) && (__GLIBC__ > 2 || __GLIBC__ == 2 && __GLIBC_MINOR__ >= 16)
 #include <sys/auxv.h>
 #endif
@@ -58,6 +59,8 @@ extern void *__elf_aux_vector;
 #include <dlfcn.h>
 #endif
 
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
@@ -130,11 +133,21 @@ static const unsigned int sym_known_nb = sizeof(sym_known_fcts) / sizeof(sym_kno
 /* the currently published, immutable snapshot (atomic) */
 static struct sym_table * volatile cur_symtab;
 
+/* A file mapping kept alive until the end of a build: collected symbol names
+ * point into these mappings and are copied into the table's name pool just
+ * before the mappings are released.
+ */
+struct mapref {
+	void *addr;
+	size_t size;
+};
 
 /* Transient state while a snapshot is being built. */
 struct sym_build {
 	struct sym_entry *syms;    /* growing array of collected symbols */
 	unsigned int n, alloc;
+	struct mapref *maps;       /* file mappings to release at the end of the build */
+	unsigned int nmaps, mapalloc;
 	void **bufs;               /* memory blocks to release at the end of the build */
 	unsigned int nbufs, balloc;
 	const unsigned char *debugdata; /* compressed table of the object being collected */
@@ -228,13 +241,41 @@ static void add_known(struct sym_build *b, const struct sym_obj *obj)
 			      sym_known_fcts[i].name, obj);
 }
 
+/* The list of directories searched for separate debug files. The built-in
+ * default "/usr/lib/debug" is always searched first.
+ */
+static const char **dbg_dirs;
+static unsigned int nb_dbg_dirs;
 
+int sym_add_debug_dir(const char *dir)
+{
+	const char **n;
+	char *dup;
+
+	dup = strdup(dir);
+	if (!dup)
+		return -1;
+	n = realloc(dbg_dirs, (nb_dbg_dirs + 1) * sizeof(*dbg_dirs));
+	if (!n) {
+		free(dup);
+		return -1;
+	}
+	dbg_dirs = n;
+	dbg_dirs[nb_dbg_dirs++] = dup;
+	return 0;
+}
 
 #if defined(__ELF__)
 
 #include <elf.h>
 #include <link.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <unistd.h>
+#include <sys/types.h>
 
+#include <haproxy/hash.h>
+#include <haproxy/net_helper.h>
 #include <import/xz.h>
 
 /* Largest decompressed symbol table we accept, and largest LZMA2 dictionary we
@@ -315,8 +356,74 @@ static int elf_hdr_ok(const ElfW(Ehdr) *eh, size_t sz)
 	return 1;
 }
 
+/* returns the section header string table pointer and stores its size, or NULL
+ * on any inconsistency. Handles the SHN_XINDEX extension for e_shstrndx.
+ */
+static const char *elf_shstrtab(const ElfW(Ehdr) *eh, size_t sz, size_t *pstrsz)
+{
+	const ElfW(Shdr) *sh = (const ElfW(Shdr) *)((const char *)eh + eh->e_shoff);
+	unsigned int idx = eh->e_shstrndx;
+	const char *str;
 
+	if (idx == SHN_XINDEX)
+		idx = sh[0].sh_link;
+	if (idx >= eh->e_shnum)
+		return NULL;
 
+	str = (const char *)eh + sh[idx].sh_offset;
+	if (!in_map(str, sh[idx].sh_size, eh, sz) || !sh[idx].sh_size)
+		return NULL;
+	*pstrsz = sh[idx].sh_size;
+	return str;
+}
+
+static void *map_file_ro(const char *path, size_t *psz)
+{
+	struct stat st;
+	void *map;
+	int fd;
+
+	fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return NULL;
+
+	if (fstat(fd, &st) != 0 || st.st_size <= 0 ||
+	    (size_t)st.st_size < sizeof(ElfW(Ehdr))) {
+		close(fd);
+		return NULL;
+	}
+
+	map = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	if (map == MAP_FAILED)
+		return NULL;
+
+	*psz = st.st_size;
+	return map;
+}
+
+/* records a mapping to release when the build finishes; the mapping is
+ * released right away when it cannot be recorded, so the caller must not use
+ * it afterwards.
+ */
+static void build_keep_map(struct sym_build *b, void *addr, size_t size)
+{
+	if (b->nmaps >= b->mapalloc) {
+		unsigned int na = b->mapalloc ? b->mapalloc * 2 : 16;
+		struct mapref *nm = realloc(b->maps, na * sizeof(*nm));
+
+		if (!nm) {
+			munmap(addr, size);
+			b->oom = 1;
+			return;
+		}
+		b->maps = nm;
+		b->mapalloc = na;
+	}
+	b->maps[b->nmaps].addr = addr;
+	b->maps[b->nmaps].size = size;
+	b->nmaps++;
+}
 
 /* records a memory block to release when the build finishes */
 static int build_keep_buf(struct sym_build *b, void *buf)
@@ -376,10 +483,170 @@ static void collect_syms(struct sym_build *b, const void *map, size_t sz,
 	}
 }
 
+static const char *dbg_dir(unsigned int idx)
+{
+	if (idx == 0)
+		return "/usr/lib/debug";
+	if (idx - 1 < nb_dbg_dirs)
+		return dbg_dirs[idx - 1];
+	return NULL;
+}
 
+/* Extracts the GNU build-id (raw bytes) and/or the .gnu_debuglink name from the
+ * section headers of the mapping.
+ */
+static void elf_debug_refs(const void *map, size_t sz, const ElfW(Ehdr) *eh,
+			   const char *shstr, size_t shstrsz,
+			   const unsigned char **bid, size_t *bidlen,
+			   const char **link, size_t *linklen, size_t *linksz)
+{
+	const ElfW(Shdr) *sh = (const ElfW(Shdr) *)((const char *)map + eh->e_shoff);
+	unsigned int i;
 
+	*bid = NULL; *bidlen = 0;
+	*link = NULL; *linklen = 0; *linksz = 0;
 
+	for (i = 0; i < eh->e_shnum; i++) {
+		if (sh[i].sh_name >= shstrsz)
+			continue;
 
+		if (!*bid && sh[i].sh_type == SHT_NOTE &&
+		    strcmp(shstr + sh[i].sh_name, ".note.gnu.build-id") == 0) {
+			const ElfW(Nhdr) *nh = (const ElfW(Nhdr) *)((const char *)map + sh[i].sh_offset);
+			size_t off, namesz, descsz;
+
+			if (!in_map(nh, sh[i].sh_size, map, sz) || sh[i].sh_size < sizeof(*nh))
+				continue;
+			namesz = (nh->n_namesz + 3) & ~3U;
+			descsz = nh->n_descsz;
+			off = sizeof(*nh) + namesz;
+			if (nh->n_type != NT_GNU_BUILD_ID || off + descsz > sh[i].sh_size)
+				continue;
+			if (nh->n_namesz < 4 || memcmp((const char *)(nh + 1), "GNU", 4) != 0)
+				continue;
+			if (descsz >= 2 && descsz <= 64) {
+				*bid = (const unsigned char *)nh + off;
+				*bidlen = descsz;
+			}
+		}
+		else if (!*link && sh[i].sh_type == SHT_PROGBITS &&
+			 strcmp(shstr + sh[i].sh_name, ".gnu_debuglink") == 0) {
+			const char *l = (const char *)map + sh[i].sh_offset;
+			size_t ll;
+
+			if (!in_map(l, sh[i].sh_size, map, sz) || !sh[i].sh_size)
+				continue;
+			ll = strnlen(l, sh[i].sh_size);
+			if (ll && ll < sh[i].sh_size) { /* must be NUL-terminated */
+				*link = l;
+				*linklen = ll;
+				*linksz = sh[i].sh_size;
+			}
+		}
+	}
+}
+
+/* Checks that the separate debug file mapped at [<dmap>,<dmap>+<dsz>) (header
+ * <deh>) really belongs to the object it was found for: same GNU build-id when
+ * the object has one, otherwise a matching .gnu_debuglink CRC32 (as gdb does).
+ * Returns 1 if usable.
+ */
+static int debug_file_ok(const void *dmap, size_t dsz, const ElfW(Ehdr) *deh,
+			 const unsigned char *bid, size_t bidlen,
+			 const char *link, size_t linklen, size_t linksz)
+{
+	const unsigned char *dbid;
+	const char *dlink, *dshstr;
+	size_t dbidlen, dlinklen, dlinksz, dshstrsz = 0, off;
+
+	if (bid) {
+		dshstr = elf_shstrtab(deh, dsz, &dshstrsz);
+		if (!dshstr)
+			return 0;
+		elf_debug_refs(dmap, dsz, deh, dshstr, dshstrsz,
+			       &dbid, &dbidlen, &dlink, &dlinklen, &dlinksz);
+		return dbid && dbidlen == bidlen && memcmp(dbid, bid, bidlen) == 0;
+	}
+	if (link) {
+		/* the CRC32 follows the NUL-terminated name, 4-byte aligned */
+		off = (linklen + 4) & ~(size_t)3;
+		if (off + 4 > linksz || dsz > INT_MAX)
+			return 0;
+		return read_u32(link + off) == hash_crc32(dmap, (int)dsz);
+	}
+	return 0;
+}
+
+static void *try_debug_file(const char *path, size_t *dsz,
+			    const unsigned char *bid, size_t bidlen,
+			    const char *link, size_t linklen, size_t linksz)
+{
+	void *m = map_file_ro(path, dsz);
+
+	if (!m)
+		return NULL;
+	if (elf_hdr_ok(m, *dsz) && debug_file_ok(m, *dsz, m, bid, bidlen, link, linklen, linksz))
+		return m;
+	munmap(m, *dsz);
+	return NULL;
+}
+
+/* Looks for the separate debug file of the executable/library, and returns
+ * the mapping, if any were found.
+ */
+static void *map_debug_file(const char *obj_path, size_t *dsz,
+			    const unsigned char *bid, size_t bidlen,
+			    const char *link, size_t linklen, size_t linksz)
+{
+	const char *slash;
+	size_t dirlen, j;
+	const char *root;
+	char buf[PATH_MAX];
+	void *res;
+	unsigned int d;
+	int n;
+
+	/* directory of the object, including the trailing slash (may be empty) */
+	slash = strrchr(obj_path, '/');
+	dirlen = slash ? (size_t)(slash - obj_path) + 1 : 0;
+
+	/* 1. for each debug directory, <root>/.build-id/<xx>/<rest>.debug */
+	for (d = 0; bid && (root = dbg_dir(d)); d++) {
+		n = snprintf(buf, sizeof(buf), "%s/.build-id/%02x/", root, bid[0]);
+		for (j = 1; j < bidlen && n > 0 && n + 2 < (int)sizeof(buf); j++)
+			n += snprintf(buf + n, sizeof(buf) - n, "%02x", bid[j]);
+		if (n > 0 && n + 6 < (int)sizeof(buf)) {
+			memcpy(buf + n, ".debug", 7);
+			if ((res = try_debug_file(buf, dsz, bid, bidlen, link, linklen, linksz)))
+				return res;
+		}
+	}
+
+	if (!link)
+		return NULL;
+
+	/* 2. .gnu_debuglink, in locations relative to the object itself:
+	 *    <objdir>/<name> and <objdir>/.debug/<name>
+	 */
+	n = snprintf(buf, sizeof(buf), "%.*s%.*s",
+		     (int)dirlen, obj_path, (int)linklen, link);
+	if (n > 0 && n < (int)sizeof(buf) && (res = try_debug_file(buf, dsz, bid, bidlen, link, linklen, linksz)))
+		return res;
+
+	n = snprintf(buf, sizeof(buf), "%.*s.debug/%.*s",
+		     (int)dirlen, obj_path, (int)linklen, link);
+	if (n > 0 && n < (int)sizeof(buf) && (res = try_debug_file(buf, dsz, bid, bidlen, link, linklen, linksz)))
+		return res;
+
+	/* 3. for each debug directory, <root>/<objdir>/<name> */
+	for (d = 0; (root = dbg_dir(d)); d++) {
+		n = snprintf(buf, sizeof(buf), "%s%.*s%.*s",
+			     root, (int)dirlen, obj_path, (int)linklen, link);
+		if (n > 0 && n < (int)sizeof(buf) && (res = try_debug_file(buf, dsz, bid, bidlen, link, linklen, linksz)))
+			return res;
+	}
+	return NULL;
+}
 
 
 static void elf_find_symtab(const ElfW(Ehdr) *eh,
@@ -479,6 +746,154 @@ static void collect_debugdata(struct sym_build *b, const struct sym_obj *obj,
 }
 
 
+/* Returns the build-id, if available */
+static const unsigned char *mem_build_id(const ElfW(Phdr) *phdr, unsigned int phnum,
+					 unsigned long base, size_t *len)
+{
+	unsigned int i, j;
+
+	for (i = 0; i < phnum; i++) {
+		const unsigned char *p, *name, *desc;
+		size_t rem, off, align, namesz, descsz;
+
+		if (phdr[i].p_type != PT_NOTE || !phdr[i].p_filesz)
+			continue;
+
+		for (j = 0; j < phnum; j++) {
+			if (phdr[j].p_type == PT_LOAD && (phdr[j].p_flags & PF_R) &&
+			    phdr[i].p_vaddr >= phdr[j].p_vaddr &&
+			    phdr[i].p_vaddr + phdr[i].p_filesz <= phdr[j].p_vaddr + phdr[j].p_filesz)
+				break;
+		}
+		if (j == phnum)
+			continue;
+
+		/* entries are padded to the segment's alignment, 4 or 8 */
+		align = phdr[i].p_align == 8 ? 8 : 4;
+		p = (const unsigned char *)(base + phdr[i].p_vaddr);
+		rem = phdr[i].p_filesz;
+		off = 0;
+		while (rem - off >= sizeof(ElfW(Nhdr))) {
+			const ElfW(Nhdr) *nh = (const ElfW(Nhdr) *)(p + off);
+
+			off += sizeof(*nh);
+			namesz = ((size_t)nh->n_namesz + align - 1) & ~(align - 1);
+			descsz = ((size_t)nh->n_descsz + align - 1) & ~(align - 1);
+			if (namesz > rem - off)
+				break;
+			name = p + off;
+			off += namesz;
+			if (descsz > rem - off)
+				break;
+			desc = p + off;
+			off += descsz;
+
+			if (nh->n_type == NT_GNU_BUILD_ID && nh->n_namesz == 4 &&
+			    memcmp(name, "GNU", 4) == 0 &&
+			    nh->n_descsz >= 2 && nh->n_descsz <= 64) {
+				*len = nh->n_descsz;
+				return desc;
+			}
+		}
+	}
+	*len = 0;
+	return NULL;
+}
+
+/*
+ * Collect the local symbols from the symtab.
+ */
+#if !defined(HA_HAVE_DL_ITERATE_PHDR)
+/* the loader callback is the only enumerator of the loaded objects, so the
+ * file parsing stays unreferenced where that API is missing; reading a file
+ * needs no loader help.
+ */
+__maybe_unused
+#endif
+static int parse_object(struct sym_build *b, const char *path, const struct sym_obj *obj,
+			const ElfW(Phdr) *phdr, unsigned int phnum)
+{
+	const ElfW(Shdr) *symtab, *strtab;
+	const ElfW(Ehdr) *eh, *deh = NULL;
+	void *map, *dmap = NULL;
+	size_t mapsz = 0, dmapsz = 0;
+	const unsigned char *bid = NULL, *mbid;
+	const char *link = NULL, *shstr;
+	size_t bidlen = 0, mbidlen, linklen = 0, linksz = 0, shstrsz = 0;
+	unsigned int before;
+
+	if (!path)
+		return 0;
+
+	map = map_file_ro(path, &mapsz);
+	if (!map)
+		return 0;
+
+	eh = map;
+	if (!elf_hdr_ok(eh, mapsz) ||
+	    eh->e_phentsize != sizeof(ElfW(Phdr)) || eh->e_phnum != phnum ||
+	    !in_map((const char *)eh + eh->e_phoff, (size_t)phnum * sizeof(ElfW(Phdr)), eh, mapsz) ||
+	    memcmp((const char *)eh + eh->e_phoff, phdr, (size_t)phnum * sizeof(ElfW(Phdr))) != 0) {
+		munmap(map, mapsz);
+		return 0;
+	}
+
+	shstr = elf_shstrtab(eh, mapsz, &shstrsz);
+	if (shstr)
+		elf_debug_refs(map, mapsz, eh, shstr, shstrsz,
+			       &bid, &bidlen, &link, &linklen, &linksz);
+
+	/* Same program headers do not make it the same build: a rebuilt library
+	 * often keeps its layout. So when the loaded image carries a build-id,
+	 * the file must carry the same one.
+	 */
+	mbid = mem_build_id(phdr, phnum, obj->base, &mbidlen);
+	if (mbid && (!bid || bidlen != mbidlen || memcmp(bid, mbid, bidlen) != 0)) {
+		munmap(map, mapsz);
+		return 0;
+	}
+
+	elf_find_symtab(eh, &symtab, &strtab);
+
+	/* if the object is stripped (no symtab), try separate debug info */
+	if (!symtab) {
+		dmap = map_debug_file(path, &dmapsz, bid, bidlen, link, linklen, linksz);
+		if (dmap) {
+			/* the debug file's symtab matches the object's vaddrs */
+			deh = dmap;
+			elf_find_symtab(deh, &symtab, &strtab);
+		}
+	}
+
+	if (!symtab) {
+		munmap(map, mapsz);
+		if (dmap)
+			munmap(dmap, dmapsz);
+		return 0;
+	}
+
+	before = b->n;
+	collect_syms(b, deh ? dmap : map, deh ? dmapsz : mapsz,
+		     symtab, strtab, obj->base, obj);
+
+	if (b->n == before) {
+		munmap(map, mapsz);
+		if (dmap)
+			munmap(dmap, dmapsz);
+		return b->oom ? -1 : 0;
+	}
+
+	/* keep the mappings alive: names point into them, they are copied out
+	 * at the end of the build. On OOM a mapping may already be released
+	 * while symbols still point into it; this is safe only because b->oom
+	 * aborts the build before any name is read.
+	 */
+	build_keep_map(b, map, mapsz);
+	if (dmap)
+		build_keep_map(b, dmap, dmapsz);
+
+	return b->oom ? -1 : 1;
+}
 
 #if defined(HA_HAVE_DL_ITERATE_PHDR)
 
@@ -604,17 +1019,21 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 {
 	struct sym_build *b = data;
 	unsigned long beg = ~0UL, end = 0;
-	const char *name = info->dlpi_name;
+	const char *path = NULL, *name = info->dlpi_name;
 	struct sym_obj *obj;
 	unsigned int before;
 	int is_exe = 0;
-	int idx, seen = 0;
+	int idx, seen = 0, ret = 0;
 
 	if (!name || !*name) {
 		/* the main executable has an empty name */
-		name = get_exec_path();
+		path = name = get_exec_path();
 		is_exe = 1;
 	}
+	else if (strchr(name, '/')) {
+		path = name;
+	}
+	/* else vDSO or similar: no backing file, memory image only */
 
 	/* compute the runtime address range from the PT_LOAD segments */
 	for (idx = 0; idx < info->dlpi_phnum; idx++) {
@@ -647,10 +1066,22 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 
 	before = b->n;
 
-	/* the embedded table first, so that it wins dedup over the memory
-	 * image (radix sort is stable), then the well-known functions
-	 * (sizeless) as a last resort.
+	/* .symtab first so it wins dedup over an alias at the same address
+	 * (radix sort is stable), then the memory image, then the well-known
+	 * functions (sizeless) as a last resort.
 	 */
+#ifdef __linux__
+	/* always the running image, even if the file was moved or replaced,
+	 * or if the exec path is relative and the process changed directory.
+	 */
+	if (is_exe)
+		ret = parse_object(b, "/proc/self/exe", obj, info->dlpi_phdr, info->dlpi_phnum);
+#endif
+	if (ret == 0)
+		ret = parse_object(b, path, obj, info->dlpi_phdr, info->dlpi_phnum);
+	if (ret < 0)
+		goto fail;
+
 	collect_dynsym_mem(b, info, obj);
 
 	/* a table stored by the build is covered by a segment of its own, whose
@@ -836,6 +1267,13 @@ static void sym_build(void)
 	published = 1;
 
  leave:
+	/* release all file mappings; collected names have been copied out (or
+	 * are being discarded along with b.syms).
+	 */
+	for (i = 0; i < b.nmaps; i++)
+		munmap(b.maps[i].addr, b.maps[i].size);
+	free(b.maps);
+
 	for (i = 0; i < b.nbufs; i++)
 		free(b.bufs[i]);
 	free(b.bufs);
@@ -863,7 +1301,15 @@ static void sym_build(void)
  */
 static void sym_free_all(void)
 {
+	unsigned int i;
+
 	sym_free_table(HA_ATOMIC_XCHG(&cur_symtab, NULL));
+
+	for (i = 0; i < nb_dbg_dirs; i++)
+		free((void *)dbg_dirs[i]);
+	free(dbg_dirs);
+	dbg_dirs = NULL;
+	nb_dbg_dirs = 0;
 }
 
 REGISTER_POST_DEINIT(sym_free_all);

@@ -68,6 +68,9 @@ const char *get_exec_path(void);
 /* builds the table (post-check) */
 int sym_load_all(void);
 
+/* adds a directory to search for separate debug files (config time) */
+int sym_add_debug_dir(const char *dir);
+
 /* Note that this may result in opening libgcc() on first call, so it may need
  * to have been called once before chrooting.
  */
