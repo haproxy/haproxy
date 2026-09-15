@@ -1145,7 +1145,10 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 			b->debugdata_size = end - (unsigned long)b->debugdata;
 	}
 
-	if (b->debugdata && b->debugdata_size)
+	/* the file's symbol table, when we could read it, is a superset of the
+	 * embedded one, so only pay for the decompression when we have nothing.
+	 */
+	if (b->debugdata && b->debugdata_size && ret <= 0)
 		collect_debugdata(b, obj, b->debugdata, b->debugdata_size);
 
 	if (is_exe)
