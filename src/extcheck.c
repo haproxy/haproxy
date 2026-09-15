@@ -63,6 +63,10 @@ struct extcheck_env {
 enum {
 	EXTCHK_PATH = 0,
 
+	/* Process specific environment variables */
+	EXTCHK_HAPROXY_MASTER_ID,	/* the master's unique ID (empty if no master) */
+	EXTCHK_HAPROXY_WORKER_ID,	/* the worker's unique ID */
+
 	/* Proxy specific environment variables */
 	EXTCHK_HAPROXY_PROXY_NAME,	/* the backend name */
 	EXTCHK_HAPROXY_PROXY_ID,	/* the backend id */
@@ -84,6 +88,8 @@ enum {
 
 const struct extcheck_env extcheck_envs[EXTCHK_SIZE] = {
 	[EXTCHK_PATH]                   = { "PATH",                   EXTCHK_SIZE_EVAL_INIT },
+	[EXTCHK_HAPROXY_MASTER_ID]      = { "HAPROXY_MASTER_ID",      EXTCHK_SIZE_EVAL_INIT },
+	[EXTCHK_HAPROXY_WORKER_ID]      = { "HAPROXY_WORKER_ID",      EXTCHK_SIZE_EVAL_INIT },
 	[EXTCHK_HAPROXY_PROXY_NAME]     = { "HAPROXY_PROXY_NAME",     EXTCHK_SIZE_EVAL_INIT },
 	[EXTCHK_HAPROXY_PROXY_ID]       = { "HAPROXY_PROXY_ID",       EXTCHK_SIZE_EVAL_INIT },
 	[EXTCHK_HAPROXY_PROXY_ADDR]     = { "HAPROXY_PROXY_ADDR",     EXTCHK_SIZE_EVAL_INIT },
@@ -331,6 +337,11 @@ int prepare_external_check(struct check *check)
 	}
 
 	EXTCHK_SETENV(check, EXTCHK_PATH, path, err);
+	/* Add process environment variables. The master's ID is empty when
+	 * there is no master, i.e. when not running in master-worker mode.
+	 */
+	EXTCHK_SETENV(check, EXTCHK_HAPROXY_MASTER_ID, global.master_id ? global.master_id : "", err);
+	EXTCHK_SETENV(check, EXTCHK_HAPROXY_WORKER_ID, global.worker_id ? global.worker_id : "", err);
 	/* Add proxy environment variables */
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_PROXY_NAME, px->id, err);
 	EXTCHK_SETENV(check, EXTCHK_HAPROXY_PROXY_ID, ultoa_r(px->uuid, buf, sizeof(buf)), err);

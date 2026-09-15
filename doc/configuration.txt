@@ -8123,6 +8123,13 @@ external-check command <command>
   Some values are also provided through environment variables.
 
   Environment variables :
+    HAPROXY_MASTER_ID       The unique identifier of the master process, or
+                            empty when not running in master-worker mode. See
+                            section 2.3.
+
+    HAPROXY_WORKER_ID       The unique identifier of the worker process. See
+                            section 2.3 and the "worker-id" global keyword.
+
     HAPROXY_PROXY_ADDR      The first bind address if available (or empty if not
                             applicable, for example in a "backend" section).
 
