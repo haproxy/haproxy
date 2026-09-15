@@ -1,5 +1,6 @@
 #include <haproxy/stats-html.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #include <import/ist.h>
@@ -232,6 +233,8 @@ void stats_dump_html_info(struct stconn *sc)
 	const char *scope_ptr = stats_scope_ptr(appctx);
 	struct uri_auth *uri;
 	unsigned long long bps;
+	/* large enough for two forced GUID_MAX_LEN identifiers and the tags */
+	char proc_ids[384] = "";
 	int thr;
 
 	BUG_ON(!ctx->http_px);
@@ -250,6 +253,21 @@ void stats_dump_html_info(struct stconn *sc)
 	 */
 	bps = bps * 8 * 1538 / 1448;
 
+	/* The process' unique identifiers are reported along with the node
+	 * name, as they're complementary. The master comes first so that the
+	 * creation chain reads naturally, and it is absent when not running in
+	 * master-worker mode. These identifiers are only made of characters
+	 * which are valid in a GUID so they never need to be escaped.
+	 */
+	if ((ctx->flags & STAT_F_SHNODE) && global.worker_id) {
+		snprintf(proc_ids, sizeof(proc_ids),
+		         "%s%s%s<b>worker-id = </b> %s<br>\n",
+		         global.master_id ? "<b>master-id = </b> " : "",
+		         global.master_id ? global.master_id : "",
+		         global.master_id ? "; " : "",
+		         global.worker_id);
+	}
+
 	/* WARNING! this has to fit the first packet too.
 	 * We are around 3.5 kB, add adding entries will
 	 * become tricky if we want to support 4kB buffers !
@@ -262,6 +280,7 @@ void stats_dump_html_info(struct stconn *sc)
 	              "<h3>&gt; General process information</h3>\n"
 	              "<table border=0><tr><td align=\"left\" nowrap width=\"1%%\">\n"
 	              "<p><b>pid = </b> %d (process #%d, nbproc = %d, nbthread = %d)<br>\n"
+	              "%s"
 	              "<b>uptime = </b> %dd %dh%02dm%02ds; warnings = %u<br>\n"
 	              "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
 	              "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>reached = </b> %llu; <b>maxpipes = </b> %d<br>\n"
@@ -296,6 +315,7 @@ void stats_dump_html_info(struct stconn *sc)
 	              (ctx->flags & STAT_F_SHDESC) ? ": " : "",
 		      (ctx->flags & STAT_F_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
 	              pid, 1, 1, global.nbthread,
+	              proc_ids,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
 	              HA_ATOMIC_LOAD(&tot_warnings),

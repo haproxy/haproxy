@@ -3848,10 +3848,10 @@ worker-id <id>
       worker-id "pop7-node1-inst3-${HAPROXY_WORKER_ID}"
 
   The identifier is exported as the HAPROXY_WORKER_ID environment variable (see
-  section 2.3), is returned by the "worker_id" sample fetch function and on the
-  output of the "show info" CLI command. See also the "HAPROXY_MASTER_ID"
-  environment variable in section 2.3, and the "worker_id" sample fetch
-  function.
+  section 2.3), is returned by the "worker_id" sample fetch function, appears
+  on the output of the "show info" CLI command and on the HTML stats page when
+  "stats show-node" is enabled. See also the "HAPROXY_MASTER_ID" environment
+  variable in section 2.3, and the "worker_id" sample fetch function.
 
 wurfl-cache-size <size>
   Sets the WURFL Useragent cache size. For faster lookups, already processed user
@@ -13566,6 +13566,9 @@ stats show-node [ <name> ]
   This statement is useful for users that offer shared services to their
   customers, where node or description might be different on a stats page
   provided for each customer. Default behavior is not to show host name.
+  When enabled, the identifiers of the master process (when present) and the
+  worker process are also shown. This can be useful to more easily detect
+  reloads for example. See "worker-id" in the global section.
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
@@ -13579,8 +13582,8 @@ stats show-node [ <name> ]
         stats uri       /admin?stats
         stats refresh   5s
 
-  See also: "show-desc", "stats enable", "stats uri", and "node" in global
-            section.
+  See also: "show-desc", "stats enable", "stats uri", "worker-id" and "node" in
+            global section.
 
 stats show-version
   Enable statistics and show HAProxy version reporting
