@@ -703,15 +703,18 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 ms (~24.8 days).\n",
 			         file, linenum, args[1], args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		else if (err == PARSE_TIME_UNDER) {
 			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.\n",
 			         file, linenum, args[1], args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		else if (err) {
 			ha_alert("parsing [%s:%d]: unsupported character '%c' in '%s' (wants an integer delay).\n", file, linenum, *err, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.max_spread_checks = val;
 	}
