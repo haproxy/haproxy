@@ -1041,7 +1041,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
                 }
 
 		if (strcmp(args[1], "from") == 0) {
-			if (*(args[1]) == 0) {
+			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1053,7 +1053,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto alloc_error;
 		}
 		else if (strcmp(args[1], "mailers") == 0) {
-			if (*(args[1]) == 0) {
+			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1065,7 +1065,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto alloc_error;
 		}
 		else if (strcmp(args[1], "myhostname") == 0) {
-			if (*(args[1]) == 0) {
+			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1080,13 +1080,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->email_alert.level = get_log_level(args[2]);
 			if (curproxy->email_alert.level < 0) {
 				ha_alert("parsing [%s:%d] : unknown log level '%s' after '%s'\n",
-					 file, linenum, args[1], args[2]);
+					 file, linenum, args[2], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 		}
 		else if (strcmp(args[1], "to") == 0) {
-			if (*(args[1]) == 0) {
+			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
