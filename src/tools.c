@@ -7423,7 +7423,7 @@ const char *hash_anon(uint32_t scramble, const char *string2hash, const char *pr
 		index_hash = 0;
 
 	/* don't hash empty strings */
-	if (!string2hash[0] || (string2hash[0] == ' ' && string2hash[1] == 0))
+	if (!string2hash || !string2hash[0] || (string2hash[0] == ' ' && string2hash[1] == 0))
 		return string2hash;
 
 	if (scramble != 0) {
