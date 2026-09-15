@@ -2499,6 +2499,7 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 			"    duration. Supported conditions are:\n"
 			"    - <none> : by default, just sleep for the specified duration.\n"
 			"    - srv-removable <px>/<sv> : wait for this server to become removable.\n"
+			"    - be-removable <px> : wait for this backend to become removable.\n"
 			"";
 
 		if (strcmp(args[2], "-h") == 0)
