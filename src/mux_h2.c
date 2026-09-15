@@ -7448,7 +7448,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	bsize = htx_get_blksz(blk);
 	fsize = bsize;
 	trunc_out = 0;
-	if (type != HTX_BLK_DATA)
+	if (!htx_is_data_type(type))
 		goto end;
 
 	mbuf = br_tail(h2c->mbuf);
@@ -7487,7 +7487,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	 * from the HTX blocks.
 	 */
 	if (unlikely(fsize == count && b_size(mbuf) == b_size(buf) &&
-	             htx_nbblks(htx) == 1 && type == HTX_BLK_DATA &&
+	             htx_nbblks(htx) == 1 && htx_is_data_type(type) &&
 	             fsize <= h2s_mws(h2s) && fsize <= h2c->mws && fsize <= h2c->mfs)) {
 		void *old_area = mbuf->area;
 
@@ -7726,7 +7726,7 @@ static size_t h2s_skip_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	type  = htx_get_blk_type(blk);
 	bsize = htx_get_blksz(blk);
 	fsize = bsize;
-	if (type != HTX_BLK_DATA)
+	if (!htx_is_data_type(type))
 		goto end;
 
 	if (fsize > count)
@@ -8259,6 +8259,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 				break;
 
 			case HTX_BLK_DATA:
+			case HTX_BLK_RAW_DATA:
 				/* all these cause the emission of a DATA frame (possibly empty) */
 				if (!(h2s->h2c->flags & H2_CF_IS_BACK) &&
 				    (h2s->flags & (H2_SF_BODY_TUNNEL|H2_SF_BODYLESS_RESP)) == H2_SF_BODYLESS_RESP)
