@@ -476,7 +476,8 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
  * zero-copy is performed. It returns the number of bytes copied.
  */
 static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_t ofs,
-			       size_t count, size_t max, struct buffer *htxbuf)
+			       size_t count, size_t max, struct buffer *htxbuf,
+			       enum htx_blk_type type)
 {
 	struct htx *tmp_htx = *dsthtx;
 	size_t block1, block2, ret = 0;
@@ -512,7 +513,7 @@ static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_
 		htx_reset(tmp_htx);
 		b_set_data(htxbuf, b_size(htxbuf));
 
-		blk = htx_add_blk(tmp_htx, HTX_BLK_DATA, count);
+		blk = htx_add_blk(tmp_htx, type, count);
 		blk->info += count;
 
 		*dsthtx = tmp_htx;
@@ -541,9 +542,9 @@ static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_
 			block2 = max;
 	}
 
-	ret = htx_add_data(tmp_htx, ist2(b_peek(srcbuf, ofs), block1));
+	ret = htx_add_data_type(tmp_htx, ist2(b_peek(srcbuf, ofs), block1), type);
 	if (ret == block1 && block2)
-		ret += htx_add_data(tmp_htx, ist2(b_orig(srcbuf), block2));
+		ret += htx_add_data_type(tmp_htx, ist2(b_orig(srcbuf), block2), type);
   end:
 	return ret;
 }
@@ -583,7 +584,7 @@ static size_t h1_parse_chunk(struct h1m *h1m, struct htx **dsthtx,
 		sz =  b_data(srcbuf) - ofs;
 		if (unlikely(sz > h1m->curr_len))
 			sz = h1m->curr_len;
-		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, lmax, htxbuf);
+		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, lmax, htxbuf, HTX_BLK_DATA);
 		lmax -= htx_used_space(*dsthtx) - used;
 		ofs += sz;
 		total += sz;
@@ -933,7 +934,7 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		sz = b_data(srcbuf) - ofs;
 		if (unlikely(sz > h1m->curr_len))
 			sz = h1m->curr_len;
-		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
+		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf, HTX_BLK_DATA);
 		h1m->curr_len -= sz;
 		total += sz;
 		if (!h1m->curr_len) {
@@ -953,9 +954,13 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		htx_set_eom(*dsthtx);
 	}
 	else {
-		/* no content length, read till SHUTW */
+		/* no content length, read till SHUTW. In TUNNEL state, these
+		 * data are tunneled data. They must not be mixed with HTTP
+		 * data, so a dedicated block type is used for them.
+		 */
 		sz = b_data(srcbuf) - ofs;
-		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
+		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf,
+				      (h1m->state == H1_MSG_TUNNEL ? HTX_BLK_RAW_DATA : HTX_BLK_DATA));
 		total += sz;
 		h1m->body_len += sz;
 	}
