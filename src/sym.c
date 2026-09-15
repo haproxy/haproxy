@@ -16,6 +16,9 @@
  * linker exposes dl_iterate_phdr(), from the exported symbols of the
  * executable and of every loaded shared library, read straight from their
  * memory image (what dladdr() sees, but lock-free and usable in a chroot).
+ * It also carries the helpers needed to collect the symbols of an ELF image
+ * available in memory, which the next commits use to read the symbol tables
+ * found in the objects themselves and in their files.
  *
  * Lookups (sym_resolve()) are lock-free and async-signal-safe: they only read
  * an immutable snapshot, replaced only while no thread is running and
@@ -126,6 +129,7 @@ static const unsigned int sym_known_nb = sizeof(sym_known_fcts) / sizeof(sym_kno
 /* the currently published, immutable snapshot (atomic) */
 static struct sym_table * volatile cur_symtab;
 
+
 /* Transient state while a snapshot is being built. */
 struct sym_build {
 	struct sym_entry *syms;    /* growing array of collected symbols */
@@ -219,18 +223,140 @@ static void add_known(struct sym_build *b, const struct sym_obj *obj)
 			      sym_known_fcts[i].name, obj);
 }
 
-#if defined(HA_HAVE_DL_ITERATE_PHDR)
+
+
+#if defined(__ELF__)
 
 #include <elf.h>
+#include <link.h>
 
-/* native ELF symbol-type accessor, derived from the toolchain since glibc
- * doesn't provide *_NATIVE convenience macros.
+
+
+/* native ELF class / endianness / symbol-type accessor, derived from the
+ * toolchain since glibc doesn't provide *_NATIVE convenience macros.
  */
 #if __WORDSIZE == 64
+# define SYM_ELFCLASS    ELFCLASS64
 # define SYM_ST_TYPE(i)  ELF64_ST_TYPE(i)
 #else
+# define SYM_ELFCLASS    ELFCLASS32
 # define SYM_ST_TYPE(i)  ELF32_ST_TYPE(i)
 #endif
+
+#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+# define SYM_ELFDATA     ELFDATA2MSB
+#else
+# define SYM_ELFDATA     ELFDATA2LSB
+#endif
+
+
+/* returns true if the [ptr, ptr+len) range lies entirely within the mapping
+ * [map, map+sz). Also guards against length overflow.
+ */
+static inline int in_map(const void *ptr, size_t len, const void *map, size_t sz)
+{
+	const char *p = ptr, *m = map;
+
+	if (p < m)
+		return 0;
+	if (len > sz)
+		return 0;
+	return (size_t)(p - m) <= sz - len;
+}
+
+/* validates an ELF header for the native class/endianness and a sane section
+ * header table that fits in the <sz>-byte mapping. Returns 1 if usable.
+ */
+static __maybe_unused int elf_hdr_ok(const ElfW(Ehdr) *eh, size_t sz)
+{
+	if (!in_map(eh, sizeof(*eh), eh, sz))
+		return 0;
+	if (memcmp(eh->e_ident, ELFMAG, SELFMAG) != 0)
+		return 0;
+	if (eh->e_ident[EI_CLASS] != SYM_ELFCLASS)
+		return 0;
+	if (eh->e_ident[EI_DATA] != SYM_ELFDATA)
+		return 0;
+	if (eh->e_shentsize != sizeof(ElfW(Shdr)))
+		return 0;
+	if (!eh->e_shoff || !eh->e_shnum)
+		return 0;
+	if (!in_map((const char *)eh + eh->e_shoff,
+		    (size_t)eh->e_shnum * sizeof(ElfW(Shdr)), eh, sz))
+		return 0;
+	return 1;
+}
+
+
+
+
+
+static __maybe_unused void collect_syms(struct sym_build *b, const void *map, size_t sz,
+			 const ElfW(Shdr) *symsh, const ElfW(Shdr) *strsh,
+			 unsigned long base, const struct sym_obj *obj)
+{
+	const ElfW(Sym) *sym;
+	const char *str;
+	size_t strsz, n, i;
+
+	if (!symsh || !strsh || symsh->sh_entsize != sizeof(ElfW(Sym)))
+		return;
+
+	sym = (const ElfW(Sym) *)((const char *)map + symsh->sh_offset);
+	if (!in_map(sym, symsh->sh_size, map, sz))
+		return;
+
+	str = (const char *)map + strsh->sh_offset;
+	strsz = strsh->sh_size;
+	if (!in_map(str, strsz, map, sz) || !strsz)
+		return;
+
+	n = symsh->sh_size / sizeof(ElfW(Sym));
+	for (i = 0; i < n && !b->oom; i++) {
+		unsigned char type = SYM_ST_TYPE(sym[i].st_info);
+		const char *name;
+
+		if (type != STT_FUNC && type != STT_GNU_IFUNC)
+			continue;
+		/* must be defined in a regular section and have a real value */
+		if (sym[i].st_shndx == SHN_UNDEF || sym[i].st_shndx >= SHN_LORESERVE)
+			continue;
+		if (!sym[i].st_value || sym[i].st_name >= strsz)
+			continue;
+		name = str + sym[i].st_name;
+		if (!*name)
+			continue;
+
+		build_add_sym(b, base + sym[i].st_value, sym[i].st_size, name, obj);
+	}
+}
+
+
+
+
+
+
+
+static __maybe_unused void elf_find_symtab(const ElfW(Ehdr) *eh,
+			    const ElfW(Shdr) **symtab, const ElfW(Shdr) **strtab)
+{
+	const ElfW(Shdr) *sh = (const ElfW(Shdr) *)((const char *)eh + eh->e_shoff);
+	unsigned int i;
+
+	*symtab = *strtab = NULL;
+	for (i = 0; i < eh->e_shnum; i++) {
+		if (sh[i].sh_type == SHT_SYMTAB && sh[i].sh_link < eh->e_shnum) {
+			*symtab = &sh[i];
+			*strtab = &sh[sh[i].sh_link];
+			return;
+		}
+	}
+}
+
+
+
+
+#if defined(HA_HAVE_DL_ITERATE_PHDR)
 
 /*
  * Collects the exported symbols of the object as provided by the dynamic
@@ -313,6 +439,7 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 	}
 }
 
+
 /* dl_iterate_phdr() callback: collects each loaded object into the builder.
  * Exported symbols come from the memory image, and the well-known entry
  * points of sym_known_fcts[] are always added for the executable. Returns
@@ -393,11 +520,12 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 }
 
 #endif /* HA_HAVE_DL_ITERATE_PHDR */
+#endif /* __ELF__ */
 
 /* collects everything known about the loaded objects */
 static void collect_all(struct sym_build *b)
 {
-#if defined(HA_HAVE_DL_ITERATE_PHDR)
+#if defined(HA_HAVE_DL_ITERATE_PHDR) && defined(__ELF__)
 	dl_iterate_phdr(phdr_cb, b);
 #else
 	/* without the dynamic linker's help, only the well-known functions,
@@ -487,7 +615,9 @@ static void sym_build(void)
 		out++;
 	}
 
-	/* copy the surviving names into a single pool owned by the snapshot */
+	/* copy the surviving names out of the (still-mapped) files into a single
+	 * pool so the mappings can then be released.
+	 */
 	pool = malloc(namebytes);
 	t = malloc(sizeof(*t));
 	if (!pool || !t)
