@@ -30,6 +30,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/compat.h>
 #include <haproxy/compiler.h>
+#include <haproxy/sym-t.h>
 #include <haproxy/tools.h>
 
 #if defined(USE_BACKTRACE) && defined(HA_HAVE_WORKING_BACKTRACE)
@@ -63,6 +64,9 @@ void *get_sym_next_addr(const char *name);
  * or NULL when not found.
  */
 const char *get_exec_path(void);
+
+/* builds the table (post-check) */
+int sym_load_all(void);
 
 /* Note that this may result in opening libgcc() on first call, so it may need
  * to have been called once before chrooting.

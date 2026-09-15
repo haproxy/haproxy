@@ -1,5 +1,5 @@
 /*
- * Symbol resolution helpers.
+ * In-process symbol table for backtraces.
  *
  * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  * Copyright (C) 2026 HAProxy Technologies
@@ -9,6 +9,15 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
+ * This maintains a table of function symbols (address, size, name, owning
+ * object) sorted by address, so that backtraces and pointer dumps can name
+ * the functions they hit. It is built at boot time
+ * from whatever is available; for now only the well-known entry points of
+ * sym_known_fcts[] are fed into it.
+ *
+ * Lookups (sym_resolve()) are lock-free and async-signal-safe: they only read
+ * an immutable snapshot, replaced only while no thread is running and
+ * released at deinit.
  */
 
 #define _GNU_SOURCE
@@ -43,12 +52,14 @@ extern void *__elf_aux_vector;
 #include <dlfcn.h>
 #endif
 
+
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/atomic.h>
 #include <haproxy/bug.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dgram.h>
+#include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
@@ -62,12 +73,351 @@ extern void *__elf_aux_vector;
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/sym.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 
 /* set to true if this is a static build */
 int build_is_static = 0;
+
+/* well-known entry points that must always resolve, even from a stripped or
+ * unreadable executable. Also fed to the in-process symbol table.
+ */
+extern void ha_dump_backtrace(struct buffer *, const char *, int);
+extern void cli_io_handler(struct appctx *);
+
+static const struct sym_known sym_known_fcts[] = {
+#define DEF_SYM(sym) { .func = (const void *)sym, .name = #sym }
+		DEF_SYM(process_stream),
+		DEF_SYM(task_run_applet),
+		DEF_SYM(run_poll_loop),
+		DEF_SYM(run_tasks_from_lists),
+		DEF_SYM(process_runnable_tasks),
+		DEF_SYM(sc_conn_io_cb),
+		DEF_SYM(sock_conn_iocb),
+		DEF_SYM(dgram_fd_handler),
+		DEF_SYM(listener_accept),
+		DEF_SYM(manage_global_listener_queue),
+		DEF_SYM(poller_pipe_io_handler),
+		DEF_SYM(mworker_accept_wrapper),
+		DEF_SYM(session_expire_embryonic),
+		DEF_SYM(ha_dump_backtrace),
+		DEF_SYM(cli_io_handler),
+#ifdef USE_THREAD
+		DEF_SYM(accept_queue_process),
+#endif
+#ifdef USE_LUA
+		DEF_SYM(hlua_process_task),
+#endif
+#ifdef SSL_MODE_ASYNC
+		DEF_SYM(ssl_async_fd_free),
+		DEF_SYM(ssl_async_fd_handler),
+#endif
+#ifdef USE_QUIC
+		DEF_SYM(quic_conn_sock_fd_iocb),
+#endif
+#undef DEF_SYM
+};
+static const unsigned int sym_known_nb = sizeof(sym_known_fcts) / sizeof(sym_known_fcts[0]);
+
+/* the currently published, immutable snapshot (atomic) */
+static struct sym_table * volatile cur_symtab;
+
+/* Transient state while a snapshot is being built. */
+struct sym_build {
+	struct sym_entry *syms;    /* growing array of collected symbols */
+	unsigned int n, alloc;
+	struct sym_obj **objs;     /* objects created this build, handed to the snapshot */
+	unsigned int nobjs, oalloc;
+	int oom;                   /* set on any allocation failure */
+};
+
+/* records an object created this build; returns 0 on success, -1 on OOM */
+static int build_keep_obj(struct sym_build *b, struct sym_obj *obj)
+{
+	if (b->nobjs >= b->oalloc) {
+		unsigned int na = b->oalloc ? b->oalloc * 2 : 16;
+		struct sym_obj **no = realloc(b->objs, na * sizeof(*no));
+
+		if (!no) {
+			b->oom = 1;
+			return -1;
+		}
+		b->objs = no;
+		b->oalloc = na;
+	}
+	b->objs[b->nobjs++] = obj;
+	return 0;
+}
+
+/* appends one symbol; <name> must stay valid until the names are copied into
+ * the pool at the end of the build. Sets b->oom on allocation failure.
+ */
+static void build_add_sym(struct sym_build *b, unsigned long addr,
+			  unsigned long size, const char *name,
+			  const struct sym_obj *obj)
+{
+	if (b->n >= b->alloc) {
+		unsigned int na = b->alloc ? b->alloc * 2 : 4096;
+		struct sym_entry *ns = realloc(b->syms, na * sizeof(*ns));
+
+		if (!ns) {
+			b->oom = 1;
+			return;
+		}
+		b->syms = ns;
+		b->alloc = na;
+	}
+	b->syms[b->n].addr = addr;
+	b->syms[b->n].size = size;
+	b->syms[b->n].name = name;
+	b->syms[b->n].obj  = obj;
+	b->n++;
+}
+
+/* LSD radix sort of <n> entries by their .addr field, 8 bits per pass. It is
+ * stable, so among equal addresses the entry collected first (see collect
+ * order) stays ahead of its aliases. <scratch> is an
+ * n-element scratch buffer. sizeof(long) (4 or 8) passes is even on every
+ * supported platform, so the result ends back in <a>.
+ */
+static void radix_sort_syms(struct sym_entry *a, struct sym_entry *scratch, unsigned int n)
+{
+	unsigned int pass, i;
+
+	for (pass = 0; pass < sizeof(unsigned long); pass++) {
+		size_t count[256] = { 0 };
+		unsigned int shift = pass * 8;
+		struct sym_entry *src = (pass & 1) ? scratch : a;
+		struct sym_entry *dst = (pass & 1) ? a : scratch;
+		size_t acc = 0, c;
+
+		for (i = 0; i < n; i++)
+			count[(src[i].addr >> shift) & 0xff]++;
+		for (i = 0; i < 256; i++) {
+			c = count[i];
+			count[i] = acc;
+			acc += c;
+		}
+		for (i = 0; i < n; i++) {
+			unsigned int k = (src[i].addr >> shift) & 0xff;
+
+			dst[count[k]++] = src[i];
+		}
+	}
+}
+
+static void add_known(struct sym_build *b, const struct sym_obj *obj)
+{
+	unsigned int i;
+
+	for (i = 0; i < sym_known_nb && !b->oom; i++)
+		build_add_sym(b, (unsigned long)sym_known_fcts[i].func, 0,
+			      sym_known_fcts[i].name, obj);
+}
+
+/* collects everything known about the loaded objects */
+static void collect_all(struct sym_build *b)
+{
+	struct sym_obj *obj;
+
+	obj = calloc(1, sizeof(*obj));
+	if (!obj) {
+		b->oom = 1;
+		return;
+	}
+	obj->high = ~0UL;
+	obj->is_exe = 1;
+	if (build_keep_obj(b, obj) != 0) {
+		free(obj);
+		return;
+	}
+	add_known(b, obj);
+}
+
+/* release a snapshot and every object it references; <t> may be NULL. Must
+ * not run while a thread may still be resolving: a build replaces the
+ * previous snapshot before the threads are started, and the deinit runs
+ * once they are gone.
+ */
+static void sym_free_table(struct sym_table *t)
+{
+	unsigned int i;
+
+	if (!t)
+		return;
+
+	for (i = 0; i < t->nobjs; i++) {
+		free((void *)t->objs[i]->file);
+		free(t->objs[i]);
+	}
+	free(t->objs);
+	free(t->syms);
+	free(t->names);
+	free(t);
+}
+
+/* build and publish the snapshot */
+static void sym_build(void)
+{
+	struct sym_build b = { 0 };
+	struct sym_entry *scratch = NULL;
+	struct sym_table *t = NULL, *prev = NULL;
+	char *pool = NULL, *p;
+	size_t namebytes = 0;
+	unsigned int i, out = 0;
+	int published = 0;
+
+	/* the table is built at boot, while the process is still starting and
+	 * no thread is running yet, so the build needs no locking. An init
+	 * phase may load more objects with dlopen() and build again to
+	 * cover them, releasing the previous snapshot; once threads are
+	 * running, later builds are ignored.
+	 */
+	if (!(global.mode & MODE_STARTING))
+		return;
+
+	collect_all(&b);
+	if (b.oom || !b.n)
+		goto leave;
+
+	/* sort all symbols of all objects by address */
+	scratch = malloc(b.n * sizeof(*scratch));
+	if (!scratch)
+		goto leave;
+	radix_sort_syms(b.syms, scratch, b.n);
+
+	/* drop duplicate addresses (keep the first collected), and size the name
+	 * pool from the survivors.
+	 */
+	for (i = 0; i < b.n; i++) {
+		if (out && b.syms[out - 1].addr == b.syms[i].addr)
+			continue;
+		b.syms[out] = b.syms[i];
+		namebytes += strlen(b.syms[i].name) + 1;
+		out++;
+	}
+
+	/* copy the surviving names into a single pool owned by the snapshot */
+	pool = malloc(namebytes);
+	t = malloc(sizeof(*t));
+	if (!pool || !t)
+		goto leave;
+
+	p = pool;
+	for (i = 0; i < out; i++) {
+		size_t l = strlen(b.syms[i].name) + 1;
+
+		memcpy(p, b.syms[i].name, l);
+		b.syms[i].name = p;
+		p += l;
+	}
+
+	t->syms = b.syms;   /* hand the sorted, deduped array to the snapshot */
+	t->nsyms = out;
+	t->names = pool;
+	t->objs = b.objs;   /* the objects are referenced by the published symbols */
+	t->nobjs = b.nobjs;
+	b.syms = NULL;      /* ownership transferred */
+	b.objs = NULL;
+	pool = NULL;
+
+	/* publish; the previous snapshot, if any, can be released: the build
+	 * runs before the threads are started, so nothing can be walking it.
+	 * The last published snapshot is released at deinit.
+	 */
+	prev = HA_ATOMIC_LOAD(&cur_symtab);
+	HA_ATOMIC_STORE(&cur_symtab, t);
+	published = 1;
+
+ leave:
+	/* on success the objects are referenced by the published symbols and
+	 * survive with the snapshot; on failure free them.
+	 */
+	if (!published) {
+		for (i = 0; i < b.nobjs; i++) {
+			free((void *)b.objs[i]->file);
+			free(b.objs[i]);
+		}
+		free(t);
+		free(pool);
+	}
+	free(b.objs);       /* NULL on success */
+	free(b.syms);       /* NULL on success */
+	free(scratch);
+
+	sym_free_table(prev);
+}
+
+/* release the last published snapshot; lookups fall back to dladdr() once
+ * the table pointer is NULL.
+ */
+static void sym_free_all(void)
+{
+	sym_free_table(HA_ATOMIC_XCHG(&cur_symtab, NULL));
+}
+
+REGISTER_POST_DEINIT(sym_free_all);
+
+int sym_load_all(void)
+{
+	sym_build();
+	return ERR_NONE;
+}
+
+static int sym_resolve(const void *addr, struct sym_lookup *out)
+{
+	const struct sym_table *t = HA_ATOMIC_LOAD(&cur_symtab);
+	unsigned long a = (unsigned long)addr;
+	const struct sym_entry *e;
+	const struct sym_obj *obj;
+	int lo, hi, mid, found;
+
+	if (!t || !t->nsyms)
+		return 0;
+
+	/* binary search the greatest symbol whose addr <= a, across all objects */
+	lo = 0;
+	hi = (int)t->nsyms - 1;
+	found = -1;
+	while (lo <= hi) {
+		mid = lo + (hi - lo) / 2;
+		if (t->syms[mid].addr <= a) {
+			found = mid;
+			lo = mid + 1;
+		}
+		else
+			hi = mid - 1;
+	}
+	if (found < 0)
+		return 0;
+
+	e = &t->syms[found];
+	obj = e->obj;
+
+	/* reject addresses beyond the owning object (e.g. in a gap between two
+	 * objects): they are not actually covered by this symbol. Let the caller
+	 * fall back to dladdr() in that case. Within the object, the nearest
+	 * lower symbol is reported even past its size: "sym+off/size" remains
+	 * usable as an address expression in gdb, unlike a raw object offset.
+	 * <inside> tells whether the symbol really covers the address (same
+	 * rule as dladdr(): a sizeless symbol only matches exactly).
+	 */
+	if (a >= obj->high)
+		return 0;
+
+	out->file = obj->file;
+	out->is_exe = obj->is_exe;
+	out->obj_base = obj->base;
+	out->name = e->name;
+	out->addr = (const void *)e->addr;
+	out->size = e->size;
+	out->inside = e->size ? a < e->addr + e->size : a == e->addr;
+	return 1;
+}
+
+REGISTER_POST_CHECK(sym_load_all);
 
 /* Tries to report the executable path name on platforms supporting this. If
  * not found or not possible, returns NULL.
@@ -202,6 +552,33 @@ void *get_sym_next_addr(const char *name)
 
 #endif /* elf & linux & dl */
 
+/* appends "[obj:]sym[+off[/size]]" for the symbol <sl> found for <addr>; the
+ * object prefix (between last '/' and first following '.') is omitted for the
+ * executable or when <with_obj> is zero.
+ */
+static void dump_sym_lookup(struct buffer *buf, const struct sym_lookup *sl,
+			    const void *addr, int with_obj)
+{
+	if (with_obj && !sl->is_exe && sl->file) {
+		const char *fn = sl->file, *q;
+
+		q = strrchr(fn, '/');
+		if (q)
+			fn = q + 1;
+		q = strchr(fn, '.');
+		if (!q)
+			q = fn + strlen(fn);
+		chunk_appendf(buf, "%.*s:", (int)(long)(q - fn), fn);
+	}
+
+	chunk_appendf(buf, "%s", sl->name);
+	if (addr != sl->addr) {
+		chunk_appendf(buf, "+%#lx", (long)(addr - sl->addr));
+		if (sl->size)
+			chunk_appendf(buf, "/%#lx", (long)sl->size);
+	}
+}
+
 /* Tries to append to buffer <buf> some indications about the symbol at address
  * <addr> using the following form:
  *   lib:+0xoffset              (unresolvable address from lib's base)
@@ -222,41 +599,6 @@ void *get_sym_next_addr(const char *name)
  */
 const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *addr)
 {
-	const struct {
-		const void *func;
-		const char *name;
-	} fcts[] = {
-#define DEF_SYM(sym, ...) { .func = ({ __VA_ARGS__; sym; }), .name = #sym }
-		DEF_SYM(process_stream),
-		DEF_SYM(task_run_applet),
-		DEF_SYM(run_poll_loop),
-		DEF_SYM(run_tasks_from_lists),
-		DEF_SYM(process_runnable_tasks),
-		DEF_SYM(sc_conn_io_cb),
-		DEF_SYM(sock_conn_iocb),
-		DEF_SYM(dgram_fd_handler),
-		DEF_SYM(listener_accept),
-		DEF_SYM(manage_global_listener_queue),
-		DEF_SYM(poller_pipe_io_handler),
-		DEF_SYM(mworker_accept_wrapper),
-		DEF_SYM(session_expire_embryonic),
-		DEF_SYM(ha_dump_backtrace, extern void ha_dump_backtrace(struct buffer *, const char *, int)),
-		DEF_SYM(cli_io_handler, extern void cli_io_handler(struct appctx*)),
-#ifdef USE_THREAD
-		DEF_SYM(accept_queue_process),
-#endif
-#ifdef USE_LUA
-		DEF_SYM(hlua_process_task),
-#endif
-#ifdef SSL_MODE_ASYNC
-		DEF_SYM(ssl_async_fd_free),
-		DEF_SYM(ssl_async_fd_handler),
-#endif
-#ifdef USE_QUIC
-		DEF_SYM(quic_conn_sock_fd_iocb),
-#endif
-#undef DEF_SYM
-	};
 
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
 	static Dl_info dli_main;
@@ -268,6 +610,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	size_t size = 0;
 	const char *fname, *p;
 #endif
+	struct sym_lookup sl;
 	size_t dist, best_dist;
 	int i, best_idx;
 
@@ -275,10 +618,10 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		chunk_appendf(buf, "%s", pfx);
 
 	best_idx = -1; best_dist = ~0;
-	for (i = 0; i < sizeof(fcts) / sizeof(fcts[0]); i++) {
-		if (addr < (void*)fcts[i].func)
+	for (i = 0; i < sym_known_nb; i++) {
+		if (addr < sym_known_fcts[i].func)
 			continue;
-		dist = addr - (void*)fcts[i].func;
+		dist = addr - sym_known_fcts[i].func;
 		if (dist < (1<<18) && dist < best_dist) {
 			best_dist = dist;
 			best_idx = i;
@@ -292,6 +635,16 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	 */
 	if (!best_dist)
 		goto use_array;
+
+	/* Then try the symbol table (sym.c). Lookups are lock-free and
+	 * async-signal-safe. Like dladdr(), a symbol is only considered
+	 * resolved (non-NULL return) when the address is really within it:
+	 * callers use this to tell code pointers from arbitrary values.
+	 */
+	if (sym_resolve(addr, &sl) && sl.name && sl.inside) {
+		dump_sym_lookup(buf, &sl, addr, 1);
+		return sl.addr;
+	}
 
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
 	/* Now let's try to be smarter */
@@ -396,7 +749,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	 * may have a close match. Otherwise we report an offset relative to main.
 	 */
 	if (best_idx >= 0) {
-		chunk_appendf(buf, "%s", fcts[best_idx].name);
+		chunk_appendf(buf, "%s", sym_known_fcts[best_idx].name);
 		if (best_dist)
 			chunk_appendf(buf, "+%#lx", (long)best_dist);
 		return best_dist == 0 ? addr : NULL;
