@@ -3326,7 +3326,7 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 	 */
 	if (!b_data(&h1c->obuf) &&
 	    htx_nbblks(htx) == 1 &&
-	    htx_get_blk_type(blk) == HTX_BLK_DATA &&
+	    htx_is_data_type(htx_get_blk_type(blk)) &&
 	    htx_get_blksz(blk) == count &&
 	    b_size(&h1c->obuf) == b_size(buf)) {
 		void *old_area;
@@ -3358,7 +3358,7 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 		sz = htx_get_blksz(blk);
 		vlen = sz;
 
-		if (type == HTX_BLK_DATA) {
+		if (htx_is_data_type(type)) {
 			if (vlen > count) {
 				/* Get the maximum amount of data we can xferred */
 				vlen = count;
