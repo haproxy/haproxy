@@ -749,6 +749,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		d = calloc(1, len);
 		if (!d)
 			goto alloc_error;
+		ha_free(&curproxy->desc);
 		curproxy->desc = d;
 
 		d += snprintf(d, curproxy->desc + len - d, "%s", args[1]);
