@@ -21,6 +21,7 @@
 #endif
 #include <haproxy/compression.h>
 #include <haproxy/global.h>
+#include <haproxy/guid.h>
 #include <haproxy/log.h>
 #include <haproxy/peers.h>
 #include <haproxy/protocol.h>
@@ -1903,6 +1904,48 @@ static int cfg_parse_global_stress_level(char **args, int section_type, struct p
 	return 0;
 }
 
+/* Parses the "worker-id" keyword, which assigns a unique identifier to this
+ * worker process. It is preset to a UUID v7 generated at boot (see
+ * init_worker_id()). It is parsed only by the worker and the environment
+ * variable is set on the fly so that its value is instantly known from next
+ * directives making use of "$HAPROXY_WORKER_ID" (e.g. log-format).
+ */
+static int cfg_parse_global_worker_id(char **args, int section_type, struct proxy *curpx,
+                                      const struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	char *errmsg = NULL;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an identifier as an argument.", args[0]);
+		return -1;
+	}
+
+	if (!guid_is_valid_fmt(args[1], &errmsg)) {
+		memprintf(err, "'%s': %s.", args[0], errmsg);
+		free(errmsg);
+		return -1;
+	}
+
+	if (setenv("HAPROXY_WORKER_ID", args[1], 1) != 0) {
+		memprintf(err, "'%s' failed to set HAPROXY_WORKER_ID to '%s' : %s.\n",
+			  args[0], args[1], strerror(errno));
+		return -1;
+	}
+
+	ha_free(&global.worker_id);
+	global.worker_id = strdup(args[1]);
+	if (!global.worker_id) {
+		memprintf(err, "cannot allocate memory for '%s'.", args[0]);
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode, KWF_DISCOVERY } ,
@@ -1959,6 +2002,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.streams-elasticity", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.takeover-other-tg-connections", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "unsetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "worker-id", cfg_parse_global_worker_id },
 	{ CFG_GLOBAL, "zero-warning", cfg_parse_global_mode, KWF_DISCOVERY },
 	{ 0, NULL, NULL },
 }};

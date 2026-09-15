@@ -981,6 +981,7 @@ Some variables are marked as not usable and not modifiable:
   * HAPROXY_CLI
   * HAPROXY_MASTER_CLI
   * HAPROXY_MASTER_ID
+  * HAPROXY_WORKER_ID
   * HAPROXY_LOCALPEER
 
 Their values are undefined during configuration parsing, they are set later
@@ -1003,6 +1004,7 @@ modes:
   | HAPROXY_CLI               |    |    |      |     |     |  X  |
   | HAPROXY_MASTER_CLI        |    |    |      |     |  X  |     |
   | HAPROXY_MASTER_ID         |    | X  |      |     |  X  |  X  |
+  | HAPROXY_WORKER_ID         |    | X  |      |     |     |  X  |
   | HAPROXY_LOCALPEER         |    | X  |      |     |     |  X  |
   | HAPROXY_HTTP_LOG_FMT      |    | X  |      |  X  |     |     |
   | HAPROXY_HTTP_CLF_LOG_FMT  |    | X  |      |  X  |     |     |
@@ -1070,6 +1072,17 @@ The variables in question are the following:
     the master, and it is also exposed to the worker. Its format is the same as
     the one of the proxies' and servers' "guid": at most 127 characters among
     letters, digits, '.', ':', '-' and '_'.
+
+  * HAPROXY_WORKER_ID: unique identifier of the worker process. It is randomly
+    generated at boot on the worker process, and may be overwritten by the
+    "worker-id" keyword in the global section. The generated random is changed
+    on every reload.
+
+ Its format is the same as the one of HAPROXY_MASTER_ID above. It is
+    set before the worker reads the rest of its configuration, so it may be
+    referenced from there, and being part of the process' environment it is
+    also visible to Lua (os.getenv()) and inherited by the processes launched
+    from the worker, such as external health checks.
 
   * HAPROXY_STARTUP_VERSION: contains the version used to start, in master-
     worker mode this is the version which was used to start the master, even
@@ -1858,6 +1871,7 @@ The following keywords are supported in the "global" section :
    - unix-bind
    - unsetenv
    - user
+   - worker-id
    - wurfl-cache-size
    - wurfl-data-file
    - wurfl-information-list
@@ -3811,6 +3825,28 @@ node <name>
   servers share the same IP address. By setting a different node-name on all
   nodes, it becomes easy to immediately spot what server is handling the
   traffic.
+
+worker-id <id>
+  Replaces the default worker process identifier with <id>. The format rules
+  are identical to the proxy and server "guid" attributes: up to 127 characters
+  containing only alphanumeric values, ".", ":", "-", and "_".
+
+  HAProxy generates a time-ordered UUIDv7 for the worker at boot before parsing
+  the configuration. This default identifier changes on every reload, embedding
+  the process start time to enable chronological sorting of workers in logs for
+  example.
+
+  Using worker-id overwrites this identifier and instantly updates the
+  HAPROXY_WORKER_ID environment variable. Any subsequent configuration
+  directive (e.g. "log-format") will use the replaced value. The directive
+  itself can reference HAPROXY_WORKER_ID before it is overwritten, allowing
+  to combine for example a node name with the generated UUID.
+
+  Example:
+      worker-id "pop7-node1-inst3-${HAPROXY_WORKER_ID}"
+
+  The identifier is exported as the HAPROXY_WORKER_ID environment variable (see
+  section 2.3). See also HAPROXY_MASTER_ID in section 2.3.
 
 wurfl-cache-size <size>
   Sets the WURFL Useragent cache size. For faster lookups, already processed user

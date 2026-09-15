@@ -2170,6 +2170,31 @@ static void step_init_1()
 	}
 }
 
+/* Assigns a unique ID to the worker process if it does not have one yet, i.e.
+ * if "worker-id" was not found in the configuration, and exports it to the
+ * environment so that it may be referenced as $HAPROXY_WORKER_ID from the
+ * configuration, and be inherited by the processes we fork. A time-ordered
+ * UUID v7 is used so that a newly started worker may be told from the previous
+ * ones, which may still be finishing their work after a reload. This must not
+ * be called in the master, which has its own ID instead, preserved across
+ * reloads (see mworker_prepare_master()).
+ */
+static void init_worker_id(void)
+{
+	if (!global.worker_id) {
+		char uuid[40];
+		struct buffer out = b_make(uuid, sizeof(uuid), 0, 0);
+
+		ha_generate_uuid_v7(&out);
+		global.worker_id = strdup(uuid);
+		if (!global.worker_id) {
+			ha_alert("Cannot allocate memory for the worker's ID.\n");
+			exit(EXIT_FAILURE);
+		}
+	}
+	setenv("HAPROXY_WORKER_ID", global.worker_id, 1);
+}
+
 /*
  * This is a second part of the late init (previous init() function). It should
  * be called after the stage, when all basic runtime modes (daemon, master-worker)
@@ -2883,6 +2908,7 @@ void deinit(void)
 	ha_free(&global.node);
 	ha_free(&global.desc);
 	ha_free(&global.master_id);
+	ha_free(&global.worker_id);
 	ha_free(&oldpids);
 	ha_free(&old_argv);
 	ha_free(&localpeer);
@@ -3628,6 +3654,9 @@ int main(int argc, char **argv)
 		 * here.
 		 */
 		setenv("HAPROXY_LOCALPEER", localpeer, 1);
+
+		/* Let's make sure HAPROXY_WORKER_ID is set as well */
+		init_worker_id();
 
 		/* nbthread and *thread keywords parsers are sensible to global
 		 * section position, it should be placed as the first in
