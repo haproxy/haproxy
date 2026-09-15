@@ -1914,6 +1914,7 @@ The following keywords are supported in the "global" section :
    - tune.cli.max-payload-size
    - tune.comp.maxlevel
    - tune.defaults.purge
+   - tune.disable-elf-symbols
    - tune.disable-fast-forward
    - tune.disable-zero-copy-forwarding
    - tune.epoll.mask-events
@@ -4340,6 +4341,15 @@ tune.defaults.purge [{ all | none | <element[,...]> }]
       # both syntax are equivalent
       tune.defaults.purge
       tune.defaults.purge proxies
+
+tune.disable-elf-symbols
+  Disables the in-process symbol table used to name functions in backtraces,
+  thread dumps and pointer dumps. It is built at startup from the symbols known
+  to the dynamic linker for the executable and all loaded libraries, and lets
+  more functions be named than dladdr() alone. When disabled, only dladdr() and
+  a small built-in list of functions are used, as in older versions. This
+  command is not meant for regular use, it will generally only be suggested by
+  developers along complex debugging sessions.
 
 tune.disable-fast-forward
   Disables the data fast-forwarding. It is a mechanism to optimize the data

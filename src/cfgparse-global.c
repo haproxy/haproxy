@@ -1574,6 +1574,26 @@ static int cfg_parse_global_tune_forward_opts(char **args, int section_type,
 
 }
 
+/* Parser for tune options related to the symbol resolution used for
+ * backtraces.
+ */
+static int cfg_parse_global_tune_debug_opts(char **args, int section_type,
+					    struct proxy *curpx, const struct proxy *defpx,
+					    const char *file, int line, char **err)
+{
+	if (strcmp(args[0], "tune.disable-elf-symbols") == 0) {
+		if (too_many_args(0, args, err, NULL))
+			return -1;
+		global.tune.debug |= GDBG_NO_ELF_SYMS;
+	}
+	else {
+		BUG_ON(1, "Triggered in cfg_parse_global_tune_debug_opts() by unsupported keyword.");
+		return -1;
+	}
+
+	return 0;
+}
+
 static int cfg_parse_global_unsupported_opts(char **args, int section_type,
 					     struct proxy *curpx, const struct proxy *defpx,
 					     const char *file, int line, char **err)
@@ -1976,6 +1996,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "tune.comp.maxlevel", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.defaults.purge", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.disable-elf-symbols", cfg_parse_global_tune_debug_opts },
 	{ CFG_GLOBAL, "tune.disable-fast-forward", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.fd.tables", cfg_parse_global_tune_opts, KWF_EXPERIMENTAL },

@@ -12,8 +12,10 @@
  * This maintains a table of function symbols (address, size, name, owning
  * object) sorted by address, so that backtraces and pointer dumps can name
  * the functions they hit. It is built at boot time
- * from whatever is available; for now only the well-known entry points of
- * sym_known_fcts[] are fed into it.
+ * from the well-known entry points of sym_known_fcts[] and, where the dynamic
+ * linker exposes dl_iterate_phdr(), from the exported symbols of the
+ * executable and of every loaded shared library, read straight from their
+ * memory image (what dladdr() sees, but lock-free and usable in a chroot).
  *
  * Lookups (sym_resolve()) are lock-free and async-signal-safe: they only read
  * an immutable snapshot, replaced only while no thread is running and
@@ -217,9 +219,191 @@ static void add_known(struct sym_build *b, const struct sym_obj *obj)
 			      sym_known_fcts[i].name, obj);
 }
 
+#if defined(HA_HAVE_DL_ITERATE_PHDR)
+
+#include <elf.h>
+
+/* native ELF symbol-type accessor, derived from the toolchain since glibc
+ * doesn't provide *_NATIVE convenience macros.
+ */
+#if __WORDSIZE == 64
+# define SYM_ST_TYPE(i)  ELF64_ST_TYPE(i)
+#else
+# define SYM_ST_TYPE(i)  ELF32_ST_TYPE(i)
+#endif
+
+/*
+ * Collects the exported symbols of the object as provided by the dynamic
+ * linker.
+ */
+static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *info,
+			       const struct sym_obj *obj)
+{
+	const ElfW(Dyn) *dyn = NULL;
+	const ElfW(Sym) *sym = NULL;
+	const char *str = NULL;
+	const ElfW(Word) *hash = NULL;
+	const uint32_t *gnu = NULL;
+	unsigned long base = info->dlpi_addr;
+	size_t strsz = 0, nsyms = 0, i;
+
+	for (i = 0; i < info->dlpi_phnum; i++) {
+		if (info->dlpi_phdr[i].p_type == PT_DYNAMIC) {
+			dyn = (const ElfW(Dyn) *)(base + info->dlpi_phdr[i].p_vaddr);
+			break;
+		}
+	}
+	if (!dyn)
+		return;
+
+	for (; dyn->d_tag != DT_NULL; dyn++) {
+		unsigned long ptr = dyn->d_un.d_ptr;
+
+		/* glibc relocates these pointers in place, other loaders leave
+		 * the link-time vaddr which is then below the load address.
+		 */
+		if (ptr < base)
+			ptr += base;
+
+		switch (dyn->d_tag) {
+		case DT_SYMTAB:   sym  = (const ElfW(Sym) *)ptr; break;
+		case DT_STRTAB:   str  = (const char *)ptr; break;
+		case DT_STRSZ:    strsz = dyn->d_un.d_val; break;
+		case DT_HASH:     hash = (const ElfW(Word) *)ptr; break;
+		case DT_GNU_HASH: gnu  = (const uint32_t *)ptr; break;
+		}
+	}
+	if (!sym || !str || !strsz)
+		return;
+
+	if (hash) {
+		nsyms = hash[1]; /* nchain */
+	}
+	else if (gnu) {
+		uint32_t nbuckets = gnu[0], symoff = gnu[1], bloomsz = gnu[2];
+		const uint32_t *buckets = (const uint32_t *)((const ElfW(Addr) *)(gnu + 4) + bloomsz);
+		const uint32_t *chains = buckets + nbuckets;
+		uint32_t last = 0;
+
+		for (i = 0; i < nbuckets; i++)
+			if (buckets[i] > last)
+				last = buckets[i];
+		if (last >= symoff) {
+			/* walk the last chain to its terminator */
+			while (!(chains[last - symoff] & 1))
+				last++;
+			nsyms = last + 1;
+		}
+	}
+	else if ((const char *)sym < str) {
+		nsyms = (size_t)(str - (const char *)sym) / sizeof(*sym);
+	}
+
+	for (i = 0; i < nsyms && !b->oom; i++) {
+		unsigned char type = SYM_ST_TYPE(sym[i].st_info);
+
+		if (type != STT_FUNC && type != STT_GNU_IFUNC)
+			continue;
+		if (sym[i].st_shndx == SHN_UNDEF || sym[i].st_shndx >= SHN_LORESERVE)
+			continue;
+		if (!sym[i].st_value || sym[i].st_name >= strsz || !str[sym[i].st_name])
+			continue;
+
+		build_add_sym(b, base + sym[i].st_value, sym[i].st_size, str + sym[i].st_name, obj);
+	}
+}
+
+/* dl_iterate_phdr() callback: collects each loaded object into the builder.
+ * Exported symbols come from the memory image, and the well-known entry
+ * points of sym_known_fcts[] are always added for the executable. Returns
+ * non-zero (stopping the iteration) on OOM.
+ */
+static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
+{
+	struct sym_build *b = data;
+	unsigned long beg = ~0UL, end = 0;
+	const char *name = info->dlpi_name;
+	struct sym_obj *obj;
+	unsigned int before;
+	int is_exe = 0;
+	int idx, seen = 0;
+
+	if (!name || !*name) {
+		/* the main executable has an empty name */
+		name = get_exec_path();
+		is_exe = 1;
+	}
+
+	/* compute the runtime address range from the PT_LOAD segments */
+	for (idx = 0; idx < info->dlpi_phnum; idx++) {
+		unsigned long p1, p2;
+
+		if (info->dlpi_phdr[idx].p_type != PT_LOAD ||
+		    !info->dlpi_phdr[idx].p_memsz)
+			continue;
+		seen = 1;
+		p1 = info->dlpi_phdr[idx].p_vaddr;
+		p2 = p1 + info->dlpi_phdr[idx].p_memsz;
+		if (p1 < beg)
+			beg = p1;
+		if (p2 > end)
+			end = p2;
+	}
+	if (!seen)
+		return 0;
+
+	obj = calloc(1, sizeof(*obj));
+	if (!obj) {
+		b->oom = 1;
+		return 1;
+	}
+	obj->base = info->dlpi_addr;
+	obj->low = info->dlpi_addr + beg;
+	obj->high = info->dlpi_addr + end;
+	obj->is_exe = is_exe;
+	obj->file = name ? strdup(name) : NULL; /* NULL tolerated; only used for the lib: prefix */
+
+	before = b->n;
+
+	/* the memory image first, then the well-known functions (sizeless) as
+	 * a last resort: the first collected wins dedup (radix sort is stable).
+	 */
+	collect_dynsym_mem(b, info, obj);
+	if (is_exe)
+		add_known(b, obj);
+
+	if (b->oom)
+		goto fail;
+
+	if (b->n == before) {
+		/* no symbol at all: drop this object */
+		free((void *)obj->file);
+		free(obj);
+		return 0;
+	}
+
+	if (build_keep_obj(b, obj) != 0)
+		goto fail;
+	return 0;
+
+ fail:
+	free((void *)obj->file);
+	free(obj);
+	return 1;
+}
+
+#endif /* HA_HAVE_DL_ITERATE_PHDR */
+
 /* collects everything known about the loaded objects */
 static void collect_all(struct sym_build *b)
 {
+#if defined(HA_HAVE_DL_ITERATE_PHDR)
+	dl_iterate_phdr(phdr_cb, b);
+#else
+	/* without the dynamic linker's help, only the well-known functions,
+	 * into an object describing the executable whose extent is unknown,
+	 * so any address may be attributed to it.
+	 */
 	struct sym_obj *obj;
 
 	obj = calloc(1, sizeof(*obj));
@@ -234,6 +418,7 @@ static void collect_all(struct sym_build *b)
 		return;
 	}
 	add_known(b, obj);
+#endif
 }
 
 /* release a snapshot and every object it references; <t> may be NULL. Must
@@ -268,6 +453,9 @@ static void sym_build(void)
 	size_t namebytes = 0;
 	unsigned int i, out = 0;
 	int published = 0;
+
+	if (global.tune.debug & GDBG_NO_ELF_SYMS)
+		return;
 
 	/* the table is built at boot, while the process is still starting and
 	 * no thread is running yet, so the build needs no locking. An init
@@ -611,6 +799,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	const char *fname, *p;
 #endif
 	struct sym_lookup sl;
+	int have_near = 0;
 	size_t dist, best_dist;
 	int i, best_idx;
 
@@ -636,14 +825,22 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 	if (!best_dist)
 		goto use_array;
 
-	/* Then try the symbol table (sym.c). Lookups are lock-free and
-	 * async-signal-safe. Like dladdr(), a symbol is only considered
-	 * resolved (non-NULL return) when the address is really within it:
-	 * callers use this to tell code pointers from arbitrary values.
+	/* First try our own ELF symbol tables. Unlike dladdr(), these also
+	 * contain local/static functions (from .symtab) and work on static
+	 * builds. They're lock-free and async-signal-safe. Like dladdr(), a
+	 * symbol is only considered resolved (non-NULL return) when the
+	 * address is really within it: callers use this to tell code pointers
+	 * from arbitrary values. When only the nearest lower symbol is known,
+	 * the dladdr() path below gets the priority (it may know a data symbol
+	 * or the object), and the nearest symbol is only used where the old
+	 * output would have been a bare offset.
 	 */
-	if (sym_resolve(addr, &sl) && sl.name && sl.inside) {
-		dump_sym_lookup(buf, &sl, addr, 1);
-		return sl.addr;
+	if (sym_resolve(addr, &sl) && sl.name) {
+		if (sl.inside) {
+			dump_sym_lookup(buf, &sl, addr, 1);
+			return sl.addr;
+		}
+		have_near = 1;
 	}
 
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
@@ -739,15 +936,26 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		return dli.dli_saddr;
 	}
 	else if (dli_main.dli_fbase != dli.dli_fbase) {
-		/* unresolved symbol from a known library, report relative offset */
-		chunk_appendf(buf, "+%#lx", (long)(addr - dli.dli_fbase));
+		/* unresolved symbol from a known library, report the nearest
+		 * symbol if known, otherwise the relative offset.
+		 */
+		if (have_near)
+			dump_sym_lookup(buf, &sl, addr, 0);
+		else
+			chunk_appendf(buf, "+%#lx", (long)(addr - dli.dli_fbase));
 		return NULL;
 	}
 #endif /* __ELF__ && !__linux__ || USE_DL */
  use_array:
 	/* either exact match from the array, or unresolved symbol for which we
-	 * may have a close match. Otherwise we report an offset relative to main.
+	 * may have a close match, in the array or in the ELF tables. Otherwise
+	 * we report an offset relative to main.
 	 */
+	if (have_near && (best_idx < 0 || (size_t)(addr - sl.addr) < best_dist)) {
+		dump_sym_lookup(buf, &sl, addr, 1);
+		return NULL;
+	}
+
 	if (best_idx >= 0) {
 		chunk_appendf(buf, "%s", sym_known_fcts[best_idx].name);
 		if (best_dist)
