@@ -161,6 +161,7 @@ struct global {
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
+	char *master_id;		/* master process' unique ID, preserved upon reload */
 	int localpeer_cmdline;		/* whether or not the commandline "-L" was set */
 	int fd_hard_limit;		/* hard limit on ulimit-n : 0=unset */
 	struct buffer log_tag;           /* name for syslog */

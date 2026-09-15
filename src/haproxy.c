@@ -2882,6 +2882,7 @@ void deinit(void)
 	ha_free(&global.pidfile);
 	ha_free(&global.node);
 	ha_free(&global.desc);
+	ha_free(&global.master_id);
 	ha_free(&oldpids);
 	ha_free(&old_argv);
 	ha_free(&localpeer);
@@ -3613,6 +3614,12 @@ int main(int argc, char **argv)
 				exit(EXIT_FAILURE);
 			}
 			setenv("HAPROXY_MWORKER", "1", 1);
+
+			/* restore_env() above has dropped it, put it back so
+			 * that the worker's config may reference it.
+			 */
+			if (global.master_id)
+				setenv("HAPROXY_MASTER_ID", global.master_id, 1);
 		}
 
 		/* localpeer default value could be redefined via 'localpeer' keyword

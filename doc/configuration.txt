@@ -980,6 +980,7 @@ Some variables are marked as not usable and not modifiable:
   * HAPROXY_MWORKER
   * HAPROXY_CLI
   * HAPROXY_MASTER_CLI
+  * HAPROXY_MASTER_ID
   * HAPROXY_LOCALPEER
 
 Their values are undefined during configuration parsing, they are set later
@@ -1001,6 +1002,7 @@ modes:
   | HAPROXY_MWORKER           |    |    |      |     |  X  |  X  |
   | HAPROXY_CLI               |    |    |      |     |     |  X  |
   | HAPROXY_MASTER_CLI        |    |    |      |     |  X  |     |
+  | HAPROXY_MASTER_ID         |    | X  |      |     |  X  |  X  |
   | HAPROXY_LOCALPEER         |    | X  |      |     |     |  X  |
   | HAPROXY_HTTP_LOG_FMT      |    | X  |      |  X  |     |     |
   | HAPROXY_HTTP_CLF_LOG_FMT  |    | X  |      |  X  |     |     |
@@ -1059,6 +1061,15 @@ The variables in question are the following:
 
   * HAPROXY_MASTER_CLI: In master-worker mode, listeners addresses of the master
     CLI, separated by semicolons.
+
+  * HAPROXY_MASTER_ID: In master-worker mode, unique identifier of the master
+    process. A time-ordered UUID (version 7) is generated when the master
+    starts, unless a valid identifier is already present in the environment; an
+    invalid one is simply replaced by a generated one. It is then passed to the
+    next master upon reload, so that it remains stable for the whole life of
+    the master, and it is also exposed to the worker. Its format is the same as
+    the one of the proxies' and servers' "guid": at most 127 characters among
+    letters, digits, '.', ':', '-' and '_'.
 
   * HAPROXY_STARTUP_VERSION: contains the version used to start, in master-
     worker mode this is the version which was used to start the master, even

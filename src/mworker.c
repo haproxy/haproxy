@@ -21,11 +21,13 @@
 #include <unistd.h>
 
 #include <haproxy/api.h>
+#include <haproxy/buf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
+#include <haproxy/guid.h>
 #include <haproxy/log.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
@@ -355,6 +357,13 @@ static void mworker_reexec(int hardreload)
 	}
 
 	setenv("HAPROXY_MWORKER_REEXEC", "1", 1);
+
+	/* restore_env() above has dropped it, but the next master must keep
+	 * the ID of the current one, which is the whole point of passing it
+	 * through the environment.
+	 */
+	if (global.master_id)
+		setenv("HAPROXY_MASTER_ID", global.master_id, 1);
 
 	mworker_proc_list_to_env(); /* put the children description in the env */
 
@@ -1178,8 +1187,31 @@ void mworker_create_master_cli(void)
 void mworker_prepare_master(void)
 {
 	struct mworker_proc *tmproc;
+	char uuid[40];
+	const char *id;
 
 	setenv("HAPROXY_MWORKER", "1", 1);
+
+	/* Assign a unique ID to this master process. It is taken from the
+	 * environment when a valid one is found there, which happens either on
+	 * reload since the previous master passes its own to us, or when an
+	 * orchestrator wants to force it. Otherwise a time-ordered UUID v7 is
+	 * generated. This way it identifies this master for its whole life.
+	 */
+	id = getenv("HAPROXY_MASTER_ID");
+	if (!id || !guid_is_valid_fmt(id, NULL)) {
+		struct buffer buf = b_make(uuid, sizeof(uuid), 0, 0);
+
+		ha_generate_uuid_v7(&buf);
+		id = uuid;
+	}
+
+	global.master_id = strdup(id);
+	if (!global.master_id) {
+		ha_alert("Cannot allocate memory for the master's ID.\n");
+		exit(EXIT_FAILURE);
+	}
+	setenv("HAPROXY_MASTER_ID", global.master_id, 1);
 
 	if (getenv("HAPROXY_MWORKER_REEXEC") == NULL) {
 
