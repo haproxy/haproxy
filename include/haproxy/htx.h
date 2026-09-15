@@ -54,6 +54,7 @@ struct htx_blk *htx_add_data_type_atonce(struct htx *htx, struct ist data, enum 
 struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data);
 size_t htx_add_data_type(struct htx *htx, const struct ist data, enum htx_blk_type type);
 size_t htx_add_data(struct htx *htx, const struct ist data);
+size_t htx_add_raw_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data);
 void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref);
 int htx_append_msg(struct htx *dst, const struct htx *src);
@@ -273,9 +274,15 @@ static inline enum htx_blk_type htx_get_tail_type(const struct htx *htx)
 	return (blk ? htx_get_blk_type(blk) : HTX_BLK_UNUSED);
 }
 
-/* Returns true if the end of the message was reached, i.e. if the HTX message is
- * not empty and the HTX_BLK_FL_EOM flag is set on the tail block. Otherwise,
- * false is returned.
+/* Returns true if the end of the message was reached. Otherwise, false is
+ * returned.
+ *
+ * Note the block carrying the HTX_BLK_FL_EOM flag is not necessarily still in
+ * the HTX message. It may have already been consumed. In this case, the tail
+ * block is a RAW_DATA block, because tunneled data may only be found after the
+ * end of the message. Producers and consumers must remember it by themselves,
+ * an HTX message being a partial and stateless representation of an HTTP
+ * message.
  */
 static inline int htx_msg_ended(const struct htx *htx)
 {
@@ -283,7 +290,17 @@ static inline int htx_msg_ended(const struct htx *htx)
 
 	/* htx_remove_blk() must take care to never leave unused blocks on head and tail of the message */
 	BUG_ON_HOT(blk && (blk->flags & HTX_BLK_FL_EOM) && htx_get_blk_type(blk) == HTX_BLK_UNUSED);
-	return (blk != NULL && !!(blk->flags & HTX_BLK_FL_EOM));
+	if (!blk)
+		return 0;
+
+	/* Tunneled data may only be found after the end of the message. So, if
+	 * the tail block is a RAW_DATA block, the end of the message was
+	 * necessarily seen. Either the block carrying the EOM flag is still in
+	 * the HTX message, or it was already consumed. In this last case, it is
+	 * the consumer responsibility to remember it.
+	 */
+	return (!!(blk->flags & HTX_BLK_FL_EOM) ||
+		htx_get_blk_type(blk) == HTX_BLK_RAW_DATA);
 }
 
 /* Returns the position of block immediately before the one pointed by <pos>. If

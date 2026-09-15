@@ -387,7 +387,8 @@ struct htx_blk *__htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t 
  */
 struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t blksz)
 {
-	BUG_ON(htx_msg_ended(htx));
+	/* Only tunneled data may be added in a message already ended */
+	BUG_ON(htx_msg_ended(htx) && type != HTX_BLK_RAW_DATA);
 	return __htx_add_blk(htx, type, blksz);
 }
 
@@ -841,8 +842,10 @@ size_t htx_xfer(struct htx *dst, struct htx *src, size_t count, unsigned int fla
 	uint32_t max, last_dstblk_sz;
 	int dst_full = 0;
 
-	BUG_ON(htx_msg_ended(dst));
-
+	/* Note: no test on the end of the message here. Blocks are added one by
+	 * one below, using the safe functions. So invalid additions in a message
+	 * already ended are detected there.
+	 */
 	last_dstblk = NULL;
 	last_dstblk_sz = 0;
 	for (blk = htx_get_head_blk(src); blk && count > meta_sz; blk = htx_get_next_blk(src, blk)) {
@@ -1186,7 +1189,9 @@ size_t htx_add_data_type(struct htx *htx, const struct ist data, enum htx_blk_ty
 	uint32_t flags = 0;
 
 	BUG_ON(!htx_is_data_type(type));
-	BUG_ON(htx_msg_ended(htx));
+
+	/* Only tunneled data may be added in a message already ended */
+	BUG_ON(htx_msg_ended(htx) && type != HTX_BLK_RAW_DATA);
 
 	/* Not enough space to store data */
 	if (len > htx_free_data_space(htx))
@@ -1266,6 +1271,15 @@ size_t htx_add_data_type(struct htx *htx, const struct ist data, enum htx_blk_ty
 size_t htx_add_data(struct htx *htx, const struct ist data)
 {
 	return htx_add_data_type(htx, data, HTX_BLK_DATA);
+}
+
+/* Adds a RAW DATA block in <htx>, to store tunneled data. Unlike HTTP data,
+ * these ones may be added in a message already ended. See htx_add_data_type()
+ * for details.
+ */
+size_t htx_add_raw_data(struct htx *htx, const struct ist data)
+{
+	return htx_add_data_type(htx, data, HTX_BLK_RAW_DATA);
 }
 
 
