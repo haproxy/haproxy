@@ -1374,7 +1374,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			where |= SMP_VAL_BE_HRQ_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
 		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 		LIST_APPEND(&curproxy->http_req_rules, &rule->list);
 	}
@@ -1409,7 +1409,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			where |= SMP_VAL_BE_HRS_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
 		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 		LIST_APPEND(&curproxy->http_res_rules, &rule->list);
 	}
@@ -1443,7 +1443,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			where |= SMP_VAL_BE_HRS_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
 		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 		LIST_APPEND(&curproxy->http_after_res_rules, &rule->list);
 	}
@@ -1508,7 +1508,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			where |= SMP_VAL_BE_HRQ_HDR;
 		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
 		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 	}
 	else if (strcmp(args[0], "use_backend") == 0) {
 		struct switching_rule *rule;
@@ -1538,7 +1538,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, &errmsg);
 			if (errmsg)
-				ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+				ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 		}
 		else if (*args[2]) {
 			ha_alert("parsing [%s:%d] : unexpected keyword '%s' after switching rule, only 'if' and 'unless' are allowed.\n",
@@ -1601,7 +1601,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, &errmsg);
 		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 		rule = calloc(1, sizeof(*rule));
 		if (!rule)
@@ -1656,7 +1656,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 */
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_REQ_CNT, &errmsg);
 		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 		rule = calloc(1, sizeof(*rule));
 		if (!rule) {
@@ -1824,7 +1824,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		else
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, &errmsg);
 		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 		rule = calloc(1, sizeof(*rule));
 		if (!rule) {
@@ -1882,7 +1882,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				where |= SMP_VAL_BE_HRQ_HDR;
 			err_code |= warnif_cond_conflicts(cond, where, &errmsg);
 			if (errmsg)
-				ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+				ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 			rule = calloc(1, sizeof(*rule));
 			if (!rule) {
@@ -1962,7 +1962,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				where |= SMP_VAL_BE_HRQ_HDR;
 			err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
 			if (errmsg)
-				ha_warning("parsing [%s:%d] : '%s.\n'", file, linenum, errmsg);
+				ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 			LIST_APPEND(&curproxy->uri_auth->http_req_rules, &rule->list);
 
 		} else if (strcmp(args[1], "auth") == 0) {
