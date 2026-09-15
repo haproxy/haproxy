@@ -6619,7 +6619,14 @@ try_again:
 	if (flen > block)
 		flen = block;
 
-	sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
+	/* Tunneled data must never be mixed with HTTP data. A dedicated block
+	 * type is used for them. This way, the end of the HTTP message, reported
+	 * just after the headers for a tunneled stream, is preserved.
+	 */
+	if (h2s->flags & H2_SF_BODY_TUNNEL)
+		sent = htx_add_raw_data(htx, ist2(b_head(&h2c->dbuf), flen));
+	else
+		sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
 	TRACE_DATA("move some data to h2s rxbuf", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s, 0, (void *)(long)sent);
 
 	b_del(&h2c->dbuf, sent);
