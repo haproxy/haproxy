@@ -1,7 +1,7 @@
                 -----------------------------------------------
                                    HTX API
-                                  Version 1.2
-                          ( Last update: 2026-09-11 )
+                                  Version 1.3
+                          ( Last update: 2026-09-15 )
                 -----------------------------------------------
                           Author : Christopher Faulet
                       Contact : cfaulet at haproxy dot com
@@ -198,6 +198,7 @@ Supported types are :
     - 0100  (4) : A data block
     - 0101  (5) : A trailer block
     - 0110  (6) : The end-of-trailers marker
+    - 0111  (7) : A raw data block (tunneled data)
     - 1111 (15) : An unused block
 
 Other types are unused for now and reserved for futur extensions.
@@ -211,6 +212,8 @@ An HTX message is typically composed of following blocks, in this order :
     - zero or more trailer blocks (optional)
     - an end-of-trailers marker (optional but always set if there is at least
       one trailer block)
+    - zero or more raw data blocks (only for tunneled messages, always after
+      the end of the message)
 
 Only one HTTP request at a time can be stored in an HTX message. For HTTP
 response, it is more complicated. Only one "final" response can be stored in an
@@ -224,19 +227,24 @@ except tunneled data. Only an EOH, an EOT or a DATA block may carry this flag,
 because only these blocks may end a message. If the message is empty, an EOT
 block is added to carry the flag.
 
-Because the flag is carried by the last block, it is always the tail block of
-the HTX message. So testing the tail block is enough to know whether a message
-is finished or not. It also means nothing must ever be added in a message
-already ended. In particular, tunneled data must never be mixed with message
-data. They must be stored in a separate buffer and only transferred once all
-blocks of the HTX message were consumed. The HTX API enforces this rule and
-will crash on any attempt to add a block in a message already ended. The only
-exception is the insertion of a header or a trailer, which are moved at the
-right place, before the corresponding end-of marker (see section 4.3).
+Nothing must ever be added in a message already ended, except tunneled data. A
+dedicated block type, RAW_DATA, is used for them. This way, HTTP data and
+tunneled data are never mixed and remain distinguishable. Any other addition in
+a message already ended is a bug, and the HTX API will crash on such attempt.
+The only exception is the insertion of a header or a trailer, which are moved at
+the right place, before the corresponding end-of marker (see section 4.3).
+
+Because RAW_DATA blocks may only be found after the end of the message, testing
+the tail block is enough to know whether a message is finished or not. Either it
+carries the EOM flag, or it is a RAW_DATA block, in which case the end of the
+message was necessarily seen before. Beware, in this last case, the block
+carrying the flag may have already been consumed. An HTX message is a partial
+and stateless representation of an HTTP message: producers and consumers must
+keep their own state to remember what they already saw.
 
 htx_set_eom() must always be used to report the end of the message and
-htx_has_eom() to test it. The flag must never be set by hand, except by the HTX
-API itself.
+htx_msg_ended() to test it. The flag must never be set by hand, except by the
+HTX API itself.
 
 
 3.1. The start-line
@@ -286,9 +294,15 @@ The payload body of an HTTP message is stored as DATA blocks in the HTX
 message. For HTTP/1 messages, it is the message body without the chunks
 formatting, if any. For HTTP/2, it is the payload of DATA frames.
 
-The DATA blocks are the only HTX blocks that may be partially processed (copied
-or removed). All other types of block must be entirely processed. This means
-DATA blocks can be resized.
+Tunneled data are not part of the HTTP message. They are stored in RAW_DATA
+blocks, to never be mixed with the message data. From the HTX point of view,
+both are handled the same way. Only the type differs, so that consumers are able
+to make the difference. htx_is_data_type() may be used for the operations that
+apply to both.
+
+The DATA and RAW_DATA blocks are the only HTX blocks that may be partially
+processed (copied or removed). All other types of block must be entirely
+processed. This means these blocks can be resized.
 
 
 3.4. The end-of markers
@@ -398,12 +412,22 @@ allocated in an HTX message. Then, there is an add function per block's type :
       It tries to insert all the payload, this function returns the inserted
       block on success.  Otherwise it returns NULL.
 
-Except for headers and trailers, nothing must be added in a message already
-ended. All these functions will crash on such attempt. The message must be fully
-consumed first. Internally, the HTX API uses unsafe versions of some of these
-functions (prefixed with a double underscore) to temporarily add a block after
-the one carrying the end of the message, before moving it at the right place.
-These versions must never be used outside of the HTX API itself.
+    - htx_add_raw_data() is the counterpart of htx_add_data() for tunneled
+      data. It adds a RAW_DATA block instead of a DATA one.
+
+    - htx_add_data_type() and htx_add_data_type_atonce() are the generic
+      versions of the three functions above. They take the block type as extra
+      argument, so they are able to add HTTP data as well as tunneled data. The
+      functions above are only thin wrappers on them. Tunneled data are the
+      only data that may be added in a message already ended.
+
+Except for headers, trailers and tunneled data, nothing must be added in a
+message already ended. All these functions will crash on such attempt. The
+message must be fully consumed first. Internally, the HTX API uses unsafe
+versions of some of these functions (prefixed with a double underscore) to
+temporarily add a block after the one carrying the end of the message, before
+moving it at the right place. These versions must never be used outside of the
+HTX API itself.
 
 When an HTX block is added, it is always the last one (the tail). But, if a
 block must be added at a specific place, it is not really handy. 2 functions may
@@ -413,7 +437,8 @@ help (others could be added) :
       before any trailers and EOT marker. A defragmentation may be performed.
       Data may be added this way in a message already ended. In this case, the
       flag marking the end of the message is transferred on the new block or
-      remains on the last block of the message.
+      remains on the last block of the message. This function is dedicated to
+      regular DATA blocks, it must not be used for tunneled data.
 
     - htx_move_blk_before() moves a specific block just before another one. Both
       blocks must already be in the HTX message and the block to move must
@@ -562,12 +587,15 @@ block :
       (EOH or EOT), an empty string is returned. For other blocks an ist
       pointing on the block payload is returned.
 
-    - htx_has_eom() may be used to know if the HTX message is finished. It
-      tests the HTX_BLK_FL_EOM flag on the tail block. htx_expect_more() is the
-      opposite function. Note that both rely on the tail block. So, once the
-      block carrying the flag was consumed, the message is no longer seen as
-      finished. This is what happens in tunnel mode, where more data are then
-      always expected.
+    - htx_msg_ended() may be used to know if the end of the message was
+      reached. It tests the tail block: it must carry the HTX_BLK_FL_EOM flag or
+      be a RAW_DATA block. htx_expect_more() is the opposite function. Note the
+      block carrying the flag may already have been consumed, so this function
+      does not tell whether the flag is still in the HTX message. The sample
+      fetch "internal.htx.has_eom" does.
+
+    - htx_is_data_type() may be used to know if a block type carries a payload
+      that may be partially consumed, i.e. a DATA or a RAW_DATA block.
 
 4.7. Advanced functions
 
@@ -621,7 +649,9 @@ message. These functions are used by HTX analyzers or by multiplexers.
     - htx_defrag() defragments an HTX message. It removes unused blocks and
       unwraps the payloads part. A temporary buffer is used to do so. This
       function never fails. A referenced block may be provided. If so, the
-      corresponding new block is returned. Otherwise, NULL is returned.
+      corresponding new block is returned. Otherwise, NULL is returned. Note
+      consecutive DATA blocks, as well as consecutive RAW_DATA blocks, are
+      merged during the operation, except the referenced block if any.
 
     - htx_skip_msg_payload() removes all blocks except the headers part. The
       trailers are removed too. If the removed part was carrying the end of the
