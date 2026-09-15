@@ -832,11 +832,15 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			global.tune.options &= ~GTUNE_STRICT_LIMITS;
 	}
 	else if (strcmp(args[0], "numa-cpu-mapping") == 0) {
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		global.numa_cpu_mapping = (kwm == KWM_NO) ? 0 : 1;
 	}
 	else if (strcmp(args[0], "anonkey") == 0) {
 		long long tmp = 0;
 
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*args[1] == 0) {
 			ha_alert("parsing [%s:%d]: a key is expected after '%s'.\n",
 				 file, linenum, args[0]);
