@@ -19,7 +19,7 @@
 struct htx htx_empty = { .size = 0, .data = 0, .head  = -1, .tail = -1, .first = -1 };
 
 
-struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data);
+struct htx_blk *__htx_add_data_type_atonce(struct htx *htx, struct ist data, enum htx_blk_type type);
 
 /* tests show that 63% of these calls are for 64-bit chunks, so better avoid calling
  * memcpy() for that!
@@ -76,8 +76,9 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 		blksz = htx_get_blksz(oldblk);
 		switch (type) {
 			case HTX_BLK_DATA:
+			case HTX_BLK_RAW_DATA:
 				if (blk != oldblk) {
-					newblk = __htx_add_data_atonce(tmp, htx_get_blk_value(htx, oldblk));
+					newblk = __htx_add_data_type_atonce(tmp, htx_get_blk_value(htx, oldblk), type);
 					break;
 				}
 				__fallthrough;
@@ -589,14 +590,16 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
  * This is the unsafe version. It does not check the message was not already
  * ended. It must only be used by the HTX API itself, to temporarily add a block
  * after the one carrying the EOM flag, before moving it at the right place. Any
- * other caller must use htx_add_data_atonce() instead.
+ * other caller must use htx_add_data_type_atonce() instead.
  */
-struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data)
+struct htx_blk *__htx_add_data_type_atonce(struct htx *htx, struct ist data, enum htx_blk_type type)
 {
 	struct htx_blk *blk, *tailblk;
 	void *ptr;
 	uint32_t sz, tailroom, headroom;
 	uint32_t flags = 0;
+
+	BUG_ON(!htx_is_data_type(type));
 
 	if (htx->head == -1)
 		goto add_new_block;
@@ -615,8 +618,8 @@ struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data)
 	 * same type or if it is the end of the message */
 	if (tailblk->flags & HTX_BLK_FL_EOM)
 		goto add_new_block;
-	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
-		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
+	if (htx_get_blk_type(tailblk) != type) {
+		if (htx_get_blk_type(tailblk) > type)
 			flags |= HTX_FL_UNORDERED;
 		goto add_new_block;
 	}
@@ -657,7 +660,7 @@ struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data)
 	goto end;
 
   add_new_block:
-	blk = __htx_add_blk(htx, HTX_BLK_DATA, data.len);
+	blk = __htx_add_blk(htx, type, data.len);
 	if (!blk)
 		return NULL;
 	blk->info += data.len;
@@ -672,19 +675,32 @@ struct htx_blk *__htx_add_data_atonce(struct htx *htx, struct ist data)
 	return blk;
 }
 
-/* Tries to append data to the last inserted block, if the type matches and if
- * there is enough space to take it all. If the space wraps, the buffer is
- * defragmented and a new block is inserted. If an error occurred, NULL is
- * returned. Otherwise, on success, the updated block (or the new one) is
- * returned.
+/* Tries to append data of type <type> to the last inserted block, if the type
+ * matches and if there is enough space to take it all. If the space wraps, the
+ * buffer is defragmented and a new block is inserted. If an error occurred,
+ * NULL is returned. Otherwise, on success, the updated block (or the new one)
+ * is returned.
  *
- * No data must be added in a message already ended. Otherwise HTTP data and
- * tunneled data could be mixed. The message must be fully consumed first.
+ * Only tunneled data may be added in a message already ended. Otherwise HTTP
+ * data and tunneled data could be mixed. The message must be fully consumed
+ * first.
+ */
+struct htx_blk *htx_add_data_type_atonce(struct htx *htx, struct ist data, enum htx_blk_type type)
+{
+	BUG_ON(!htx_is_data_type(type));
+
+	/* Only tunneled data may be added in a message already ended */
+	BUG_ON(htx_msg_ended(htx) && type != HTX_BLK_RAW_DATA);
+
+	return __htx_add_data_type_atonce(htx, data, type);
+}
+
+/* Tries to append HTTP data to the last inserted block. See
+ * htx_add_data_type_atonce() for details.
  */
 struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 {
-	BUG_ON(htx_msg_ended(htx));
-	return __htx_add_data_atonce(htx, data);
+	return htx_add_data_type_atonce(htx, data, HTX_BLK_DATA);
 }
 
 /* Replaces a value part of a block by a new one. The new part can be smaller or
@@ -1160,7 +1176,7 @@ rsv_new_block:
  * possible. It returns the number of bytes consumed from <data>, which may be
  * zero if nothing could be copied.
  */
-size_t htx_add_data(struct htx *htx, const struct ist data)
+size_t htx_add_data_type(struct htx *htx, const struct ist data, enum htx_blk_type type)
 {
 	struct htx_blk *blk, *tailblk;
 	void *ptr;
@@ -1168,6 +1184,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	int32_t len = data.len;
 	uint32_t flags = 0;
 
+	BUG_ON(!htx_is_data_type(type));
 	BUG_ON(htx_msg_ended(htx));
 
 	/* Not enough space to store data */
@@ -1189,8 +1206,8 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	 * same type or if it is the end of the message */
 	if (tailblk->flags & HTX_BLK_FL_EOM)
 		goto add_new_block;
-	if (htx_get_blk_type(tailblk) != HTX_BLK_DATA) {
-		if (htx_get_blk_type(tailblk) > HTX_BLK_DATA)
+	if (htx_get_blk_type(tailblk) != type) {
+		if (htx_get_blk_type(tailblk) > type)
 			flags |= HTX_FL_UNORDERED;
 		goto add_new_block;
 	}
@@ -1234,7 +1251,7 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	return len;
 
   add_new_block:
-	blk = htx_add_blk(htx, HTX_BLK_DATA, len);
+	blk = htx_add_blk(htx, type, len);
 	if (!blk)
 		return 0;
 
@@ -1242,6 +1259,12 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	blk->info += len;
 	htx_memcpy(htx_get_blk_ptr(htx, blk), data.ptr, len);
 	return len;
+}
+
+/* Adds an HTTP DATA block in <htx>. See htx_add_data_type() for details. */
+size_t htx_add_data(struct htx *htx, const struct ist data)
+{
+	return htx_add_data_type(htx, data, HTX_BLK_DATA);
 }
 
 
@@ -1261,7 +1284,7 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 	 * moved after the last DATA block. So the unsafe version is used here and
 	 * the EOM flag is transferred below.
 	 */
-	blk = __htx_add_data_atonce(htx, data);
+	blk = __htx_add_data_type_atonce(htx, data, HTX_BLK_DATA);
 	if (!blk)
 		return NULL;
 

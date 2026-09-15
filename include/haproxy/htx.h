@@ -50,7 +50,9 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 				   const struct ist name, const struct ist value);
 
 struct htx_ret htx_reserve_max_data(struct htx *htx);
+struct htx_blk *htx_add_data_type_atonce(struct htx *htx, struct ist data, enum htx_blk_type type);
 struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data);
+size_t htx_add_data_type(struct htx *htx, const struct ist data, enum htx_blk_type type);
 size_t htx_add_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data);
 void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref);
