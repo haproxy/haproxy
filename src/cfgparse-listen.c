@@ -1107,6 +1107,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
 	else if (strcmp(args[0], "persist") == 0) {  /* persist */
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : missing persist method.\n",
 				 file, linenum);
@@ -1122,9 +1124,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				beg = args[1] + 11;
 				end = strchr(beg, ')');
-
-				if (alertif_too_many_args(1, file, linenum, args, &err_code))
-					goto out;
 
 				if (!end || end == beg) {
 					ha_alert("parsing [%s:%d] : persist rdp-cookie(name)' requires an rdp cookie name.\n",
