@@ -471,6 +471,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		free(global.desc);
 		global.desc = d = calloc(1, len);
+		if (!d) {
+			ha_alert("parsing [%s:%d]: cannot allocate memory for '%s'.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		d += snprintf(d, global.desc + len - d, "%s", args[1]);
 		for (i = 2; *args[i]; i++)
