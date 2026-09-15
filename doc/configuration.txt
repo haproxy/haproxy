@@ -3848,8 +3848,9 @@ worker-id <id>
       worker-id "pop7-node1-inst3-${HAPROXY_WORKER_ID}"
 
   The identifier is exported as the HAPROXY_WORKER_ID environment variable (see
-  section 2.3) and is returned by the "worker_id" sample fetch function. See
-  also HAPROXY_MASTER_ID in section 2.3, and the "worker_id" sample fetch
+  section 2.3), is returned by the "worker_id" sample fetch function and on the
+  output of the "show info" CLI command. See also the "HAPROXY_MASTER_ID"
+  environment variable in section 2.3, and the "worker_id" sample fetch
   function.
 
 wurfl-cache-size <size>

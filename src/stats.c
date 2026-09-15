@@ -175,6 +175,8 @@ const struct stat_col stat_cols_info[ST_I_INF_MAX] = {
 	[ST_I_INF_PATTERNS_ADDED]                 = { .name = "PatternsAdded",               .alt_name = "patterns_added_total",          .desc = "Total number of patterns added (acl/map entries)" },
 	[ST_I_INF_PATTERNS_FREED]                 = { .name = "PatternsFreed",               .alt_name = "patterns_freed_total",          .desc = "Total number of patterns freed (acl/map entries)" },
 	[ST_I_INF_NBTGROUPS]                      = { .name = "NbThreadGroups",              .alt_name = "nb_thread_groups",              .desc = "Number of started thread groups (global.thread-groups)" },
+	[ST_I_INF_MASTER_ID]                      = { .name = "Master_id",                   .alt_name = "master_id",                     .desc = "Unique identifier of the master process, preserved across reloads (master-worker mode only)" },
+	[ST_I_INF_WORKER_ID]                      = { .name = "Worker_id",                   .alt_name = "worker_id",                     .desc = "Unique identifier of this worker process, renewed on each reload unless set with global 'worker-id'" },
 };
 
 /* one line of info */
@@ -844,6 +846,10 @@ int stats_fill_info(struct field *line, int len, uint flags)
 	line[ST_I_INF_PATTERNS_FREED]                 = mkf_u64(0, patterns_freed);
 	line[ST_I_INF_NBTGROUPS]                      = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbtgroups);
 
+	if (global.master_id)
+		line[ST_I_INF_MASTER_ID]              = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.master_id);
+	if (global.worker_id)
+		line[ST_I_INF_WORKER_ID]              = mkf_str(FO_CONFIG|FN_OUTPUT|FS_SERVICE, global.worker_id);
 	return 1;
 }
 
