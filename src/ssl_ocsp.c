@@ -1287,17 +1287,22 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 		if (ctx->flags & HC_OCSP_RES_END) {
 
 			/* Process the body that must be complete since
-			 * HC_OCSP_RES_END is set. */
-			if (httpclient_data(hc)) {
-				if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, &err)) {
-					ctx->update_status = OCSP_UPDT_ERR_CHECK;
-					goto http_error;
-				}
+			 * HC_OCSP_RES_END is set. An empty payload is an
+			 * error, there is no OCSP response to load. */
+			if (!httpclient_data(hc)) {
+				memprintf(&err, "empty OCSP response");
+				ctx->update_status = OCSP_UPDT_ERR_CHECK;
+				goto http_error;
+			}
 
-				if (ssl_sock_update_ocsp_response(&hc->res.buf, &err) != 0) {
-					ctx->update_status = OCSP_UPDT_ERR_INSERT;
-					goto http_error;
-				}
+			if (ssl_ocsp_check_response(ocsp->chain, ocsp->issuer, &hc->res.buf, &err)) {
+				ctx->update_status = OCSP_UPDT_ERR_CHECK;
+				goto http_error;
+			}
+
+			if (ssl_sock_update_ocsp_response(&hc->res.buf, &err) != 0) {
+				ctx->update_status = OCSP_UPDT_ERR_INSERT;
+				goto http_error;
 			}
 
 			ctx->flags &= ~HC_OCSP_RES_END;
