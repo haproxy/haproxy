@@ -1429,6 +1429,11 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			goto leave;
 		}
 
+		/* The response payload is not consumed on the fly. It is
+		 * retrieved at the end of the response.
+		 */
+		hc->options |= HTTPCLIENT_O_RES_ACCUM;
+
 		hc->ops.res_stline = ocsp_update_response_stline_cb;
 		hc->ops.res_headers = ocsp_update_response_headers_cb;
 		hc->ops.res_payload = ocsp_update_response_body_cb;
