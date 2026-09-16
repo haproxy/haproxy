@@ -6145,7 +6145,6 @@ external-check path                       X          -         X         X
 force-persist                             -          -         X         X
 force-be-switch                           -          X         X         -
 filter                                    -          X         X         X
-filter-sequence                           -          X         X         X
 fullconn                                  X          -         X         X
 guid                                      -          X         X         X
 hash-balance-factor                       X          -         X         X
@@ -7427,7 +7426,8 @@ decompression algo-res <algorithms> ...
   implicitly enable decompression filter ("decomp-req" or "decomp-res" whether
   the decompression option targets request, response) automatically. However to
   prevent misconfiguration, it is recommended to explicitly declare filters
-  when multiple filters are involved on the proxy. See also "filter-sequence".
+  when multiple filters are involved on the proxy, because filters are
+  evaluated in their declaration order.
 
   May be used in the following contexts: http, tcp
 
@@ -7533,8 +7533,8 @@ decompression mode-res { none | auto | always }
   associated decompression filter is automatically enabled. For requests, the
   filter is called "decomp-req", and for responses, the filter is "decomp-res".
   In order to prevent misconfigurations, particularly when combining multiple
-  filters, it is highly recommended to explicitly declare the filters sequence
-  via the "filter-sequence" directive in the proxy.
+  filters, it is highly recommended to explicitly declare the filters, because
+  they are evaluated in their declaration order.
 
   Mode "auto", which is only available for HTTP, means haproxy will try to find
   a compatible algorithms in algo-req or algo-res list to be able to decompress
@@ -7567,8 +7567,7 @@ decompression mode-res { none | auto | always }
              a hostile agent could trivially amplify its traffic 1000x by
              sending it compressed.
 
-  See also "decompression algo-req", "decompression algo-res", and
-           "filter-sequence".
+  See also "decompression algo-req", "decompression algo-res", and "filter".
 
 
 default-server [name <name>] [from <origin>] [param*]
@@ -8183,41 +8182,8 @@ filter <name> [param*]
 
         server srv1 192.168.0.1:80
 
-  See also : section 9., "filter-sequence"
+  See also : section 9.
 
-filter-sequence { request | response } <filter_list>
-
-  Specifies in which order filters declared on the proxy should be
-  executed.
-
-  May be used in the following contexts: tcp, http
-
-  May be used in sections:    defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-
-  Comma-separated list of filter names (<filter_list>) to specify in which
-  order filters declared on the proxy should be executed, for request
-  or response path, respectively.
-
-  When filter-sequence is not specified for a given path (ie: request vs
-  response), the order in which filters are declared on the proxy is used.
-
-  If filter-sequence omits some filters that were declared on the proxy,
-  they will not be executed. This is an effective way of temporarily
-  disabling a filter without removing it from the configuration.
-
-  Example:
-     global
-        lua-load my-filter.lua # defines custom "lua.my-filter"
-     frontend myfront
-        filter comp-req
-        filter comp-res
-        filter lua.my-filter
-
-        filter-sequence request lua.my-filter,comp-req
-        filter-sequence response lua.my-filter,comp-res
-
-  See also : "filter"
 
 fullconn <conns>
   Specify at what backend load the servers will reach their maxconn
