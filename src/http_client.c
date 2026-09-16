@@ -879,8 +879,17 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 	}
 
 out:
-	if (hc && appctx->st0 != HTTPCLIENT_S_RES_END && !b_is_null(&hc->res.buf)) {
-		/* Don't accept more data while the httpclient response buffer is not empty */
+	if (hc && appctx->st0 != HTTPCLIENT_S_RES_END &&
+	    !(hc->options & HTTPCLIENT_O_RES_ACCUM) && !b_is_null(&hc->res.buf)) {
+		/* Don't accept more data while the httpclient response buffer is
+		 * not empty. It will be re-enabled by the caller, when it will
+		 * consume these data.
+		 *
+		 * This is only performed for callers consuming the response on
+		 * the fly. The others expect to retrieve the whole payload at
+		 * the end of the response. For these ones, we must continue to
+		 * fill the response buffer.
+		 */
 		applet_wont_consume(appctx);
 	}
 	return;
