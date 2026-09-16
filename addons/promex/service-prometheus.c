@@ -460,8 +460,8 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 
 		switch (ctx->field_num) {
 			case ST_I_INF_NODE:
-				labels[lb_idx].name  = ist("node");
-				labels[lb_idx].value = ist(global.node);
+				labels[lb_idx].name  = name;
+				labels[lb_idx].value = ist(field_str(&val, 0));
 				lb_idx++;
 				val = mkf_u32(FN_GAUGE, 1);
 				break;
