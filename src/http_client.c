@@ -879,7 +879,7 @@ void httpclient_applet_io_handler(struct appctx *appctx)
 	}
 
 out:
-	if (appctx->st0 != HTTPCLIENT_S_RES_END && !b_is_null(&hc->res.buf)) {
+	if (hc && appctx->st0 != HTTPCLIENT_S_RES_END && !b_is_null(&hc->res.buf)) {
 		/* Don't accept more data while the httpclient response buffer is not empty */
 		applet_wont_consume(appctx);
 	}
