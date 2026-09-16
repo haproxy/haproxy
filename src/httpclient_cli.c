@@ -230,6 +230,7 @@ static int hc_cli_io_handler(struct appctx *appctx)
 			goto more;
 		htx_reset(hc_htx);
 		htx_to_buf(hc_htx, &hc->res.buf);
+		httpclient_res_consumed(hc);
 
 	}
 
