@@ -1329,6 +1329,11 @@ int acme_http_req(struct task *task, struct acme_ctx *ctx, struct ist url, enum 
 	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, hdrs, payload) != ERR_NONE)
 		goto error;
 
+	/* The response payload is not consumed on the fly. It is retrieved at
+	 * the end of the response.
+	 */
+	hc->options |= HTTPCLIENT_O_RES_ACCUM;
+
 	hc->ops.res_end = acme_httpclient_end;
 
 	ctx->hc = hc;
