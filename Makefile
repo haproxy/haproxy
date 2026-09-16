@@ -183,6 +183,10 @@ endif
 #### Toolchain options.
 CC = cc
 LD = $(CC)
+NM = nm
+OBJCOPY = objcopy
+READELF = readelf
+XZ = xz
 
 #### Default optimizations
 # Those are integrated early in the list of CFLAGS, and may be overridden by
@@ -347,7 +351,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_MATH USE_DEVICEATLAS USE_51DEGREES                             \
            USE_WURFL USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL                \
            USE_THREAD_DUMP USE_EVPORTS USE_QUIC USE_PROMEX                    \
-           USE_MEMORY_PROFILING USE_SHM_OPEN                                  \
+           USE_MEMORY_PROFILING USE_SHM_OPEN USE_MINIDEBUG                    \
            USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT                      \
            USE_QUIC_OPENSSL_COMPAT USE_KTLS
@@ -562,6 +566,20 @@ OPTIONS_OBJS    =
 
 #### Extra objects to be built and integrated (used only for development)
 EXTRA_OBJS =
+
+# A compressed table of the symbols which are not exported (mostly the static
+# functions) may be stored into the executable's .gnu_debugdata section, so
+# that backtraces still name them once the executable is stripped or when its
+# file is unreachable. This is the "MiniDebugInfo" format that gdb reads too,
+# so gdb benefits from it as well. It is produced after the link using nm,
+# objcopy and xz, hence it is enabled by default only when the three are
+# available, together with the readelf that scripts/minidbg.sh needs, and the
+# compiler produces ELF objects, as the placeholders are ELF-specific. That
+# script appends the table to the program just linked, which moves nothing, so
+# it needs neither reserved room nor a second link.
+ifeq ($(origin USE_MINIDEBUG),undefined)
+USE_MINIDEBUG := $(if $(and $(shell command -v $(NM)),$(shell command -v $(OBJCOPY)),$(shell command -v $(READELF)),$(shell command -v $(XZ)),$(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep -F __ELF__)),1,)
+endif
 
 # This variable collects all USE_* values except those set to "implicit". This
 # is used to report a list of all flags which were used to build this version.
@@ -1007,6 +1025,10 @@ OBJS += src/xz_dec_stream.o src/xz_dec_lzma2.o src/xz_crc32.o		\
         src/xz_crc64.o
 endif
 
+ifneq ($(USE_MINIDEBUG:0=),)
+  MINIDEBUG_TOOL = $(SHELL) scripts/minidbg.sh
+endif
+
 HATERM_OBJS += $(OBJS) src/haterm_init.o src/hbuf.o
 
 HALOAD_OBJS += $(OBJS) src/haload_init.o src/haload.o src/hbuf.o
@@ -1055,14 +1077,48 @@ else
 .build_opts:
 endif # non-empty target
 
+# Extracts the symbols which are not in the dynamic symbol table, builds a
+# symbols-only ELF file out of them, compresses it and appends it to the program
+# just linked, where minidbg.sh points its .gnu_debugdata placeholders at it.
+# Only the last step can leave the program half-written, so it is the only one
+# whose failure is fatal; not being able to produce the table just leaves the
+# program without one, as happens when the tools do not know the target.
+define make_minidebug
+	$(call qinfo,  MINIDBG)if ! ( \
+	    $(NM) -D $@ --format=posix --defined-only | awk '{ print $$1 }' | sort > $@.dsyms && \
+	    $(NM) $@ --format=posix --defined-only | awk '$$2 == "T" || $$2 == "t" { print $$1 }' | sort > $@.fsyms && \
+	    comm -13 $@.dsyms $@.fsyms > $@.ksyms && \
+	    $(OBJCOPY) --only-keep-debug $@ $@.dbg && \
+	    $(OBJCOPY) -S --remove-section .gdb_index --remove-section .comment --keep-symbols=$@.ksyms $@.dbg $@.mini && \
+	    $(XZ) -f --check=crc64 $@.mini \
+	  ); then \
+	    echo "$@: cannot build the symbol table, see the error above; the program is" >&2; \
+	    echo "$@: left without one. Cross-builds need NM, OBJCOPY and READELF pointed at" >&2; \
+	    echo "$@: the target's tools, and USE_MINIDEBUG=0 skips this step altogether." >&2; \
+	  elif ! READELF='$(READELF)' $(MINIDEBUG_TOOL) $@ $@.mini.xz; then \
+	    rm -f $@ $@.dsyms $@.fsyms $@.ksyms $@.dbg $@.mini $@.mini.xz; \
+	    exit 1; \
+	  fi; \
+	  rm -f $@.dsyms $@.fsyms $@.ksyms $@.dbg $@.mini $@.mini.xz
+endef
+
 haproxy: $(OPTIONS_OBJS) $(OBJS)
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+ifneq ($(USE_MINIDEBUG:0=),)
+	$(make_minidebug)
+endif
 
 haterm: $(OPTIONS_OBJS) $(HATERM_OBJS)
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+ifneq ($(USE_MINIDEBUG:0=),)
+	$(make_minidebug)
+endif
 
 haload: $(OPTIONS_OBJS) $(HALOAD_OBJS)
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+ifneq ($(USE_MINIDEBUG:0=),)
+	$(make_minidebug)
+endif
 
 objsize: haproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
@@ -1165,6 +1221,7 @@ uninstall:
 
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy haterm test .build_opts .build_opts.new
+	$(Q)for p in haproxy haterm haload; do rm -f $$p.dsyms $$p.fsyms $$p.ksyms $$p.dbg $$p.mini $$p.mini.xz; done
 	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out

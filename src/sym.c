@@ -16,9 +16,10 @@
  * linker exposes dl_iterate_phdr(), from the exported symbols of the
  * executable and of every loaded shared library, read straight from their
  * memory image (what dladdr() sees, but lock-free and usable in a chroot).
- * It also carries the helpers needed to collect the symbols of an ELF image
- * available in memory, which the next commits use to read the symbol tables
- * found in the objects themselves and in their files.
+ * The compressed symbol tables that objects may embed in a loadable
+ * .gnu_debugdata section (the MiniDebugInfo format that gdb also reads) are
+ * decompressed and parsed as well, which brings the local/static functions
+ * and works even on a stripped or unreadable file.
  *
  * Lookups (sym_resolve()) are lock-free and async-signal-safe: they only read
  * an immutable snapshot, replaced only while no thread is running and
@@ -134,6 +135,10 @@ static struct sym_table * volatile cur_symtab;
 struct sym_build {
 	struct sym_entry *syms;    /* growing array of collected symbols */
 	unsigned int n, alloc;
+	void **bufs;               /* memory blocks to release at the end of the build */
+	unsigned int nbufs, balloc;
+	const unsigned char *debugdata; /* compressed table of the object being collected */
+	size_t debugdata_size;
 	struct sym_obj **objs;     /* objects created this build, handed to the snapshot */
 	unsigned int nobjs, oalloc;
 	int oom;                   /* set on any allocation failure */
@@ -230,7 +235,30 @@ static void add_known(struct sym_build *b, const struct sym_obj *obj)
 #include <elf.h>
 #include <link.h>
 
+#include <import/xz.h>
 
+/* Largest decompressed symbol table we accept, and largest LZMA2 dictionary we
+ * let the decoder allocate for it.
+ */
+#define SYM_DEBUGDATA_MAX      (64 * 1024 * 1024)
+#define SYM_DEBUGDATA_DICT_MAX (64 * 1024 * 1024)
+
+#ifdef USE_MINIDEBUG
+/* Placeholders for this program's own table, filled in by scripts/minidbg.sh
+ * after the link: the section gives it the name gdb looks for, and the note,
+ * whose alignment makes linkers give it a segment of its own, gives it the
+ * segment entry that is turned into a loadable one.
+ */
+__attribute__((section(".gnu_debugdata"), aligned(16), used))
+static const unsigned char sym_debugdata_room[16];
+
+__attribute__((section(".note.hapdbg"), aligned(16), used))
+static const struct {
+	uint32_t namesz, descsz, type;
+	char name[8];
+	uint32_t desc;
+} sym_debugdata_note = { 7, 4, 1, "HAPDBG", 0 };
+#endif
 
 /* native ELF class / endianness / symbol-type accessor, derived from the
  * toolchain since glibc doesn't provide *_NATIVE convenience macros.
@@ -267,7 +295,7 @@ static inline int in_map(const void *ptr, size_t len, const void *map, size_t sz
 /* validates an ELF header for the native class/endianness and a sane section
  * header table that fits in the <sz>-byte mapping. Returns 1 if usable.
  */
-static __maybe_unused int elf_hdr_ok(const ElfW(Ehdr) *eh, size_t sz)
+static int elf_hdr_ok(const ElfW(Ehdr) *eh, size_t sz)
 {
 	if (!in_map(eh, sizeof(*eh), eh, sz))
 		return 0;
@@ -290,8 +318,25 @@ static __maybe_unused int elf_hdr_ok(const ElfW(Ehdr) *eh, size_t sz)
 
 
 
+/* records a memory block to release when the build finishes */
+static int build_keep_buf(struct sym_build *b, void *buf)
+{
+	if (b->nbufs >= b->balloc) {
+		unsigned int na = b->balloc ? b->balloc * 2 : 8;
+		void **nb = realloc(b->bufs, na * sizeof(*nb));
 
-static __maybe_unused void collect_syms(struct sym_build *b, const void *map, size_t sz,
+		if (!nb) {
+			b->oom = 1;
+			return -1;
+		}
+		b->bufs = nb;
+		b->balloc = na;
+	}
+	b->bufs[b->nbufs++] = buf;
+	return 0;
+}
+
+static void collect_syms(struct sym_build *b, const void *map, size_t sz,
 			 const ElfW(Shdr) *symsh, const ElfW(Shdr) *strsh,
 			 unsigned long base, const struct sym_obj *obj)
 {
@@ -337,7 +382,7 @@ static __maybe_unused void collect_syms(struct sym_build *b, const void *map, si
 
 
 
-static __maybe_unused void elf_find_symtab(const ElfW(Ehdr) *eh,
+static void elf_find_symtab(const ElfW(Ehdr) *eh,
 			    const ElfW(Shdr) **symtab, const ElfW(Shdr) **strtab)
 {
 	const ElfW(Shdr) *sh = (const ElfW(Shdr) *)((const char *)eh + eh->e_shoff);
@@ -353,10 +398,97 @@ static __maybe_unused void elf_find_symtab(const ElfW(Ehdr) *eh,
 	}
 }
 
+/* Decompresses the xz-compressed ELF image
+ */
+#if !defined(HA_HAVE_DL_ITERATE_PHDR)
+/* the loader callback is its only caller here; the file parsing which also
+ * needs it comes next, and is itself kept compiled without the API.
+ */
+__maybe_unused
+#endif
+static void collect_debugdata(struct sym_build *b, const struct sym_obj *obj,
+			      const unsigned char *blob, size_t size)
+{
+	static const unsigned char magic[6] = { 0xfd, '7', 'z', 'X', 'Z', 0x00 };
+	static int crc_done;
+	const ElfW(Shdr) *symtab, *strtab;
+	const ElfW(Ehdr) *eh;
+	struct xz_dec *dec;
+	struct xz_buf xb;
+	unsigned char *out, *new;
+	size_t outsz = 1024 * 1024;
+	enum xz_ret ret;
+
+	/* room left empty by a build without the required tools, or not a
+	 * compressed table at all.
+	 */
+	if (size < sizeof(magic) || memcmp(blob, magic, sizeof(magic)) != 0)
+		return;
+
+	if (!crc_done) {
+		xz_crc32_init();
+		xz_crc64_init();
+		crc_done = 1;
+	}
+
+	dec = xz_dec_init(XZ_DYNALLOC, SYM_DEBUGDATA_DICT_MAX);
+	if (!dec)
+		return;
+
+	out = malloc(outsz);
+	if (!out)
+		goto end;
+
+	memset(&xb, 0, sizeof(xb));
+	xb.in = blob;
+	xb.in_size = size;
+	xb.out = out;
+	xb.out_size = outsz;
+
+	while ((ret = xz_dec_run(dec, &xb)) == XZ_OK) {
+		/* only a full output buffer is worth retrying, anything else
+		 * means the stream is truncated.
+		 */
+		if (xb.out_pos < xb.out_size || outsz >= SYM_DEBUGDATA_MAX)
+			goto end;
+		new = realloc(out, outsz * 2);
+		if (!new)
+			goto end;
+		out = new;
+		outsz *= 2;
+		xb.out = out;
+		xb.out_size = outsz;
+	}
+
+	if (ret != XZ_STREAM_END)
+		goto end;
+
+	eh = (const ElfW(Ehdr) *)out;
+	if (!elf_hdr_ok(eh, xb.out_pos))
+		goto end;
+
+	elf_find_symtab(eh, &symtab, &strtab);
+	if (!symtab || build_keep_buf(b, out) != 0)
+		goto end;
+
+	collect_syms(b, out, xb.out_pos, symtab, strtab, obj->base, obj);
+	out = NULL; /* now owned by the builder */
+ end:
+	free(out);
+	xz_dec_end(dec);
+}
 
 
 
 #if defined(HA_HAVE_DL_ITERATE_PHDR)
+
+/* A compressed symbol table stored into an object by the build sits alone in a
+ * segment of its own (see scripts/minidbg.sh), which is how it is recognised
+ * below: nothing has to be exported for it, and the same applies to any other
+ * object carrying one. Being in a segment is what makes it readable from memory
+ * alone once the file is stripped, replaced or unreachable.
+ */
+static const unsigned char sym_xz_magic[6] = { 0xfd, '7', 'z', 'X', 'Z', 0x00 };
 
 /*
  * Collects the exported symbols of the object as provided by the dynamic
@@ -372,6 +504,9 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 	const uint32_t *gnu = NULL;
 	unsigned long base = info->dlpi_addr;
 	size_t strsz = 0, nsyms = 0, i;
+
+	b->debugdata = NULL;
+	b->debugdata_size = 0;
 
 	for (i = 0; i < info->dlpi_phnum; i++) {
 		if (info->dlpi_phdr[i].p_type == PT_DYNAMIC) {
@@ -428,11 +563,12 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 	for (i = 0; i < nsyms && !b->oom; i++) {
 		unsigned char type = SYM_ST_TYPE(sym[i].st_info);
 
-		if (type != STT_FUNC && type != STT_GNU_IFUNC)
-			continue;
 		if (sym[i].st_shndx == SHN_UNDEF || sym[i].st_shndx >= SHN_LORESERVE)
 			continue;
 		if (!sym[i].st_value || sym[i].st_name >= strsz || !str[sym[i].st_name])
+			continue;
+
+		if (type != STT_FUNC && type != STT_GNU_IFUNC)
 			continue;
 
 		build_add_sym(b, base + sym[i].st_value, sym[i].st_size, str + sym[i].st_name, obj);
@@ -440,10 +576,29 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 }
 
 
+/* Returns the end address of the loaded segment covering <addr> in the object
+ * described by <info>, or 0 when it is covered by none.
+ */
+static unsigned long seg_end(const struct dl_phdr_info *info, unsigned long addr)
+{
+	unsigned long beg;
+	int idx;
+
+	for (idx = 0; idx < info->dlpi_phnum; idx++) {
+		if (info->dlpi_phdr[idx].p_type != PT_LOAD)
+			continue;
+		beg = info->dlpi_addr + info->dlpi_phdr[idx].p_vaddr;
+		if (addr >= beg && addr < beg + info->dlpi_phdr[idx].p_memsz)
+			return beg + info->dlpi_phdr[idx].p_memsz;
+	}
+	return 0;
+}
+
 /* dl_iterate_phdr() callback: collects each loaded object into the builder.
- * Exported symbols come from the memory image, and the well-known entry
- * points of sym_known_fcts[] are always added for the executable. Returns
- * non-zero (stopping the iteration) on OOM.
+ * Local symbols come from the file's .symtab (or separate debug file) when
+ * readable, exported ones always from the memory image, and the well-known
+ * entry points of sym_known_fcts[] are always added for the executable.
+ * Returns non-zero (stopping the iteration) on OOM.
  */
 static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 {
@@ -492,10 +647,41 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 
 	before = b->n;
 
-	/* the memory image first, then the well-known functions (sizeless) as
-	 * a last resort: the first collected wins dedup (radix sort is stable).
+	/* the embedded table first, so that it wins dedup over the memory
+	 * image (radix sort is stable), then the well-known functions
+	 * (sizeless) as a last resort.
 	 */
 	collect_dynsym_mem(b, info, obj);
+
+	/* a table stored by the build is covered by a segment of its own, whose
+	 * contents identify it.
+	 */
+	for (idx = 0; !b->debugdata && idx < info->dlpi_phnum; idx++) {
+		const unsigned char *p;
+
+		if (info->dlpi_phdr[idx].p_type != PT_LOAD ||
+		    !(info->dlpi_phdr[idx].p_flags & PF_R) ||
+		    info->dlpi_phdr[idx].p_filesz < sizeof(sym_xz_magic))
+			continue;
+		p = (const unsigned char *)(info->dlpi_addr + info->dlpi_phdr[idx].p_vaddr);
+		if (memcmp(p, sym_xz_magic, sizeof(sym_xz_magic)) == 0) {
+			b->debugdata = p;
+			b->debugdata_size = info->dlpi_phdr[idx].p_filesz;
+		}
+	}
+	/* stay within the mapping no matter what the segment advertises */
+	if (b->debugdata) {
+		unsigned long end = seg_end(info, (unsigned long)b->debugdata);
+
+		if (!end)
+			b->debugdata_size = 0;
+		else if (end - (unsigned long)b->debugdata < b->debugdata_size)
+			b->debugdata_size = end - (unsigned long)b->debugdata;
+	}
+
+	if (b->debugdata && b->debugdata_size)
+		collect_debugdata(b, obj, b->debugdata, b->debugdata_size);
+
 	if (is_exe)
 		add_known(b, obj);
 
@@ -650,6 +836,10 @@ static void sym_build(void)
 	published = 1;
 
  leave:
+	for (i = 0; i < b.nbufs; i++)
+		free(b.bufs[i]);
+	free(b.bufs);
+
 	/* on success the objects are referenced by the published symbols and
 	 * survive with the snapshot; on failure free them.
 	 */
