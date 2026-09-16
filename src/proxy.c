@@ -3343,7 +3343,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		srv_settings_cpy(curproxy->defsrv, defproxy->defsrv, 0);
 	}
 
-	curproxy->flags = (defproxy->flags & PR_FL_DISABLED); /* Only inherit from disabled flag */
+	curproxy->flags = (defproxy->flags & (PR_FL_DISABLED | PR_FL_DEF_EXPLICIT_MODE)); /* Only inherit disabled + explicit_mode flags */
 	curproxy->options = defproxy->options;
 	curproxy->options2 = defproxy->options2;
 	curproxy->no_options = defproxy->no_options;
