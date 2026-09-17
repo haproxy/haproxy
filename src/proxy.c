@@ -475,6 +475,8 @@ void deinit_proxy(struct proxy *p)
 	free(p->desc);
 
 	task_destroy(p->task);
+	if (p->purge_task)
+		task_kill(p->purge_task);
 
 	pool_destroy(p->req_cap_pool);
 	pool_destroy(p->rsp_cap_pool);
@@ -506,6 +508,33 @@ void proxy_drop(struct proxy *p)
 
 	deinit_proxy(p);
 	ha_free(&p);
+}
+
+/* Proxy purge task handler, only used by user configured backend instances.
+ * Its objective is to remove any servers flagged with purge or the backend
+ * instance itself.
+ */
+struct task *proxy_process_purge(struct task *t, void *context, unsigned int state)
+{
+	struct proxy *px = context;
+
+	thread_isolate_full();
+
+	if (t->state & TASK_KILLED) {
+		/* Task killed indicate that the proxy instance has been freed.
+		 * Mandatory check after entering thread isolation.
+		 */
+		goto requeue;
+	}
+
+	if (!LIST_ISEMPTY(&px->servers_purge))
+		t->expire = tick_add(now_ms, MS_TO_TICKS(1000));
+	else
+		t->expire = TICK_ETERNITY;
+
+ requeue:
+	thread_release();
+	return t;
 }
 
 /*
@@ -1635,6 +1664,7 @@ void init_new_proxy(struct proxy *p)
 	p->obj_type = OBJ_TYPE_PROXY;
 	LIST_INIT(&p->global_list);
 	LIST_INIT(&p->servers);
+	LIST_INIT(&p->servers_purge);
 	LIST_INIT(&p->el);
 	LIST_INIT(&p->acl);
 	LIST_INIT(&p->http_req_rules);
@@ -3295,6 +3325,21 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 	if (name && name[0] != '\0' && !(cap & PR_CAP_INT))
 		proxy_store_name(px);
 
+	/* Allocate purge task for proxies with backend capabilities - restricted
+	 * to user visible instances, i.e. listen/backend from the config file
+	 * or added at runtime via CLI.
+	 */
+	if ((cap & (PR_CAP_BE|PR_CAP_LB)) == (PR_CAP_BE|PR_CAP_LB)) {
+		px->purge_task = task_new_anywhere();
+		if (!px->purge_task) {
+			memprintf(errmsg, "out of memory while allocating purge task");
+			goto fail;
+		}
+		px->purge_task->context = px;
+		px->purge_task->process = proxy_process_purge;
+		px->purge_task->expire = TICK_ETERNITY;
+	}
+
 	if (!(cap & PR_CAP_DEF)) {
 		LIST_APPEND(&all_proxies, &px->global_list);
 		event_hdl_sub_list_init(&px->e_subs);
@@ -3310,6 +3355,11 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 	ha_free(&px->id);
 	counters_fe_shared_drop(&px->fe_counters.shared);
 	counters_be_shared_drop(&px->be_counters.shared);
+
+	if (px->purge_task) {
+		task_destroy(px->purge_task);
+		px->purge_task = NULL;
+	}
 
 	return 0;
 }
