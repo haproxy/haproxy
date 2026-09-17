@@ -1077,14 +1077,12 @@ The variables in question are the following:
   * HAPROXY_WORKER_ID: unique identifier of the worker process. It is randomly
     generated at boot on the worker process, and may be overwritten by the
     "worker-id" keyword in the global section. The generated random is changed
-    on every reload.
-
- Its format is the same as the one of HAPROXY_MASTER_ID above. It is
-    set before the worker reads the rest of its configuration, so it may be
-    referenced from there, and being part of the process' environment it is
-    also visible to Lua (os.getenv()) and inherited by the processes launched
-    from the worker, such as external health checks. See also the "worker_id"
-    sample fetch function.
+    on every reload. Its format is the same as the one of HAPROXY_MASTER_ID
+    above. It is set before the worker reads the rest of its configuration, so
+    it may be referenced from there, and being part of the process' environment
+    it is also visible to Lua (os.getenv()) and inherited by the processes
+    launched from the worker, such as external health checks. See also the
+    "worker_id" sample fetch function.
 
   * HAPROXY_STARTUP_VERSION: contains the version used to start, in master-
     worker mode this is the version which was used to start the master, even
