@@ -181,11 +181,15 @@ $(call $(complain),the "ARCH" variable was forced to "$(ARCH)" but is no \
 endif
 
 #### Toolchain options.
-CC = cc
+# CROSS_TOOLCHAIN is an optional prefix for the target's tools, e.g.
+# CROSS_TOOLCHAIN=arm-linux-gnueabi- for arm-linux-gnueabi-gcc, -nm, etc.
+CROSS_TOOLCHAIN =
+CC = $(if $(CROSS_TOOLCHAIN),$(CROSS_TOOLCHAIN)gcc,cc)
 LD = $(CC)
-NM = nm
-OBJCOPY = objcopy
-READELF = readelf
+NM = $(CROSS_TOOLCHAIN)nm
+OBJCOPY = $(CROSS_TOOLCHAIN)objcopy
+OBJDUMP = $(CROSS_TOOLCHAIN)objdump
+READELF = $(CROSS_TOOLCHAIN)readelf
 XZ = xz
 
 #### Default optimizations
@@ -1121,7 +1125,7 @@ ifneq ($(USE_MINIDEBUG:0=),)
 endif
 
 objsize: haproxy
-	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
+	$(Q)$(OBJDUMP) -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
 
 %.o:	%.c $(DEP)
 	$(cmd_CC) $(COPTS) -c -o $@ $<
