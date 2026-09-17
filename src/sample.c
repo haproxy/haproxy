@@ -2189,6 +2189,94 @@ static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *
 	return 1;
 }
 
+/* Comparison functions used by qsort() in the be_sort() converter below. They
+ * compare two big-endian unsigned integers of a fixed width. Since the values
+ * are unsigned and stored in network byte order, comparing their bytes from
+ * the most significant one gives the numerical order, which is exactly what
+ * memcmp() does.
+ */
+static int sample_conv_be_sort_cmp1(const void *a, const void *b)
+{
+	return memcmp(a, b, 1);
+}
+
+static int sample_conv_be_sort_cmp2(const void *a, const void *b)
+{
+	return memcmp(a, b, 2);
+}
+
+static int sample_conv_be_sort_cmp4(const void *a, const void *b)
+{
+	return memcmp(a, b, 4);
+}
+
+static int sample_conv_be_sort_cmp8(const void *a, const void *b)
+{
+	return memcmp(a, b, 8);
+}
+
+static int sample_conv_be_sort_check(struct arg *args, struct sample_conv *conv,
+                                     const char *file, int line, char **err)
+{
+	switch (args[0].data.sint) {
+	case 1:
+	case 2:
+	case 4:
+	case 8:
+		break;
+	default:
+		memprintf(err, "element size must be 1, 2, 4 or 8 (got %lld)", args[0].data.sint);
+		return 0;
+	}
+
+	return 1;
+}
+
+/* Sorts in ascending order the big-endian unsigned integers of <elem_size>
+ * bytes found in the binary input sample. The input length must be a multiple
+ * of <elem_size>, otherwise the conversion fails. This may be used to
+ * normalize a list of binary values before hashing it, e.g. the cipher list of
+ * a TLS client hello.
+ * Arguments: elem_size (1, 2, 4 or 8)
+ */
+static int sample_conv_be_sort(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_best_trash_chunk(&smp->data.u.str, smp->data.u.str.data);
+	size_t elem_size = args[0].data.sint;
+	int (*cmp)(const void *, const void *);
+
+	if (!trash)
+		return 0;
+
+	if (smp->data.u.str.data % elem_size)
+		return 0;
+
+	switch (elem_size) {
+	case 1:
+		cmp = sample_conv_be_sort_cmp1;
+		break;
+	case 2:
+		cmp = sample_conv_be_sort_cmp2;
+		break;
+	case 4:
+		cmp = sample_conv_be_sort_cmp4;
+		break;
+	default:
+		cmp = sample_conv_be_sort_cmp8;
+		break;
+	}
+
+	memcpy(trash->area, smp->data.u.str.area, smp->data.u.str.data);
+	trash->data = smp->data.u.str.data;
+
+	qsort(trash->area, trash->data / elem_size, elem_size, cmp);
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 /* check and/or preset the optional argument of has_ctl() */
 static int sample_conv_hasctl_check(struct arg *args, struct sample_conv *conv,
                                     const char *file, int line, char **err)
@@ -5915,6 +6003,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "be2dec",  sample_conv_be2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
 	{ "le2dec",  sample_conv_le2dec,       ARG3(1,STR,SINT,SINT), sample_conv_2dec_check,   SMP_T_BIN,  SMP_T_STR  },
 	{ "be2hex",  sample_conv_be2hex,       ARG3(1,STR,SINT,SINT), sample_conv_be2hex_check, SMP_T_BIN,  SMP_T_STR  },
+	{ "be_sort", sample_conv_be_sort,      ARG1(1,SINT),          sample_conv_be_sort_check, SMP_T_BIN, SMP_T_BIN  },
 	{ "has_ctl", sample_conv_hasctl,       ARG1(0,STR),           sample_conv_hasctl_check, SMP_T_BIN,  SMP_T_BOOL },
 	{ "hex",     sample_conv_bin2hex,      0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "hex2i",   sample_conv_hex2int,      0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },

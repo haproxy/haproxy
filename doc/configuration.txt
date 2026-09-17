@@ -21389,6 +21389,7 @@ base64                                             binary       string
 be2dec(separator,chunk_size[,truncate])            binary       string
 le2dec(separator,chunk_size[,truncate])            binary       string
 be2hex([separator[,chunk_size[,truncate]]])        binary       string
+be_sort(elem_size)                                 binary       binary
 bool                                               integer      boolean
 bytes(offset[,length])                             binary       binary
 capture-req(id)                                    string       string
@@ -21724,6 +21725,24 @@ be2hex([<separator>[,<chunk_size>[,<truncate>]]])
       bin(01020304050607),be2hex(:,2)    # 0102:0304:0506:07
       bin(01020304050607),be2hex(--,2,1) # 0102--0304--0506
       bin(0102030405060708),be2hex(,3,1) # 010203040506
+
+be_sort(<elem_size>)
+  Sorts in ascending numerical order the big-endian unsigned integers of
+  <elem_size> bytes stored in the binary input sample, and returns the
+  resulting binary sample. <elem_size> must be 1, 2, 4 or 8, and the length of
+  the input sample must be a multiple of <elem_size>, otherwise the conversion
+  fails. This is typically used to normalize a list of binary values whose
+  order may vary from one client to another before hashing it, such as the
+  cipher list or the extension list of a TLS client hello.
+
+  Example:
+      bin(0302000104),be_sort(1)       # 0001020304
+      bin(1302130113031304),be_sort(2) # 1301130213031304
+      bin(010203),be_sort(2)           # fails, not a multiple of 2
+
+      # hash of the client's cipher list, independent of the cipher order
+      http-request set-var(txn.ciphers) \
+          ssl_fc_cipherlist_bin(1),be_sort(2),xxh64
 
 bool
   Returns a boolean TRUE if the input value of type signed integer is
