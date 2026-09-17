@@ -1,0 +1,77 @@
+varnishtest "replace-header/replace-value length limits"
+
+# In an HTX message, the value of a header or a trailer is limited to 1048575
+# bytes, because of the way its length is encoded in the block descriptor. This
+# limit is tested when a header is added. This test checks it is also enforced
+# when a header is updated. In this case, the rewrite must fail instead of
+# silently corrupting the message.
+#
+# A "tune.bufsize" greater than 1MB is required to be able to exceed this limit.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.url == /ok
+    expect req.http.x-test-len == 524288
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 2097152
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+
+        # Each rule below doubles the length of the x-test value. The client
+        # sends a 256 bytes long value, so these 11 rules lead to a 524288
+        # bytes long value, just under the limit.
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+        http-request replace-value x-test (.*) \1\1
+
+        # This last one would lead to a 1048576 bytes long value, just above
+        # the limit. The rewrite must fail.
+        http-request replace-value x-test (.*) \1\1 if { path /too-big }
+
+        # Don't forward the huge header, only its length
+        http-request set-header x-test-len "%[req.hdr(x-test),length]"
+        http-request del-header x-test
+
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# 11 doublings: the value remains under the limit, the rewrites succeed
+client c1 -connect ${h1_fe_sock} {
+    txreq -url /ok -hdr "x-test: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# 12 doublings: the value would exceed the limit, the last rewrite must fail
+client c2 -connect ${h1_fe_sock} {
+    txreq -url /too-big -hdr "x-test: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    rxresp
+    expect resp.status == 500
+} -run

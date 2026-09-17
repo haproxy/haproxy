@@ -360,6 +360,7 @@ static inline void htx_change_blk_value_len(struct htx *htx, struct htx_blk *blk
 	switch (type) {
 		case HTX_BLK_HDR:
 		case HTX_BLK_TLR:
+			BUG_ON(newlen > 1048575);
 			oldlen = (blk->info >> 8) & 0xfffff;
 			blk->info = (type << 28) + (newlen << 8) + (blk->info & 0xff);
 			break;
@@ -392,6 +393,7 @@ static inline void htx_set_blk_value_len(struct htx_blk *blk, uint32_t vlen)
 	switch (type) {
 		case HTX_BLK_HDR:
 		case HTX_BLK_TLR:
+			BUG_ON(vlen > 1048575);
 			blk->info = (type << 28) + (vlen << 8) + (blk->info & 0xff);
 			break;
 		case HTX_BLK_REQ_SL:
