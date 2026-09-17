@@ -1,0 +1,68 @@
+feature ignore_unknown_macro
+
+server s1 -repeat 2 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if streq("$VTC_SOCK_TYPE",quic)
+        # required for backend connections
+        expose-experimental-directives
+    .endif
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        crt-base ${testdir}/certs
+
+    defaults
+        mode http
+        option httplog
+        retries 0
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        use_backend allowed  if { path /allowed }
+        use_backend excluded if { path /excluded }
+        use_backend open     if { path /open }
+
+    # curve allowed by the crt-list line
+    backend allowed
+        server s1 ${VTC_SOCK_TYPE}+${h1_ssllst_sock} ssl verify none sni str(restricted.curves.domain.tld) curves P-384
+
+    # curve allowed by the bind line but excluded by the crt-list line
+    backend excluded
+        server s1 ${VTC_SOCK_TYPE}+${h1_ssllst_sock} ssl verify none sni str(restricted.curves.domain.tld) curves P-256
+
+    # same excluded curve, but for a certificate without restriction
+    backend open
+        server s1 ${VTC_SOCK_TYPE}+${h1_ssllst_sock} ssl verify none sni str(open.curves.domain.tld) curves P-256
+
+    listen ssl-lst
+        bind ${VTC_SOCK_TYPE}+fd@${ssllst} ssl strict-sni crt-list ${testdir}/certs/curves.crt-list curves P-256:P-384
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/allowed"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/excluded"
+    rxresp
+    expect resp.status == 503
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/open"
+    rxresp
+    expect resp.status == 200
+} -run

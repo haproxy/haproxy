@@ -1,0 +1,91 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for the per-certificate ecdhe option in a crt-list"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1) || feature(OPENSSL_AWSLC)'"
+# In FIPS mode the bind lines get a default curves list, which wins over the
+# "ecdhe" option of a crt-list line, so this test does not apply there.
+feature cmd "$HAPROXY_PROGRAM -cc '!fips_mode()'"
+# This test checks that the curve set by the "ecdhe" option of a crt-list line
+# is enforced when the bind line sets no curves, and that the curves of the
+# bind line win over it when it sets some.
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        crt-base ${testdir}/certs
+
+    defaults
+        mode http
+        option httplog
+        retries 0
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        use_backend allowed   if { path /allowed }
+        use_backend excluded  if { path /excluded }
+        use_backend open      if { path /open }
+        use_backend bind-wins if { path /bind-wins }
+
+    # curve allowed by the "ecdhe" option of the crt-list line
+    backend allowed
+        server s1 ${h1_ssllst_sock} ssl verify none sni str(restricted.ecdhe.domain.tld) curves P-384
+
+    # curve excluded by the "ecdhe" option of the crt-list line
+    backend excluded
+        server s1 ${h1_ssllst_sock} ssl verify none sni str(restricted.ecdhe.domain.tld) curves P-256
+
+    # same excluded curve, but for a certificate without restriction
+    backend open
+        server s1 ${h1_ssllst_sock} ssl verify none sni str(open.ecdhe.domain.tld) curves P-256
+
+    # the curves of the bind line win over the "ecdhe" of the crt-list line
+    backend bind-wins
+        server s1 ${h1_ssllstc_sock} ssl verify none sni str(restricted.ecdhe.domain.tld) curves P-256
+
+    # no curves on this bind line, so the crt-list "ecdhe" applies
+    listen ssl-lst
+        bind "fd@${ssllst}" ssl strict-sni crt-list ${testdir}/certs/ecdhe.crt-list
+        server s1 ${s1_addr}:${s1_port}
+
+    # same crt-list, but this bind line sets its own curves
+    listen ssl-lstc
+        bind "fd@${ssllstc}" ssl strict-sni crt-list ${testdir}/certs/ecdhe.crt-list curves P-256:P-384
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/allowed"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/excluded"
+    rxresp
+    expect resp.status == 503
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/open"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/bind-wins"
+    rxresp
+    expect resp.status == 200
+} -run

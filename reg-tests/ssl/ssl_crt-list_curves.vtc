@@ -1,0 +1,9 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for per-certificate curves in a crt-list"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(1.1.1) || feature(OPENSSL_AWSLC)'"
+# This test checks that the curves set on a crt-list line are enforced, even
+# when the bind line allows more of them.
+
+setenv VTC_SOCK_TYPE stream
+include ${testdir}/ssl_crt-list_curves.vtci

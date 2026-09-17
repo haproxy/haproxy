@@ -145,6 +145,30 @@ int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 	return SSL_TLSEXT_ERR_NOACK;
 }
 
+#if defined(SSL_CTX_set1_curves_list)
+/* Sets the curves of the crt-list line <conf> on <ssl>.
+ * The SSL libraries copy the curves of the SSL_CTX into the SSL object at
+ * SSL_new() time. SSL_set_SSL_CTX() does not update this copy. So they must be
+ * set again on the connection after a context switch.
+ * The value is picked in the same order as when the SSL_CTX is prepared:
+ * <curves> of the crt-list line, else <curves> of the bind line, else
+ * <ecdhe> of the crt-list line, else <ecdhe> of the bind line.
+ * Returns 0 on success, -1 on failure.
+ */
+static int ssl_sock_switchctx_set_curves(SSL *ssl, struct bind_conf *s, struct ssl_bind_conf *conf)
+{
+	const char *curves = conf->curves ? conf->curves : s->ssl_conf.curves;
+
+	if (!curves)
+		curves = conf->ecdhe ? conf->ecdhe : s->ssl_conf.ecdhe;
+
+	if (curves && !SSL_set1_curves_list(ssl, curves))
+		return -1;
+
+	return 0;
+}
+#endif /* SSL_CTX_set1_curves_list */
+
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
 int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx)
 {
@@ -461,6 +485,14 @@ sni_lookup:
 			methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
 			if (conf->early_data)
 				allow_early = 1;
+#if defined(SSL_CTX_set1_curves_list)
+			if (ssl_sock_switchctx_set_curves(ssl, s, conf) < 0) {
+				HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+				TRACE_ERROR("Cannot set the crt-list curves on the connection",
+				            SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
+				goto abort;
+			}
+#endif
 		}
 		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 		goto allow_early;

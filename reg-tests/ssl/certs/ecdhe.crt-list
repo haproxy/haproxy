@@ -1,0 +1,2 @@
+common.pem [ecdhe secp384r1] restricted.ecdhe.domain.tld
+common.pem open.ecdhe.domain.tld

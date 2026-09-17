@@ -1,0 +1,9 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for per-certificate curves in a crt-list over QUIC"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL) && !ssllib_name_startswith(LibreSSL)'"
+# This test checks that the curves set on a crt-list line are enforced over
+# QUIC, even when the bind line allows more of them.
+
+setenv VTC_SOCK_TYPE quic
+include ${testdir}/../ssl/ssl_crt-list_curves.vtci
