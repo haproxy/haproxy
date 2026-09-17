@@ -659,7 +659,7 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	 * must not overflow on the other fields of the block descriptor.
 	 */
 	if (unlikely((type == HTX_BLK_HDR || type == HTX_BLK_TLR) &&
-		     v.len + delta > 1048575))
+		     v.len + delta > HTX_HDR_VALUE_MAX_LEN))
 		return NULL;
 
 	if (unlikely(type < HTX_BLK_EOH && htx_hdrs_too_big(htx, delta)))
@@ -929,7 +929,7 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 	if (type != HTX_BLK_HDR)
 		return NULL;
 
-	if (name.len > 255 || value.len > 1048575)
+	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
 	delta = name.len + value.len - htx_get_blksz(blk);

@@ -360,7 +360,7 @@ static inline void htx_change_blk_value_len(struct htx *htx, struct htx_blk *blk
 	switch (type) {
 		case HTX_BLK_HDR:
 		case HTX_BLK_TLR:
-			BUG_ON(newlen > 1048575);
+			BUG_ON(newlen > HTX_HDR_VALUE_MAX_LEN);
 			oldlen = (blk->info >> 8) & 0xfffff;
 			blk->info = (type << 28) + (newlen << 8) + (blk->info & 0xff);
 			break;
@@ -393,7 +393,7 @@ static inline void htx_set_blk_value_len(struct htx_blk *blk, uint32_t vlen)
 	switch (type) {
 		case HTX_BLK_HDR:
 		case HTX_BLK_TLR:
-			BUG_ON(vlen > 1048575);
+			BUG_ON(vlen > HTX_HDR_VALUE_MAX_LEN);
 			blk->info = (type << 28) + (vlen << 8) + (blk->info & 0xff);
 			break;
 		case HTX_BLK_REQ_SL:
@@ -505,7 +505,7 @@ static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist n
 {
 	struct htx_blk *blk, *tailblk;
 
-	if (name.len > 255 || value.len > 1048575)
+	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
 	tailblk = htx_get_tail_blk(htx);
@@ -529,7 +529,7 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 {
 	struct htx_blk *blk, *tailblk;
 
-	if (name.len > 255 || value.len > 1048575)
+	if (name.len > HTX_HDR_NAME_MAX_LEN || value.len > HTX_HDR_VALUE_MAX_LEN)
 		return NULL;
 
 	tailblk = htx_get_tail_blk(htx);

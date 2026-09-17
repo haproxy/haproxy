@@ -220,6 +220,15 @@ struct htx_blk {
 	uint32_t info; /* information about the block (type, length) */
 };
 
+/* Maximum length of the name and the value of a header or a trailer. For these
+ * blocks, the <info> field above encodes the name length on 8 bits and the
+ * value length on 20 bits. Above these limits, the lengths would silently
+ * overflow on the other fields, corrupting the block. So these limits must
+ * always be checked when a header or a trailer is added or updated.
+ */
+#define HTX_HDR_NAME_MAX_LEN   255
+#define HTX_HDR_VALUE_MAX_LEN  1048575
+
 /* Composite return value used by some HTX functions */
 struct htx_ret {
 	int32_t ret;         /* A numerical value */
