@@ -79,7 +79,7 @@ struct srv_kw_list srv_keywords = {
 
 struct eb_root idle_conn_srv[MAX_THREADS];
 struct task *idle_conn_task[MAX_THREADS] __read_mostly = {};
-struct list all_servers = LIST_HEAD_INIT(all_servers);
+struct list servers_to_init = LIST_HEAD_INIT(servers_to_init);
 static struct task *server_atomic_sync_task = NULL;
 static event_hdl_async_equeue server_atomic_sync_queue;
 
@@ -3209,9 +3209,9 @@ struct server *new_server(struct proxy *proxy)
 
 	HA_RWLOCK_INIT(&srv->path_params.param_lock);
 
-	LIST_INIT(&srv->global_list);
+	LIST_INIT(&srv->el_alt);
 	if (global.mode & MODE_STARTING)
-		LIST_APPEND(&all_servers, &srv->global_list);
+		LIST_APPEND(&servers_to_init, &srv->el_alt);
 
 	return srv;
 }

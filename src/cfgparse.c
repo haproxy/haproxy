@@ -2383,11 +2383,11 @@ int check_config_validity()
 	 * we must finish to initialize certain things on the servers,
 	 * as some of the fields may be accessed soon
 	 */
-	list_for_each_entry_safe(newsrv, tmpsrv, &all_servers, global_list) {
+	list_for_each_entry_safe(newsrv, tmpsrv, &servers_to_init, el_alt) {
 		err_code |= srv_preinit(newsrv);
 		if (err_code & ERR_CODE)
 			goto out;
-		LIST_DEL_INIT(&newsrv->global_list);
+		LIST_DEL_INIT(&newsrv->el_alt);
 	}
 
 	list_for_each_entry(defpx, &defaults_list, el) {

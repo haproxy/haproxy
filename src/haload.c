@@ -2373,8 +2373,8 @@ static int hld_cfg_finalize(void)
 		if (srv_preinit(srv))
 			goto leave;
 
-		/* No need to stay in <all_servers> as srv_preinit() is manually called. */
-		LIST_DEL_INIT(&srv->global_list);
+		/* No need to stay in <servers_to_init> as srv_preinit() is manually called. */
+		LIST_DEL_INIT(&srv->el_alt);
 
 #if 0
 		/* XXX Must this be done? XXX */

@@ -44,7 +44,7 @@
 extern struct idle_conns idle_conns[MAX_THREADS];
 extern struct task *idle_conn_task[MAX_THREADS];
 extern struct eb_root idle_conn_srv[MAX_THREADS];
-extern struct list all_servers;
+extern struct list servers_to_init;
 extern struct dict server_key_dict;
 
 int srv_downtime(const struct server *s);
@@ -402,7 +402,7 @@ static inline void srv_detach(struct server *srv)
 
 	if (global.mode & MODE_STARTING) {
 		/* Necessary if startup is interrupted due to an early error before check_config_validity(). */
-		LIST_DEL_INIT(&srv->global_list);
+		LIST_DEL_INIT(&srv->el_alt);
 	}
 
 	/* Reset the proxy's ready_srv if it was this one. */

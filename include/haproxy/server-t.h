@@ -351,8 +351,10 @@ struct server {
 	signed char use_ssl;		        /* ssl enabled (1: on, 0: disabled, -1 forced off)  */
 	unsigned int flags;                     /* server flags (SRV_F_*) */
 	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
-	struct list global_list;                /* attach point in the global servers */
 	struct list el_px;                      /* attach point in parent proxy */
+	struct list el_alt;                     /* extra attach point for several usages
+	                                         * - for <servers_to_init> global list during parsing
+	                                         */
 	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */
 	char *cookie;				/* the id set in the cookie */
