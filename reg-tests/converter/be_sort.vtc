@@ -1,0 +1,53 @@
+varnishtest "be_sort converter Test"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev7)'"
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp -hdr "Connection: close"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-response set-header be_sort-1 "%[bin(0302000104),be_sort(1),hex]"
+	http-response set-header be_sort-2 "%[bin(1302130113031304),be_sort(2),hex]"
+	http-response set-header be_sort-4 "%[bin(00000002000000010000000300000000),be_sort(4),hex]"
+	# unsigned comparison: ffffffffffffffff must be sorted last
+	http-response set-header be_sort-8 "%[bin(0000000000000002ffffffffffffffff0000000000000001),be_sort(8),hex]"
+	# a single element is returned as-is
+	http-response set-header be_sort-single "%[bin(1302),be_sort(2),hex]"
+	# the input length is not a multiple of the element size, the conversion
+	# fails and the header ends up empty
+	http-response set-header be_sort-odd "%[bin(010203),be_sort(2),hex]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.be_sort-1 == "0001020304"
+	expect resp.http.be_sort-2 == "1301130213031304"
+	expect resp.http.be_sort-4 == "00000000000000010000000200000003"
+	expect resp.http.be_sort-8 == "00000000000000010000000000000002FFFFFFFFFFFFFFFF"
+	expect resp.http.be_sort-single == "1302"
+	expect resp.http.be_sort-odd == ""
+} -run
