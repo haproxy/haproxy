@@ -30,6 +30,7 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/arg-t.h>
 #include <haproxy/counters.h>
+#include <haproxy/errors.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/resolvers-t.h>
@@ -265,6 +266,18 @@ static inline int server_is_draining(const struct server *s)
 	return !s->uweight || (s->cur_admin & SRV_ADMF_DRAIN);
 }
 
+/* Cancel the deletion of <s> server. */
+static inline void srv_cancel_purge(struct server *s)
+{
+	/* Only server flag is reset, Cannot remove it from proxy purge list
+	 * without lock. This is performed instead during purge task execution.
+	 */
+	if (s->flags & SRV_F_TO_PURGE) {
+		ha_notice("Server '%s/%s' purge cancelled.\n", s->proxy->id, s->id);
+		s->flags &= ~SRV_F_TO_PURGE;
+	}
+}
+
 /* Puts server <s> into maintenance mode, and propagate that status down to all
  * tracking servers.
  */
@@ -272,6 +285,7 @@ static inline void srv_adm_set_maint(struct server *s)
 {
 	srv_set_admin_flag(s, SRV_ADMF_FMAINT, SRV_ADM_STCHGC_NONE);
 	srv_clr_admin_flag(s, SRV_ADMF_FDRAIN);
+	srv_cancel_purge(s);
 }
 
 /* Puts server <s> into drain mode, and propagate that status down to all
@@ -281,6 +295,7 @@ static inline void srv_adm_set_drain(struct server *s)
 {
 	srv_set_admin_flag(s, SRV_ADMF_FDRAIN, SRV_ADM_STCHGC_NONE);
 	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
+	srv_cancel_purge(s);
 }
 
 /* Puts server <s> into ready mode, and propagate that status down to all
@@ -290,6 +305,7 @@ static inline void srv_adm_set_ready(struct server *s)
 {
 	srv_clr_admin_flag(s, SRV_ADMF_FDRAIN);
 	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
+	srv_cancel_purge(s);
 }
 
 static inline void srv_set_init_state(struct server *srv)
@@ -407,11 +423,7 @@ static inline void srv_detach(struct server *srv)
 	struct proxy *px = srv->proxy;
 
 	LIST_DEL_INIT(&srv->el_px);
-
-	if (global.mode & MODE_STARTING) {
-		/* Necessary if startup is interrupted due to an early error before check_config_validity(). */
-		LIST_DEL_INIT(&srv->el_alt);
-	}
+	LIST_DEL_INIT(&srv->el_alt);
 
 	/* Reset the proxy's ready_srv if it was this one. */
 	HA_ATOMIC_CAS(&px->ready_srv, &srv, NULL);

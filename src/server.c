@@ -3178,6 +3178,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
 	LIST_APPEND(&proxy->servers, &srv->el_px);
+	LIST_INIT(&srv->el_alt);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
 	LIST_INIT(&srv->pp_tlvs);
@@ -7108,6 +7109,57 @@ out:
 	return 1;
 }
 
+/* Parser for "purge server" CLI command. Always return 1. */
+static int cli_parse_purge_server(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *be;
+	struct server *srv;
+	const char *be_name, *sv_name, *msg;
+	int ret;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	++args;
+
+	thread_isolate_full();
+
+	if (parse_be_srv(args[1], &be_name, &sv_name, &msg)) {
+		cli_err(appctx, msg);
+		goto out;
+	}
+
+	ret = srv_check_for_deletion(be_name, sv_name, &be, &srv, &msg);
+	if (ret < 0) {
+		/* Unremovable server, cancel purge. */
+		cli_err(appctx, msg);
+		goto out;
+	}
+
+	if (!ret) {
+		/* Cannot remove server yet, schedule purging. */
+		if (!LIST_INLIST(&srv->el_alt))
+			LIST_APPEND(&be->servers_purge, &srv->el_alt);
+		srv->flags |= SRV_F_TO_PURGE;
+
+		if (!tick_isset(be->purge_task->expire))
+			be->purge_task->expire = tick_add(now_ms, 1000);
+		task_queue(be->purge_task);
+		ha_notice("Server '%s/%s' flagged for deletion.\n", be->id, srv->id);
+		cli_msg(appctx, LOG_INFO, "Server scheduled for purge.\n");
+	}
+	else {
+		srv_unregister(srv);
+		ha_notice("Server %s/%s deleted.\n", be->id, srv->id);
+		cli_msg(appctx, LOG_INFO, "Server deleted.\n");
+		srv_drop(srv);
+	}
+
+ out:
+	thread_release();
+	return 1;
+}
+
 /* Reset the statistics counters of a single server, invoked from the
  * "clear counters server <backend>/<server> [force]" CLI command (dispatched
  * by cli_parse_clear_counters() in stats.c, since "clear counters" is a
@@ -7174,6 +7226,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "weight", NULL },             "set weight <bk>/<srv>  (DEPRECATED)     : change a server's weight (use 'set server' instead)",         cli_parse_set_weight },
 	{ { "add", "server", NULL },             "add server <bk>/<srv>                   : create a new server",                                         cli_parse_add_server, cli_io_handler_add_server },
 	{ { "del", "server", NULL },             "del server <bk>/<srv>                   : remove a server",                                             cli_parse_delete_server, NULL },
+	{ { "purge", "server", NULL },           "purge server <bk>/<srv>                 : remove on background a server",                               cli_parse_purge_server, NULL },
 	{{},}
 }};
 

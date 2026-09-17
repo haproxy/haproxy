@@ -176,6 +176,7 @@ enum srv_init_state {
 #define SRV_F_UDP_GSO_NOTSUPP 0x40000    /* UDP GSO is disabled due to a previous error encountered */
 #define SRV_F_NAME_REFD    0x80000       /* this server's name is statically referenced (use-server, track, sample arg) */
 #define SRV_F_UMODIFIED    0x100000      /* at least one setting has been explicitely set via a server keyword */
+#define SRV_F_TO_PURGE     0x200000      /* server will be deleted when unused */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */
@@ -354,6 +355,7 @@ struct server {
 	struct list el_px;                      /* attach point in parent proxy */
 	struct list el_alt;                     /* extra attach point for several usages
 	                                         * - for <servers_to_init> global list during parsing
+	                                         * - for parent proxy purge list at runtime
 	                                         */
 	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */

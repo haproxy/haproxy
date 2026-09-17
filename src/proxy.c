@@ -510,6 +510,40 @@ void proxy_drop(struct proxy *p)
 	ha_free(&p);
 }
 
+/* Try to delete servers flagged for purge in <px> backend. */
+static int proxy_purge_servers(struct proxy *px)
+{
+	struct server *srv;
+	int ret;
+
+	while (!LIST_ISEMPTY(&px->servers_purge)) {
+		srv = LIST_NEXT(&px->servers_purge, struct server *, el_alt);
+		if (!(srv->flags & SRV_F_TO_PURGE)) {
+			LIST_DEL_INIT(&srv->el_alt);
+			continue;
+		}
+
+		/* TODO unnecessary server lookup */
+		ret = srv_check_for_deletion(px->id, srv->id, PR_DEL_MODE_SYNC, NULL, NULL, NULL);
+		if (ret < 0) {
+			srv_cancel_purge(srv);
+			LIST_DEL_INIT(&srv->el_alt);
+		}
+		else if (ret > 0) {
+			ha_notice("Server '%s/%s' purged.\n", px->id, srv->id);
+			srv_unregister(srv);
+			srv_drop(srv);
+			/* TODO yield after nth deletion performed in a row */
+		}
+		else {
+			/* Interrupt work on first server not yet removable. */
+			break;
+		}
+	}
+
+	return 0;
+}
+
 /* Proxy purge task handler, only used by user configured backend instances.
  * Its objective is to remove any servers flagged with purge or the backend
  * instance itself.
@@ -517,6 +551,11 @@ void proxy_drop(struct proxy *p)
 struct task *proxy_process_purge(struct task *t, void *context, unsigned int state)
 {
 	struct proxy *px = context;
+
+	/* Must not dereference <px> before entering thread isolation and
+	 * checking task state, as proxy_drop() performed outside isolation
+	 * during "del backend".
+	 */
 
 	thread_isolate_full();
 
@@ -527,6 +566,10 @@ struct task *proxy_process_purge(struct task *t, void *context, unsigned int sta
 		goto requeue;
 	}
 
+	if (!LIST_ISEMPTY(&px->servers_purge))
+		proxy_purge_servers(px);
+
+	/* Set next task execution or cancel it if no more work to do. */
 	if (!LIST_ISEMPTY(&px->servers_purge))
 		t->expire = tick_add(now_ms, MS_TO_TICKS(1000));
 	else
