@@ -79,7 +79,7 @@ struct srv_kw_list srv_keywords = {
 
 struct eb_root idle_conn_srv[MAX_THREADS];
 struct task *idle_conn_task[MAX_THREADS] __read_mostly = {};
-struct mt_list all_servers = MT_LIST_HEAD_INIT(all_servers);
+struct list all_servers = LIST_HEAD_INIT(all_servers);
 static struct task *server_atomic_sync_task = NULL;
 static event_hdl_async_equeue server_atomic_sync_queue;
 
@@ -3159,10 +3159,9 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	}
 }
 
-/* Allocates a server, attaches it to the global <all_servers> list
- * and adds it to <proxy> server list. Before deleting the server with
- * srv_drop(), srv_detach() must be called to remove it from the parent
- * proxy list
+/* Allocates a server and adds it to <proxy> server list. Before deleting the
+ * server with srv_drop(), srv_detach() must be called to remove it from the
+ * parent proxy list
  *
  * Returns the server on success, otherwise NULL.
  */
@@ -3179,7 +3178,6 @@ struct server *new_server(struct proxy *proxy)
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
 	LIST_APPEND(&proxy->servers, &srv->el_px);
-	MT_LIST_APPEND(&all_servers, &srv->global_list);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
 	LIST_INIT(&srv->pp_tlvs);
@@ -3210,6 +3208,10 @@ struct server *new_server(struct proxy *proxy)
 #endif
 
 	HA_RWLOCK_INIT(&srv->path_params.param_lock);
+
+	LIST_INIT(&srv->global_list);
+	if (global.mode & MODE_STARTING)
+		LIST_APPEND(&all_servers, &srv->global_list);
 
 	return srv;
 }
@@ -3313,7 +3315,6 @@ void srv_drop(struct server *srv)
 
 	HA_SPIN_DESTROY(&srv->lock);
 
-	MT_LIST_DELETE(&srv->global_list);
 	event_hdl_sub_list_destroy(&srv->e_subs);
 
 	srv_free(&srv);

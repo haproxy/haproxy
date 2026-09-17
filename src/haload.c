@@ -2372,6 +2372,10 @@ static int hld_cfg_finalize(void)
 
 		if (srv_preinit(srv))
 			goto leave;
+
+		/* No need to stay in <all_servers> as srv_preinit() is manually called. */
+		LIST_DEL_INIT(&srv->global_list);
+
 #if 0
 		/* XXX Must this be done? XXX */
 		if (!srv_alloc_lb(srv, &hld_proxy)) {

@@ -2287,8 +2287,7 @@ int check_config_validity()
 	struct proxy *defpx;
 	struct list *init_proxies_list = NULL;
 	struct stktable *t;
-	struct server *newsrv = NULL, *defsrv;
-	struct mt_list back;
+	struct server *newsrv = NULL, *tmpsrv, *defsrv;
 	int err_code = 0;
 	/* Value forced to skip '1' due to an historical bug, see below for more details. */
 	unsigned int next_pxid = 2;
@@ -2384,10 +2383,11 @@ int check_config_validity()
 	 * we must finish to initialize certain things on the servers,
 	 * as some of the fields may be accessed soon
 	 */
-	MT_LIST_FOR_EACH_ENTRY_LOCKED(newsrv, &all_servers, global_list, back) {
+	list_for_each_entry_safe(newsrv, tmpsrv, &all_servers, global_list) {
 		err_code |= srv_preinit(newsrv);
 		if (err_code & ERR_CODE)
 			goto out;
+		LIST_DEL_INIT(&newsrv->global_list);
 	}
 
 	list_for_each_entry(defpx, &defaults_list, el) {

@@ -1310,6 +1310,9 @@ struct sink *sink_new_from_logger(struct logger *logger)
 	if (srv_preinit(srv) & ERR_CODE)
 		goto error;
 
+	/* No need to stay in <all_servers> as srv_preinit() is manually called. */
+	LIST_DEL_INIT(&srv->global_list);
+
 	/* Same thing for the forward proxy: check_config_validity() has
 	 * already walked over sink_proxies_list, so this one is never
 	 * initialized nor finalized. Keep the same order as there, as the
