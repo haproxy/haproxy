@@ -3099,7 +3099,7 @@ smp_fetch_htx_blk_data(const struct arg *arg_p, struct sample *smp, const char *
 	else
 		blk = ((pos >= htx->head && pos <= htx->tail) ? htx_get_blk(htx, pos) : NULL);
 
-	if (!blk || htx_get_blk_type(blk) != HTX_BLK_DATA) {
+	if (!blk || !htx_is_data_type(htx_get_blk_type(blk))) {
 		smp->data.u.str.size = 0;
 		smp->data.u.str.area = "";
 		smp->data.u.str.data = 0;
