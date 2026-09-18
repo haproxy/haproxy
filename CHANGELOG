@@ -1,6 +1,93 @@
 ChangeLog :
 ===========
 
+2026/09/18 : 3.5-dev7
+    - BUG/MINOR: quic: leak of the NEW_TOKEN frame on token generation failure
+    - MINOR: quic: implement the AEAD integrity limit
+    - DOC: config: clarify tune tune.bufsize doc regarding various limits
+    - BUG/MEDIUM: hlua: Never release a cosocket applet from the GC
+    - BUG/MINOR: mux-h1: Return an error on trailers if last chunk is unfinished
+    - BUG/MINOR: hlua: Always return nil if there is no data to dup for HTTP messages
+    - BUG/MEDIUM: htx: Don't reset flags when source must be preserved during transfer
+    - BUG/MINOR: flt-http-comp: Rely on htx_set_eom() to restore EOM flag
+    - MINOR: httpclient: Don't manually set HTX_FL_EOM flag after calling htx_xfer()
+    - MINOR: htx: Remove htx_xfer_blks function
+    - CLEANUP: htx: Remove ref to EOM block on HTX_FL_EOM flag comment
+    - DOC: htx: Fix comment of htx_expect_more() function
+    - REORG: htx: Move functions to deal with first block after ones about next block
+    - MINOR: mux-h1: loop on HTX blocks using _blk() functions to look for WS key
+    - BUG/MINOR: stream/debug: harden the stream dump function regarding signals
+    - MINOR: stconn: prefer to replace endpoints rather than detaching them
+    - BUILD: fd: unshare is not available on NetBSD
+    - MINOR: ring: add "-r" to "show events" to dump in raw mode (undoes "-s")
+    - MINOR: ring: permit to combine options on "show events"
+    - MINOR: ring/cli: improve the "show events" parser regarding options
+    - MINOR: ring/cli: also support "show events -h" to display the help
+    - MINOR: http: define new HTTP status codes for parsers
+    - MINOR: http-htx: add a new generic trailers parser
+    - REGTESTS: http-messaging: add tests for the H2 and H3 trailers
+    - MEDIUM: mux-h2: rely on the generic trailers parser
+    - MINOR: mux-h2: report more accurate traces and glitches on trailers errors
+    - CLEANUP: h2: get rid of the now unused h2_make_htx_trailers()
+    - MEDIUM: h3: rely on the generic trailers parser
+    - BUG/MINOR: h3: reject truncated frames with mandatory payload
+    - BUG/MEDIUM: h3: do not block FIN on empty DATA frame
+    - BUG/MINOR: h3: handle empty HEADERS frame as specified
+    - BUG/MINOR: h3: handle unknown frame type on request stream as specified
+    - BUG/MINOR: h3: only increment frame type counter on new header
+    - BUILD: fd: Make sure to include sched.h
+    - BUG/MEDIUM: http-ana: apply tunnel timeout with data filters
+    - SCRIPTS: run-regtests: Increase internal buffer size used for logs
+    - REGTESTS: specify explicit chroot in confs using unix-stream servers
+    - MAJOR: startup: use chroot auto by default when available
+    - BUG/MINOR: ssl: don't pass the address of a size_t as an int* to OpenSSL
+    - BUG/MEDIUM: map: do not overwrite the fetch context in pat_match_regm()
+    - REGTESTS: map: check map_regm inside an ACL over an iterating fetch
+    - BUG/MINOR: cli: Make sure two instances of _getsocks don't run
+    - BUG/MEDIUM: listener: Don't drop suspend/resume deferred requests
+    - MEDIUM: twork: Introduce a new cross-thread/thread-group deferred work API
+    - MEDIUM: listener: make the rx_agent use the generic twork API
+    - MINOR: fd: add fd_tables_are_split() to test for split FD tables
+    - BUG/MEDIUM cli: dump other thread groups' FDs from their own threads
+    - BUG/MINOR: stream: resolve foreign groups' addresses for "show sess"
+    - REGTESTS: http-messaging: add tests for the H1 trailers
+    - MINOR: http-htx: pass extra flags to the HTTP trailers parser
+    - MINOR: http-htx: condition uppercase acceptance in trailer names to HTTP_PF_UPCASE_OK
+    - MEDIUM: h1: switch to the generic trailers parser
+    - REGTESTS: update trailers tests to cover H1's refusal of forbidden names
+    - BUG/MEDIUM: http_act: fix normalize-uri normalizer selection with a condition
+    - REGTESTS: uri_normalizer: test a normalizer used with a condition
+    - BUG/MEDIUM: cli: Don't parse next command if input buffer is empty
+    - BUG/MEDIUM: cli: Don't read a command or payload line into a full buffer
+    - BUG/MINOR: cli: Reject payload with no command
+    - BUG/MINOR: pattern: do not match a string with an embedded \0 on its prefix
+    - REGTESTS: http-rules: check "-m str" on a sample with an embedded \0
+    - BUILD: ssl: ASN1_STRING_length() is deprecated since OpenSSL 4.1
+    - IMPORT: uslz: reject codes from an empty distance table
+    - MINOR: htx: don't reserve a block when there is no free space left
+    - MEDIUM: jwt: Reject "none" alg in jwt_verify by default
+    - BUG/MINOR: ssl: Fix leak of ca_list in cafile_entry
+    - BUG/MINOR: sample: reject a \0 byte in url_dec, json_query and jwt_*_query
+    - DOC: configuration: clarify the validity ranges of sample types
+    - BUG/MEDIUM: ssl: don't set a 0 timeout on an expired TLS session
+    - BUG/MEDIUM: htx: Reserve a block descriptor for zero-sized blocks
+    - CLEANUP: stream: Remove an excess newline in the stream dump
+    - BUG/MEDIUM: tcp-rules: Don't restart tcp-request content evaluation on yield
+    - BUG/MINOR: proxy: pass PR_FL_DEF_EXPLICIT_MODE through cascaded defaults
+    - MAJOR: filters: Revert the filter-sequence directive
+    - MINOR: promex: properly use alt_name and val instead of hard-coded values
+    - MINOR: mworker: assign a unique ID to the master process
+    - MINOR: config: add a "worker-id" global keyword to identify the worker
+    - MINOR: sample: add the "master_id" and "worker_id" sample fetches
+    - MINOR: stats: report the master and worker IDs in "show info"
+    - MINOR: promex: expose the master and worker IDs as labels
+    - MINOR: extcheck: pass the master and worker IDs to external checks
+    - MINOR: stats: report the process IDs on the HTML page with "stats show-node"
+    - REGTESTS: mcli: check the master and worker unique identifiers
+    - DOC: config: fix indent issue introduced with worker id
+    - MINOR: sample: add the "be_sort" converter
+    - REGTESTS: converter: add a test for the "be_sort" converter
+
 2026/09/03 : 3.5-dev6
     - OPTIM: log/tools: switch from function pointer design to dual mode HEX/BIN design for CBOR encoding
     - IMPORT: slz/uslz: support SLZ_FMT_NONE format and force its value to 0
