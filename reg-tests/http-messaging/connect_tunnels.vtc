@@ -1,0 +1,184 @@
+# This test checks the CONNECT tunnels handling, on the H1 and H2 sides. For a
+# tunneled stream, the end of the HTTP message is reported just after the
+# headers. The tunneled data are thus exchanged after the end of the message
+# and must never be mixed with the HTTP data.
+#
+# Trailers are also checked. They must be rejected on a tunneled stream,
+# because the message was already ended. But they remain valid on the response
+# side when the tunnel attempt was aborted, because the response is then a
+# regular one, with a payload.
+
+varnishtest "CONNECT tunnels over H1 and H2"
+feature ignore_unknown_macro
+
+# used to be sure the tunnel is established before the bogus trailers are sent
+barrier b1 cond 2 -cyclic
+
+# The tunnel is established but the client sends a bogus trailers block. The
+# stream must be reset, so the server never replies.
+server s1 {
+	rxreq
+	expect req.method == "CONNECT"
+	barrier b1 sync
+	expect_close
+} -start
+
+# H1 tunnel endpoint, data are exchanged in both directions
+server s2 {
+	rxreq
+	expect req.method == "CONNECT"
+	txresp -nolen
+	recv 5
+	send "SRV->CLI"
+	recv 4
+} -start
+
+# Same, for the H2 frontend. The reply is delayed to be sure the window update
+# and the response headers are received first by the client.
+server s3 {
+	rxreq
+	expect req.method == "CONNECT"
+	txresp -nolen
+	recv 5
+	delay 0.3
+	send "SRV->CLI"
+} -start
+
+# H2 server refusing the CONNECT with a 403 carrying a payload and trailers.
+# The tunnel attempt is aborted, but the response is a regular one. So the
+# trailers are valid and must be forwarded.
+server s4 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxhdrs
+		expect req.method == "CONNECT"
+		txresp -status 403 -nostrend
+		txdata -data "denied" -nostrend
+		txresp -noadd -hdr "x-rtlr" "rvalue"
+	} -run
+} -start
+
+haproxy hap -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen fe_tlr
+	bind "fd@${fe_tlr}" proto h2
+	server s1 "${s1_addr}:${s1_port}"
+
+    listen fe_h1
+	bind "fd@${fe_h1}"
+	server s2 "${s2_addr}:${s2_port}"
+
+    listen fe_h2
+	bind "fd@${fe_h2}" proto h2
+	server s3 "${s3_addr}:${s3_port}"
+
+    listen fe_abrt
+	bind "fd@${fe_abrt}" proto h2
+	server s4 "${s4_addr}:${s4_port}" proto h2
+} -start
+
+# H2 CONNECT followed by a bogus trailers block. It must be rejected without
+# mixing the trailers with the tunneled data. Because tunneled data were sent
+# first, the end of the message is still reported on the HTX message whether the
+# headers part was already consumed or not.
+client c1 -connect ${hap_fe_tlr_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+	} -run
+
+	stream 1 {
+		txreq -noadd \
+		  -litHdr inc plain ":method" plain "CONNECT" \
+		  -litHdr inc plain ":authority" plain "${s1_addr}:${s1_port}" \
+		  -nostrend
+		txdata -data "CLI>>" -nostrend
+		barrier b1 sync
+		txreq -noadd -litHdr inc plain "x-trailer" plain "1"
+	} -run
+
+	delay 1
+} -run
+
+# H1 CONNECT, then tunneled data in both directions
+client c2 -connect ${hap_fe_h1_sock} {
+	txreq -req CONNECT -url "${s2_addr}:${s2_port}" \
+	  -nohost -hdr "host: ${s2_addr}:${s2_port}" -nolen
+	rxresphdrs
+	expect resp.status == 200
+	send "CLI>>"
+	recv 8
+	send "bye!"
+} -run
+
+# H2 CONNECT with the tunneled data sent in the same segment as the headers,
+# then the tunneled reply is read back
+client c3 -connect ${hap_fe_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+	} -run
+
+	stream 1 {
+		txreq -noadd \
+		  -litHdr inc plain ":method" plain "CONNECT" \
+		  -litHdr inc plain ":authority" plain "${s3_addr}:${s3_port}" \
+		  -nostrend
+		txdata -data "CLI>>"
+		rxwinup
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "SRV->CLI"
+	} -run
+
+	delay 1
+} -run
+
+# H2 CONNECT refused by the server with a payload and trailers. Both must be
+# forwarded to the client.
+client c4 -connect ${hap_fe_abrt_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+	} -run
+
+	stream 1 {
+		txreq -noadd \
+		  -litHdr inc plain ":method" plain "CONNECT" \
+		  -litHdr inc plain ":authority" plain "10.0.0.1:443" \
+		  -nostrend
+		rxwinup
+		rxhdrs
+		expect resp.status == 403
+		rxdata
+		expect resp.bodylen == 6
+		rxhdrs
+		expect resp.http.x-rtlr == "rvalue"
+	} -run
+} -run
