@@ -12,6 +12,8 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
+#include <haproxy/errors.h>
+#include <haproxy/init.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/quic_conn.h>
@@ -145,11 +147,84 @@ int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 	return SSL_TLSEXT_ERR_NOACK;
 }
 
+#if defined(OPENSSL_IS_AWSLC)
+/* Set to 1 when the SSL object holds its own TLSv1.3 ciphersuites, which is
+ * the case from AWS-LC 1.46 on. Before that SSL_set_ciphersuites() and
+ * SSL_set_cipher_list() write the same field, and the last call wins.
+ */
+static int awslc_ssl_owns_cipher_lists;
+
+/* Checks whether SSL_set_ciphersuites() keeps what SSL_set_cipher_list() set
+ * on the same SSL object. AWSLC_API_VERSION cannot tell, it stays at 32 from
+ * 1.44 to 1.49 while the behaviour changed in 1.46.
+ * Always returns 0, a failed check just leaves the ciphersuites of a crt-list
+ * line unapplied.
+ */
+static int ssl_sock_check_awslc_cipher_lists(void)
+{
+	SSL_CTX *ctx;
+	SSL *ssl = NULL;
+	int before = 0, after = 0;
+
+	ctx = SSL_CTX_new(SSLv23_server_method());
+	if (ctx)
+		ssl = SSL_new(ctx);
+
+	if (ssl) {
+		while (SSL_get_cipher_list(ssl, before))
+			before++;
+	}
+
+	if (before < 2 || !SSL_set_ciphersuites(ssl, "TLS_AES_128_GCM_SHA256")) {
+		ha_warning("Cannot check how AWS-LC keeps the cipher lists of an SSL object. "
+		           "The 'ciphersuites' option of a crt-list line will be ignored.\n");
+	}
+	else {
+		while (SSL_get_cipher_list(ssl, after))
+			after++;
+
+		/* The default ciphers are still there, so the two lists are
+		 * separate and setting the ciphersuites is safe.
+		 */
+		if (after > 1)
+			awslc_ssl_owns_cipher_lists = 1;
+	}
+
+	SSL_free(ssl);
+	SSL_CTX_free(ctx);
+	return 0;
+}
+
+REGISTER_POST_CHECK(ssl_sock_check_awslc_cipher_lists);
+
+/* Sets the ciphers and the ciphersuites of the crt-list line <conf> on <ssl>.
+ * AWS-LC copies the cipher lists of the SSL_CTX into the SSL object at
+ * SSL_new() time. SSL_set_SSL_CTX() does not update this copy. So they must be
+ * set again on the SSL object after a context switch. An option not set in
+ * <conf> keeps the bind line value copied at SSL_new() time.
+ * Returns 0 on success, -1 on failure.
+ */
+static int ssl_sock_switchctx_set_ciphers(SSL *ssl, struct ssl_bind_conf *conf)
+{
+	if (conf->ciphers && !SSL_set_cipher_list(ssl, conf->ciphers))
+		return -1;
+
+	/* On the versions where both cipher lists share the same field, this
+	 * call would erase the ciphers set above.
+	 */
+	if (awslc_ssl_owns_cipher_lists &&
+	    conf->ciphersuites && !SSL_set_ciphersuites(ssl, conf->ciphersuites))
+		return -1;
+
+	return 0;
+}
+#endif /* OPENSSL_IS_AWSLC */
+
 #if defined(SSL_CTX_set1_curves_list)
 /* Sets the curves of the crt-list line <conf> on <ssl>.
  * The SSL libraries copy the curves of the SSL_CTX into the SSL object at
  * SSL_new() time. SSL_set_SSL_CTX() does not update this copy. So they must be
- * set again on the connection after a context switch.
+ * set again on the SSL object after a context switch.
  * The value is picked in the same order as when the SSL_CTX is prepared:
  * <curves> of the crt-list line, else <curves> of the bind line, else
  * <ecdhe> of the crt-list line, else <ecdhe> of the bind line.
@@ -485,10 +560,18 @@ sni_lookup:
 			methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
 			if (conf->early_data)
 				allow_early = 1;
+#if defined(OPENSSL_IS_AWSLC)
+			if (ssl_sock_switchctx_set_ciphers(ssl, conf) < 0) {
+				HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+				TRACE_ERROR("Cannot set the crt-list ciphers on the SSL object",
+				            SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
+				goto abort;
+			}
+#endif
 #if defined(SSL_CTX_set1_curves_list)
 			if (ssl_sock_switchctx_set_curves(ssl, s, conf) < 0) {
 				HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
-				TRACE_ERROR("Cannot set the crt-list curves on the connection",
+				TRACE_ERROR("Cannot set the crt-list curves on the SSL object",
 				            SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 				goto abort;
 			}
