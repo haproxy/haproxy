@@ -52,7 +52,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 	struct htx *tmp = htxbuf(chunk);
 	struct htx_blk *newblk, *oldblk;
 	enum htx_blk_type type;
-	uint32_t new, old, blkpos;
+	uint32_t old, blkpos;
 	uint32_t blksz;
 
 	if (htx->head == -1)
@@ -60,7 +60,6 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 
 	blkpos = -1;
 
-	new  = 0;
 	tmp->size = htx->size;
 	tmp->data = 0;
 
@@ -94,13 +93,11 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 
 		/* update the start-line position */
 		if (htx->first == old)
-			tmp->first = new;
+			tmp->first = htx_get_blk_pos(tmp, newblk);
 
 		/* if <blk> is defined, save its new position */
 		if (blk == oldblk)
-			blkpos = new;
-
-		new++;
+			blkpos = htx_get_blk_pos(tmp, newblk);
 	}
 
 	htx->data = tmp->data;
