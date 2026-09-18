@@ -37,6 +37,7 @@ extern int ocsp_ex_index;
 #define SSL_OCSP_UPDATE_DELAY_MIN 5*60  /* 5 minutes */
 #define SSL_OCSP_UPDATE_MARGIN 60   /* 1 minute */
 #define SSL_OCSP_HTTP_ERR_REPLAY 60 /* 1 minute */
+#define SSL_OCSP_UPDATE_HTTP_TIMEOUT 10000 /* 10 seconds */
 
 #if defined(HAVE_SSL_OCSP)
 /*

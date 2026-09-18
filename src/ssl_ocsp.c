@@ -63,6 +63,7 @@
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/ssl_trace.h>
 
@@ -1401,6 +1402,16 @@ static struct task *ssl_ocsp_update_responses(struct task *task, void *context, 
 			goto leave;
 		}
 
+		/* Without an explicit timeout, the httpclient's server side
+		 * timeout stays unset (see httpclient_set_timeout()) and the
+		 * request can hang forever if the response is never fully
+		 * delivered to us, even after the underlying connection is
+		 * done. Since this task and its httpclient are shared by the
+		 * whole ocsp-update queue, such a hang blocks every other
+		 * certificate behind it as well.
+		 */
+		httpclient_set_timeout(hc, global_ssl.ocsp_update.http_timeout);
+
 		/* if the ocsp_update.http_proxy option was set */
 		if (ocsp_update_dst) {
 			hc->options |= HTTPCLIENT_O_HTTPPROXY;
@@ -2086,6 +2097,40 @@ static int ssl_parse_global_ocsp_update_disable(char **args, int section_type, s
 	return 0;
 }
 
+static int ssl_parse_global_ocsp_timeout(char **args, int section_type, struct proxy *curpx,
+                                         const struct proxy *defpx, const char *file, int line,
+                                         char **err)
+{
+	const char *res;
+	unsigned int value = 0;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument.", args[0]);
+		return -1;
+	}
+
+	res = parse_time_err(args[1], &value, TIME_UNIT_MS);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument <%s> to <%s>, maximum value is 2147483647 ms (~24.8 days).",
+		          args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.",
+		          args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unsupported character '%c' in '%s' (wants an integer delay).",
+		          *res, args[0]);
+		return -1;
+	}
+
+	global_ssl.ocsp_update.http_timeout = value;
+
+	return 0;
+}
+
 static int ocsp_update_parse_global_http_proxy(char **args, int section_type, struct proxy *curpx,
                                         const struct proxy *defpx, const char *file, int line,
                                         char **err)
@@ -2170,6 +2215,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ocsp-update.mindelay", ssl_parse_global_ocsp_mindelay },
 	{ CFG_GLOBAL, "ocsp-update.mode", ssl_parse_global_ocsp_update_mode },
 	{ CFG_GLOBAL, "ocsp-update.httpproxy", ocsp_update_parse_global_http_proxy },
+	{ CFG_GLOBAL, "ocsp-update.timeout", ssl_parse_global_ocsp_timeout },
 #endif
 	{ 0, NULL, NULL },
 }};

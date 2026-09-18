@@ -3163,6 +3163,16 @@ ocsp-update.mode [ on | off ]
   See option "ocsp-update" for more information about the auto update
   mechanism.
 
+ocsp-update.timeout <timeout>
+  Sets the timeout applied to the request used to fetch an OCSP response
+  during an automatic update. This timeout covers the whole request, from
+  the connection attempt to the reception of the full response. If it is
+  reached, the update is considered a failure and is logged as such. The
+  timeout value is specified in milliseconds by default, but can be in any
+  other unit if the number is suffixed by the unit, as explained at the top
+  of this document. It defaults to 10s. See option "ocsp-update" for more
+  information about the auto update mechanism.
+
 pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile> when daemon mode or writes PID
   of master process into file <pidfile> when master-worker mode. This option is
