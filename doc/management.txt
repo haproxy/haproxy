@@ -2601,8 +2601,9 @@ purge server <backend>/<server>
   This is an alternative command to "del server". Its main difference is that
   if the server cannot be immediately removed due to remaining active or idle
   connections, the server is flagged for background deletion instead of
-  rejecting the command. A scheduled deletion is cancelled if the server state
-  is explicitly reset, even if still in maintenance mode.
+  rejecting the command. To succeed, this also automatically puts the server
+  into maintenance if needed. A scheduled deletion is cancelled if the server
+  state is explicitly reset, even if still in maintenance mode.
 
 quit
   Close the connection when in interactive mode.

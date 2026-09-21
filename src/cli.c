@@ -2545,7 +2545,7 @@ static int cli_io_handler_wait(struct appctx *appctx)
 	    ctx->cond == CLI_WAIT_COND_BE_UNUSED) {
 		if (ctx->cond == CLI_WAIT_COND_SRV_UNUSED) {
 			/* check if the server in args[0]/args[1] can be released now */
-			ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], NULL, NULL, &ctx->msg);
+			ret = srv_check_for_deletion(ctx->args[0], ctx->args[1], PR_DEL_MODE_SYNC, NULL, NULL, &ctx->msg);
 		}
 		else {
 			ret = be_check_for_deletion(ctx->args[0], NULL, &ctx->msg);

@@ -60,6 +60,12 @@ enum pr_mode {
 	PR_MODE_SPOP   = 0x20,
 } __attribute__((packed));
 
+/* Runtime deletion mode of operation */
+enum pr_del_mode {
+	PR_DEL_MODE_SYNC,
+	PR_DEL_MODE_ASYNC,
+};
+
 enum PR_SRV_STATE_FILE {
 	PR_SRV_STATE_FILE_UNSPEC = 0,
 	PR_SRV_STATE_FILE_NONE,
