@@ -1,0 +1,109 @@
+varnishtest "Test the date formatting converters"
+
+# This reg-test covers the date converters: utime, ltime, ms_utime,
+# ms_ltime, us_utime, us_ltime and http_date, including their offset
+# argument, the %N specifier of the sub-second variants and the unit
+# argument of http_date. It also checks that accept_date() and date()
+# agree with each other across the s/ms/us units.
+#
+# The absolute values are only checked for the UTC variants since the
+# local ones depend on the timezone of the machine running the test.
+# For these, the fixed input date is matched loosely enough to cover any
+# possible UTC offset.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request return status 200
+
+	# 1000000000 is Sun, 09 Sep 2001 01:46:40 UTC
+	http-after-response set-header utime    "%[int(1000000000),utime(%Y-%m-%dT%H:%M:%S)]"
+	http-after-response set-header utime-p  "%[int(1000000000),utime(%Y-%m-%dT%H:%M:%S,60)]"
+	http-after-response set-header utime-n  "%[int(1000000000),utime(%Y-%m-%dT%H:%M:%S,-100)]"
+	http-after-response set-header ltime    "%[int(1000000000),ltime(%Y-%m-%dT%H:%M:%S)]"
+
+	# 1234567890123 ms is Fri, 13 Feb 2009 23:31:30.123 UTC
+	http-after-response set-header msu      "%[int(1234567890123),ms_utime(%Y-%m-%dT%H:%M:%S.%3N)]"
+	http-after-response set-header msu-6    "%[int(1234567890123),ms_utime(%6N)]"
+	http-after-response set-header msu-9    "%[int(1234567890123),ms_utime(%N)]"
+	# the offset is expressed in the same unit as the input
+	http-after-response set-header msu-p    "%[int(1234567890123),ms_utime(%H:%M:%S.%3N,877)]"
+	http-after-response set-header msl      "%[int(1234567890123),ms_ltime(%Y-%m-%dT%H:%M:%S.%3N)]"
+
+	# 1234567890123456 us is Fri, 13 Feb 2009 23:31:30.123456 UTC
+	http-after-response set-header usu      "%[int(1234567890123456),us_utime(%Y-%m-%dT%H:%M:%S.%6N)]"
+	http-after-response set-header usu-3    "%[int(1234567890123456),us_utime(%3N)]"
+	http-after-response set-header usu-9    "%[int(1234567890123456),us_utime(%N)]"
+	http-after-response set-header usu-n    "%[int(1234567890123456),us_utime(%H:%M:%S.%6N,-123456)]"
+	http-after-response set-header usl      "%[int(1234567890123456),us_ltime(%Y-%m-%dT%H:%M:%S.%6N)]"
+
+	http-after-response set-header hdate    "%[int(1000000000),http_date]"
+	http-after-response set-header hdate-o  "%[int(1000000000),http_date(3600)]"
+	http-after-response set-header hdate-ms "%[int(1000000000123),http_date(0,ms)]"
+	http-after-response set-header hdate-us "%[int(1000000000123456),http_date(0,us)]"
+	http-after-response set-header hdate-mo "%[int(1000000000123),http_date(-1000,ms)]"
+	# a fractional part below 100 must be zero-padded
+	http-after-response set-header hdate-pd "%[int(1000000000023),http_date(0,ms)]"
+	http-after-response set-header hdate-pu "%[int(1000000000000023),http_date(0,us)]"
+
+	# the three units of a same date must remain consistent
+	http-after-response set-header acc-s    "%[accept_date]"
+	http-after-response set-header acc-ms   "%[accept_date(ms),div(1000)]"
+	http-after-response set-header acc-us   "%[accept_date(us),div(1000000)]"
+	http-after-response set-header date-s   "%[date]"
+	http-after-response set-header date-ms  "%[date(0,ms),div(1000)]"
+	http-after-response set-header date-us  "%[date(0,us),div(1000000)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.utime    == "2001-09-09T01:46:40"
+	expect resp.http.utime-p  == "2001-09-09T01:47:40"
+	expect resp.http.utime-n  == "2001-09-09T01:45:00"
+	expect resp.http.ltime    ~  "^2001-09-(08|09|10)T[0-9]{2}:[0-9]{2}:40$"
+
+	expect resp.http.msu      == "2009-02-13T23:31:30.123"
+	expect resp.http.msu-6    == "123000"
+	expect resp.http.msu-9    == "123000000"
+	expect resp.http.msu-p    == "23:31:31.000"
+	expect resp.http.msl      ~  "^2009-02-(12|13|14)T[0-9]{2}:[0-9]{2}:30.123$"
+
+	expect resp.http.usu      == "2009-02-13T23:31:30.123456"
+	expect resp.http.usu-3    == "123"
+	expect resp.http.usu-9    == "123456000"
+	expect resp.http.usu-n    == "23:31:30.000000"
+	expect resp.http.usl      ~  "^2009-02-(12|13|14)T[0-9]{2}:[0-9]{2}:30.123456$"
+
+	expect resp.http.hdate    == "Sun, 09 Sep 2001 01:46:40 GMT"
+	expect resp.http.hdate-o  == "Sun, 09 Sep 2001 02:46:40 GMT"
+	# the ms and us units make http_date() append a fractional part, and
+	# their offset is expressed in the input unit, unlike the ms_* and us_*
+	# variants of utime() above
+	expect resp.http.hdate-ms == "Sun, 09 Sep 2001 01:46:40.123 GMT"
+	expect resp.http.hdate-us == "Sun, 09 Sep 2001 01:46:40.123456 GMT"
+	expect resp.http.hdate-mo == "Sun, 09 Sep 2001 01:46:39.123 GMT"
+	expect resp.http.hdate-pd == "Sun, 09 Sep 2001 01:46:40.023 GMT"
+	expect resp.http.hdate-pu == "Sun, 09 Sep 2001 01:46:40.000023 GMT"
+
+	expect resp.http.acc-ms   == resp.http.acc-s
+	expect resp.http.acc-us   == resp.http.acc-s
+	expect resp.http.date-ms  == resp.http.date-s
+	expect resp.http.date-us  == resp.http.date-s
+} -run
