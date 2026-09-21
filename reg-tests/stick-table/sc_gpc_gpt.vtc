@@ -1,0 +1,224 @@
+varnishtest "Test the general purpose counters and tags of the stick counters"
+
+# None of the sc-add-gpc, sc-inc-gpc, sc-inc-gpc0, sc-inc-gpc1,
+# sc-set-gpt and sc-set-gpt0 actions was covered, and neither were the
+# sc_*_gpc*/sc_*_gpt* fetches, their src_* equivalents nor the
+# table_*gpc*/table_*gpt* converters.
+#
+# The array form of the general purpose storage (gpc, gpc_rate and gpt)
+# and the legacy scalar one (gpc0, gpc1 and gpt0) may not live in the
+# same table, hence the two tables below, tracked by two distinct stick
+# counters.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    backend arr
+	stick-table type ip size 1m expire 1h store gpc(3),gpc_rate(3,10s),gpt(3)
+
+    backend leg
+	stick-table type ip size 1m expire 1h store gpc0,gpc0_rate(10s),gpc1,gpc1_rate(10s),gpt0
+
+    frontend fe
+	bind "fd@${fe}"
+
+	# sc0 and sc2 track the same entry of the legacy table so that both
+	# shorthand families can be checked against each other, sc1 tracks
+	# the array one
+	http-request track-sc0 src table leg
+	http-request track-sc1 src table arr
+	http-request track-sc2 src table leg
+
+	# update the counters and tags of both tables
+	http-request sc-add-gpc(1,1) 5    if { path /upd }
+	http-request sc-inc-gpc(0,1)      if { path /upd }
+	http-request sc-set-gpt(2,1) 7    if { path /upd }
+	http-request sc-inc-gpc0(0)       if { path /upd }
+	http-request sc-inc-gpc1(0)       if { path /upd }
+	http-request sc-set-gpt0(0) 9     if { path /upd }
+
+	# the fetch forms increment or reset and return the previous value
+	http-request set-var(txn.incf)  sc_inc_gpc(0,1)  if { path /fetch }
+	http-request set-var(txn.incf0) sc_inc_gpc0(0)   if { path /fetch }
+	http-request set-var(txn.incf1) sc0_inc_gpc1     if { path /fetch }
+	# note: among the shorthands, only sc1_clr_gpc() exists for the array
+	# form, sc0_clr_gpc() and sc2_clr_gpc() are not registered
+	http-request set-var(txn.clrf)  sc1_clr_gpc(0)   if { path /clear }
+	http-request set-var(txn.clrf0) sc_clr_gpc0(0)   if { path /clear }
+	http-request set-var(txn.clrf1) sc0_clr_gpc1     if { path /clear }
+
+	# the converters take the key on input and the table as an argument
+	http-request set-var(txn.tinc)  src,table_inc_gpc(0,arr)  if { path /conv }
+	http-request set-var(txn.tinc0) src,table_inc_gpc0(leg)   if { path /conv }
+	http-request set-var(txn.tinc1) src,table_inc_gpc1(leg)   if { path /conv }
+	http-request set-var(txn.tclr)  src,table_clr_gpc(0,arr)  if { path /convclr }
+	http-request set-var(txn.tclr0) src,table_clr_gpc0(leg)   if { path /convclr }
+	http-request set-var(txn.tclr1) src,table_clr_gpc1(leg)   if { path /convclr }
+
+	http-request return status 200
+
+	http-after-response set-header x-incf  "%[var(txn.incf)]"
+	http-after-response set-header x-incf0 "%[var(txn.incf0)]"
+	http-after-response set-header x-incf1 "%[var(txn.incf1)]"
+	http-after-response set-header x-clrf  "%[var(txn.clrf)]"
+	http-after-response set-header x-clrf0 "%[var(txn.clrf0)]"
+	http-after-response set-header x-clrf1 "%[var(txn.clrf1)]"
+	http-after-response set-header x-tinc  "%[var(txn.tinc)]"
+	http-after-response set-header x-tinc0 "%[var(txn.tinc0)]"
+	http-after-response set-header x-tinc1 "%[var(txn.tinc1)]"
+	http-after-response set-header x-tclr  "%[var(txn.tclr)]"
+	http-after-response set-header x-tclr0 "%[var(txn.tclr0)]"
+	http-after-response set-header x-tclr1 "%[var(txn.tclr1)]"
+
+	# read back through the three families: the generic sc_* fetches with
+	# an explicit counter id, the sc0_/sc1_ shorthands, the src_* fetches
+	# and the table_* converters
+	http-after-response set-header x-gpc0  "%[sc_get_gpc(0,1)]"
+	http-after-response set-header x-gpc1  "%[sc_get_gpc(1,1)]"
+	http-after-response set-header x-gpt2  "%[sc_get_gpt(2,1)]"
+	http-after-response set-header x-rate0 "%[sc_gpc_rate(0,1)]"
+
+	http-after-response set-header x-lgpc0 "%[sc_get_gpc0(0)]"
+	http-after-response set-header x-lgpc1 "%[sc_get_gpc1(0)]"
+	http-after-response set-header x-lgpt0 "%[sc_get_gpt0(0)]"
+	http-after-response set-header x-lr0   "%[sc_gpc0_rate(0)]"
+	http-after-response set-header x-lr1   "%[sc_gpc1_rate(0)]"
+	http-after-response set-header x-sc0   "%[sc0_get_gpc0]"
+	http-after-response set-header x-sc0b  "%[sc0_get_gpc1]"
+	http-after-response set-header x-sc0t  "%[sc0_get_gpt0]"
+	http-after-response set-header x-sc0r  "%[sc0_gpc0_rate]"
+	http-after-response set-header x-sc0r1 "%[sc0_gpc1_rate]"
+	http-after-response set-header x-sc2   "%[sc2_get_gpc0]"
+	http-after-response set-header x-sc2b  "%[sc2_get_gpc1]"
+	http-after-response set-header x-sc2t  "%[sc2_get_gpt0]"
+	http-after-response set-header x-sc2r  "%[sc2_gpc0_rate]"
+	http-after-response set-header x-sc2r1 "%[sc2_gpc1_rate]"
+
+	http-after-response set-header x-tgpc0 "%[src,table_gpc(0,arr)]"
+	http-after-response set-header x-tgpc1 "%[src,table_gpc(1,arr)]"
+	http-after-response set-header x-tgpt2 "%[src,table_gpt(2,arr)]"
+	http-after-response set-header x-trat0 "%[src,table_gpc_rate(0,arr)]"
+	http-after-response set-header x-tlgc0 "%[src,table_gpc0(leg)]"
+	http-after-response set-header x-tlgc1 "%[src,table_gpc1(leg)]"
+	http-after-response set-header x-tlgt0 "%[src,table_gpt0(leg)]"
+	http-after-response set-header x-tlr0  "%[src,table_gpc0_rate(leg)]"
+	http-after-response set-header x-tlr1  "%[src,table_gpc1_rate(leg)]"
+
+	http-after-response set-header x-sgpc0 "%[src_get_gpc(0,arr)]"
+	http-after-response set-header x-sgpt2 "%[src_get_gpt(2,arr)]"
+	http-after-response set-header x-srat0 "%[src_gpc_rate(0,arr)]"
+	http-after-response set-header x-slgc0 "%[src_get_gpc0(leg)]"
+	http-after-response set-header x-slgc1 "%[src_get_gpc1(leg)]"
+	http-after-response set-header x-slgt0 "%[src_get_gpt0(leg)]"
+	http-after-response set-header x-slr0  "%[src_gpc0_rate(leg)]"
+	http-after-response set-header x-slr1  "%[src_gpc1_rate(leg)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# nothing was updated yet
+	txreq -url "/read"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-gpc0  == "0"
+	expect resp.http.x-gpc1  == "0"
+	expect resp.http.x-gpt2  == "0"
+	expect resp.http.x-lgpc0 == "0"
+	expect resp.http.x-lgpc1 == "0"
+	expect resp.http.x-lgpt0 == "0"
+
+	# one increment, one addition of 5 and two tags
+	txreq -url "/upd"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-gpc0  == "1"
+	expect resp.http.x-gpc1  == "5"
+	expect resp.http.x-gpt2  == "7"
+	expect resp.http.x-rate0 == "1"
+	expect resp.http.x-lgpc0 == "1"
+	expect resp.http.x-lgpc1 == "1"
+	expect resp.http.x-lgpt0 == "9"
+	expect resp.http.x-lr0   == "1"
+	expect resp.http.x-lr1   == "1"
+	expect resp.http.x-sc0   == "1"
+	expect resp.http.x-sc0b  == "1"
+	expect resp.http.x-sc0t  == "9"
+	expect resp.http.x-sc0r  == "1"
+	expect resp.http.x-sc0r1 == "1"
+	# sc2 tracks the same entry as sc0 and must report the same values
+	expect resp.http.x-sc2   == "1"
+	expect resp.http.x-sc2b  == "1"
+	expect resp.http.x-sc2t  == "9"
+	expect resp.http.x-sc2r  == "1"
+	expect resp.http.x-sc2r1 == "1"
+
+	# the converters and the src_* fetches see the same entries
+	expect resp.http.x-tgpc0 == "1"
+	expect resp.http.x-tgpc1 == "5"
+	expect resp.http.x-tgpt2 == "7"
+	expect resp.http.x-trat0 == "1"
+	expect resp.http.x-tlgc0 == "1"
+	expect resp.http.x-tlgc1 == "1"
+	expect resp.http.x-tlgt0 == "9"
+	expect resp.http.x-tlr0  == "1"
+	expect resp.http.x-tlr1  == "1"
+	expect resp.http.x-sgpc0 == "1"
+	expect resp.http.x-sgpt2 == "7"
+	expect resp.http.x-srat0 == "1"
+	expect resp.http.x-slgc0 == "1"
+	expect resp.http.x-slgc1 == "1"
+	expect resp.http.x-slgt0 == "9"
+	expect resp.http.x-slr0  == "1"
+	expect resp.http.x-slr1  == "1"
+
+	# the fetch forms increment and return the new value
+	txreq -url "/fetch"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-incf  == "2"
+	expect resp.http.x-incf0 == "2"
+	expect resp.http.x-incf1 == "2"
+	expect resp.http.x-gpc0  == "2"
+	expect resp.http.x-lgpc0 == "2"
+	expect resp.http.x-lgpc1 == "2"
+
+	# so do the converters
+	txreq -url "/conv"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-tinc  == "3"
+	expect resp.http.x-tinc0 == "3"
+	expect resp.http.x-tinc1 == "3"
+
+	# the clear forms return the previous value and reset the counter
+	txreq -url "/clear"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-clrf  == "3"
+	expect resp.http.x-clrf0 == "3"
+	expect resp.http.x-clrf1 == "3"
+	expect resp.http.x-gpc0  == "0"
+	expect resp.http.x-lgpc0 == "0"
+	expect resp.http.x-lgpc1 == "0"
+	# the tags are not affected by the counter resets
+	expect resp.http.x-gpt2  == "7"
+	expect resp.http.x-lgpt0 == "9"
+
+	txreq -url "/convclr"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-tclr  == "0"
+	expect resp.http.x-tclr0 == "0"
+	expect resp.http.x-tclr1 == "0"
+} -run
