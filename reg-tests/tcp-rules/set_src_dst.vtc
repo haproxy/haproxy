@@ -1,0 +1,105 @@
+varnishtest "Test the set-src, set-src-port, set-dst and set-dst-port actions"
+
+# set-src-port and set-dst-port had no coverage at all, and set-src and
+# set-dst were only used incidentally. The test applies them from the
+# four rule sets where they are allowed, checks that the src/dst fetches
+# follow while the fc_src/fc_dst ones keep reporting the real addresses
+# of the connection, and verifies the documented preservation of the
+# port by set-src and of the address by set-src-port.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # the address is rewritten from a "tcp-request connection" rule
+    frontend fe1
+	bind "fd@${fe1}"
+	tcp-request connection set-src ipv4(10.0.0.1)
+	tcp-request connection set-dst ipv4(10.0.0.2)
+	http-request return status 200
+	http-after-response set-header x-src    "%[src]:%[src_port]"
+	http-after-response set-header x-dst    "%[dst]:%[dst_port]"
+	http-after-response set-header x-fcsrc  "%[fc_src]"
+	http-after-response set-header x-fcdst  "%[fc_dst]"
+
+    # only the ports are rewritten, from a "tcp-request session" rule
+    frontend fe2
+	bind "fd@${fe2}"
+	tcp-request session set-src-port int(4000)
+	tcp-request session set-dst-port int(4001)
+	http-request return status 200
+	http-after-response set-header x-src    "%[src]:%[src_port]"
+	http-after-response set-header x-dst    "%[dst]:%[dst_port]"
+	http-after-response set-header x-fcsrc  "%[fc_src]:%[fc_src_port]"
+	http-after-response set-header x-fcdst  "%[fc_dst]:%[fc_dst_port]"
+
+    # from a "tcp-request content" rule, then from an http-request one
+    frontend fe3
+	bind "fd@${fe3}"
+	tcp-request content set-src ipv4(10.0.0.3)
+	tcp-request content set-src-port int(4002)
+	tcp-request content set-dst ipv4(10.0.0.4)
+	tcp-request content set-dst-port int(4003)
+	http-request set-src ipv4(10.0.0.5)      if { path /http }
+	http-request set-src-port int(4004)      if { path /http }
+	http-request set-dst ipv4(10.0.0.6)      if { path /http }
+	http-request set-dst-port int(4005)      if { path /http }
+	http-request return status 200
+	http-after-response set-header x-src    "%[src]:%[src_port]"
+	http-after-response set-header x-dst    "%[dst]:%[dst_port]"
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	# set-src and set-dst preserve the original ports
+	expect resp.http.x-src   ~  "^10[.]0[.]0[.]1:[0-9]+$"
+	expect resp.http.x-dst   == "10.0.0.2:${h1_fe1_port}"
+	# a "tcp-request connection" rule runs before the session exists, so
+	# it rewrites the addresses of the connection itself and the fc_*
+	# fetches report the new values as well, contrary to what happens at
+	# the session level in fe2 below
+	expect resp.http.x-fcsrc == "10.0.0.1"
+	expect resp.http.x-fcdst == "10.0.0.2"
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	# set-src-port and set-dst-port preserve the addresses
+	expect resp.http.x-src   == "127.0.0.1:4000"
+	expect resp.http.x-dst   == "127.0.0.1:4001"
+	# at the session level the connection itself is left untouched, so
+	# the fc_* fetches still report the real ports
+	expect resp.http.x-fcsrc != "127.0.0.1:4000"
+	expect resp.http.x-fcsrc ~  "^127[.]0[.]0[.]1:[0-9]+$"
+	expect resp.http.x-fcdst == "127.0.0.1:${h1_fe2_port}"
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+	txreq -url "/tcp"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src == "10.0.0.3:4002"
+	expect resp.http.x-dst == "10.0.0.4:4003"
+
+	# the http-request rules override what the tcp-request ones did
+	txreq -url "/http"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src == "10.0.0.5:4004"
+	expect resp.http.x-dst == "10.0.0.6:4005"
+} -run
