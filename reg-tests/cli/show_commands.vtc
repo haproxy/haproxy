@@ -1,0 +1,121 @@
+varnishtest "Smoke test of the read-only CLI commands"
+
+# Most of the "show" commands of the CLI had no coverage at all, which
+# means that a crash or a broken output in one of their dump functions
+# would go unnoticed. This test issues each of them once on a small but
+# non-empty configuration and checks that the answer has the expected
+# shape.
+#
+# The patterns are deliberately loose: the point is to verify that the
+# command is accepted and that its dump reaches its first line, not to
+# freeze an output format which is explicitly allowed to change.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults mydefs
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe from mydefs
+	bind "fd@${fe}"
+	default_backend be
+
+    backend be from mydefs
+	default-server maxconn 7
+	server s1 127.0.0.1:1 disabled
+} -start
+
+haproxy h1 -cli {
+	send "show version"
+	expect ~ "^[0-9]+[.][0-9]+"
+
+	send "show cli level"
+	expect ~ "^(admin|operator|user)"
+
+	send "show cli sockets"
+	expect ~ "^# socket lvl processes"
+
+	send "show env HAPROXY_LOCALPEER"
+	expect ~ "^HAPROXY_LOCALPEER="
+
+	send "show startup-logs"
+	expect ~ "[A-Z]+"
+
+	send "show dev"
+	expect ~ "HAProxy version"
+
+	# proxies and servers
+	send "show backend"
+	expect ~ "^# name\nbe"
+
+	send "show defaults"
+	expect ~ "mydefs"
+
+	send "show defaults mydefs"
+	expect ~ "mydefs"
+
+	send "show default-server be"
+	expect ~ "be"
+
+	send "show servers state"
+	expect ~ "# be_id be_name srv_id srv_name"
+
+	send "show servers conn"
+	expect ~ "# bkname/svname bkid/svid addr port"
+
+	# statistics
+	send "show stat"
+	expect ~ "^# pxname,svname,qcur"
+
+	send "show info"
+	expect ~ "Name: HAProxy"
+
+	send "show schema json"
+	expect ~ "json-schema.org"
+
+	# runtime state
+	send "show sess"
+	expect ~ "proto=(tcpv4|tcpv6|unix)"
+
+	send "show errors"
+	expect ~ "^Total events captured on "
+
+	send "show fd"
+	expect ~ "st=0x"
+
+	send "show pools"
+	expect ~ "^Dumping pools usage"
+
+	send "show activity"
+	expect ~ "^thread_id: "
+
+	send "show threads"
+	expect ~ "Thread [0-9]* "
+
+	send "show tasks"
+	expect ~ "^Running tasks: "
+
+	send "show profiling"
+	expect ~ "Per-task CPU profiling"
+
+	send "show anon"
+	expect ~ "^Anonymized mode disabled"
+
+	send "show table"
+	expect ~ "^$"
+
+	send "show map"
+	expect ~ "^# id [(]file[)] description"
+
+	send "show acl"
+	expect ~ "^# id [(]file[)] description"
+}
