@@ -1,0 +1,97 @@
+varnishtest "Test the capture slots declared with 'declare capture'"
+
+# The "declare capture" directive, the "id" form of the capture action
+# and the capture-req()/capture-res() converters had no coverage. Only
+# the "capture request header" form and capture.req.hdr() were used
+# elsewhere.
+#
+# Three request slots and two response slots are declared in the
+# frontend and filled from both the frontend and the backend, then read
+# back with capture.req.hdr(), capture.res.hdr() and with the
+# capture-req()/capture-res() converters, which store their input in a
+# slot and return it unchanged.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp -hdr "x-srv: from-server"
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	# slots 0, 1 and 2 on the request side, 0 and 1 on the response one
+	declare capture request len 32
+	declare capture request len 32
+	declare capture request len 32
+	declare capture response len 32
+	declare capture response len 32
+
+	# the first slot is filled by the action, the second one by the
+	# converter which passes its input through
+	http-request capture path id 0
+	http-request set-var(txn.p) req.hdr(x-in),capture-req(1)
+
+	# the last request slot is filled from the backend
+	default_backend be
+
+    backend be
+	http-request capture str(from-backend) id 2
+
+	http-response capture res.hdr(x-srv) id 0
+	http-response set-var(txn.r) str(via-converter),capture-res(1)
+
+	http-response set-header x-var-req "%[var(txn.p)]"
+	http-response set-header x-var-res "%[var(txn.r)]"
+	http-response set-header x-req0    "%[capture.req.hdr(0)]"
+	http-response set-header x-req1    "%[capture.req.hdr(1)]"
+	http-response set-header x-req2    "%[capture.req.hdr(2)]"
+	http-response set-header x-req3    "%[capture.req.hdr(3)]"
+	http-response set-header x-res0    "%[capture.res.hdr(0)]"
+	http-response set-header x-res1    "%[capture.res.hdr(1)]"
+
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/some/path" -hdr "x-in: captured"
+	rxresp
+	expect resp.status == 200
+
+	# the converters returned their input unchanged
+	expect resp.http.x-var-req == "captured"
+	expect resp.http.x-var-res == "via-converter"
+
+	expect resp.http.x-req0 == "/some/path"
+	expect resp.http.x-req1 == "captured"
+	expect resp.http.x-req2 == "from-backend"
+	# only three request slots were declared
+	expect resp.http.x-req3 == ""
+
+	expect resp.http.x-res0 == "from-server"
+	expect resp.http.x-res1 == "via-converter"
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	# a missing input leaves the slot empty
+	txreq -url "/other"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-req0 == "/other"
+	expect resp.http.x-req1 == ""
+	expect resp.http.x-req2 == "from-backend"
+} -run
