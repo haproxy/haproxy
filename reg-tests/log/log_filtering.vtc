@@ -1,0 +1,142 @@
+varnishtest "Test the log filtering options of a frontend"
+
+# "option dontlognull", "option dontlog-normal" and "option logasap"
+# were not covered, and "option log-separate-errors" was only used as a
+# side setting of an SSL test.
+#
+# Each option gets its own frontend. The messages are collected by two
+# syslog servers because vtest only matches the ones emitted at the
+# level its server was declared with, and log-separate-errors precisely
+# changes that level.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp -bodylen 100
+} -repeat 3 -start
+
+syslog Slg -level info {
+	# the empty connection on fe_null is not logged, only the real
+	# request which follows is
+	recv
+	expect ~ "null uri=/real "
+
+	# on fe_norm the successful request is not logged, the failed one is
+	recv
+	expect ~ "norm uri=/dead st=503 "
+
+	# fe_sep logs everything but raises the level of the failed requests
+	recv
+	expect ~ "sep uri=/ok st=200 "
+
+	# with logasap the message is emitted before the transfer completes,
+	# which the '+' prefixes of the byte count and of the total time
+	# report
+	recv
+	expect ~ "asap uri=/ok st=200 bytes=[+][0-9]+ tt=[+][0-9]+"
+} -start
+
+syslog Slg2 -level err {
+	recv
+	expect ~ "sep uri=/dead st=503 "
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	log "${Slg_addr}:${Slg_port}" local0 info
+	log "${Slg2_addr}:${Slg2_port}" local0 info
+
+    defaults
+	mode http
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe_null
+	bind "fd@${fe_null}"
+	option dontlognull
+	log-format "null uri=%[capture.req.uri] st=%[txn.status] "
+	http-request return status 200
+
+    frontend fe_norm
+	bind "fd@${fe_norm}"
+	option dontlog-normal
+	log-format "norm uri=%[capture.req.uri] st=%[txn.status] "
+	# use_backend is only evaluated once all the http-request rules have
+	# run, so the local response must be skipped for the failing path
+	http-request return status 200 unless { path /dead }
+	use_backend dead
+
+    frontend fe_sep
+	bind "fd@${fe_sep}"
+	option log-separate-errors
+	log-format "sep uri=%[capture.req.uri] st=%[txn.status] "
+	# use_backend is only evaluated once all the http-request rules have
+	# run, so the local response must be skipped for the failing path
+	http-request return status 200 unless { path /dead }
+	use_backend dead
+
+    frontend fe_asap
+	bind "fd@${fe_asap}"
+	option logasap
+	log-format "asap uri=%[capture.req.uri] st=%[txn.status] bytes=%B tt=%Tt"
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+
+    backend dead
+	timeout connect 100ms
+	retries 0
+	server s1 ${bad_backend}
+} -start
+
+# a connection on which nothing was sent
+client c1 -connect ${h1_fe_null_sock} {
+} -run
+
+client c2 -connect ${h1_fe_null_sock} {
+	txreq -url "/real"
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c3 -connect ${h1_fe_norm_sock} {
+	txreq -url "/ok"
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c4 -connect ${h1_fe_norm_sock} {
+	txreq -url "/dead"
+	rxresp
+	expect resp.status == 503
+} -run
+
+client c5 -connect ${h1_fe_sep_sock} {
+	txreq -url "/ok"
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c6 -connect ${h1_fe_sep_sock} {
+	txreq -url "/dead"
+	rxresp
+	expect resp.status == 503
+} -run
+
+client c7 -connect ${h1_fe_asap_sock} {
+	txreq -url "/ok"
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 100
+} -run
+
+syslog Slg -wait
+syslog Slg2 -wait
