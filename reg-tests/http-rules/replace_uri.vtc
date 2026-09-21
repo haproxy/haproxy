@@ -1,0 +1,127 @@
+varnishtest "Test the replace-uri action and the header replacement variants"
+
+# The replace-uri action had no coverage at all, and replace-header and
+# replace-value were only used by a test checking their size limits, not
+# their semantics.
+#
+# replace-uri acts on the whole request target, including the scheme and
+# the authority when the request uses the absolute form, while
+# replace-path and replace-pathq only see the path. replace-header acts
+# on the whole header line while replace-value acts on each
+# comma-delimited element separately.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 9 -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	# prefix the path, keeping the optional scheme and authority
+	http-request replace-uri ([^/:]*://[^/]*)?(.*) \1/pfx\2 if { url_param(t) -m str prefix }
+
+	# rewrite the scheme of an absolute URI
+	http-request replace-uri ^http://(.*) https://\1       if { url_param(t) -m str scheme }
+
+	# a non matching regex leaves the URI untouched
+	http-request replace-uri ^/nosuchprefix/(.*) /other/\1 if { url_param(t) -m str nomatch }
+
+	# replace-path only sees the path, the query string is left aside
+	http-request replace-path (.*) /rp\1                   if { url_param(t) -m str path }
+	http-request replace-pathq (.*) /rq\1                  if { url_param(t) -m str pathq }
+
+	http-request replace-header x-cache no-cache stale     if { url_param(t) -m str hdr }
+	http-request replace-value  x-cache no-cache stale     if { url_param(t) -m str val }
+	http-request replace-header x-ref (a)-(b) \2-\1        if { url_param(t) -m str backref }
+
+	# collect the result once all the rewriting rules have run
+	http-request set-var(txn.uri)   url
+	http-request set-var(txn.cache) req.fhdr(x-cache)
+	http-request set-var(txn.ref)   req.fhdr(x-ref)
+
+	http-response set-header x-url   "%[var(txn.uri)]"
+	http-response set-header x-cache "%[var(txn.cache)]"
+	http-response set-header x-ref   "%[var(txn.ref)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# origin form, the whole target is prefixed
+	txreq -url "/bar?t=prefix"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-url == "/pfx/bar?t=prefix"
+
+	# absolute form, the scheme and the authority are preserved
+	txreq -url "http://www.example.com/bar?t=prefix" -hdr "Host: www.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-url == "http://www.example.com/pfx/bar?t=prefix"
+
+	# the scheme itself may be rewritten
+	txreq -url "http://www.example.com/bar?t=scheme" -hdr "Host: www.example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-url == "https://www.example.com/bar?t=scheme"
+
+	txreq -url "/bar?t=nomatch"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-url == "/bar?t=nomatch"
+
+	# replace-path ignores the query string, replace-pathq includes it
+	txreq -url "/bar?t=path"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-url == "/rp/bar?t=path"
+
+	txreq -url "/bar?t=pathq"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-url == "/rq/bar?t=pathq"
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	# replace-header matches the whole line, so a single occurrence of
+	# the pattern anywhere in it is replaced and the rest is dropped
+	txreq -url "/?t=hdr" -hdr "x-cache: no-cache, no-store"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cache == "stale"
+} -run
+
+client c3 -connect ${h1_fe_sock} {
+	# replace-value matches each comma-delimited element separately, so
+	# the other elements are preserved
+	txreq -url "/?t=val" -hdr "x-cache: no-cache, no-store"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cache == "stale, no-store"
+} -run
+
+client c4 -connect ${h1_fe_sock} {
+	txreq -url "/?t=backref" -hdr "x-ref: a-b"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-ref == "b-a"
+} -run
