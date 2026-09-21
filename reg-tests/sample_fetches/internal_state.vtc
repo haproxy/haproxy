@@ -1,0 +1,102 @@
+varnishtest "Test the constant and process state sample fetches"
+
+# The constant fetches (always_true, always_false, str, int, bin, bool,
+# ipv4, ipv6, meth), the process state ones (pid, thread, tgroup, nbproc,
+# quic_enabled, the cpu_* and lat_* counters), env(), rand() and
+# dump_all_vars had little or no coverage.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request set-var(txn.marker) str(findme)
+	http-request return status 200
+
+	# constants
+	http-after-response set-header x-true   "%[always_true]"
+	http-after-response set-header x-false  "%[always_false]"
+	http-after-response set-header x-str    "%[str(hello)]"
+	http-after-response set-header x-int    "%[int(42)]"
+	http-after-response set-header x-bin    "%[bin(4142),hex]"
+	http-after-response set-header x-bool   "%[bool(1)]"
+	http-after-response set-header x-bool0  "%[bool(0)]"
+	http-after-response set-header x-ipv4   "%[ipv4(1.2.3.4)]"
+	http-after-response set-header x-ipv6   "%[ipv6(2001:db8::1)]"
+	http-after-response set-header x-meth   "%[meth(GET)]"
+
+	# process state
+	http-after-response set-header x-pid    "%[pid]"
+	http-after-response set-header x-thread "%[thread]"
+	http-after-response set-header x-tgroup "%[tgroup]"
+	http-after-response set-header x-nbproc "%[nbproc]"
+	http-after-response set-header x-quic   "%[quic_enabled]"
+	http-after-response set-header x-host   "%[hostname]"
+
+	# scheduler counters of the current task
+	http-after-response set-header x-cpu    "%[cpu_calls] %[cpu_ns_tot] %[cpu_ns_avg] %[lat_ns_tot] %[lat_ns_avg]"
+	http-after-response set-header x-usage  "%[cpu_usage_proc] %[cpu_usage_thr] %[cpu_usage_grp]"
+
+	# dates: the microsecond part of the current date must stay in range
+	http-after-response set-header x-dateus "%[date_us]"
+
+	# environment
+	http-after-response set-header x-env    "%[env(HAPROXY_LOCALPEER)]"
+	http-after-response set-header x-noenv  "%[env(HAPROXY_NO_SUCH_VARIABLE)]"
+
+	# random values, with and without a range
+	http-after-response set-header x-rand   "%[rand]"
+	http-after-response set-header x-rand10 "%[rand(10)]"
+
+	# the variable dump must mention the variable set above
+	http-after-response set-header x-vars   "yes" if { dump_all_vars -m sub "txn.marker" }
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-true   == "1"
+	expect resp.http.x-false  == "0"
+	expect resp.http.x-str    == "hello"
+	expect resp.http.x-int    == "42"
+	expect resp.http.x-bin    == "4142"
+	expect resp.http.x-bool   == "1"
+	expect resp.http.x-bool0  == "0"
+	expect resp.http.x-ipv4   == "1.2.3.4"
+	expect resp.http.x-ipv6   == "2001:db8::1"
+	expect resp.http.x-meth   == "GET"
+
+	expect resp.http.x-pid    == "${h1_pid}"
+	expect resp.http.x-thread ~  "^[0-9]+$"
+	expect resp.http.x-tgroup ~  "^[0-9]+$"
+	expect resp.http.x-nbproc == "1"
+	expect resp.http.x-quic   ~  "^[01]$"
+	expect resp.http.x-host   != ""
+
+	expect resp.http.x-cpu    ~  "^[0-9]+ [0-9]+ [0-9]+ [0-9]+ [0-9]+$"
+	expect resp.http.x-usage  ~  "^[0-9]+ [0-9]+ [0-9]+$"
+	expect resp.http.x-dateus ~  "^[0-9]{1,6}$"
+
+	# HAPROXY_LOCALPEER is always exported by the process itself
+	expect resp.http.x-env    != ""
+	expect resp.http.x-noenv  == ""
+
+	expect resp.http.x-rand   ~  "^[0-9]+$"
+	expect resp.http.x-rand10 ~  "^[0-9]$"
+
+	expect resp.http.x-vars   == "yes"
+} -run
