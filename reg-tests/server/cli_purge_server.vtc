@@ -1,0 +1,114 @@
+# Test server purge
+
+varnishtest "Purge server via CLI"
+
+feature cmd "command -v socat"
+feature ignore_unknown_macro
+
+barrier b1 cond 2 -cyclic
+
+server s1 {
+	rxreq
+	barrier b1 sync
+	txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+	stats socket "${tmpdir}/h1/stats" level admin
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+		use_backend be
+
+	backend be
+		balance first
+		server srv1 ${s1_addr}:${s1_port}
+		server srv2 ${s1_addr}:${s1_port}
+		server srv3 ${s1_addr}:${s1_port}
+
+	frontend fe_int
+		bind "fd@${fint}"
+		http-request return status 200
+} -start
+
+# wait for haproxy startup
+client c0 -connect ${h1_fint_sock} {
+	txreq
+	rxresp
+} -run
+
+shell {
+	out=$(echo "purge server be/srv1" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Server deleted." ] || \
+	  { echo "expect failure: immediate purge failure: ${out}"; exit 1; }
+}
+
+# Start a long request to temporarily block server deletion
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == "200"
+} -start
+
+shell {
+	# Try server deletion in normal mode
+	# Active request must prevent it
+	echo "disable server be/srv2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats"
+	out=$(echo "del server be/srv2" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Server still has connections attached to it, cannot remove it." ] || \
+	  { echo "expect failure: normal server deletion still active not rejected: ${out}"; exit 1; }
+
+	# Flag server for deletion
+	# Active request must prevent immediate success
+	out=$(echo "purge server be/srv2" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Server scheduled for purge." ] || \
+	  { echo "expect failure: purge failure: ${out}"; exit 1; }
+}
+
+barrier b1 sync
+
+shell {
+	# Check that the server is deleted
+	out=$(echo "wait 1s srv-unknown be/srv2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	[ "$out" = "Done." ] || \
+	  { echo "expect failure: wait srv-unknown failure: ${out}"; exit 1; }
+}
+
+# Start a long request to temporarily block server deletion
+client c2 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == "200"
+} -start
+
+shell {
+	# Flag server for deletion as connection on it still active
+	out=$(echo "purge server be/srv3" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	[ "$out" = "Server scheduled for purge." ] || \
+	  { echo "expect failure: server not flagged: ${out}"; exit 1; }
+
+	# Run server deletion completion on background
+	echo "wait 1s srv-unknown be/srv3" | \
+	  socat -,ignoreeof=1 "${tmpdir}/h1/stats" > "${tmpdir}/h1/out" 2>&1 &
+	pid=$!
+
+	# Cancel server deletion by setting its state
+	echo "disable server be/srv3" | socat - "${tmpdir}/h1/stats"
+
+	# Ensure wait was interrupted as server deletion is cancelled
+	wait $pid && out=$(cat "${tmpdir}/h1/out")
+	[ "$out" = "Failed. Server not scheduled for purge." ] || \
+	  { echo "expect failure: server deletion not cancelled: ${out}"; exit 1; }
+}
+
+barrier b1 sync
