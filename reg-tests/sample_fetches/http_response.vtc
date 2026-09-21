@@ -1,0 +1,147 @@
+varnishtest "Test the HTTP response sample fetches"
+
+# Almost none of the res.* sample fetches was covered by a reg-test. This
+# one checks the header, cookie, version, status and body-size families
+# at once, along with the deprecated shdr*/scook*/resp_ver aliases and
+# the response header capture.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp -status 201 -reason "Created" \
+	       -hdr "x-num: 42" \
+	       -hdr "x-list: a" \
+	       -hdr "x-list: b" \
+	       -hdr "x-csv: 1, 2, 3" \
+	       -hdr "x-ip: 10.0.0.7" \
+	       -hdr "set-cookie: c1=v1; path=/" \
+	       -hdr "set-cookie: c2=12345" \
+	       -hdr "set-cookie: path=3; expires=Tue, 14-Jun-2016 01:40:45 GMT" \
+	       -body "hello"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	capture response header x-num len 16
+
+	http-response set-header x-status    "%[status]"
+	http-response set-header x-txnstatus "%[txn.status]"
+	http-response set-header x-ver        "%[res.ver]"
+	http-response set-header x-respver    "%[resp_ver]"
+	http-response set-header x-capver     "%[capture.res.ver]"
+	http-response set-header x-caphdr     "%[capture.res.hdr(0)]"
+
+	http-response set-header x-hdr        "%[res.hdr(x-num)]"
+	http-response set-header x-shdr       "%[shdr(x-num)]"
+	http-response set-header x-hdrval     "%[res.hdr_val(x-num),add(1)]"
+	http-response set-header x-shdrval    "%[shdr_val(x-num),add(2)]"
+	http-response set-header x-hdrip      "%[res.hdr_ip(x-ip)]"
+	http-response set-header x-shdrip     "%[shdr_ip(x-ip)]"
+	http-response set-header x-hdrcnt     "%[res.hdr_cnt(x-list)]"
+	http-response set-header x-shdrcnt    "%[shdr_cnt(x-list)]"
+	http-response set-header x-hdrfirst   "%[res.hdr(x-list,1)]"
+	http-response set-header x-hdrlast    "%[res.hdr(x-list,-1)]"
+
+	# res.hdr splits comma-delimited lists, res.fhdr does not
+	http-response set-header x-csvcnt     "%[res.hdr_cnt(x-csv)]"
+	http-response set-header x-csv2       "%[res.hdr(x-csv,2)]"
+	http-response set-header x-fcsvcnt    "%[res.fhdr_cnt(x-csv)]"
+	http-response set-header x-fcsv       "%[res.fhdr(x-csv)]"
+
+	http-response set-header x-names      "%[res.hdr_names]"
+	http-response set-header x-names2     "%[res.hdr_names(|)]"
+
+	http-response set-header x-cook       "%[res.cook(c1)]"
+	http-response set-header x-scook      "%[scook(c1)]"
+	http-response set-header x-cookcnt    "%[res.cook_cnt]"
+	http-response set-header x-cookcntp   "%[res.cook_cnt(path)]"
+	http-response set-header x-scookcnt   "%[scook_cnt(c1)]"
+	http-response set-header x-cookval    "%[res.cook_val(c2),add(1)]"
+	http-response set-header x-scookval   "%[scook_val(c2),add(2)]"
+	http-response set-header x-cooknames  "%[res.cook_names]"
+
+	http-response set-header x-bodysize   "%[res.body_size]"
+
+	# the pre-parsed header block must carry the lowercase header names
+	# and their values, here "x-num" and "42"
+	http-response set-header x-hdrsbin    "%[res.hdrs_bin,hex,lower]"
+	http-response set-header x-hdrs       "yes" if { res.hdrs -m sub "x-num: 42" }
+
+	# no compression filter here, the algorithm fetch must find nothing
+	http-response set-header x-comp       "%[res.comp]"
+	http-response set-header x-compalgo   "%[res.comp_algo]"
+
+	http-response set-header x-timerhdr   "%[res.timer.hdr]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 201
+	expect resp.http.x-status    == "201"
+	expect resp.http.x-txnstatus == "201"
+	expect resp.http.x-ver       == "1.1"
+	expect resp.http.x-respver   == "1.1"
+	expect resp.http.x-capver    == "HTTP/1.1"
+	expect resp.http.x-caphdr    == "42"
+
+	expect resp.http.x-hdr       == "42"
+	expect resp.http.x-shdr      == "42"
+	expect resp.http.x-hdrval    == "43"
+	expect resp.http.x-shdrval   == "44"
+	expect resp.http.x-hdrip     == "10.0.0.7"
+	expect resp.http.x-shdrip    == "10.0.0.7"
+	expect resp.http.x-hdrcnt    == "2"
+	expect resp.http.x-shdrcnt   == "2"
+	expect resp.http.x-hdrfirst  == "a"
+	expect resp.http.x-hdrlast   == "b"
+
+	expect resp.http.x-csvcnt    == "3"
+	expect resp.http.x-csv2      == "2"
+	expect resp.http.x-fcsvcnt   == "1"
+	expect resp.http.x-fcsv      == "1, 2, 3"
+
+	expect resp.http.x-names     ~  "x-num,x-list,x-list,x-csv,x-ip"
+	expect resp.http.x-names2    ~  "x-num[|]x-list[|]x-list[|]x-csv[|]x-ip"
+
+	expect resp.http.x-cook      == "v1"
+	expect resp.http.x-scook     == "v1"
+	# the "path" attribute of the first cookie is not a cookie, while the
+	# third header really declares a cookie named "path", and the comma
+	# inside its "expires" attribute does not split it in two either
+	expect resp.http.x-cookcnt   == "3"
+	expect resp.http.x-cookcntp  == "1"
+	expect resp.http.x-scookcnt  == "1"
+	expect resp.http.x-cookval   == "12346"
+	expect resp.http.x-scookval  == "12347"
+	expect resp.http.x-cooknames == "c1,c2,path"
+
+	expect resp.http.x-bodysize  == "5"
+
+	expect resp.http.x-hdrsbin   ~  "782d6e756d023432"
+	expect resp.http.x-hdrs      == "yes"
+
+	expect resp.http.x-comp      == "0"
+	expect resp.http.x-compalgo  == ""
+
+	expect resp.http.x-timerhdr  ~  "^[0-9]+$"
+} -run
