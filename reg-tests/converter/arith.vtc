@@ -1,0 +1,97 @@
+varnishtest "Test the arithmetic and bitwise converters"
+
+# This reg-test checks the integer converters which are not covered
+# anywhere else: add, sub, mul, div, mod, neg, cpl, and, or, xor, not,
+# bool, odd, even, htonl and hex2i. Both the constant form and the
+# variable form of the operand are tested, as well as the documented
+# behavior of a null divisor for div() and mod().
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	# operand passed as a variable, to check that both forms work
+	http-request set-var(txn.seven) int(7)
+	http-request return status 200
+
+	http-after-response set-header add     "%[int(10),add(5)]"
+	http-after-response set-header add-v   "%[int(10),add(txn.seven)]"
+	http-after-response set-header sub     "%[int(10),sub(3)]"
+	http-after-response set-header sub-v   "%[int(10),sub(txn.seven)]"
+	http-after-response set-header mul     "%[int(6),mul(7)]"
+	http-after-response set-header div     "%[int(45),div(7)]"
+	http-after-response set-header div-v   "%[int(45),div(txn.seven)]"
+	http-after-response set-header div0    "%[int(45),div(0)]"
+	http-after-response set-header mod     "%[int(45),mod(7)]"
+	http-after-response set-header mod0    "%[int(45),mod(0)]"
+	http-after-response set-header neg     "%[int(42),neg]"
+	http-after-response set-header neg0    "%[int(0),neg]"
+	http-after-response set-header cpl     "%[int(0),cpl]"
+	http-after-response set-header cpl5    "%[int(5),cpl]"
+	http-after-response set-header and     "%[int(12),and(10)]"
+	http-after-response set-header or      "%[int(12),or(3)]"
+	http-after-response set-header xor     "%[int(12),xor(10)]"
+	http-after-response set-header not0    "%[int(0),not]"
+	http-after-response set-header not5    "%[int(5),not]"
+	http-after-response set-header bool0   "%[int(0),bool]"
+	http-after-response set-header bool3   "%[int(3),bool]"
+	http-after-response set-header odd     "%[int(3),odd]"
+	http-after-response set-header odd2    "%[int(2),odd]"
+	http-after-response set-header even    "%[int(2),even]"
+	http-after-response set-header even3   "%[int(3),even]"
+	http-after-response set-header htonl1  "%[int(1),htonl,hex]"
+	http-after-response set-header htonl2  "%[int(258),htonl,hex]"
+	http-after-response set-header hex2i   "%[str(ff),hex2i]"
+	# note: hex2i() fails on a non-hex input, it does not return zero as
+	# documented, hence the empty header below
+	http-after-response set-header hex2i0  "%[str(zz),hex2i]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.add    == "15"
+	expect resp.http.add-v  == "17"
+	expect resp.http.sub    == "7"
+	expect resp.http.sub-v  == "3"
+	expect resp.http.mul    == "42"
+	expect resp.http.div    == "6"
+	expect resp.http.div-v  == "6"
+	expect resp.http.div0   == "9223372036854775807"
+	expect resp.http.mod    == "3"
+	expect resp.http.mod0   == "0"
+	expect resp.http.neg    == "-42"
+	expect resp.http.neg0   == "0"
+	expect resp.http.cpl    == "-1"
+	expect resp.http.cpl5   == "-6"
+	expect resp.http.and    == "8"
+	expect resp.http.or     == "15"
+	expect resp.http.xor    == "6"
+	expect resp.http.not0   == "1"
+	expect resp.http.not5   == "0"
+	expect resp.http.bool0  == "0"
+	expect resp.http.bool3  == "1"
+	expect resp.http.odd    == "1"
+	expect resp.http.odd2   == "0"
+	expect resp.http.even   == "1"
+	expect resp.http.even3  == "0"
+	expect resp.http.htonl1 == "00000001"
+	expect resp.http.htonl2 == "00000102"
+	expect resp.http.hex2i  == "255"
+	expect resp.http.hex2i0 == ""
+} -run
