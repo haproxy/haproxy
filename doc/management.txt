@@ -2273,6 +2273,13 @@ del server <backend>/<server>
   ensure that all active or idle connections are closed and that the command
   succeeds.
 
+  When the command succeeds, the server has been removed from all its attach
+  points and becomes invisible to any CLI interactions. Its name and GUID can
+  be reused immediately when creating new instances. The deleted instance may
+  still be preserved some time in the process memory for internal management
+  only until it is finally freed. In this state the server is guaranteed to
+  never handle any outside traffic anymore.
+
 disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
 
