@@ -1,0 +1,7 @@
+# Same keys as map_variants.map but with integer values, for the _int
+# output type.
+example.org            1
+/images                2
+mid                    3
+.png                   4
+^/api/v[0-9]+$         5

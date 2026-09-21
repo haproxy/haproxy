@@ -1,0 +1,2 @@
+# Address keyed map with address values, for the map_ip_ip converter.
+10.0.0.0/8             10.9.9.9

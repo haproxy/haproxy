@@ -1,0 +1,7 @@
+# Same keys as map_variants.map but with address values, for the _ip
+# output type.
+example.org            10.0.0.1
+/images                10.0.0.2
+mid                    10.0.0.3
+.png                   10.0.0.4
+^/api/v[0-9]+$         10.0.0.5

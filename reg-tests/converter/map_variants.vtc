@@ -1,0 +1,157 @@
+varnishtest "Test all the match methods and output types of the map converters"
+
+# Only map_str, map_dom, map_beg and map_regm were used by other
+# reg-tests. This one exercises every registered map_<match>_<output>
+# keyword at least once: the str, beg, sub, dir, dom, end, int, ip, reg
+# and regm match methods, combined with the default (string), _int, _ip
+# and _key output types. The default value argument and the absence of a
+# match are checked as well.
+#
+# The output type is applied to the whole map when it is loaded, hence
+# the separate files holding string, integer and address values for a
+# same key set.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request return status 200
+
+	# "map" is an alias for "map_str"
+	http-after-response set-header m-alias   "%[str(example.org),map(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-str     "%[str(example.org),map_str(${testdir}/map_variants.map)]"
+	http-after-response set-header m-str-i   "%[str(example.org),map_str_int(${testdir}/map_variants-int.map),add(100)]"
+	http-after-response set-header m-str-p   "%[str(example.org),map_str_ip(${testdir}/map_variants-ip.map)]"
+	http-after-response set-header m-str-k   "%[str(example.org),map_str_key(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-beg     "%[str(/imagesXY),map_beg(${testdir}/map_variants.map)]"
+	http-after-response set-header m-beg-i   "%[str(/imagesXY),map_beg_int(${testdir}/map_variants-int.map),add(100)]"
+	http-after-response set-header m-beg-p   "%[str(/imagesXY),map_beg_ip(${testdir}/map_variants-ip.map)]"
+	http-after-response set-header m-beg-k   "%[str(/imagesXY),map_beg_key(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-sub     "%[str(xxmidyy),map_sub(${testdir}/map_variants.map)]"
+	http-after-response set-header m-sub-i   "%[str(xxmidyy),map_sub_int(${testdir}/map_variants-int.map),add(100)]"
+	http-after-response set-header m-sub-p   "%[str(xxmidyy),map_sub_ip(${testdir}/map_variants-ip.map)]"
+	http-after-response set-header m-sub-k   "%[str(xxmidyy),map_sub_key(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-dir     "%[str(/images/logo),map_dir(${testdir}/map_variants.map)]"
+	http-after-response set-header m-dir-i   "%[str(/images/logo),map_dir_int(${testdir}/map_variants-int.map),add(100)]"
+	http-after-response set-header m-dir-p   "%[str(/images/logo),map_dir_ip(${testdir}/map_variants-ip.map)]"
+	http-after-response set-header m-dir-k   "%[str(/images/logo),map_dir_key(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-dom     "%[str(sub.example.org),map_dom(${testdir}/map_variants.map)]"
+	http-after-response set-header m-dom-i   "%[str(sub.example.org),map_dom_int(${testdir}/map_variants-int.map),add(100)]"
+	http-after-response set-header m-dom-p   "%[str(sub.example.org),map_dom_ip(${testdir}/map_variants-ip.map)]"
+	http-after-response set-header m-dom-k   "%[str(sub.example.org),map_dom_key(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-end     "%[str(logo.png),map_end(${testdir}/map_variants.map)]"
+	http-after-response set-header m-end-i   "%[str(logo.png),map_end_int(${testdir}/map_variants-int.map),add(100)]"
+	http-after-response set-header m-end-p   "%[str(logo.png),map_end_ip(${testdir}/map_variants-ip.map)]"
+	http-after-response set-header m-end-k   "%[str(logo.png),map_end_key(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-reg     "%[str(/api/v2),map_reg(${testdir}/map_variants.map)]"
+	http-after-response set-header m-reg-i   "%[str(/api/v2),map_reg_int(${testdir}/map_variants-int.map),add(100)]"
+	http-after-response set-header m-reg-p   "%[str(/api/v2),map_reg_ip(${testdir}/map_variants-ip.map)]"
+	http-after-response set-header m-reg-k   "%[str(/api/v2),map_reg_key(${testdir}/map_variants.map)]"
+
+	# map_reg returns the value verbatim while map_regm expands the
+	# back-references of the matching regex
+	http-after-response set-header m-reg-b   "%[str(/u/42),map_reg(${testdir}/map_variants.map)]"
+	http-after-response set-header m-regm    "%[str(/u/42),map_regm(${testdir}/map_variants.map)]"
+
+	http-after-response set-header m-int     "%[int(10),map_int(${testdir}/map_variants-ikey.map)]"
+	http-after-response set-header m-int-i   "%[int(7),map_int_int(${testdir}/map_variants-ikey.map),add(1)]"
+	http-after-response set-header m-int-p   "%[int(20),map_int_ip(${testdir}/map_variants-ikey-ip.map)]"
+	http-after-response set-header m-int-r   "%[int(150),map_int(${testdir}/map_variants-ikey.map)]"
+	http-after-response set-header m-int-k   "%[int(150),map_int_key(${testdir}/map_variants-ikey.map)]"
+
+	http-after-response set-header m-ip      "%[ipv4(192.168.0.1),map_ip(${testdir}/map_variants-akey.map)]"
+	http-after-response set-header m-ip-i    "%[ipv4(192.168.1.7),map_ip_int(${testdir}/map_variants-akey.map),add(100)]"
+	http-after-response set-header m-ip-p    "%[ipv4(10.1.2.3),map_ip_ip(${testdir}/map_variants-akey-ip.map)]"
+	http-after-response set-header m-ip-k    "%[ipv4(192.168.1.7),map_ip_key(${testdir}/map_variants-akey.map)]"
+	http-after-response set-header m-ip-6    "%[ipv6(2001:db8::1),map_ip(${testdir}/map_variants-akey.map)]"
+
+	# no match: without a default value the converter fails, with one it
+	# returns the default
+	http-after-response set-header m-miss    "%[str(nowhere),map_str(${testdir}/map_variants.map)]"
+	http-after-response set-header m-found   "no" unless { str(nowhere),map_str(${testdir}/map_variants.map) -m found }
+	http-after-response set-header m-dflt    "%[str(nowhere),map_str(${testdir}/map_variants.map,fallback)]"
+	http-after-response set-header m-dflt-i  "%[int(999),map_int_int(${testdir}/map_variants-ikey.map,42),add(1)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.m-alias  == "org"
+
+	expect resp.http.m-str    == "org"
+	expect resp.http.m-str-i  == "101"
+	expect resp.http.m-str-p  == "10.0.0.1"
+	expect resp.http.m-str-k  == "example.org"
+
+	expect resp.http.m-beg    == "images"
+	expect resp.http.m-beg-i  == "102"
+	expect resp.http.m-beg-p  == "10.0.0.2"
+	expect resp.http.m-beg-k  == "/images"
+
+	expect resp.http.m-sub    == "middle"
+	expect resp.http.m-sub-i  == "103"
+	expect resp.http.m-sub-p  == "10.0.0.3"
+	expect resp.http.m-sub-k  == "mid"
+
+	expect resp.http.m-dir    == "images"
+	expect resp.http.m-dir-i  == "102"
+	expect resp.http.m-dir-p  == "10.0.0.2"
+	expect resp.http.m-dir-k  == "/images"
+
+	expect resp.http.m-dom    == "org"
+	expect resp.http.m-dom-i  == "101"
+	expect resp.http.m-dom-p  == "10.0.0.1"
+	expect resp.http.m-dom-k  == "example.org"
+
+	expect resp.http.m-end    == "png"
+	expect resp.http.m-end-i  == "104"
+	expect resp.http.m-end-p  == "10.0.0.4"
+	expect resp.http.m-end-k  == ".png"
+
+	expect resp.http.m-reg    == "api"
+	expect resp.http.m-reg-i  == "105"
+	expect resp.http.m-reg-p  == "10.0.0.5"
+	expect resp.http.m-reg-k  == "^/api/v[0-9]+$"
+
+	expect resp.http.m-reg-b  ~ "^user-.1$"
+	expect resp.http.m-regm   == "user-42"
+
+	expect resp.http.m-int    == "100"
+	expect resp.http.m-int-i  == "701"
+	expect resp.http.m-int-p  == "10.0.0.20"
+	expect resp.http.m-int-r  == "150"
+	expect resp.http.m-int-k  == "100-200"
+
+	expect resp.http.m-ip     == "1"
+	expect resp.http.m-ip-i   == "124"
+	expect resp.http.m-ip-p   == "10.9.9.9"
+	expect resp.http.m-ip-k   == "192.168.1.0/24"
+	expect resp.http.m-ip-6   == "6"
+
+	expect resp.http.m-miss   == ""
+	expect resp.http.m-found  == "no"
+	expect resp.http.m-dflt   == "fallback"
+	expect resp.http.m-dflt-i == "43"
+} -run

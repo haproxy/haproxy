@@ -1,0 +1,12 @@
+# String keyed map with string values, used with the str, beg, sub, dir,
+# dom, end, reg and regm match methods. All the keys are valid regexes so
+# that the file may be loaded with the "reg" and "regm" methods too. The
+# same key set is repeated in map_variants-int.map and map_variants-ip.map
+# with integer and address values so that the _int and _ip output types
+# may be checked with every match method.
+example.org            org
+/images                images
+mid                    middle
+.png                   png
+^/api/v[0-9]+$         api
+^/u/([0-9]+)$          user-\1

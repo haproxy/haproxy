@@ -1,0 +1,4 @@
+# Integer keyed map, including a range, with integer values.
+7                      700
+10                     100
+100-200                150
