@@ -1,0 +1,116 @@
+varnishtest "Test the string trimming, splitting and formatting converters"
+
+# This reg-test covers a few string converters which had no coverage so
+# far: ltrim, rtrim, cut_crlf, base2, port_only and language, plus
+# host_only which is only indirectly used elsewhere. The input of
+# cut_crlf is built from an URL-encoded query string parameter since a
+# header field may not carry a CR nor a LF.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request set-var(txn.raw) url_param(s),url_dec
+	# request headers are not reachable from http-after-response rules
+	http-request set-var(txn.lang) req.fhdr(accept-language),language(es;fr;en)
+	http-request set-var(txn.lang_def) req.fhdr(accept-language),language(de;it,none)
+	http-request return status 200
+
+	http-after-response set-header ltrim     "%[str(xyhelloxy),ltrim(xy)]"
+	http-after-response set-header ltrim-non "%[str(hello),ltrim(xy)]"
+	http-after-response set-header ltrim-all "%[str(xyxy),ltrim(xy)]"
+	http-after-response set-header rtrim     "%[str(xyhelloxy),rtrim(xy)]"
+	http-after-response set-header rtrim-non "%[str(hello),rtrim(xy)]"
+	http-after-response set-header trim      "%[str(--hello--),ltrim(-),rtrim(-)]"
+	http-after-response set-header cut       "%[var(txn.raw),cut_crlf]"
+	http-after-response set-header cut-len   "%[var(txn.raw),cut_crlf,length]"
+	http-after-response set-header base2     "%[str(A),base2]"
+	http-after-response set-header base2-2   "%[str(Az),base2]"
+	http-after-response set-header host      "%[str(Example.COM:8080),host_only]"
+	http-after-response set-header host-v6   "%[str([::1]:80),host_only]"
+	http-after-response set-header port      "%[str(example.com:8080),port_only]"
+	http-after-response set-header port-none "%[str(example.com),port_only]"
+	http-after-response set-header port-v6   "%[str([::1]:80),port_only]"
+	http-after-response set-header lang      "%[var(txn.lang)]"
+	http-after-response set-header lang-def  "%[var(txn.lang_def)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# "hello%0Aworld" once decoded holds an LF in the middle
+	txreq -url "/?s=hello%0Aworld"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.ltrim     == "helloxy"
+	expect resp.http.ltrim-non == "hello"
+	expect resp.http.ltrim-all == ""
+	expect resp.http.rtrim     == "xyhello"
+	expect resp.http.rtrim-non == "hello"
+	expect resp.http.trim      == "hello"
+	expect resp.http.cut       == "hello"
+	expect resp.http.cut-len   == "5"
+	expect resp.http.base2     == "01000001"
+	expect resp.http.base2-2   == "0100000101111010"
+	expect resp.http.host      == "example.com"
+	expect resp.http.host-v6   == "[::1]"
+	expect resp.http.port      == "8080"
+	expect resp.http.port-none == "0"
+	expect resp.http.port-v6   == "80"
+	# no accept-language header at all: the fetch fails before language()
+	expect resp.http.lang      == ""
+	expect resp.http.lang-def  == ""
+
+	# a CR is cut as well as a LF
+	txreq -url "/?s=first%0Dsecond"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.cut       == "first"
+
+	# nothing to cut, the string is left unmodified
+	txreq -url "/?s=intact"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.cut       == "intact"
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	# the highest q-factor among the values listed in the argument wins
+	txreq -url "/?s=x" -hdr "accept-language: fr;q=0.2, en;q=0.8, de"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.lang     == "en"
+	expect resp.http.lang-def == "de"
+
+	# a variant is matched on its base language when not listed
+	txreq -url "/?s=x" -hdr "accept-language: es-AR"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.lang == "es"
+
+	# a null q-factor drops the value, including when it is spelled with
+	# no decimal part at all
+	txreq -url "/?s=x" -hdr "accept-language: fr;q=0, en;q=0.1"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.lang == "en"
+
+	# nothing in the list matches, only the form with a default emits something
+	txreq -url "/?s=x" -hdr "accept-language: ja"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.lang     == ""
+	expect resp.http.lang-def == "none"
+} -run
