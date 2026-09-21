@@ -1,0 +1,119 @@
+varnishtest "Test the CLI commands which change the run-time settings"
+
+# None of the "set" commands changing a run-time setting was covered:
+# set maxconn (global, frontend and server), set rate-limit, set weight,
+# set server state, set profiling, set anon, set severity-output, set
+# timeout, set table, and the frontend enable/disable/shutdown trio.
+# Each change is read back with the command which reports it.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	default_backend be
+
+    backend be
+	stick-table type ip size 1m expire 1h store gpc0,conn_cnt
+	server s1 127.0.0.1:1 weight 10
+} -start
+
+haproxy h1 -cli {
+	# global limits, read back from "show info"
+	send "set maxconn global 1234; show info"
+	expect ~ "\nMaxconn: 1234\n"
+
+	send "set rate-limit connections global 100; show info"
+	expect ~ "\nConnRateLimit: 100\n"
+
+	send "set rate-limit sessions global 50; show info"
+	expect ~ "\nSessRateLimit: 50\n"
+
+	# the "slim" column of "show stat" reports the frontend and server
+	# connection limits
+	send "set maxconn frontend fe 12; show stat"
+	expect ~ "\nfe,FRONTEND,,,[0-9]+,[0-9]+,12,"
+
+	send "set maxconn server be/s1 3; show stat"
+	expect ~ "\nbe,s1,[0-9]+,[0-9]+,[0-9]+,[0-9]+,3,"
+
+	# weights, in absolute value and as a percentage of the initial one
+	send "get weight be/s1"
+	expect ~ "^10 [(]initial 10[)]"
+
+	send "set weight be/s1 5; get weight be/s1"
+	expect ~ "\n5 [(]initial 10[)]"
+
+	send "set weight be/s1 50%; get weight be/s1"
+	expect ~ "\n5 [(]initial 10[)]"
+
+	# administrative state of a server
+	send "set server be/s1 state drain; show stat"
+	expect ~ "\nbe,s1,[^\n]*,DRAIN,"
+
+	send "set server be/s1 state maint; show stat"
+	expect ~ "\nbe,s1,[^\n]*,MAINT,"
+
+	send "set server be/s1 state ready; show stat"
+	expect ~ "\nbe,s1,[^\n]*,(UP|no check),"
+
+	# administrative state of a frontend
+	send "disable frontend fe; show stat"
+	expect ~ "\nfe,FRONTEND,[^\n]*,PAUSED,"
+
+	send "enable frontend fe; show stat"
+	expect ~ "\nfe,FRONTEND,[^\n]*,OPEN,"
+
+	# profiling and anonymization are reported by their "show" command
+	send "set profiling tasks on; show profiling"
+	expect ~ "Per-task CPU profiling *: on"
+
+	send "set profiling tasks off; show profiling"
+	expect ~ "Per-task CPU profiling *: off"
+
+	send "set anon on 1234; show anon"
+	expect ~ "\nAnonymized mode enabled"
+
+	send "set anon off; show anon"
+	expect ~ "\nAnonymized mode disabled"
+
+	# the severity prefix applies to the messages of the same connection
+	send "set severity-output number; show version"
+	expect ~ "\n[[][0-9]+[]]: [0-9]+[.][0-9]+"
+
+	send "set severity-output string; show version"
+	expect ~ "\n[[][a-z]+[]]: [0-9]+[.][0-9]+"
+
+	send "set severity-output none; show version"
+	expect ~ "\n[0-9]+[.][0-9]+"
+
+	send "set timeout cli 30"
+	expect ~ "^$"
+
+	send "echo hello there"
+	expect ~ "^hello there"
+
+	# stick-table entries may be created and removed from the CLI
+	send "set table be key 10.0.0.1 data.gpc0 7; show table be"
+	expect ~ "key=10.0.0.1 use=0 exp=[0-9]+ shard=[0-9]+ gpc0=7"
+
+	send "clear table be; show table be"
+	expect ~ "\n# table: be,"
+
+	# and finally the destructive one, after which the frontend switches
+	# from PAUSED to STOP
+	send "shutdown frontend fe; show stat"
+	expect ~ "\nfe,FRONTEND,[^\n]*,STOP,"
+}
