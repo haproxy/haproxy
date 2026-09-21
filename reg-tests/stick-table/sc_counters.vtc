@@ -1,0 +1,131 @@
+varnishtest "Test the traffic counters of the stick counters"
+
+# The connection, session, request, error and byte counters of the stick
+# tables were not covered, nor were the sc_*, sc0_*, src_* and table_*
+# families which give access to them, nor table_avl, table_cnt,
+# table_expire, table_idle and in_table.
+#
+# A single client connection issues a normal request, a request denied by
+# haproxy and a request answered with a 5xx by the server, so that the
+# request, error and failure counters all get a chance to move. The
+# values are grouped into a few headers because vtest only parses a
+# limited number of them.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.url == "/srv"
+	txresp
+
+	rxreq
+	expect req.url == "/fail"
+	txresp -status 500
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    backend st
+	stick-table type ip size 1m expire 1h store conn_cnt,conn_cur,conn_rate(10s),sess_cnt,sess_rate(10s),http_req_cnt,http_req_rate(10s),http_err_cnt,http_err_rate(10s),http_fail_cnt,http_fail_rate(10s),bytes_in_cnt,bytes_in_rate(10s),bytes_out_cnt,bytes_out_rate(10s),glitch_cnt,glitch_rate(10s),server_id
+
+    frontend fe
+	bind "fd@${fe}"
+
+	tcp-request connection track-sc0 src table st
+
+	http-request deny deny_status 403 if { path /denied }
+	# use_backend is only evaluated once all the http-request rules have
+	# run, so the local response must be skipped for the forwarded paths
+	http-request return status 200 unless { path /srv } || { path /fail }
+	use_backend be
+
+	# the stick counter family, with an explicit counter id
+	http-after-response set-header x-sc-cnt   "%[sc_conn_cnt(0)] %[sc_conn_cur(0)] %[sc_conn_rate(0)] %[sc_sess_cnt(0)] %[sc_sess_rate(0)]"
+	http-after-response set-header x-sc-req   "%[sc_http_req_cnt(0)] %[sc_http_req_rate(0)] %[sc_http_err_cnt(0)] %[sc_http_err_rate(0)] %[sc_http_fail_cnt(0)] %[sc_http_fail_rate(0)]"
+	http-after-response set-header x-sc-byte  "%[sc_kbytes_in(0)] %[sc_kbytes_out(0)] %[sc_bytes_in_rate(0)] %[sc_bytes_out_rate(0)]"
+	http-after-response set-header x-sc-misc  "%[sc_glitch_cnt(0)] %[sc_glitch_rate(0)] %[sc_key(0)] %[sc_tracked(0)] %[sc_trackers(0)]"
+
+	# the sc0_ shorthands must report the very same values
+	http-after-response set-header x-sc0      "%[sc0_conn_cnt] %[sc0_conn_cur] %[sc0_conn_rate] %[sc0_sess_cnt] %[sc0_sess_rate]"
+	http-after-response set-header x-sc0-req  "%[sc0_http_req_cnt] %[sc0_http_req_rate] %[sc0_http_err_cnt] %[sc0_http_err_rate] %[sc0_http_fail_cnt] %[sc0_http_fail_rate]"
+	http-after-response set-header x-sc0-misc "%[sc0_kbytes_in] %[sc0_kbytes_out] %[sc0_glitch_cnt] %[sc0_glitch_rate] %[sc0_key] %[sc0_tracked] %[sc0_trackers]"
+
+	# the src_ family looks the entry up by the source address
+	http-after-response set-header x-src-cnt  "%[src_conn_cnt(st)] %[src_conn_cur(st)] %[src_conn_rate(st)] %[src_sess_cnt(st)] %[src_sess_rate(st)]"
+	http-after-response set-header x-src-req  "%[src_http_req_cnt(st)] %[src_http_req_rate(st)] %[src_http_err_cnt(st)] %[src_http_err_rate(st)] %[src_http_fail_cnt(st)] %[src_http_fail_rate(st)]"
+	http-after-response set-header x-src-byte "%[src_kbytes_in(st)] %[src_kbytes_out(st)] %[src_bytes_in_rate(st)] %[src_bytes_out_rate(st)] %[src_glitch_cnt(st)] %[src_glitch_rate(st)]"
+
+	# the table_ converters take the key on input
+	http-after-response set-header x-tbl-cnt  "%[src,table_conn_cnt(st)] %[src,table_conn_cur(st)] %[src,table_conn_rate(st)] %[src,table_sess_cnt(st)] %[src,table_sess_rate(st)]"
+	http-after-response set-header x-tbl-req  "%[src,table_http_req_cnt(st)] %[src,table_http_req_rate(st)] %[src,table_http_err_cnt(st)] %[src,table_http_err_rate(st)] %[src,table_http_fail_cnt(st)] %[src,table_http_fail_rate(st)]"
+	http-after-response set-header x-tbl-byte "%[src,table_kbytes_in(st)] %[src,table_kbytes_out(st)] %[src,table_bytes_in_rate(st)] %[src,table_bytes_out_rate(st)] %[src,table_glitch_cnt(st)] %[src,table_glitch_rate(st)]"
+	http-after-response set-header x-tbl-misc "%[src,table_trackers(st)] %[src,table_server_id(st)] %[src,in_table(st)] %[ipv4(10.9.9.9),in_table(st)] %[table_cnt(st)]"
+
+	# expiration, idle time, their default value for an unknown key, and
+	# the number of free entries
+	http-after-response set-header x-tbl-exp  "%[src,table_expire(st)] %[src,table_idle(st)] %[ipv4(10.9.9.9),table_expire(st,42)] %[ipv4(10.9.9.9),table_idle(st,43)] %[table_avl(st)]"
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/one"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-sc-cnt   == "1 1 1 1 1"
+	expect resp.http.x-sc-req   == "1 1 0 0 0 0"
+	expect resp.http.x-sc-misc  == "0 0 127.0.0.1 1 1"
+	expect resp.http.x-sc0      == resp.http.x-sc-cnt
+	expect resp.http.x-sc0-req  == resp.http.x-sc-req
+	expect resp.http.x-sc0-misc == "0 0 0 0 127.0.0.1 1 1"
+	expect resp.http.x-src-cnt  == resp.http.x-sc-cnt
+	expect resp.http.x-src-req  == resp.http.x-sc-req
+	expect resp.http.x-tbl-cnt  == resp.http.x-sc-cnt
+	expect resp.http.x-tbl-req  == resp.http.x-sc-req
+	# one tracker, as sc_trackers() reports above, no server assigned, the
+	# source is in the table but 10.9.9.9 is not, and the table holds a
+	# single entry
+	expect resp.http.x-tbl-misc == "1 0 1 0 1"
+	expect resp.http.x-tbl-exp  ~  "^[0-9]+ [0-9]+ 42 43 [0-9]+$"
+
+	# a request denied with a 4xx feeds the error counters, the
+	# connection counters do not move on a kept-alive connection
+	txreq -url "/denied"
+	rxresp
+	expect resp.status == 403
+	expect resp.http.x-sc-cnt   == "1 1 1 1 1"
+	expect resp.http.x-sc-req   == "2 2 1 1 0 0"
+	expect resp.http.x-src-req  == "2 2 1 1 0 0"
+	expect resp.http.x-tbl-req  == "2 2 1 1 0 0"
+
+	# a request forwarded to the server, still no failure
+	txreq -url "/srv"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-sc-req   == "3 3 1 1 0 0"
+
+	# a 5xx returned by the server feeds the failure counters
+	txreq -url "/fail"
+	rxresp
+	expect resp.status == 500
+	expect resp.http.x-sc-req   == "4 4 1 1 1 1"
+	expect resp.http.x-src-req  == "4 4 1 1 1 1"
+	expect resp.http.x-tbl-req  == "4 4 1 1 1 1"
+
+	# traffic was accounted in both directions, but stays below 1 kB
+	expect resp.http.x-sc-byte  ~  "^0 0 [1-9][0-9]* [1-9][0-9]*$"
+	expect resp.http.x-src-byte ~  "^0 0 [1-9][0-9]* [1-9][0-9]* 0 0$"
+	expect resp.http.x-tbl-byte == resp.http.x-src-byte
+} -run
