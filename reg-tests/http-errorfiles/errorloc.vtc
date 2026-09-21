@@ -1,0 +1,83 @@
+varnishtest "Test the errorloc, errorloc302 and errorloc303 directives"
+
+# The errorloc family was not covered at all while errorfile and
+# http-error are. The three forms are checked on a 503 caused by an
+# unreachable server and on a 403 returned by a deny rule, including the
+# fact that "errorloc" is an alias for "errorloc302" and that the
+# redirect only replaces the status codes it was declared for.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	retries 0
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+	bind "fd@${fe1}"
+	errorloc 503 http://www.example.com/oops503
+	http-request deny deny_status 403 if { path /denied }
+	default_backend dead
+
+    frontend fe2
+	bind "fd@${fe2}"
+	errorloc302 503 http://www.example.com/oops503
+	errorloc302 403 /local403
+	http-request deny deny_status 403 if { path /denied }
+	default_backend dead
+
+    frontend fe3
+	bind "fd@${fe3}"
+	errorloc303 503 http://www.example.com/oops503
+	http-request deny deny_status 403 if { path /denied }
+	default_backend dead
+
+    backend dead
+	server s1 ${bad_backend}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	# "errorloc" behaves like "errorloc302"
+	txreq -url "/gone"
+	rxresp
+	expect resp.status == 302
+	expect resp.http.location == "http://www.example.com/oops503"
+	# no errorloc was declared for 403, the default error page is used
+	txreq -url "/denied"
+	rxresp
+	expect resp.status == 403
+	expect resp.http.location == "<undef>"
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txreq -url "/gone"
+	rxresp
+	expect resp.status == 302
+	expect resp.http.location == "http://www.example.com/oops503"
+
+	# a relative location is accepted too
+	txreq -url "/denied"
+	rxresp
+	expect resp.status == 302
+	expect resp.http.location == "/local403"
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+	txreq -url "/gone"
+	rxresp
+	expect resp.status == 303
+	expect resp.http.location == "http://www.example.com/oops503"
+
+	txreq -url "/denied"
+	rxresp
+	expect resp.status == 403
+} -run
