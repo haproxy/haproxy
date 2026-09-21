@@ -1,0 +1,104 @@
+varnishtest "Test the binary header manipulation actions"
+
+# The add-headers-bin, set-headers-bin and del-headers-bin actions had no
+# coverage at all. They take a varint encoded list of header names and
+# values, which is exactly what the req.hdrs_bin fetch produces, so the
+# test saves the incoming header block, drops some headers and restores
+# them from the saved block, with and without the "prefix" filter.
+#
+# The lists passed to del-headers-bin are built by hand with the bin()
+# fetch: a varint length followed by the bytes, one pair per entry, the
+# list being terminated by two empty strings. For instance
+# 03 "x-a" 00 00 00 designates the single header name "x-a".
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.url == "/prefix"
+	expect req.http.x-a == "<undef>"
+	expect req.http.x-b == "2"
+	expect req.http.x-c == "<undef>"
+	txresp
+
+	rxreq
+	expect req.url == "/all"
+	expect req.http.x-a == "1"
+	expect req.http.x-b == "2"
+	expect req.http.x-c == "3"
+	txresp
+
+	rxreq
+	expect req.url == "/del"
+	expect req.http.x-a == "<undef>"
+	expect req.http.x-b == "2"
+	expect req.http.x-c == "3"
+	txresp
+
+	rxreq
+	expect req.url == "/delbeg"
+	expect req.http.x-a == "<undef>"
+	expect req.http.x-b == "<undef>"
+	expect req.http.x-c == "<undef>"
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request set-var(txn.hdrs) req.hdrs_bin
+
+	http-request del-header x-a if { path /prefix } || { path /all }
+	http-request del-header x-b if { path /prefix } || { path /all }
+	http-request del-header x-c if { path /prefix } || { path /all }
+
+	# only the headers whose name starts with the prefix are restored
+	http-request add-headers-bin var(txn.hdrs) prefix x-b if { path /prefix }
+	http-request set-headers-bin var(txn.hdrs)            if { path /all }
+
+	# 03 "x-a" 00 00 00 : one entry named "x-a" with an empty value
+	http-request del-headers-bin bin(03782d61000000)          if { path /del }
+	# 02 "x-" 00 00 00 with a prefix match removes all the x-* headers
+	http-request del-headers-bin bin(02782d000000) -m beg     if { path /delbeg }
+
+	# the response side accepts the same actions
+	http-after-response set-headers-bin var(txn.hdrs) prefix x-c
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/prefix" -hdr "x-a: 1" -hdr "x-b: 2" -hdr "x-c: 3"
+	rxresp
+	expect resp.status == 200
+	# the response got the x-c header back from the saved request block
+	expect resp.http.x-c == "3"
+
+	txreq -url "/all" -hdr "x-a: 1" -hdr "x-b: 2" -hdr "x-c: 3"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/del" -hdr "x-a: 1" -hdr "x-b: 2" -hdr "x-c: 3"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/delbeg" -hdr "x-a: 1" -hdr "x-b: 2" -hdr "x-c: 3"
+	rxresp
+	expect resp.status == 200
+} -run
