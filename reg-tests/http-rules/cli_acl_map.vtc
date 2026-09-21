@@ -1,0 +1,174 @@
+varnishtest "Test the ACL and map management commands of the CLI"
+
+# Only "show map" and "clear map" were used by another reg-test. This one
+# covers the whole family: add/del/clear/get/show for both ACLs and maps,
+# "set map", and the prepare/commit sequence which performs an atomic
+# replacement of the contents of a list.
+#
+# Virtual lists ("virt@") are used so that no file is needed.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	acl known url_param(q) -f virt@cliacl
+
+	http-request set-var(txn.acl) str(yes) if known
+	http-request set-var(txn.map) url_param(q),map(virt@climap)
+	http-request return status 200
+
+	http-after-response set-header x-acl "%[var(txn.acl)]"
+	http-after-response set-header x-map "%[var(txn.map)]"
+} -start
+
+# both lists start empty
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/?q=one"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl == ""
+	expect resp.http.x-map == ""
+} -run
+
+haproxy h1 -cli {
+	# "show acl" and "show map" without argument list the known lists
+	send "show map"
+	expect ~ "^# id \\(file\\) description\n[0-9]+ \\(virt@climap\\) pattern loaded from file 'virt@climap'.*entry_cnt=0"
+
+	send "show acl"
+	expect ~ "[0-9]+ \\(virt@cliacl\\) pattern loaded from file 'virt@cliacl'.*entry_cnt=0"
+
+	send "add map virt@climap one first"
+	expect ~ "^$"
+	send "add acl virt@cliacl one"
+	expect ~ "^$"
+
+	send "show map virt@climap"
+	expect ~ "^0x[0-9a-f]+ one first"
+	send "show acl virt@cliacl"
+	expect ~ "^0x[0-9a-f]+ one"
+
+	send "get map virt@climap one"
+	expect ~ "found=yes.*key=\"one\", value=\"first\""
+	send "get acl virt@cliacl one"
+	expect ~ "match=yes.*pattern=\"one\""
+
+	# a lookup which does not match
+	send "get map virt@climap two"
+	expect ~ "found=no"
+	send "get acl virt@cliacl two"
+	expect ~ "match=no"
+}
+
+client c2 -connect ${h1_fe_sock} {
+	txreq -url "/?q=one"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl == "yes"
+	expect resp.http.x-map == "first"
+} -run
+
+haproxy h1 -cli {
+	# "set map" replaces the value of an existing key
+	send "set map virt@climap one second"
+	expect ~ "^$"
+	send "get map virt@climap one"
+	expect ~ "value=\"second\""
+
+	# prepare/commit performs an atomic replacement: the new version is
+	# only visible once committed
+	send "prepare map virt@climap"
+	expect ~ "^New version created: 1"
+	send "add map @1 virt@climap two third"
+	expect ~ "^$"
+	send "show map @1 virt@climap"
+	expect ~ "^0x[0-9a-f]+ two third"
+	send "show map virt@climap"
+	expect ~ "^0x[0-9a-f]+ one second"
+
+	send "prepare acl virt@cliacl"
+	expect ~ "^New version created: 1"
+	send "add acl @1 virt@cliacl two"
+	expect ~ "^$"
+}
+
+# not committed yet, the old contents are still in use
+client c3 -connect ${h1_fe_sock} {
+	txreq -url "/?q=two"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl == ""
+	expect resp.http.x-map == ""
+} -run
+
+haproxy h1 -cli {
+	send "commit map @1 virt@climap"
+	expect ~ "^$"
+	send "commit acl @1 virt@cliacl"
+	expect ~ "^$"
+
+	send "show map virt@climap"
+	expect ~ "^0x[0-9a-f]+ two third"
+	send "show acl virt@cliacl"
+	expect ~ "^0x[0-9a-f]+ two"
+}
+
+client c4 -connect ${h1_fe_sock} {
+	# the previous contents were replaced, not merged
+	txreq -url "/?q=one"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl == ""
+	expect resp.http.x-map == ""
+
+	txreq -url "/?q=two"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl == "yes"
+	expect resp.http.x-map == "third"
+} -run
+
+haproxy h1 -cli {
+	# "del" removes a single entry, "clear" empties the whole list
+	send "del map virt@climap two"
+	expect ~ "^$"
+	send "get map virt@climap two"
+	expect ~ "found=no"
+
+	send "add acl virt@cliacl three"
+	expect ~ "^$"
+	send "del acl virt@cliacl two"
+	expect ~ "^$"
+	send "show acl virt@cliacl"
+	expect ~ "^0x[0-9a-f]+ three"
+	send "clear acl virt@cliacl"
+	expect ~ "^$"
+	send "show acl virt@cliacl"
+	expect ~ "^$"
+
+	# deleting an unknown key is reported as an error
+	send "del map virt@climap nosuchkey"
+	expect ~ "Key not found"
+}
+
+client c5 -connect ${h1_fe_sock} {
+	txreq -url "/?q=two"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl == ""
+	expect resp.http.x-map == ""
+} -run
