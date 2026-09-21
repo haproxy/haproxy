@@ -1,0 +1,95 @@
+varnishtest "Test the tarpit, deny and silent-drop actions"
+
+# The tarpit action was only referenced by the "set-timeout" test and
+# silent-drop was not covered at all. The deny action is widely used but
+# always in its default form, never with a customized body.
+#
+# The tarpit delay is kept short on purpose so that the test stays fast,
+# and the log is used to verify that the transaction was reported with
+# the "PT" termination state.
+
+feature ignore_unknown_macro
+
+syslog Slg -level info {
+	recv
+	expect ~ "term=PT.* st=500"
+	recv
+	expect ~ "term=PT.* st=429"
+	recv
+	expect ~ "term=PR.* st=403"
+	recv
+	expect ~ "term=PR.* st=418"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	log "${Slg_addr}:${Slg_port}" local0 info
+
+    defaults
+	mode http
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout tarpit  100ms
+
+    frontend fe
+	bind "fd@${fe}"
+	log-format "uri=%[capture.req.uri] term=%[txn.sess_term_state] st=%[txn.status]"
+
+	# the default tarpit status is 500
+	http-request tarpit                          if { path /tarpit }
+	http-request tarpit deny_status 429          if { path /tarpit429 }
+
+	# the default deny status is 403
+	http-request deny                            if { path /deny }
+	http-request deny status 418 content-type "text/plain" string "teapot" hdr x-why "because" if { path /teapot }
+
+	# the client gets nothing at all, the connection is just dropped
+	# however this is not portable so let's use rst-ttl instead, which
+	# really closes.
+	http-request silent-drop rst-ttl 4           if { path /drop }
+
+	# pause only delays the analysis, the request is processed normally
+	http-request pause 10ms                      if { path /pause }
+
+	http-request return status 200
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/tarpit"
+	rxresp
+	expect resp.status == 500
+
+	txreq -url "/tarpit429"
+	rxresp
+	expect resp.status == 429
+
+	txreq -url "/deny"
+	rxresp
+	expect resp.status == 403
+
+	# the body, the content type and the extra header all come from the
+	# deny arguments
+	txreq -url "/teapot"
+	rxresp
+	expect resp.status == 418
+	expect resp.http.content-type == "text/plain"
+	expect resp.http.x-why == "because"
+	expect resp.body == "teapot"
+
+	txreq -url "/pause"
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	txreq -url "/drop"
+	expect_close
+} -run
+
+syslog Slg -wait
