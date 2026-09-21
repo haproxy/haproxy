@@ -7182,6 +7182,105 @@ static int cli_parse_purge_server(char **args, char *payload, struct appctx *app
 	return 1;
 }
 
+struct purge_all_servers_ctx {
+	char *bename;
+};
+
+/* Parser for "purge all servers" CLI command. Prepare context for performing
+ * the required task in a dedicated handler.
+ *
+ * Returns 0 in normal cases to let the handler run, or 1 for an invalid
+ * argument.
+ */
+static int cli_parse_purge_all_servers(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct purge_all_servers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "A backend name is expected.\n");
+
+	/* Perform a first lookup to immediately detect a non existing backend. */
+	if (!proxy_be_by_name(args[3]))
+		return cli_err(appctx, "No such backend.\n");
+
+	ctx->bename = strdup(args[3]);
+	if (!ctx->bename)
+		return cli_err(appctx, "Out of memory.\n");
+
+	return 0;
+}
+
+/* Handler for "purge all servers" CLI command. */
+static int cli_io_handler_purge_all_server(struct appctx *appctx)
+{
+	struct purge_all_servers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	struct proxy *be;
+	struct server *srv, *srvtmp;
+	int c0 = 0, c1 = 0, c2 = 0;
+	int ret;
+
+	chunk_reset(&trash);
+
+	thread_isolate_full();
+
+	be = proxy_be_by_name(ctx->bename);
+	if (!be) {
+		chunk_printf(&trash, "Command interrupted by backend deletion.\n");
+		ret = 1;
+		goto out;
+	}
+
+	list_for_each_entry_safe(srv, srvtmp, &be->servers, el_px) {
+		if (srv->flags & (SRV_F_NON_PURGEABLE | SRV_F_NAME_REFD)) {
+			++c2;
+			continue;
+		}
+
+		if (!(srv->cur_admin & SRV_ADMF_MAINT))
+			srv_adm_set_maint(srv);
+
+		if (srv_in_use(srv)) {
+			if (!LIST_INLIST(&srv->el_alt))
+				LIST_APPEND(&be->servers_purge, &srv->el_alt);
+			srv->flags |= SRV_F_TO_PURGE;
+			ha_notice("Server '%s/%s' flagged for deletion.\n", be->id, srv->id);
+			++c1;
+		}
+		else {
+			srv_unregister(srv);
+			ha_notice("Server '%s/%s' deleted.\n", be->id, srv->id);
+			srv_drop(srv);
+			++c0;
+		}
+	}
+
+	if (c1) {
+		if (!tick_isset(be->purge_task->expire))
+			be->purge_task->expire = tick_add(now_ms, 1000);
+		task_queue(be->purge_task);
+	}
+
+	chunk_printf(&trash, "Servers backend iteration performed: "
+	                     "%d removed, %d scheduled, %d skipped.\n",
+	                     c0, c1, c2);
+	ret = 1;
+
+ out:
+	if (applet_putchk(appctx, &trash) < 0)
+		ret = 0;
+	thread_release();
+	return ret;
+}
+
+static void cli_release_purge_all_servers(struct appctx *appctx)
+{
+	struct purge_all_servers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	ha_free(&ctx->bename);
+}
+
 /* Reset the statistics counters of a single server, invoked from the
  * "clear counters server <backend>/<server> [force]" CLI command (dispatched
  * by cli_parse_clear_counters() in stats.c, since "clear counters" is a
@@ -7249,6 +7348,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "add", "server", NULL },             "add server <bk>/<srv>                   : create a new server",                                         cli_parse_add_server, cli_io_handler_add_server },
 	{ { "del", "server", NULL },             "del server <bk>/<srv>                   : remove a server",                                             cli_parse_delete_server, NULL },
 	{ { "purge", "server", NULL },           "purge server <bk>/<srv>                 : remove on background a server",                               cli_parse_purge_server, NULL },
+	{ { "purge", "all", "servers", NULL },   "purge all servers <bk>                  : remove all servers from a backend",                           cli_parse_purge_all_servers, cli_io_handler_purge_all_server, cli_release_purge_all_servers },
 	{{},}
 }};
 
