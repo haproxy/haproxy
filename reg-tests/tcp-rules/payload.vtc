@@ -1,0 +1,95 @@
+varnishtest "Test the raw payload fetches of the TCP rule sets"
+
+# req.len, req.payload and their "res." counterparts, the payload_lv
+# family and the wait_end fetch had little or no coverage. They are
+# only usable in TCP mode, on the raw buffers, so the test runs a plain
+# TCP proxy and reports what it sees through the log.
+#
+# The client sends a 4-byte big endian length, its payload and two
+# trailing bytes, and the server answers with the same framing, so that
+# payload_lv() has something to extract on both sides, including with a
+# relative second offset.
+
+feature ignore_unknown_macro
+
+server s1 {
+	recv 11
+	sendhex "000000066f6e696f6e735151"
+} -start
+
+syslog Slg -level info {
+	recv
+	expect ~ "^<134>.*: reqlen=11 lv=hello p=hello first=h relative=elloZ reslen=12 rlv=onions rp=onions bytes=12$"
+
+	# the second client never sends enough data, wait_end becomes true
+	# once the inspection delay has expired and the rule rejects it
+	recv
+	expect ~ "^<134>.*: reqlen=3 lv=- p=- first=- relative=- reslen=- rlv=- rp=- bytes=0$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	log "${Slg_addr}:${Slg_port}" local0 info
+
+    defaults
+	mode tcp
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	# %B is not only checked for itself, it also forces the message to be
+	# emitted when the stream ends: a format made only of var() fetches is
+	# emitted as soon as the server connection is established, which is
+	# before the response side rules have run
+	log-format "reqlen=%[var(txn.reqlen)] lv=%[var(txn.lv)] p=%[var(txn.p)] first=%[var(txn.first)] relative=%[var(txn.rel)] reslen=%[var(txn.reslen)] rlv=%[var(txn.rlv)] rp=%[var(txn.rp)] bytes=%B"
+
+	# a short delay is enough since everything arrives at once, and it
+	# bounds the duration of the rejected case below
+	tcp-request inspect-delay 100ms
+
+	tcp-request content set-var(txn.reqlen) req.len
+	# the size of the block is read from the first 4 bytes
+	tcp-request content set-var(txn.lv)     req.payload_lv(0,4)
+	# the same block, addressed directly
+	tcp-request content set-var(txn.p)      req.payload(4,5)
+	tcp-request content set-var(txn.first)  req.payload(4,1)
+	# a relative second offset, one byte after the length field
+	tcp-request content set-var(txn.rel)    req.payload_lv(0,4,+1)
+
+	# the rules above are not final, so as long as neither of the two
+	# below matches the analysis is retried when more data arrives
+	tcp-request content accept if { req.len ge 11 }
+	tcp-request content reject if { wait_end }
+
+	default_backend be
+
+    backend be
+	# the response side rules only exist in backends
+	tcp-response inspect-delay 100ms
+	tcp-response content set-var(txn.reslen) res.len
+	tcp-response content set-var(txn.rlv)    res.payload_lv(0,4)
+	tcp-response content set-var(txn.rp)     res.payload(4,6)
+	tcp-response content accept if { res.len ge 12 }
+
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	sendhex "0000000568656c6c6f5a5a"
+	recv 12
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	sendhex "414243"
+	expect_close
+} -run
+
+syslog Slg -wait
