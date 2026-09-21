@@ -7676,7 +7676,8 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		}
 	}
  leave:
-	ctx->flags &= ~SSL_SOCK_F_KTLS_RX_CTRL;
+	if (ctx)
+		ctx->flags &= ~SSL_SOCK_F_KTLS_RX_CTRL;
 	TRACE_LEAVE(SSL_EV_CONN_RECV, conn);
 	return done;
 
