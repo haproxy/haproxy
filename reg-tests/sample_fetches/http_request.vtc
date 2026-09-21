@@ -1,0 +1,198 @@
+varnishtest "Test the HTTP request header, URI and body sample fetches"
+
+# A large part of the request side fetches had no coverage: the header
+# list and value families, the URI decomposition fetches, the base32 and
+# url32 hashes, the request captures and the body fetches. They are all
+# collected here into variables from the http-request rule set, where
+# they are available, and reported in the response headers, so that a
+# single exchange is enough to check them all.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.bodylen == 21
+	txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	capture request header x-num len 16
+
+	http-request wait-for-body time "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	# the request side fetches are not usable from the http-response rule
+	# set, they are collected into variables while the request is being
+	# processed
+	http-request set-var(txn.x_method) method
+	http-request set-var(txn.x_ver) req.ver
+	http-request set-var(txn.x_reqver) req_ver
+	http-request set-var(txn.x_proto) req.proto_http
+	http-request set-var(txn.x_sproto) req_proto_http
+	http-request set-var(txn.x_capmethod) capture.req.method
+	http-request set-var(txn.x_capver) capture.req.ver
+	http-request set-var(txn.x_capuri) capture.req.uri
+	http-request set-var(txn.x_caphdr) capture.req.hdr(0)
+	http-request set-var(txn.x_hdr) req.hdr(x-num)
+	http-request set-var(txn.x_hdrval) req.hdr_val(x-num),add(1)
+	http-request set-var(txn.x_hdrip) req.hdr_ip(x-ip)
+	http-request set-var(txn.x_hdrcnt) req.hdr_cnt(x-list)
+	http-request set-var(txn.x_hdrfirst) req.hdr(x-list,1)
+	http-request set-var(txn.x_hdrlast) req.hdr(x-list,-1)
+	http-request set-var(txn.x_fhdrcnt) req.fhdr_cnt(x-csv)
+	http-request set-var(txn.x_fhdr) req.fhdr(x-csv)
+	http-request set-var(txn.x_names) req.hdr_names
+	http-request set-var(txn.x_names2) req.hdr_names(|)
+	http-request set-var(txn.x_hdrs) str(yes) if { req.hdrs -m sub "x-num: 42" }
+	http-request set-var(txn.x_hdrsbin) req.hdrs_bin,hex,lower
+	http-request set-var(txn.x_base) base
+	http-request set-var(txn.x_baseq) baseq
+	http-request set-var(txn.x_urlip) url_ip
+	http-request set-var(txn.x_urlport) url_port
+	http-request set-var(txn.x_query) query
+	http-request set-var(txn.x_urlpval) urlp_val(n),add(1)
+	# base32 and url32 are integer hashes, their "+src" variants append
+	# the source address to the hash and return a binary block
+	http-request set-var(txn.x_base32) base32
+	http-request set-var(txn.x_base32src) base32+src,hex,lower
+	http-request set-var(txn.x_url32) url32
+	http-request set-var(txn.x_url32src) url32+src,hex,lower
+	http-request set-var(txn.x_bodylen) req.body_len
+	http-request set-var(txn.x_bodysize) req.body_size
+	http-request set-var(txn.x_bodyparam) req.body_param(who)
+	http-request set-var(txn.x_bodyparami) req.body_param(WHO,i)
+	http-request set-var(txn.x_timerhdr) req.timer.hdr
+	http-request set-var(txn.x_timeridle) req.timer.idle
+
+	http-response set-header x-method "%[var(txn.x_method)]"
+	http-response set-header x-ver "%[var(txn.x_ver)]"
+	http-response set-header x-reqver "%[var(txn.x_reqver)]"
+	http-response set-header x-proto "%[var(txn.x_proto)]"
+	http-response set-header x-sproto "%[var(txn.x_sproto)]"
+	http-response set-header x-capmethod "%[var(txn.x_capmethod)]"
+	http-response set-header x-capver "%[var(txn.x_capver)]"
+	http-response set-header x-capuri "%[var(txn.x_capuri)]"
+	http-response set-header x-caphdr "%[var(txn.x_caphdr)]"
+	http-response set-header x-hdr "%[var(txn.x_hdr)]"
+	http-response set-header x-hdrval "%[var(txn.x_hdrval)]"
+	http-response set-header x-hdrip "%[var(txn.x_hdrip)]"
+	http-response set-header x-hdrcnt "%[var(txn.x_hdrcnt)]"
+	http-response set-header x-hdrfirst "%[var(txn.x_hdrfirst)]"
+	http-response set-header x-hdrlast "%[var(txn.x_hdrlast)]"
+	http-response set-header x-fhdrcnt "%[var(txn.x_fhdrcnt)]"
+	http-response set-header x-fhdr "%[var(txn.x_fhdr)]"
+	http-response set-header x-names "%[var(txn.x_names)]"
+	http-response set-header x-names2 "%[var(txn.x_names2)]"
+	http-response set-header x-hdrs "%[var(txn.x_hdrs)]"
+	http-response set-header x-hdrsbin "%[var(txn.x_hdrsbin)]"
+	http-response set-header x-base "%[var(txn.x_base)]"
+	http-response set-header x-baseq "%[var(txn.x_baseq)]"
+	http-response set-header x-urlip "%[var(txn.x_urlip)]"
+	http-response set-header x-urlport "%[var(txn.x_urlport)]"
+	http-response set-header x-query "%[var(txn.x_query)]"
+	http-response set-header x-urlpval "%[var(txn.x_urlpval)]"
+	http-response set-header x-base32 "%[var(txn.x_base32)]"
+	http-response set-header x-base32src "%[var(txn.x_base32src)]"
+	http-response set-header x-url32 "%[var(txn.x_url32)]"
+	http-response set-header x-url32src "%[var(txn.x_url32src)]"
+	http-response set-header x-bodylen "%[var(txn.x_bodylen)]"
+	http-response set-header x-bodysize "%[var(txn.x_bodysize)]"
+	http-response set-header x-bodyparam "%[var(txn.x_bodyparam)]"
+	http-response set-header x-bodyparami "%[var(txn.x_bodyparami)]"
+	http-response set-header x-timerhdr "%[var(txn.x_timerhdr)]"
+	http-response set-header x-timeridle "%[var(txn.x_timeridle)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# the Host header must match the authority of the absolute URI,
+	# otherwise the request is rejected
+	txreq -req POST -url "http://www.example.com:8080/path/to/res?n=41&x=y" \
+	      -hdr "Host: www.example.com:8080" \
+	      -hdr "x-num: 42" \
+	      -hdr "x-list: a" \
+	      -hdr "x-list: b" \
+	      -hdr "x-csv: 1, 2, 3" \
+	      -hdr "x-ip: 10.0.0.7" \
+	      -hdr "content-type: application/x-www-form-urlencoded" \
+	      -body "who=world&other=thing"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-method     == "POST"
+	expect resp.http.x-ver        == "1.1"
+	expect resp.http.x-reqver     == "1.1"
+	expect resp.http.x-proto      == "1"
+	expect resp.http.x-sproto     == "1"
+
+	expect resp.http.x-capmethod  == "POST"
+	expect resp.http.x-capver     == "HTTP/1.1"
+	expect resp.http.x-capuri     == "/path/to/res?n=41&x=y"
+	expect resp.http.x-caphdr     == "42"
+
+	expect resp.http.x-hdr        == "42"
+	expect resp.http.x-hdrval     == "43"
+	expect resp.http.x-hdrip      == "10.0.0.7"
+	expect resp.http.x-hdrcnt     == "2"
+	expect resp.http.x-hdrfirst   == "a"
+	expect resp.http.x-hdrlast    == "b"
+	expect resp.http.x-fhdrcnt    == "1"
+	expect resp.http.x-fhdr       == "1, 2, 3"
+	expect resp.http.x-names      ~  "x-num"
+	expect resp.http.x-names2     ~  "x-num[|]x-list"
+	expect resp.http.x-hdrs       == "yes"
+	expect resp.http.x-hdrsbin    ~  "782d6e756d023432"
+
+	# an absolute URI carries the authority, which "base" prepends to the
+	# path while "baseq" also keeps the query string
+	expect resp.http.x-base       == "www.example.com:8080/path/to/res"
+	expect resp.http.x-baseq      == "www.example.com:8080/path/to/res?n=41&x=y"
+	# url_ip and url_port only work on an authority given as an address
+	expect resp.http.x-urlip      == ""
+	expect resp.http.x-urlport    == ""
+	expect resp.http.x-query      == "n=41&x=y"
+	expect resp.http.x-urlpval    == "42"
+
+	expect resp.http.x-base32     ~  "^[0-9]+$"
+	expect resp.http.x-base32src  ~  "^[0-9a-f]{16}$"
+	expect resp.http.x-url32      ~  "^[0-9]+$"
+	expect resp.http.x-url32src   ~  "^[0-9a-f]{16}$"
+
+	expect resp.http.x-bodylen    == "21"
+	expect resp.http.x-bodysize   == "21"
+	expect resp.http.x-bodyparam  == "world"
+	expect resp.http.x-bodyparami == "world"
+
+	expect resp.http.x-timerhdr   ~  "^-?[0-9]+$"
+	expect resp.http.x-timeridle  ~  "^-?[0-9]+$"
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	# a host given as an address feeds url_ip and url_port
+	txreq -req POST -url "http://10.1.2.3:81/other?n=41&x=y" \
+	      -hdr "Host: 10.1.2.3:81" \
+	      -hdr "x-num: 42" \
+	      -hdr "content-type: application/x-www-form-urlencoded" \
+	      -body "who=world&other=thing"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-urlip      == "10.1.2.3"
+	expect resp.http.x-urlport    == "81"
+	expect resp.http.x-base       == "10.1.2.3:81/other"
+} -run
