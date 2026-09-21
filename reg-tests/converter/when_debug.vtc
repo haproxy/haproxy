@@ -1,0 +1,86 @@
+varnishtest "Test the when() and debug() converters"
+
+# Neither when() nor debug() was covered. when() only lets the input
+# sample through when its condition is met, so the test builds a string
+# made of one bracketed field per condition and compares it for three
+# kinds of transactions: one forwarded to a server, one which fails to
+# reach its server, and one answered by an applet.
+#
+# debug() passes its input through and copies it to a sink, which is
+# then read back with "show events".
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	acl yes always_true
+
+	# debug() is transparent, the variable keeps the original value
+	http-request set-var(txn.dbg) str(hello),debug(mytag)
+
+	use_backend dead  if { path /dead }
+	use_backend stats if { path /stats }
+	default_backend be
+
+	http-after-response set-header x-dbg  "%[var(txn.dbg)]"
+	http-after-response set-header x-when "[%[str(v),when(error)]][%[str(v),when(normal)]][%[str(v),when(forwarded)]][%[str(v),when(processed)]][%[str(v),when(toapplet)]][%[str(v),when(stopping)]][%[str(v),when(acl,yes)]][%[str(v),when(!error)]]"
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+
+    backend dead
+	retries 0
+	server s1 ${bad_backend}
+
+    backend stats
+	stats enable
+	stats uri /stats
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# forwarded to a server, no error
+	txreq -url "/srv"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-dbg  == "hello"
+	expect resp.http.x-when == "[][v][v][v][][][v][v]"
+
+	# the server could not be reached: this is an error, but the request
+	# was still considered as forwarded and processed since a connection
+	# attempt was made
+	txreq -url "/dead"
+	rxresp
+	expect resp.status == 503
+	expect resp.http.x-when == "[v][][v][v][][][v][]"
+
+	# answered by the stats applet
+	txreq -url "/stats"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-when == "[][v][][v][v][][v][v]"
+} -run
+
+haproxy h1 -cli {
+	# debug() copied the sample to the default sink
+	send "show events buf0 -0"
+	expect ~ "mytag: type=str <hello>"
+}
