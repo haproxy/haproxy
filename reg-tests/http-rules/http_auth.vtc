@@ -1,0 +1,106 @@
+varnishtest "Test the HTTP authentication action, fetches and ACL"
+
+# Neither the "auth" action nor the http_auth_user, http_auth_pass,
+# http_auth_type and http_auth_group fetches were covered, and the
+# userlist section itself was only used by the stats. The test checks a
+# successful and a failed authentication, the group membership, and the
+# 401 response emitted by the "auth" action with its realm.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    userlist ul
+	group admins
+	user u1 insecure-password pass1 groups admins
+	user u2 insecure-password pass2
+
+    frontend fe
+	bind "fd@${fe}"
+
+	acl auth_ok  http_auth(ul)
+	acl is_admin http_auth_group(ul) admins
+
+	# the credentials are readable even before they are validated
+	http-request set-var(txn.user)  http_auth_user
+	http-request set-var(txn.pass)  http_auth_pass
+	http-request set-var(txn.type)  http_auth_type
+	http-request set-var(txn.ok)    str(yes) if auth_ok
+	http-request set-var(txn.admin) str(yes) if is_admin
+
+	http-request auth realm "protected area" if { path /private } !auth_ok
+	http-request return status 200
+
+	http-after-response set-header x-user  "%[var(txn.user)]"
+	http-after-response set-header x-pass  "%[var(txn.pass)]"
+	http-after-response set-header x-type  "%[var(txn.type)]"
+	http-after-response set-header x-ok    "%[var(txn.ok)]"
+	http-after-response set-header x-admin "%[var(txn.admin)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# no credentials at all
+	txreq -url "/public"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-user  == ""
+	expect resp.http.x-pass  == ""
+	expect resp.http.x-type  == ""
+	expect resp.http.x-ok    == ""
+	expect resp.http.x-admin == ""
+
+	# valid credentials of a user belonging to the group
+	txreq -url "/public" -hdr "authorization: Basic dTE6cGFzczE="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-user  == "u1"
+	expect resp.http.x-pass  == "pass1"
+	expect resp.http.x-type  == "Basic"
+	expect resp.http.x-ok    == "yes"
+	expect resp.http.x-admin == "yes"
+
+	# valid credentials of a user outside of the group
+	txreq -url "/public" -hdr "authorization: Basic dTI6cGFzczI="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-user  == "u2"
+	expect resp.http.x-pass  == "pass2"
+	expect resp.http.x-ok    == "yes"
+	expect resp.http.x-admin == ""
+
+	# the user exists but the password is wrong
+	txreq -url "/public" -hdr "authorization: Basic dTE6d3Jvbmc="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-user  == "u1"
+	expect resp.http.x-pass  == "wrong"
+	expect resp.http.x-ok    == ""
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	# the protected path triggers the "auth" action
+	txreq -url "/private"
+	rxresp
+	expect resp.status == 401
+	expect resp.http.www-authenticate == {Basic realm="protected area"}
+
+	txreq -url "/private" -hdr "authorization: Basic dTE6d3Jvbmc="
+	rxresp
+	expect resp.status == 401
+
+	txreq -url "/private" -hdr "authorization: Basic dTE6cGFzczE="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-user == "u1"
+} -run
