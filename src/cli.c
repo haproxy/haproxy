@@ -2467,6 +2467,9 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 	if (strcmp(args[2], "srv-removable") == 0) {
 		ctx->cond = CLI_WAIT_COND_SRV_UNUSED;
 	}
+	else if (strcmp(args[2], "srv-unknown") == 0) {
+		ctx->cond = CLI_WAIT_COND_SRV_UNKNWN;
+	}
 	else if (strcmp(args[2], "be-removable") == 0) {
 		ctx->cond = CLI_WAIT_COND_BE_UNUSED;
 	}
@@ -2480,6 +2483,7 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 			"    duration. Supported conditions are:\n"
 			"    - <none> : by default, just sleep for the specified duration.\n"
 			"    - srv-removable <px>/<sv> : wait for this server to become removable.\n"
+			"    - srv-unknown <px>/<sv> : wait for this server name to be available.\n"
 			"    - be-removable <px> : wait for this backend to become removable.\n"
 			"";
 
@@ -2490,7 +2494,8 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 	}
 
 	switch (ctx->cond) {
-	case CLI_WAIT_COND_SRV_UNUSED: {
+	case CLI_WAIT_COND_SRV_UNUSED:
+	case CLI_WAIT_COND_SRV_UNKNWN: {
 		const char *bename, *svname;
 
 		if (!*args[3])
@@ -2569,6 +2574,24 @@ static int cli_io_handler_wait(struct appctx *appctx)
 			return 1;
 		}
 		/* let's check the timer */
+	}
+	else if (ctx->cond == CLI_WAIT_COND_SRV_UNKNWN) {
+		struct proxy *px;
+		struct server *srv;
+
+		px = proxy_be_by_name(ctx->args[0]);
+		srv = px ? server_find(px, ctx->args[1]) : NULL;
+		if (!px || !srv) {
+			/* immediate success */
+			ctx->error = CLI_WAIT_ERR_DONE;
+			return 1;
+		}
+		else if (!(srv->flags & SRV_F_TO_PURGE)) {
+			/* unrecoverable failure */
+			ctx->error = CLI_WAIT_ERR_FAIL;
+			ctx->msg = "Server not scheduled for purge.\n";
+			return 1;
+		}
 	}
 
 	/* and here we recalculate the new wait time or abort */

@@ -4756,6 +4756,12 @@ wait { -h | <delay> } [<condition> [<args>...]]
     everything is OK before the delay, a success is returned and the operation
     is terminated.
 
+  - srv-unknown <proxy>/<server> : this will wait for the specified server name
+    to be available for a new instance to be created. This will fail if the
+    server already exists, unless if it is flagged for background deletion, in
+    which case a success will be returned if the deletion is completed before
+    the delay.
+
   The default unit for the delay is milliseconds, though other units are
   accepted if suffixed with the usual timer units (us, ms, s, m, h, d). When
   used with the 'socat' utility, do not forget to extend socat's close timeout
