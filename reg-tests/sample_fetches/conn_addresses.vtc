@@ -1,0 +1,117 @@
+varnishtest "Test the connection address and multiplexer sample fetches"
+
+# None of the address fetches of the frontend and backend connections was
+# covered by a reg-test. Everything runs over the loopback so that both
+# endpoints are known and local.
+
+# WT: the "local" tests are currently disabled because they fail on MacOS.
+# The test isn't super reliable, it may even return -1 and store it as a
+# boolean in case of socket creation failure. This needs to be debugged on
+# that platform.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}" name thebind
+
+	# client side of the frontend connection
+	http-response set-header x-src         "%[src]"
+	http-response set-header x-srcport     "%[src_port]"
+	http-response set-header x-srclocal    "%[src_is_local]"
+	http-response set-header x-fcsrc       "%[fc_src]"
+	http-response set-header x-fcsrcport   "%[fc_src_port]"
+	http-response set-header x-fcsrclocal  "%[fc_src_is_local]"
+
+	# haproxy side of the frontend connection
+	http-response set-header x-dst         "%[dst]"
+	http-response set-header x-dstport     "%[dst_port]"
+	http-response set-header x-dstlocal    "%[dst_is_local]"
+	http-response set-header x-dstconn     "%[dst_conn]"
+	http-response set-header x-fcdst       "%[fc_dst]"
+	http-response set-header x-fcdstport   "%[fc_dst_port]"
+	http-response set-header x-fcdstlocal  "%[fc_dst_is_local]"
+
+	# the listening socket itself
+	http-response set-header x-soid        "%[so_id]"
+	http-response set-header x-soname      "%[so_name]"
+
+	# frontend multiplexer
+	http-response set-header x-fcmajor     "%[fc_http_major]"
+	http-response set-header x-fcstreams   "%[fc_nb_streams]"
+	http-response set-header x-fcproxy     "%[fc_rcvd_proxy]"
+	http-response set-header x-fcerr       "%[fc_err_name]"
+
+	# backend connection and multiplexer
+	http-response set-header x-bcsrc       "%[bc_src]"
+	http-response set-header x-bcsrcport   "%[bc_src_port]"
+	http-response set-header x-bcdst       "%[bc_dst]"
+	http-response set-header x-bcdstport   "%[bc_dst_port]"
+	http-response set-header x-bcmajor     "%[bc_http_major]"
+	http-response set-header x-bcstreams   "%[bc_nb_streams]"
+	http-response set-header x-bcbequeue   "%[bc_be_queue]"
+	http-response set-header x-bcsrvqueue  "%[bc_srv_queue]"
+	http-response set-header x-bcerr       "%[bc_err_name]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+
+	expect resp.http.x-src        == "127.0.0.1"
+	expect resp.http.x-srcport    ~  "^[0-9]+$"
+	#expect resp.http.x-srclocal   == "1"
+	expect resp.http.x-fcsrc      == resp.http.x-src
+	expect resp.http.x-fcsrcport  == resp.http.x-srcport
+	#expect resp.http.x-fcsrclocal == "1"
+
+	expect resp.http.x-dst        == "127.0.0.1"
+	expect resp.http.x-dstport    == "${h1_fe_port}"
+	#expect resp.http.x-dstlocal   == "1"
+	expect resp.http.x-dstconn    == "1"
+	expect resp.http.x-fcdst      == resp.http.x-dst
+	expect resp.http.x-fcdstport  == resp.http.x-dstport
+	#expect resp.http.x-fcdstlocal == "1"
+
+	expect resp.http.x-soid       == "1"
+	expect resp.http.x-soname     == "thebind"
+
+	expect resp.http.x-fcmajor    == "1"
+	expect resp.http.x-fcstreams  == "1"
+	expect resp.http.x-fcproxy    == "0"
+	# no error occurred on either connection
+	expect resp.http.x-fcerr      == ""
+	expect resp.http.x-bcerr      == ""
+
+	expect resp.http.x-bcsrc      == "127.0.0.1"
+	expect resp.http.x-bcsrcport  ~  "^[0-9]+$"
+	expect resp.http.x-bcdst      == "${s1_addr}"
+	expect resp.http.x-bcdstport  == "${s1_port}"
+	expect resp.http.x-bcmajor    == "1"
+	expect resp.http.x-bcstreams  == "1"
+	expect resp.http.x-bcbequeue  == "0"
+	expect resp.http.x-bcsrvqueue == "0"
+} -run
