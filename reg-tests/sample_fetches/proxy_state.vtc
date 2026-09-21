@@ -1,0 +1,145 @@
+varnishtest "Test the proxy and server state sample fetches"
+
+# Most of the fetches reporting the internal state of the proxies and of
+# their servers were not covered: the connection and session counters,
+# the queues, the weights and the identifiers. The backend holds one
+# usable server and one disabled server so that nbsrv() and srv_is_up()
+# have something to distinguish.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	id 11
+
+	# proxy identifiers and names
+	http-response set-header x-feid       "%[fe_id]"
+	http-response set-header x-fename     "%[fe_name]"
+	http-response set-header x-fedefbe    "%[fe_defbe]"
+	http-response set-header x-beid       "%[be_id]"
+	http-response set-header x-bename     "%[be_name]"
+	http-response set-header x-srvid      "%[srv_id]"
+	http-response set-header x-srvname    "%[srv_name]"
+
+	# a frontend may be looked up by name
+	http-response set-header x-feexists   "%[str(fe),fe_exists]"
+	http-response set-header x-feexists2  "%[str(nosuchfe),fe_exists]"
+
+	# server availability, both as a fetch and as a converter
+	http-response set-header x-nbsrvarg   "%[nbsrv(be)]"
+	http-response set-header x-nbsrvconv  "%[str(be),nbsrv]"
+	http-response set-header x-up1        "%[srv_is_up(be/s1)]"
+	http-response set-header x-up2        "%[srv_is_up(be/s2)]"
+	http-response set-header x-upconv     "%[str(be/s1),srv_is_up]"
+	http-response set-header x-weight     "%[srv_weight(be/s1)]"
+	http-response set-header x-iweight    "%[srv_iweight(be/s1)]"
+	http-response set-header x-uweight    "%[srv_uweight(be/s1)]"
+
+	# connection counters. The request being processed is counted.
+	http-response set-header x-actconn    "%[act_conn]"
+	http-response set-header x-feconn     "%[fe_conn]"
+	http-response set-header x-feconnarg  "%[fe_conn(fe)]"
+	http-response set-header x-srvconn    "%[srv_conn(be/s1)]"
+	http-response set-header x-srvfree    "%[srv_conn_free(be/s1)]"
+	# connslots totals the free connection and queue slots of the usable
+	# servers, here (5 - 1) + (10 - 0) for s1, s2 being in maintenance
+	http-response set-header x-connslots  "%[connslots(be)]"
+
+	# queues, empty here since the server accepts the connection
+	http-response set-header x-queue      "%[queue(be)]"
+	http-response set-header x-avgqueue   "%[avg_queue(be)]"
+	http-response set-header x-srvqueue   "%[srv_queue(be/s1)]"
+	http-response set-header x-srvqconv   "%[str(be/s1),srv_queue]"
+
+	# rates and process state
+	http-response set-header x-fesess     "%[fe_sess_rate]"
+	http-response set-header x-fereq      "%[fe_req_rate]"
+	http-response set-header x-srvsess    "%[srv_sess_rate(be/s1)]"
+	http-response set-header x-stopping   "%[stopping]"
+	http-response set-header x-uptime     "%[uptime]"
+	http-response set-header x-cltimeout  "%[fe_client_timeout]"
+
+	default_backend be
+
+    backend be
+	id 12
+
+	# the argument-less forms designate the current proxy, which must
+	# have the backend capability, hence their presence here
+	http-response set-header x-nbsrv      "%[nbsrv]"
+	http-response set-header x-beconn     "%[be_conn]"
+	http-response set-header x-beconnfree "%[be_conn_free]"
+	http-response set-header x-besess     "%[be_sess_rate]"
+
+	server s1 ${s1_addr}:${s1_port} weight 20 maxconn 5 maxqueue 10
+	server s2 ${s1_addr}:${s1_port} maxconn 3 maxqueue 10 disabled
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+
+	expect resp.http.x-feid       == "11"
+	expect resp.http.x-fename     == "fe"
+	expect resp.http.x-fedefbe    == "be"
+	expect resp.http.x-beid       == "12"
+	expect resp.http.x-bename     == "be"
+	expect resp.http.x-srvid      == "1"
+	expect resp.http.x-srvname    == "s1"
+
+	expect resp.http.x-feexists   == "1"
+	expect resp.http.x-feexists2  == "0"
+
+	# s2 is disabled, so only one server is usable
+	expect resp.http.x-nbsrv      == "1"
+	expect resp.http.x-nbsrvarg   == "1"
+	expect resp.http.x-nbsrvconv  == "1"
+	expect resp.http.x-up1        == "1"
+	expect resp.http.x-up2        == "0"
+	expect resp.http.x-upconv     == "1"
+	expect resp.http.x-weight     == "20"
+	expect resp.http.x-iweight    == "20"
+	expect resp.http.x-uweight    == "20"
+
+	expect resp.http.x-actconn    == "1"
+	expect resp.http.x-feconn     == "1"
+	expect resp.http.x-feconnarg  == "1"
+	expect resp.http.x-beconn     == "1"
+	expect resp.http.x-beconnfree ~  "^[0-9]+$"
+	expect resp.http.x-srvconn    == "1"
+	# s1 is limited to 5 concurrent connections and one is in use
+	expect resp.http.x-srvfree    == "4"
+	expect resp.http.x-connslots  == "14"
+
+	expect resp.http.x-queue      == "0"
+	expect resp.http.x-avgqueue   == "0"
+	expect resp.http.x-srvqueue   == "0"
+	expect resp.http.x-srvqconv   == "0"
+
+	expect resp.http.x-fesess     ~  "^[0-9]+$"
+	expect resp.http.x-fereq      ~  "^[0-9]+$"
+	expect resp.http.x-besess     ~  "^[0-9]+$"
+	expect resp.http.x-srvsess    ~  "^[0-9]+$"
+	expect resp.http.x-stopping   == "0"
+	expect resp.http.x-uptime     ~  "^[0-9]+$"
+	expect resp.http.x-cltimeout  ~  "^[0-9]+$"
+} -run
