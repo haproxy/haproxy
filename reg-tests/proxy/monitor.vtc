@@ -1,0 +1,91 @@
+varnishtest "Test monitor-uri and the monitor fail condition"
+
+# "monitor fail" had no coverage, and "monitor-uri" was only used as a
+# side setting of a health check test. The test checks that the monitor
+# URI is answered locally without reaching the backend, that the status
+# switches from 200 to 503 when the condition is met, that the "unless"
+# form inverts it, and that the errorfile of the corresponding status
+# applies to the monitor response as documented.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.url == "/regular"
+	txresp -body "from the server"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+	bind "fd@${fe1}"
+	monitor-uri /health
+	monitor fail if { req.hdr(x-down) -m found }
+	default_backend be
+
+    # the "unless" form reports a failure as long as the condition is
+    # not satisfied
+    frontend fe2
+	bind "fd@${fe2}"
+	monitor-uri /health
+	monitor fail unless { req.hdr(x-up) -m found }
+	default_backend be
+
+    # the monitor response goes through the error files of the proxy
+    frontend fe3
+	bind "fd@${fe3}"
+	errorloc302 503 http://www.example.com/down
+	monitor-uri /health
+	monitor fail if { req.hdr(x-down) -m found }
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	# the monitor URI is answered by the frontend itself
+	txreq -url "/health"
+	rxresp
+	expect resp.status == 200
+	expect resp.body != "from the server"
+
+	# the condition is met, the monitor now reports a failure
+	txreq -url "/health" -hdr "x-down: 1"
+	rxresp
+	expect resp.status == 503
+
+	# any other URI is forwarded as usual
+	txreq -url "/regular"
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "from the server"
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txreq -url "/health"
+	rxresp
+	expect resp.status == 503
+
+	txreq -url "/health" -hdr "x-up: 1"
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+	txreq -url "/health" -hdr "x-down: 1"
+	rxresp
+	expect resp.status == 302
+	expect resp.http.location == "http://www.example.com/down"
+} -run
