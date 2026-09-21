@@ -3296,8 +3296,6 @@ void srv_drop(struct server *srv)
 	//       srv->conf.id.node.leaf_p ||
 	//       ceb_intree(&srv->name_node));
 
-	guid_remove(&srv->guid);
-
 	if (srv->requeue_tasklet)
 		tasklet_kill(srv->requeue_tasklet);
 	task_destroy(srv->warmup);
@@ -7022,14 +7020,17 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	/* Inc proxy refcount until the server is finally freed. */
 	proxy_take(srv->proxy);
 
-	/* remove srv from addr_node tree */
+	/* remove srv from proxy trees (IDs, names and addresses) */
 	if (srv->puid < be->conf.first_unused_id)
 		be->conf.first_unused_id = srv->puid; // search from there for next add.
 	ceb32_item_delete(&be->conf.used_server_id, conf.puid_node, puid, srv);
 	cebuis_item_delete(&be->conf.used_server_name, conf.name_node, id, srv);
 	cebuis_item_delete(&be->used_server_addr, addr_node, addr_key, srv);
 
-	/* remove srv from idle_node tree for idle conn cleanup */
+	/* remove srv from global GUID tree */
+	guid_remove(&srv->guid);
+
+	/* remove srv from global tree for idle conn cleanup */
 	for (ret = 0; ret < global.nbthread; ret++)
 		eb32_delete(&srv->per_thr[ret].idle_node);
 

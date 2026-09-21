@@ -83,8 +83,8 @@ int guid_insert(enum obj_type *objt, const char *uid, char **errmsg)
 	return 1;
 }
 
-/* Remove <guid> node from GUID global tree. Must only be called on thread
- * isolation. Safe to call even if node is not currently stored.
+/* Remove <guid> node from GUID global tree.
+ * Safe to call even if node is not currently stored.
  */
 void guid_remove(struct guid_node *guid)
 {
