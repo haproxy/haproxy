@@ -1,0 +1,115 @@
+varnishtest "Test the transaction state fetches and the logging actions"
+
+# The txn.sess_term_state, term_events, last_entity, waiting_entity,
+# txn.conn_retries, txn.redispatched, txn.id32, txn.timer.total,
+# txn.timer.user, req.timer.queue, res.timer.data, prio_class and
+# prio_offset fetches were not covered, and neither were the
+# set-priority-class, set-priority-offset, set-nice, set-log-level and
+# do-log actions.
+#
+# They are all checked from a custom log format since most of them only
+# reach their final value once the transaction is over. Note that path,
+# url and the req.timer.* fetches are not usable at log time, hence the
+# use of capture.req.uri below.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 4 -start
+
+# vtest's syslog server only matches the messages emitted at its own
+# level, so two of them are needed to observe the effect of
+# "set-log-level". Both receive everything and each one picks its share.
+syslog Slg -level info {
+	# a regular transaction, logged at the "info" level (local0.info is
+	# priority 134)
+	recv
+	expect ~ "^<134>.*: uri=/normal st=-/200 term=-- last=- wait=- retries=0 redisp=0 prio=3/-10 ta=[0-9]+ tu=[0-9]+ tw=[0-9]+ td=[0-9]+ id32=[0-9]+ q=0/0 err=-/- ev=[{],,e[0-9],.*[}]$"
+
+	# the /err request is logged at the "err" level and is picked up by
+	# the other server below, and the /silent one is not logged at all,
+	# so the next message is the one emitted by the "do-log" action
+	recv
+	expect ~ "^<134>.*: uri=/dolog st=-/- term=-- "
+	recv
+	expect ~ "^<134>.*: uri=/dolog st=-/200 term=-- "
+
+	# a request denied by haproxy terminates on a proxy decision, and the
+	# rule which took it is reported
+	recv
+	expect ~ "^<134>.*: uri=/denied st=-/403 term=PR last=.*/h1/cfg:[0-9]+ wait=- "
+} -start
+
+# "set-log-level err" raises the priority of the /err message to
+# local0.err, i.e. 131
+syslog Slg2 -level err {
+	recv
+	expect ~ "^<131>.*: uri=/err st=-/200 term=-- last=- wait=- retries=0 redisp=0 prio=3/-10 "
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	log "${Slg_addr}:${Slg_port}" local0 info
+	log "${Slg2_addr}:${Slg2_port}" local0 info
+
+    defaults
+	mode http
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	log-format "uri=%[capture.req.uri] st=%[status]/%[txn.status] term=%[txn.sess_term_state] last=%[last_entity] wait=%[waiting_entity] retries=%[txn.conn_retries] redisp=%[txn.redispatched] prio=%[prio_class]/%[prio_offset] ta=%[txn.timer.total] tu=%[txn.timer.user] tw=%[req.timer.queue] td=%[res.timer.data] id32=%[txn.id32] q=%[bc_be_queue]/%[bc_srv_queue] err=%[fc_err_name]/%[bc_err_name] ev=%[term_events]"
+
+	http-request set-priority-class int(3)
+	http-request set-priority-offset int(-10)
+	# set-nice has no observable effect, it is only here to check that
+	# the action is accepted and does not disturb the processing
+	http-request set-nice 5
+
+	http-request set-log-level err    if { path /err }
+	http-request set-log-level silent if { path /silent }
+	http-request do-log               if { path /dolog }
+	http-request deny deny_status 403 if { path /denied }
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/normal"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/err"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/silent"
+	rxresp
+	expect resp.status == 200
+
+	# do-log emits an extra log line at the time the rule is evaluated,
+	# before the response exists
+	txreq -url "/dolog"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/denied"
+	rxresp
+	expect resp.status == 403
+} -run
+
+syslog Slg -wait
+syslog Slg2 -wait
