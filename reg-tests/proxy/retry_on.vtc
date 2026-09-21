@@ -1,0 +1,106 @@
+varnishtest "Test the connection retries, retry-on and option redispatch"
+
+# "retry-on" and "option redispatch" had no coverage, and the
+# txn.conn_retries and txn.redispatched fetches which report their
+# effect were not covered either.
+#
+# Three backends are used: one whose only server is unreachable, one
+# which redispatches to a healthy server after the first attempt fails,
+# and one which retries at the HTTP layer when the server answers with a
+# 503.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+server s2 {
+	rxreq
+	txresp -status 503
+} -start
+
+server s3 {
+	rxreq
+	txresp -hdr "x-second: yes"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	use_backend redisp if { path /redisp }
+	use_backend l7     if { path /l7 }
+	default_backend dead
+
+	http-after-response set-header x-retries "%[txn.conn_retries]"
+	http-after-response set-header x-redisp  "%[txn.redispatched]"
+
+    # every attempt fails, the client ends up with a 503. The connect
+    # timeout is shortened because haproxy spreads the retries over it.
+    backend dead
+	timeout connect 200ms
+	retries 2
+	server s1 ${bad_backend}
+
+    # the first server always fails, the retry is redispatched to the
+    # second one thanks to "option redispatch"
+    backend redisp
+	timeout connect 200ms
+	balance first
+	retries 1
+	option redispatch
+	server bad ${bad_backend}
+	server good ${s1_addr}:${s1_port}
+
+    # the first server answers, but with a status listed in "retry-on",
+    # so the request is retried and redispatched to the second one
+    backend l7
+	balance first
+	retries 1
+	retry-on 503
+	option redispatch
+	server bad ${s2_addr}:${s2_port}
+	server good ${s3_addr}:${s3_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# 1 initial attempt + 2 retries, all failed
+	txreq -url "/dead"
+	rxresp
+	expect resp.status == 503
+	expect resp.http.x-retries == "2"
+	expect resp.http.x-redisp  == "0"
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	# the retry went to the other server
+	txreq -url "/redisp"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-retries == "1"
+	expect resp.http.x-redisp  == "1"
+} -run
+
+client c3 -connect ${h1_fe_sock} {
+	# the 503 was retried at the HTTP layer and the response of the
+	# second server is the one delivered to the client
+	txreq -url "/l7"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-second  == "yes"
+	expect resp.http.x-retries == "1"
+	expect resp.http.x-redisp  == "1"
+} -run
