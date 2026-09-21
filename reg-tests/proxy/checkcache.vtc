@@ -1,0 +1,147 @@
+varnishtest "Test the 'option checkcache' response filter"
+
+# "option checkcache" was not covered. It blocks the responses which
+# carry a Set-Cookie header and could legitimately be stored by an
+# intermediary cache. The test walks through the conditions listed in
+# the documentation: the cacheable status codes, the cache-control and
+# pragma headers which make the response safe, and the effect of the
+# request method.
+#
+# The origin is a second haproxy instance rather than a vtest server
+# because a blocked response makes the proxy close the server
+# connection, which a single vtest server session would not survive.
+#
+# Note that on top of what the documentation lists, a response which
+# carries neither freshness information nor a validator is not
+# considered cacheable either, hence the "cache-control: max-age" or the
+# "etag" header in the responses which are expected to be blocked.
+
+feature ignore_unknown_macro
+
+# the origin, which crafts one response per path
+haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend origin
+	bind "fd@${origin}"
+	http-request return status 200 hdr set-cookie "sess=1" hdr cache-control "max-age=60" if { path /fresh }
+	http-request return status 200 hdr set-cookie "sess=1" hdr etag "\"abc\"" if { path /validator }
+	http-request return status 200 hdr set-cookie "sess=1" if { path /bare }
+	http-request return status 200 hdr cache-control "max-age=60" if { path /nocookie }
+	http-request return status 200 hdr set-cookie "sess=1" hdr cache-control "max-age=60" hdr cache-control "private" if { path /private }
+	http-request return status 200 hdr set-cookie "sess=1" hdr cache-control "max-age=60" hdr cache-control "no-store" if { path /nostore }
+	http-request return status 200 hdr set-cookie "sess=1" hdr cache-control "max-age=60" hdr cache-control "no-cache=\"set-cookie\"" if { path /nosetcookie }
+	http-request return status 200 hdr set-cookie "sess=1" hdr cache-control "max-age=60" hdr pragma "no-cache" if { path /pragma }
+	http-request return status 403 hdr set-cookie "sess=1" hdr cache-control "max-age=60" if { path /status403 }
+	http-request return status 403 hdr set-cookie "sess=1" hdr cache-control "max-age=60" hdr cache-control "public" if { path /status403pub }
+	http-request return status 200 hdr set-cookie "sess=1" hdr cache-control "max-age=60" if { path /post }
+	http-request return status 404
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	default_backend be
+
+    backend be
+	option checkcache
+	server s1 ${h2_origin_addr}:${h2_origin_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# a cacheable 200 carrying a cookie is blocked with a 502, and the
+	# cookie does not leak in the error response
+	txreq -url "/fresh"
+	rxresp
+	expect resp.status == 502
+	expect resp.http.set-cookie == "<undef>"
+	expect resp.http.content-type == "text/html"
+	expect resp.body ~ "502 Bad Gateway"
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+	# a validator alone is enough to make the response cacheable
+	txreq -url "/validator"
+	rxresp
+	expect resp.status == 502
+	expect resp.http.set-cookie == "<undef>"
+} -run
+
+client c3 -connect ${h1_fe_sock} {
+	# without freshness information nor validator, the response is not
+	# considered cacheable
+	txreq -url "/bare"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.set-cookie == "sess=1"
+
+	# no cookie at all, nothing to protect
+	txreq -url "/nocookie"
+	rxresp
+	expect resp.status == 200
+
+	# these four headers each make the response safe to forward
+	txreq -url "/private"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.set-cookie == "sess=1"
+
+	txreq -url "/nostore"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.set-cookie == "sess=1"
+
+	txreq -url "/nosetcookie"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.set-cookie == "sess=1"
+
+	txreq -url "/pragma"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.set-cookie == "sess=1"
+
+	# 403 is not among the status codes cacheable by default
+	txreq -url "/status403"
+	rxresp
+	expect resp.status == 403
+	expect resp.http.set-cookie == "sess=1"
+} -run
+
+client c4 -connect ${h1_fe_sock} {
+	# ... unless the server explicitly declares the response public
+	txreq -url "/status403pub"
+	rxresp
+	expect resp.status == 502
+	expect resp.http.set-cookie == "<undef>"
+} -run
+
+client c5 -connect ${h1_fe_sock} {
+	# the response to a POST is not cacheable by default either
+	txreq -req POST -url "/post" -body "x"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.set-cookie == "sess=1"
+} -run
