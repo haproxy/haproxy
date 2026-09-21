@@ -1,0 +1,143 @@
+varnishtest "Test the run-time ACL and map update actions"
+
+# The add-acl, del-acl, set-map and del-map actions had no coverage at
+# all. They are checked here on an ACL loaded from a regular file and on
+# maps declared with the three name formats of section 2.7: a regular
+# file, "file@" which designates the very same list, "virt@" which has no
+# file at all, and "opt@" pointing at a file which does not exist.
+#
+# The updates are performed by one request and observed by the next one.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	# the same list is designated with and without the "file@" prefix
+	acl known url_param(q) -f "${testdir}/acl_map_updates.acl"
+
+	http-request add-acl("${testdir}/acl_map_updates.acl") %[url_param(add)] if { url_param(add) -m found }
+	http-request del-acl("${testdir}/acl_map_updates.acl") %[url_param(del)] if { url_param(del) -m found }
+
+	http-request set-map(virt@vmap) %[url_param(key)] "v-%[url_param(val)]" if { url_param(key) -m found }
+	http-request del-map(virt@vmap) %[url_param(unkey)] if { url_param(unkey) -m found }
+
+	http-request set-map("opt@${testdir}/acl_map_updates-missing.map") %[url_param(key)] "o-%[url_param(val)]" if { url_param(key) -m found }
+	http-request set-map("file@${testdir}/acl_map_updates.map") %[url_param(key)] "f-%[url_param(val)]" if { url_param(key) -m found }
+
+	# observe the current state of the four lists
+	http-request set-var(txn.acl) str(yes) if known
+	http-request set-var(txn.vmap) url_param(q),map(virt@vmap)
+	http-request set-var(txn.omap) url_param(q),map("opt@${testdir}/acl_map_updates-missing.map")
+	http-request set-var(txn.fmap) url_param(q),map("file@${testdir}/acl_map_updates.map")
+	# the plain name and the "file@" form designate the same list
+	http-request set-var(txn.pmap) url_param(q),map("${testdir}/acl_map_updates.map")
+
+	http-request return status 200
+
+	# set-map is also usable from the http-after-response rule set
+	http-after-response set-map(virt@vmap) /aft aft-value if { status 200 }
+
+	http-after-response set-header x-acl  "%[var(txn.acl)]"
+	http-after-response set-header x-vmap "%[var(txn.vmap)]"
+	http-after-response set-header x-omap "%[var(txn.omap)]"
+	http-after-response set-header x-fmap "%[var(txn.fmap)]"
+	http-after-response set-header x-pmap "%[var(txn.pmap)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	# initial state: only the entries loaded from the files are present
+	txreq -url "/?q=/initial"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl  == "yes"
+	expect resp.http.x-vmap == ""
+	expect resp.http.x-omap == ""
+	expect resp.http.x-fmap == "initial"
+	expect resp.http.x-pmap == "initial"
+
+	txreq -url "/?q=/added"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl  == ""
+	expect resp.http.x-vmap == ""
+	expect resp.http.x-omap == ""
+	expect resp.http.x-fmap == ""
+	expect resp.http.x-pmap == ""
+
+	# add one ACL entry and one entry in each of the three maps
+	txreq -url "/?add=/added&key=/added&val=1"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/?q=/added"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl  == "yes"
+	expect resp.http.x-vmap == "v-1"
+	expect resp.http.x-omap == "o-1"
+	expect resp.http.x-fmap == "f-1"
+	expect resp.http.x-pmap == "f-1"
+
+	# the http-after-response rule fed the virtual map as well
+	txreq -url "/?q=/aft"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-vmap == "aft-value"
+
+	# adding an existing key does not duplicate it, it updates its value
+	txreq -url "/?add=/added&key=/added&val=2"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/?q=/added"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl  == "yes"
+	expect resp.http.x-vmap == "v-2"
+	expect resp.http.x-fmap == "f-2"
+
+	# now remove them again
+	txreq -url "/?del=/added&unkey=/added"
+	rxresp
+	expect resp.status == 200
+
+	txreq -url "/?q=/added"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl  == ""
+	expect resp.http.x-vmap == ""
+	# only the virtual map entry was removed, the two others remain
+	expect resp.http.x-omap == "o-2"
+	expect resp.http.x-fmap == "f-2"
+
+	# the entries loaded from the files are untouched
+	txreq -url "/?q=/initial"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-acl  == "yes"
+	expect resp.http.x-fmap == "initial"
+} -run
+
+haproxy h1 -cli {
+	# the run-time updates are visible from the CLI, and the virtual map
+	# is listed under its full name
+	send "show map virt@vmap"
+	expect ~ "0x[0-9a-f]* /aft aft-value"
+
+	send "show acl ${testdir}/acl_map_updates.acl"
+	expect ~ "0x[0-9a-f]* /initial"
+}

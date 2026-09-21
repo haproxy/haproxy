@@ -1,0 +1,4 @@
+# ACL entries used by acl_map_updates.vtc. Entries are added to and
+# removed from this list at run time but the file itself is never
+# modified.
+/initial
