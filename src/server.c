@@ -3562,9 +3562,15 @@ static int _srv_check_proxy_mode(struct server *srv, char postparse)
 		goto out;
 	}
 
-	if (srv->proxy->mode == PR_MODE_SYSLOG) {
+	if (srv->proxy->mode == PR_MODE_SYSLOG && !(srv->proxy->cap & PR_CAP_INT)) {
 		/* log backend server (belongs to proxy with mode log enabled):
-		 * perform some compatibility checks
+		 * perform some compatibility checks. Internal proxies (PR_CAP_INT,
+		 * e.g. a sink's forward_px backing a "ring" section) are excluded:
+		 * they are tagged PR_MODE_SYSLOG for type-awareness purposes only
+		 * (see 23e5f18b8) and are not real user-configured log backends,
+		 * so they may legitimately target a UNIX socket (e.g. to feed a
+		 * local "log-forward" section). They still go through the regular
+		 * STREAM-transport check below, in the "else" branch.
 		 */
 
 		/* supported address family types are:
