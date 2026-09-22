@@ -10,6 +10,10 @@ varnishtest "Test the traffic counters of the stick counters"
 # request, error and failure counters all get a chance to move. The
 # values are grouped into a few headers because vtest only parses a
 # limited number of them.
+#
+# The sc1_ and sc2_ shorthands are pure aliases of the sc0_ ones with a
+# different hard-coded counter id, so they track their own copy of the
+# same entry in two more tables and must report exactly the same values.
 
 feature ignore_unknown_macro
 
@@ -39,10 +43,26 @@ haproxy h1 -conf {
     backend st
 	stick-table type ip size 1m expire 1h store conn_cnt,conn_cur,conn_rate(10s),sess_cnt,sess_rate(10s),http_req_cnt,http_req_rate(10s),http_err_cnt,http_err_rate(10s),http_fail_cnt,http_fail_rate(10s),bytes_in_cnt,bytes_in_rate(10s),bytes_out_cnt,bytes_out_rate(10s),glitch_cnt,glitch_rate(10s),server_id
 
+    # the tables of the two other stick counters. A single table tracked
+    # three times would count every event three times, one table each
+    # keeps the expected values identical to the sc0 ones.
+    backend st1
+	stick-table type ip size 1m expire 1h store conn_cnt,conn_cur,conn_rate(10s),sess_cnt,sess_rate(10s),http_req_cnt,http_req_rate(10s),http_err_cnt,http_err_rate(10s),http_fail_cnt,http_fail_rate(10s),bytes_in_cnt,bytes_in_rate(10s),bytes_out_cnt,bytes_out_rate(10s),glitch_cnt,glitch_rate(10s),server_id
+
+    backend st2
+	stick-table type ip size 1m expire 1h store conn_cnt,conn_cur,conn_rate(10s),sess_cnt,sess_rate(10s),http_req_cnt,http_req_rate(10s),http_err_cnt,http_err_rate(10s),http_fail_cnt,http_fail_rate(10s),bytes_in_cnt,bytes_in_rate(10s),bytes_out_cnt,bytes_out_rate(10s),glitch_cnt,glitch_rate(10s),server_id
+
+    # src_updt_conn_cnt() creates or updates its entry, so it gets a table
+    # of its own in order not to disturb the counters read above
+    backend stu
+	stick-table type ip size 1m expire 1h store conn_cnt,conn_rate(10s)
+
     frontend fe
 	bind "fd@${fe}"
 
 	tcp-request connection track-sc0 src table st
+	tcp-request connection track-sc1 src table st1
+	tcp-request connection track-sc2 src table st2
 
 	http-request deny deny_status 403 if { path /denied }
 	# use_backend is only evaluated once all the http-request rules have
@@ -60,6 +80,20 @@ haproxy h1 -conf {
 	http-after-response set-header x-sc0      "%[sc0_conn_cnt] %[sc0_conn_cur] %[sc0_conn_rate] %[sc0_sess_cnt] %[sc0_sess_rate]"
 	http-after-response set-header x-sc0-req  "%[sc0_http_req_cnt] %[sc0_http_req_rate] %[sc0_http_err_cnt] %[sc0_http_err_rate] %[sc0_http_fail_cnt] %[sc0_http_fail_rate]"
 	http-after-response set-header x-sc0-misc "%[sc0_kbytes_in] %[sc0_kbytes_out] %[sc0_glitch_cnt] %[sc0_glitch_rate] %[sc0_key] %[sc0_tracked] %[sc0_trackers]"
+	http-after-response set-header x-sc0-rate "%[sc0_bytes_in_rate] %[sc0_bytes_out_rate]"
+
+	# the sc1_ and sc2_ shorthands, and the generic form with the same
+	# counter ids
+	http-after-response set-header x-sc1      "%[sc1_conn_cnt] %[sc1_conn_cur] %[sc1_conn_rate] %[sc1_sess_cnt] %[sc1_sess_rate]"
+	http-after-response set-header x-sc1-req  "%[sc1_http_req_cnt] %[sc1_http_req_rate] %[sc1_http_err_cnt] %[sc1_http_err_rate] %[sc1_http_fail_cnt] %[sc1_http_fail_rate]"
+	http-after-response set-header x-sc1-misc "%[sc1_kbytes_in] %[sc1_kbytes_out] %[sc1_glitch_cnt] %[sc1_glitch_rate] %[sc1_key] %[sc1_tracked] %[sc1_trackers]"
+	http-after-response set-header x-sc1-rate "%[sc1_bytes_in_rate] %[sc1_bytes_out_rate]"
+	http-after-response set-header x-sc2      "%[sc2_conn_cnt] %[sc2_conn_cur] %[sc2_conn_rate] %[sc2_sess_cnt] %[sc2_sess_rate]"
+	http-after-response set-header x-sc2-req  "%[sc2_http_req_cnt] %[sc2_http_req_rate] %[sc2_http_err_cnt] %[sc2_http_err_rate] %[sc2_http_fail_cnt] %[sc2_http_fail_rate]"
+	http-after-response set-header x-sc2-misc "%[sc2_kbytes_in] %[sc2_kbytes_out] %[sc2_glitch_cnt] %[sc2_glitch_rate] %[sc2_key] %[sc2_tracked] %[sc2_trackers]"
+	http-after-response set-header x-sc2-rate "%[sc2_bytes_in_rate] %[sc2_bytes_out_rate]"
+	http-after-response set-header x-scg1     "%[sc_conn_cnt(1)] %[sc_conn_cur(1)] %[sc_conn_rate(1)] %[sc_sess_cnt(1)] %[sc_sess_rate(1)]"
+	http-after-response set-header x-scg2-req "%[sc_http_req_cnt(2)] %[sc_http_req_rate(2)] %[sc_http_err_cnt(2)] %[sc_http_err_rate(2)] %[sc_http_fail_cnt(2)] %[sc_http_fail_rate(2)]"
 
 	# the src_ family looks the entry up by the source address
 	http-after-response set-header x-src-cnt  "%[src_conn_cnt(st)] %[src_conn_cur(st)] %[src_conn_rate(st)] %[src_sess_cnt(st)] %[src_sess_rate(st)]"
@@ -71,6 +105,10 @@ haproxy h1 -conf {
 	http-after-response set-header x-tbl-req  "%[src,table_http_req_cnt(st)] %[src,table_http_req_rate(st)] %[src,table_http_err_cnt(st)] %[src,table_http_err_rate(st)] %[src,table_http_fail_cnt(st)] %[src,table_http_fail_rate(st)]"
 	http-after-response set-header x-tbl-byte "%[src,table_kbytes_in(st)] %[src,table_kbytes_out(st)] %[src,table_bytes_in_rate(st)] %[src,table_bytes_out_rate(st)] %[src,table_glitch_cnt(st)] %[src,table_glitch_rate(st)]"
 	http-after-response set-header x-tbl-misc "%[src,table_trackers(st)] %[src,table_server_id(st)] %[src,in_table(st)] %[ipv4(10.9.9.9),in_table(st)] %[table_cnt(st)]"
+
+	# this one creates the entry on the fly and returns the new count, so
+	# it goes up by one on every response
+	http-after-response set-header x-updt     "%[src_updt_conn_cnt(stu)]"
 
 	# expiration, idle time, their default value for an unknown key, and
 	# the number of free entries
@@ -90,6 +128,14 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.x-sc0      == resp.http.x-sc-cnt
 	expect resp.http.x-sc0-req  == resp.http.x-sc-req
 	expect resp.http.x-sc0-misc == "0 0 0 0 127.0.0.1 1 1"
+	expect resp.http.x-sc1      == resp.http.x-sc-cnt
+	expect resp.http.x-sc1-req  == resp.http.x-sc-req
+	expect resp.http.x-sc1-misc == resp.http.x-sc0-misc
+	expect resp.http.x-sc2      == resp.http.x-sc-cnt
+	expect resp.http.x-sc2-req  == resp.http.x-sc-req
+	expect resp.http.x-sc2-misc == resp.http.x-sc0-misc
+	expect resp.http.x-scg1     == resp.http.x-sc-cnt
+	expect resp.http.x-scg2-req == resp.http.x-sc-req
 	expect resp.http.x-src-cnt  == resp.http.x-sc-cnt
 	expect resp.http.x-src-req  == resp.http.x-sc-req
 	expect resp.http.x-tbl-cnt  == resp.http.x-sc-cnt
@@ -99,6 +145,8 @@ client c1 -connect ${h1_fe_sock} {
 	# single entry
 	expect resp.http.x-tbl-misc == "1 0 1 0 1"
 	expect resp.http.x-tbl-exp  ~  "^[0-9]+ [0-9]+ 42 43 [0-9]+$"
+	# first update of the entry of its own table
+	expect resp.http.x-updt     == "1"
 
 	# a request denied with a 4xx feeds the error counters, the
 	# connection counters do not move on a kept-alive connection
@@ -107,6 +155,8 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.status == 403
 	expect resp.http.x-sc-cnt   == "1 1 1 1 1"
 	expect resp.http.x-sc-req   == "2 2 1 1 0 0"
+	expect resp.http.x-sc1-req  == "2 2 1 1 0 0"
+	expect resp.http.x-sc2-req  == "2 2 1 1 0 0"
 	expect resp.http.x-src-req  == "2 2 1 1 0 0"
 	expect resp.http.x-tbl-req  == "2 2 1 1 0 0"
 
@@ -121,6 +171,8 @@ client c1 -connect ${h1_fe_sock} {
 	rxresp
 	expect resp.status == 500
 	expect resp.http.x-sc-req   == "4 4 1 1 1 1"
+	expect resp.http.x-sc1-req  == "4 4 1 1 1 1"
+	expect resp.http.x-sc2-req  == "4 4 1 1 1 1"
 	expect resp.http.x-src-req  == "4 4 1 1 1 1"
 	expect resp.http.x-tbl-req  == "4 4 1 1 1 1"
 
@@ -128,4 +180,9 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.x-sc-byte  ~  "^0 0 [1-9][0-9]* [1-9][0-9]*$"
 	expect resp.http.x-src-byte ~  "^0 0 [1-9][0-9]* [1-9][0-9]* 0 0$"
 	expect resp.http.x-tbl-byte == resp.http.x-src-byte
+	expect resp.http.x-sc1-rate ~  "^[1-9][0-9]* [1-9][0-9]*$"
+	expect resp.http.x-sc2-rate == resp.http.x-sc1-rate
+	expect resp.http.x-sc0-rate == resp.http.x-sc1-rate
+	# fourth and last response, hence the fourth update
+	expect resp.http.x-updt     == "4"
 } -run
