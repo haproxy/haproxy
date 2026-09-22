@@ -1,0 +1,79 @@
+varnishtest "Test the expect-proxy action of the connection rule set"
+
+# "tcp-request connection expect-proxy layer4" had no coverage. Unlike
+# the "accept-proxy" bind option, which makes the header mandatory for
+# everybody, this action makes it expected only for the connections
+# matching its condition, which is what a proxy fronted by a mix of
+# trusted and untrusted sources needs.
+#
+# The addresses announced in the header are deliberately different from
+# the real ones so that the src and dst fetches show which of the two
+# was used.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # the header is expected from the loopback only
+    frontend fe1
+	bind "fd@${fe1}"
+	tcp-request connection expect-proxy layer4 if { src 127.0.0.0/8 }
+	http-request return status 200
+	http-after-response set-header x-src "%[src]:%[src_port]"
+	http-after-response set-header x-dst "%[dst]:%[dst_port]"
+	http-after-response set-header x-fcsrc "%[fc_src]"
+
+    # here the condition never matches, so no header is expected
+    frontend fe2
+	bind "fd@${fe2}"
+	tcp-request connection expect-proxy layer4 if { src 10.0.0.0/8 }
+	http-request return status 200
+	http-after-response set-header x-src "%[src]:%[src_port]"
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	# the announced addresses replace the real ones
+	send "PROXY TCP4 192.168.0.1 10.0.0.2 1234 81\r\n"
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src   == "192.168.0.1:1234"
+	expect resp.http.x-dst   == "10.0.0.2:81"
+	# only the session addresses are replaced: fc_src still reports the
+	# real peer of the connection
+	expect resp.http.x-fcsrc == "127.0.0.1"
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+	# the header is mandatory for this source, a request without one is
+	# rejected before being parsed
+	txreq
+	expect_close
+} -run
+
+client c3 -connect ${h1_fe1_sock} {
+	# a malformed header is rejected as well
+	send "PROXY TCP4 not an address at all\r\n"
+	txreq
+	expect_close
+} -run
+
+client c4 -connect ${h1_fe2_sock} {
+	# the condition does not match the loopback, so no header is
+	# expected and the real addresses are reported
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src ~ "^127[.]0[.]0[.]1:[0-9]+$"
+} -run
