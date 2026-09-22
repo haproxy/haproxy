@@ -1,0 +1,128 @@
+varnishtest "Test the NetScaler Client IP insertion protocol"
+
+# Neither the "accept-netscaler-cip" bind keyword nor the
+# "tcp-request connection expect-netscaler-cip layer4" action had any
+# coverage. Both make haproxy consume a CIP header in front of the
+# request and take the addresses of the connection from the IP and TCP
+# headers it encapsulates, the same way the PROXY protocol does, which
+# reg-tests/connection/expect_proxy.vtc covers.
+#
+# The header is built by hand here. In its standard form it is made of:
+#
+#   12345678      the magic number, which the bind line declares
+#   0000002c      the CIP length, which the parser does not check
+#   0000          the CIP type, zero for the standard format
+#   0028          the length of the encapsulated headers
+#
+# followed by that many bytes of IP and TCP headers. Only the addresses,
+# the ports, the IP version and the protocol are looked at, so the
+# checksums are left to zero.
+#
+# The addresses announced are deliberately different from the real ones
+# so that the src and dst fetches show which of the two was used.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # the bind keyword makes the header mandatory for every connection
+    frontend fe1
+	bind "fd@${fe1}" accept-netscaler-cip 305419896
+	http-request return status 200
+	http-after-response set-header x-src "%[src]:%[src_port]"
+	http-after-response set-header x-dst "%[dst]:%[dst_port]"
+	http-after-response set-header x-fcsrc "%[fc_src]"
+
+    # the action only expects it from the connections matching its
+    # condition. Note that it reads the magic number from the bind line,
+    # which has none here, so the expected magic is zero.
+    frontend fe2
+	bind "fd@${fe2}"
+	tcp-request connection expect-netscaler-cip layer4 if { src 127.0.0.0/8 }
+	http-request return status 200
+	http-after-response set-header x-src "%[src]:%[src_port]"
+	http-after-response set-header x-dst "%[dst]:%[dst_port]"
+
+    # here the condition never matches, so no header is expected
+    frontend fe3
+	bind "fd@${fe3}"
+	tcp-request connection expect-netscaler-cip layer4 if { src 10.0.0.0/8 }
+	http-request return status 200
+	http-after-response set-header x-src "%[src]:%[src_port]"
+} -start
+
+# 12345678 0000002c 0000 0028              the CIP header
+# 45 00 0028 0001 0000 40 06 0000          IPv4, 40 bytes, TCP
+# c0a80001 0a000002                        192.168.0.1 -> 10.0.0.2
+# 04d2 0051 00000000 00000000 5002 2000 0000 0000    1234 -> 81
+client c1 -connect ${h1_fe1_sock} {
+	sendhex "12345678 0000002c 0000 0028 4500002800010000400600 00 c0a80001 0a000002 04d2005100000000000000005002200000000000"
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src   == "192.168.0.1:1234"
+	expect resp.http.x-dst   == "10.0.0.2:81"
+	# only the session addresses are replaced: fc_src still reports the
+	# real peer of the connection
+	expect resp.http.x-fcsrc == "127.0.0.1"
+} -run
+
+# the same in IPv6: 60 00000000 0014 06 40, then the two 16-byte
+# addresses and the same TCP header, that is 60 bytes announced
+client c2 -connect ${h1_fe1_sock} {
+	sendhex "12345678 00000040 0000 003c 60000000 0014 06 40 20010db8000000000000000000000001 20010db8000000000000000000000002 04d2005100000000000000005002200000000000"
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src == "2001:db8::1:1234"
+	expect resp.http.x-dst == "2001:db8::2:81"
+} -run
+
+# a header whose magic is not the declared one is rejected
+client c3 -connect ${h1_fe1_sock} {
+	sendhex "deadbeef 0000002c 0000 0028 4500002800010000400600 00 c0a80001 0a000002 04d2005100000000000000005002200000000000"
+	expect_close
+} -run
+
+# a valid magic, but the encapsulated protocol is not TCP (17 = UDP)
+client c4 -connect ${h1_fe1_sock} {
+	sendhex "12345678 0000002c 0000 0028 4500002800010000401100 00 c0a80001 0a000002 04d2005100000000000000005002200000000000"
+	expect_close
+} -run
+
+# the header is mandatory here, a request without one is rejected
+client c5 -connect ${h1_fe1_sock} {
+	txreq
+	expect_close
+} -run
+
+# the action expects the header only from the loopback, and with a zero
+# magic since its bind line declares none
+client c6 -connect ${h1_fe2_sock} {
+	sendhex "00000000 0000002c 0000 0028 4500002800010000400600 00 c0a80001 0a000002 04d2005100000000000000005002200000000000"
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src == "192.168.0.1:1234"
+	expect resp.http.x-dst == "10.0.0.2:81"
+} -run
+
+# the condition does not match the loopback, so no header is expected
+# and the real addresses are reported
+client c7 -connect ${h1_fe3_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-src ~ "^127[.]0[.]0[.]1:[0-9]+$"
+} -run
