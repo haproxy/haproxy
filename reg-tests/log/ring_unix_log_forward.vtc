@@ -1,0 +1,83 @@
+varnishtest "ring section's internal server may target a UNIX socket"
+
+# 23e5f18b8 ("MEDIUM: sink: change the sink mode type to PR_MODE_SYSLOG")
+# tagged a sink's forward_px (the internal proxy backing a "ring" section)
+# with PR_MODE_SYSLOG. As an unintended side effect, this made ring's own
+# "server" line subject to _srv_check_proxy_mode()'s log-backend
+# address-family check (added by 64e0b6344 for real "mode log" backends),
+# which rejects AF_UNIX. This broke the common "ring -> UNIX socket ->
+# log-forward" pattern, which worked fine before 23e5f18b8.
+#
+# This test declares a ring whose server targets a UNIX socket bound by a
+# log-forward section, which itself relays to a vtest syslog receiver. It
+# fails to parse on an affected, unpatched build ("log server address
+# family not supported for log backend server").
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.3-dev2)'"
+feature ignore_unknown_macro
+
+syslog Slg1 -level info {
+    recv
+    expect ~ "GET /client_c1 HTTP/1.1"
+} -start
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+    # when run as root without an explicit "chroot" directive, haproxy's
+    # automatic "chroot auto" (see 641fe4f11) isolates the process into
+    # an empty directory right after startup. That breaks the ring's own
+    # UNIX-socket "server" connect (a runtime, repeatedly-retried client
+    # connection), unlike the log-forward listener's "bind unix@..."
+    # which is already open before the chroot happens. Pin "chroot /" so
+    # this test behaves the same whether run as root or not.
+    chroot /
+
+	defaults
+		mode http
+		option httplog
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe1
+		bind "fd@${fe_1}"
+		log ring@buf1 local0
+		default_backend be
+
+	backend be
+		server app1 ${s1_addr}:${s1_port}
+
+	ring buf1
+		description "ring fed via a UNIX-socket server"
+		format rfc5424
+		maxlen 1200
+		size 32764
+		timeout connect 5s
+		timeout server 10s
+		# note: format/maxlen/size above are required for the ring's
+		# forwarder to actually flush to its server - omitting them
+		# leaves the ring silently unable to forward (unrelated to the
+		# fix under test, just a config-authoring trap)
+		# the whole point of this test: a UNIX socket server on a ring
+		server relay unix@"${tmpdir}/ring_unix_log_forward.sock"
+
+	log-forward relay
+		bind unix@"${tmpdir}/ring_unix_log_forward.sock" mode 660
+		log ${Slg1_addr}:${Slg1_port} local0
+} -start
+
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url "/client_c1"
+    rxresp
+    expect resp.status == 200
+} -run
+
+syslog Slg1 -wait
