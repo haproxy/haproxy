@@ -13,6 +13,7 @@ haproxy h1 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
   defaults common
       mode http
@@ -40,5 +41,8 @@ client c1 -connect ${h1_feh1_sock} {
         txreq -req GET -url /
         rxresp
         expect resp.status == 200
-        expect resp.http.x-test2 ~ "[0-9]+"
+        expect resp.http.x-test1 ~ "^[0-9]+$"
+        expect resp.http.x-test2 ~ "^[0-9]+$"
+        expect resp.http.x-test3 ~ "^[0-9]+$"
+        expect resp.http.x-test4 ~ "^[0-9]+$"
 } -run
