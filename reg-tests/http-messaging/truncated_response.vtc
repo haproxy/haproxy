@@ -1,0 +1,198 @@
+varnishtest "A truncated response must not lose any of the bytes the server sent"
+
+# When a server announces a content-length and closes before having sent
+# that many bytes, haproxy cannot do anything but forward what it
+# received and abort the client side. The question this test answers is
+# whether the bytes which were sent all reach the client: a byte lost
+# here would look exactly like a server truncating its response, which
+# is a recurring doubt when such reports are analysed.
+#
+# The first four cases announce 100000 bytes and stop after 40010, which
+# is more than two 16 kB buffers, so the data cannot be held in a single
+# buffer and the forwarding really has to run several times. The client
+# counts the bytes it receives, so a missing one leaves it waiting for
+# data which will never come and the connection close ends the test with
+# a failure.
+#
+# The cases differ by what the server does at the end:
+#   - H1, everything written at once and a shutdown behind;
+#   - H1, the bulk first, then, once the client has read it, a small
+#     write followed by the shutdown, so that the last bytes and the
+#     close reach haproxy in the same event;
+#   - H2, the frames written at once and the connection closed without
+#     any END_STREAM;
+#   - H2, the last frame carrying END_STREAM although the announced
+#     length is far from being reached;
+# and a last one repeats the first with a body of 200000 bytes and a
+# client which does not read for half a second, so that the close
+# reaches haproxy while the data is still queued rather than already
+# drained. A larger body would stall it further but vtest asserts in
+# its own logging code somewhere below the megabyte.
+#
+# The two HTTP/2 servers never read the WINDOW_UPDATE frames haproxy
+# sends them, so closing their socket right away would make the system
+# emit a reset, which would discard whatever is still in flight and
+# would make the test fail for a reason which has nothing to do with
+# haproxy. They therefore shut their side down, which is what a
+# truncating server does, and only let vtest close once the client has
+# seen the whole exchange.
+#
+# The client is an HTTP/1 one in every case, because counting the bytes
+# from an HTTP/2 client is not possible here: haproxy always ends such a
+# stream with an RST_STREAM, which stops "rxdata -all", and the number
+# of DATA frames it emits before that depends on how its buffers were
+# filled, so no fixed number of "rxdata" can be written either.
+
+feature ignore_unknown_macro
+
+barrier b1 cond 2
+barrier b2 cond 2
+barrier b3 cond 2
+
+server s1 {
+	rxreq
+	txresp -nolen -hdr "content-length: 100000" -bodylen 40000
+	send "0123456789"
+	shutdown
+} -start
+
+server s2 {
+	rxreq
+	txresp -nolen -hdr "content-length: 100000" -bodylen 40000
+	# the client has read everything, the next write is alone in the
+	# buffer and is immediately followed by the close
+	barrier b1 sync
+	send "0123456789"
+	shutdown
+} -start
+
+server s3 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+	stream 1 {
+		rxhdrs
+		txresp -status 200 -nostrend -hdr "content-length" "100000"
+		txdata -datalen 16384 -nostrend
+		txdata -datalen 16384 -nostrend
+		txdata -datalen 7232 -nostrend
+		txdata -data "0123456789" -nostrend
+	} -run
+	shutdown
+	barrier b2 sync
+} -start
+
+server s4 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+	stream 1 {
+		rxhdrs
+		txresp -status 200 -nostrend -hdr "content-length" "100000"
+		txdata -datalen 16384 -nostrend
+		txdata -datalen 16384 -nostrend
+		txdata -datalen 7232 -nostrend
+		# the stream ends here, 60000 bytes too early
+		txdata -data "0123456789"
+	} -run
+	shutdown
+	barrier b3 sync
+} -start
+
+server s5 {
+	rxreq
+	txresp -nolen -hdr "content-length: 1000000" -bodylen 200000
+	send "0123456789"
+	shutdown
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen fe1
+	bind "fd@${fe1}"
+	server s1 ${s1_addr}:${s1_port}
+
+    listen fe2
+	bind "fd@${fe2}"
+	server s2 ${s2_addr}:${s2_port}
+
+    listen fe3
+	bind "fd@${fe3}"
+	server s3 ${s3_addr}:${s3_port} proto h2
+
+    listen fe4
+	bind "fd@${fe4}"
+	server s4 ${s4_addr}:${s4_port} proto h2
+
+    listen fe5
+	bind "fd@${fe5}"
+	server s5 ${s5_addr}:${s5_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	txreq
+	rxresphdrs
+	expect resp.status == 200
+	expect resp.http.content-length == "100000"
+	# the 40010 bytes the server wrote, not one less
+	recv 40010
+	expect_close
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txreq
+	rxresphdrs
+	expect resp.status == 200
+	recv 40000
+	barrier b1 sync
+	recv 10
+	expect_close
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+	txreq
+	rxresphdrs
+	expect resp.status == 200
+	expect resp.http.content-length == "100000"
+	recv 40010
+	expect_close
+	barrier b2 sync
+} -run
+
+client c4 -connect ${h1_fe4_sock} {
+	txreq
+	rxresphdrs
+	expect resp.status == 200
+	recv 40010
+	expect_close
+	barrier b3 sync
+} -run
+
+client c5 -connect ${h1_fe5_sock} {
+	txreq
+	rxresphdrs
+	expect resp.status == 200
+	expect resp.http.content-length == "1000000"
+	# nothing is read for a moment, so the close lands on haproxy while
+	# the 200010 bytes are still on their way
+	delay 0.5
+	recv 200010
+	expect_close
+} -run
