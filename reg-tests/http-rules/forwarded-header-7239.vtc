@@ -11,6 +11,7 @@ haproxy h1 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
@@ -52,7 +53,10 @@ haproxy h1 -conf {
 
     backend be4
 	http-request set-var(req.fnode) req.hdr(forwarded),rfc7239_field(for)
-	http-request return status 200 hdr nodename "%[var(req.fnode),rfc7239_n2nn]" hdr nodeport "%[var(req.fnode),rfc7239_n2np]"
+	# rfc7239_nn and rfc7239_np perform the reverse operation: they build
+	# a node name and a node port out of an address, an integer or an
+	# obfuscated string, the latter being prefixed with an underscore
+	http-request return status 200 hdr nodename "%[var(req.fnode),rfc7239_n2nn]" hdr nodeport "%[var(req.fnode),rfc7239_n2np]" hdr nn4 "%[ipv4(127.9.0.1),rfc7239_nn]" hdr nn6 "%[ipv6(ab:cd::1),rfc7239_nn]" hdr nns "%[str(id),rfc7239_nn]" hdr npi "%[int(12),rfc7239_np]" hdr nps "%[str(id),rfc7239_np]"
 
 } -start
 
@@ -62,6 +66,7 @@ haproxy h2 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
@@ -159,6 +164,13 @@ client c1 -connect ${h1_fe1_sock} {
     expect resp.status == 200
     expect resp.http.nodename == "::1"
     expect resp.http.nodeport == "_id"
+    # the node builders: an IPv6 address is bracketed, a string becomes an
+    # obfuscated identifier and an integer is left as it is
+    expect resp.http.nn4 == "127.9.0.1"
+    expect resp.http.nn6 == "[ab:cd::1]"
+    expect resp.http.nns == "_id"
+    expect resp.http.npi == "12"
+    expect resp.http.nps == "_id"
 
     txreq -req GET -url /req4 \
         -hdr "forwarded: for=127.9.0.1"
