@@ -1,0 +1,96 @@
+varnishtest "Test the RDP cookie fetches"
+
+# req.rdp_cookie, req.rdp_cookie_cnt and their deprecated rdp_cookie and
+# rdp_cookie_cnt spellings had no coverage, nor had the req_rdp_cookie
+# and req_rdp_cookie_cnt ACL forms. They parse the raw request buffer of
+# a TCP proxy, looking for a "Cookie:" line right behind the 11 bytes of
+# the TPKT and X.224 headers of an RDP connection request, so the
+# packets are built by hand here:
+#
+#   03 00 LL LL       TPKT: version 3, then the total length
+#   LI                X.224 length indicator
+#   e0                Connection Request TPDU
+#   0000 0000 00      dst-ref, src-ref and class
+#   "Cookie: <name>=<value>\r\n"
+#
+# Only the first 11 bytes are skipped, none of the lengths is checked.
+
+feature ignore_unknown_macro
+
+syslog S1 -level info {
+	# mstshash=hello
+	recv
+	expect ~ "any=hello named=hello other=- cnt=1 cntn=1 cnto=0 dep=hello depcnt=1 acl=1 aclcnt=1$"
+	# no cookie at all
+	recv
+	expect ~ "any=- named=- other=- cnt=0 cntn=0 cnto=0 dep=- depcnt=0 acl=- aclcnt=-$"
+	# another cookie name: the unnamed form takes it, the named one does not
+	recv
+	expect ~ "any=abc named=- other=- cnt=1 cntn=0 cnto=0 dep=- depcnt=0 acl=- aclcnt=-$"
+	# the spaces between the colon and the name are skipped
+	recv
+	expect ~ "any=spaced named=spaced other=- cnt=1 cntn=1 cnto=0 dep=spaced depcnt=1 acl=- aclcnt=1$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	nbthread 1
+
+    defaults
+	mode tcp
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+	bind "fd@${fe1}"
+	log ${S1_addr}:${S1_port} local0
+	log-format "any=%[var(txn.c)] named=%[var(txn.cm)] other=%[var(txn.co)] cnt=%[var(txn.n)] cntn=%[var(txn.nm)] cnto=%[var(txn.no)] dep=%[var(txn.d)] depcnt=%[var(txn.dn)] acl=%[var(txn.a)] aclcnt=%[var(txn.an)]"
+
+	tcp-request inspect-delay 100ms
+	# without a name, the value of the first cookie is returned
+	tcp-request content set-var(txn.c)  req.rdp_cookie
+	tcp-request content set-var(txn.cm) req.rdp_cookie(mstshash)
+	tcp-request content set-var(txn.co) req.rdp_cookie(other)
+	tcp-request content set-var(txn.n)  req.rdp_cookie_cnt
+	tcp-request content set-var(txn.nm) req.rdp_cookie_cnt(mstshash)
+	tcp-request content set-var(txn.no) req.rdp_cookie_cnt(other)
+	# the deprecated spellings must report the same values
+	tcp-request content set-var(txn.d)  rdp_cookie(mstshash)
+	tcp-request content set-var(txn.dn) rdp_cookie_cnt(mstshash)
+	# and the ACL forms
+	tcp-request content set-var(txn.a)  int(1) if { req_rdp_cookie(mstshash) -m str hello }
+	tcp-request content set-var(txn.an) int(1) if { req_rdp_cookie_cnt(mstshash) gt 0 }
+	tcp-request content reject
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	# "Cookie: mstshash=hello"
+	sendhex "030000231ee00000000000 436f6f6b69653a206d737473686173683d68656c6c6f0d0a"
+	expect_close
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+	# "Nothing: here", which is long enough not to be reported as
+	# truncated but is not a cookie line
+	sendhex "0300001a15e00000000000 4e6f7468696e673a20686572650d0a"
+	expect_close
+} -run
+
+client c3 -connect ${h1_fe1_sock} {
+	# "Cookie: msts2=abc"
+	sendhex "0300001e19e00000000000 436f6f6b69653a206d737473323d6162630d0a"
+	expect_close
+} -run
+
+client c4 -connect ${h1_fe1_sock} {
+	# "Cookie:   mstshash=spaced"
+	sendhex "0300002621e00000000000 436f6f6b69653a2020206d737473686173683d7370616365640d0a"
+	expect_close
+} -run
+
+syslog S1 -wait
