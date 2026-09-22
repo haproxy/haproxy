@@ -12,12 +12,31 @@ varnishtest "Test the raw TLS hello fetches of the TCP rule sets"
 
 feature ignore_unknown_macro
 
-# the server answers every ClientHello with the same ServerHello
-server s1 -repeat 3 {
-	recv 47
+# Every ClientHello is answered with the same ServerHello, but each of
+# them gets its own server so that the whole message is read: a server
+# closing its socket while a few bytes are still unread makes the system
+# emit a reset, which discards the ServerHello when haproxy has not read
+# it yet. That used to make this test fail from time to time when the
+# suite was run in parallel. The three connections reach the three
+# servers in order thanks to the round robin of the backend.
+server s1 {
+	recv 90
 	sendhex "16030300 2c 02000028 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 1302 00 0000"
 } -start
 
+server s2 {
+	recv 60
+	sendhex "16030300 2c 02000028 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 1302 00 0000"
+} -start
+
+server s3 {
+	recv 57
+	sendhex "16030300 2c 02000028 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 1302 00 0000"
+} -start
+
+# One syslog server per frontend: the log of a stream is emitted when the
+# stream ends, which may happen after the next client has been served by
+# the other frontend, so the two series are only ordered on their own.
 syslog S1 -level info {
 	# supported_groups and an empty session ticket extension
 	recv
@@ -28,6 +47,9 @@ syslog S1 -level info {
 	# one unrelated extension: no supported_groups and no session ticket
 	recv
 	expect ~ "type=1 ver=196611 ec=0 st=0 sni=- dtype=1 dver=196611 dsni=- rtype=2 drtype=2 bytes=[0-9]+$"
+} -start
+
+syslog S2 -level info {
 	# an SSLv2 CLIENT-HELLO announcing SSLv3.0, short record header
 	recv
 	expect ~ "sslv2 ver=196608 dver=196608 type=- sni=- eq30=1 gt30=-$"
@@ -80,7 +102,7 @@ haproxy h1 -conf {
     # are only reported in the log.
     frontend fe2
 	bind "fd@${fe2}"
-	log ${S1_addr}:${S1_port} local0
+	log ${S2_addr}:${S2_port} local0
 	log-format "sslv2 ver=%[var(txn.v)] dver=%[var(txn.dv)] type=%[var(txn.t)] sni=%[var(txn.n)] eq30=%[var(txn.eq)] gt30=%[var(txn.gt)]"
 
 	tcp-request inspect-delay 100ms
@@ -98,7 +120,10 @@ haproxy h1 -conf {
 	tcp-response content set-var(txn.rt)  res.ssl_hello_type
 	tcp-response content set-var(txn.drt) rep_ssl_hello_type
 	tcp-response content accept if { res.ssl_hello_type 2 }
+	balance roundrobin
 	server s1 ${s1_addr}:${s1_port}
+	server s2 ${s2_addr}:${s2_port}
+	server s3 ${s3_addr}:${s3_port}
 } -start
 
 # The ClientHellos share the 43-byte body of the other ClientHello tests:
@@ -116,12 +141,14 @@ haproxy h1 -conf {
 client c1 -connect ${h1_fe1_sock} {
 	sendhex "160301 0055 01000051 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 0026 00000014001200000f 7777772e6578616d706c652e636f6d 000a00060004001d0017 00230000"
 	recv 49
+	expect_close
 } -run
 
 # a session_ticket holding four bytes, and no supported_groups
 client c2 -connect ${h1_fe1_sock} {
 	sendhex "160301 0037 01000033 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 0008 0023 0004 aabbccdd"
 	recv 49
+	expect_close
 } -run
 
 # a single unrelated extension (renegotiation_info). Note that an empty
@@ -130,6 +157,7 @@ client c2 -connect ${h1_fe1_sock} {
 client c3 -connect ${h1_fe1_sock} {
 	sendhex "160301 0034 01000030 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 0005 ff01000100"
 	recv 49
+	expect_close
 } -run
 
 # SSLv2 CLIENT-HELLO with the short record header:
@@ -160,3 +188,4 @@ client c6 -connect ${h1_fe2_sock} {
 } -run
 
 syslog S1 -wait
+syslog S2 -wait
