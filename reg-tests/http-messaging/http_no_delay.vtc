@@ -1,0 +1,100 @@
+#EXCLUDE_TARGETS=freebsd,osx,generic
+varnishtest "Test the option http-no-delay"
+
+# "option http-no-delay" had no coverage. It disables the optimizations
+# which tell the system that more data is coming for the message being
+# forwarded, so that a partially transferred message is not pushed out
+# immediately. Nothing reports the option itself, only the moment at
+# which the data leave haproxy changes, so the test measures that delay.
+#
+# The server sends a chunked response, then its first chunk alone, and
+# only terminates the message once the client has received that chunk,
+# which the barrier below synchronises. The whole transaction therefore
+# lasts as long as that first chunk takes to reach the client, and %Tt
+# reports it. Without the option the system holds the incomplete message
+# for its cork timeout, 200 ms on Linux, which is far above the few
+# milliseconds a loopback exchange takes.
+#
+# The delay is produced by MSG_MORE, which does not exist everywhere and
+# is compiled out as a no-op in that case, leaving nothing to observe,
+# hence the excluded targets above.
+
+feature ignore_unknown_macro
+
+barrier b1 cond 2
+barrier b2 cond 2
+
+server s1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked"
+	chunkedlen 5
+	# the client releases it once it has received the chunk
+	barrier b1 sync
+	chunkedlen 0
+} -start
+
+server s2 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked"
+	chunkedlen 5
+	barrier b2 sync
+	chunkedlen 0
+} -start
+
+syslog Slg -level info {
+	# three digits: the incomplete message waited for the cork timeout
+	recv
+	expect ~ ": delayed tt=[0-9]{3,} "
+	# one or two digits: it was pushed out immediately
+	recv
+	expect ~ ": nodelay tt=[0-9]{1,2} "
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	log "${Slg_addr}:${Slg_port}" local0 info
+
+    defaults
+	mode http
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen fe1
+	bind "fd@${fe1}"
+	log-format "delayed tt=%Tt td=%Td"
+	server s1 ${s1_addr}:${s1_port}
+
+    listen fe2
+	bind "fd@${fe2}"
+	option http-no-delay
+	log-format "nodelay tt=%Tt td=%Td"
+	server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	txreq
+	rxresphdrs
+	rxchunk
+	expect resp.chunklen == 5
+	barrier b1 sync
+	rxchunk
+	expect resp.bodylen == 5
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txreq
+	rxresphdrs
+	rxchunk
+	expect resp.chunklen == 5
+	barrier b2 sync
+	rxchunk
+	expect resp.bodylen == 5
+} -run
+
+syslog Slg -wait
