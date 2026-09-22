@@ -5,7 +5,7 @@ feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8-dev11)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
 feature ignore_unknown_macro
 
-server s1 -repeat 3 {
+server s1 -repeat 4 {
     rxreq
     txresp
 } -start
@@ -41,6 +41,15 @@ haproxy h1 -conf {
         balance roundrobin
         server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none crt ${testdir}/certs/client1.pem
 
+    # same, with a client certificate which carries a subjectAltName and
+    # whose chain cannot be verified by the ca-file of the "ssl-lst" bind
+    # line. The "crt-ignore-err all" and "ca-ignore-err all" of that bind
+    # line let the handshake complete so that the errors can be reported
+    # by the fetches.
+    listen clear-lst2
+        bind "fd@${clearlst2}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none crt ${testdir}/certs/common.pem
+
     listen ssl-lst
         mode http
 
@@ -56,8 +65,13 @@ haproxy h1 -conf {
         http-response add-header x-ssl-s_serial %[ssl_c_serial,hex]
         http-response add-header x-ssl-key_alg %[ssl_c_key_alg]
         http-response add-header x-ssl-version %[ssl_c_version]
+        http-response add-header x-ssl-used %[ssl_c_used]
+        http-response add-header x-ssl-san %[ssl_c_san]
+        http-response add-header x-ssl-err %[ssl_c_err]
+        http-response add-header x-ssl-ca_err %[ssl_c_ca_err]
+        http-response add-header x-ssl-ca_err_depth %[ssl_c_ca_err_depth]
 
-        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/certs/crl-auth.pem
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt ${testdir}/certs/common.pem ca-file ${testdir}/certs/ca-auth.crt verify optional crt-ignore-err all ca-ignore-err all crl-file ${testdir}/certs/crl-auth.pem
 
         server s1 ${s1_addr}:${s1_port}
 } -start
@@ -79,6 +93,28 @@ client c1 -connect ${h1_clearlst_sock} {
     expect resp.http.x-ssl-s_serial == "02"
     expect resp.http.x-ssl-key_alg == "rsaEncryption"
     expect resp.http.x-ssl-version == "1"
+    expect resp.http.x-ssl-used == "1"
+    # client1.pem has no subjectAltName
+    expect resp.http.x-ssl-san == ""
+    expect resp.http.x-ssl-err == "0"
+    expect resp.http.x-ssl-ca_err == "0"
+    expect resp.http.x-ssl-ca_err_depth == "0"
+} -run
+
+client c2 -connect ${h1_clearlst2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-s_dn == "/C=FR/L=Paris/O=test1/CN=www.test1.com"
+    expect resp.http.x-ssl-used == "1"
+    expect resp.http.x-ssl-san == "DNS:www.test1.com"
+    # the issuer of the intermediate certificate is not in the ca-file,
+    # so the chain breaks at depth 1 with "unable to get local issuer
+    # certificate". The certificate itself is also reported in error
+    # since it is not meant for client authentication, which is why the
+    # bind line needs both "crt-ignore-err" and "ca-ignore-err".
+    expect resp.http.x-ssl-ca_err == "20"
+    expect resp.http.x-ssl-ca_err_depth == "1"
 } -run
 
 
