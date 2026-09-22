@@ -1,0 +1,150 @@
+varnishtest "Test the server settings reported by the runtime"
+
+# A large part of the "server" keywords had no coverage at all: addr,
+# port, agent-addr, agent-port, rise, fall, init-state, minconn,
+# maxqueue, backup, pool-purge-delay, pool-max-conn and the identifiers.
+# They are all visible through "show servers state", "show stat typed"
+# and "show servers conn", which makes them checkable without any
+# traffic and without waiting for a health check to complete.
+#
+# Each "show stat" is restricted to a single server because the full
+# typed dump of nine servers does not fit in what the CLI returns in one
+# go.
+#
+# The checks are directed at a second haproxy instance which accepts the
+# connections and never answers, so that no check can ever complete and
+# the initial states stay observable for the whole test. The proxy and
+# the servers are given explicit identifiers so that the field names of
+# "show stat typed" are fully predictable.
+
+feature ignore_unknown_macro
+
+# the sink: it accepts the check connections and holds them forever
+haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode tcp
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  1h
+	timeout server  1h
+
+    frontend sink
+	bind "fd@${sink}"
+	tcp-request inspect-delay 1h
+	tcp-request content accept if { req.len gt 1000000 }
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	option httpchk GET /
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout check   1h
+
+    backend be
+	id 7
+	# the default init-state is inherited by the servers which do not
+	# override it, which lets "init-state none" be told apart from a
+	# server which simply says nothing
+	default-server check addr ${h2_sink_addr} port ${h2_sink_port} inter 100ms rise 4 fall 5 init-state fully-down
+
+	server s_up    127.0.0.1:18001 id 1 init-state up
+	server s_down  127.0.0.1:18001 id 2 init-state down
+	server s_fup   127.0.0.1:18001 id 3 init-state fully-up
+	server s_fdown 127.0.0.1:18001 id 4 init-state fully-down
+	server s_none  127.0.0.1:18001 id 5 init-state none
+	server s_inhrt 127.0.0.1:18001 id 7
+	server s_maint 127.0.0.1:18001 id 6 init-state up disabled
+
+    # the sizing and addressing settings live in their own backend so that
+    # they are not disturbed by the init-state above
+    backend be2
+	id 8
+	server s_plain 127.0.0.1:18001 id 1 backup weight 30 maxconn 7 minconn 2 maxqueue 11 pool-purge-delay 12s pool-max-conn 5 pool-low-conn 3 max-reuse 6 non-stick
+	server s_agent 127.0.0.1:18001 id 2 agent-check agent-addr 10.8.8.8 agent-port 8888 agent-inter 1h
+} -start
+
+haproxy h1 -cli {
+	# the initial state depends on init-state, and the health counter
+	# with it: "up" tolerates no failure, "down" needs one success,
+	# "fully-up" tolerates <fall> failures and "fully-down" needs <rise>
+	# successes. "none" keeps the historical behavior.
+	send "show stat be 4 1 typed"
+	expect ~ "S[.]7[.]1[.][0-9]+[.]status[.]1:[A-Za-z]+:str:UP 1/5\n"
+	send "show stat be 4 2 typed"
+	expect ~ "S[.]7[.]2[.][0-9]+[.]status[.]1:[A-Za-z]+:str:DOWN 3/4\n"
+	send "show stat be 4 3 typed"
+	expect ~ "S[.]7[.]3[.][0-9]+[.]status[.]1:[A-Za-z]+:str:UP\n"
+	send "show stat be 4 4 typed"
+	expect ~ "S[.]7[.]4[.][0-9]+[.]status[.]1:[A-Za-z]+:str:DOWN\n"
+	# a server which says nothing inherits the default-server value.
+	# Note that "init-state none" is documented as restoring the default
+	# behavior when the setting was inherited from default-server, but it
+	# currently has no effect at all: srv_set_init_state() returns early
+	# for SRV_INIT_STATE_NONE and therefore does not undo what the
+	# inherited value had already applied. Both servers below thus report
+	# the inherited "fully-down" state.
+	send "show stat be 4 5 typed"
+	expect ~ "S[.]7[.]5[.][0-9]+[.]status[.]1:[A-Za-z]+:str:DOWN\n"
+	send "show stat be 4 7 typed"
+	expect ~ "S[.]7[.]7[.][0-9]+[.]status[.]1:[A-Za-z]+:str:DOWN\n"
+	# "disabled" puts the server in maintenance whatever its init-state
+	send "show stat be 4 6 typed"
+	expect ~ "S[.]7[.]6[.][0-9]+[.]status[.]1:[A-Za-z]+:str:MAINT\n"
+	# a server without check has no state to report
+	send "show stat be2 4 1 typed"
+	expect ~ "S[.]8[.]1[.][0-9]+[.]status[.]1:[A-Za-z]+:str:no check\n"
+
+	# rise and fall, and the health counter they bound
+	send "show stat be 4 2 typed"
+	expect ~ "S[.]7[.]2[.][0-9]+[.]check_rise[.]1:[A-Za-z]+:u32:4\n"
+	send "show stat be 4 2 typed"
+	expect ~ "S[.]7[.]2[.][0-9]+[.]check_fall[.]1:[A-Za-z]+:u32:5\n"
+	send "show stat be 4 2 typed"
+	expect ~ "S[.]7[.]2[.][0-9]+[.]check_health[.]1:[A-Za-z]+:u32:3\n"
+	send "show stat be 4 4 typed"
+	expect ~ "S[.]7[.]4[.][0-9]+[.]check_health[.]1:[A-Za-z]+:u32:0\n"
+
+	# weight, maxconn and maxqueue of the plain server
+	send "show stat be2 4 1 typed"
+	expect ~ "S[.]8[.]1[.][0-9]+[.]weight[.]1:[A-Za-z]+:u32:30\n"
+	send "show stat be2 4 1 typed"
+	expect ~ "S[.]8[.]1[.][0-9]+[.]slim[.]1:[A-Za-z]+:u32:7\n"
+	send "show stat be2 4 1 typed"
+	expect ~ "S[.]8[.]1[.][0-9]+[.]qlimit[.]1:[A-Za-z]+:u32:11\n"
+	# it is a backup server, so it counts as backup and not as active
+	send "show stat be2 4 1 typed"
+	expect ~ "S[.]8[.]1[.][0-9]+[.]act[.]1:[A-Za-z]+:u32:0\n"
+	send "show stat be2 4 1 typed"
+	expect ~ "S[.]8[.]1[.][0-9]+[.]bck[.]1:[A-Za-z]+:u32:1\n"
+
+	# the check and agent addresses and ports appear in the state dump,
+	# whose last four columns are check_port, check_addr, agent_addr and
+	# agent_port
+	send "show servers state be"
+	expect ~ "\n7 be 1 s_up 127[.]0[.]0[.]1 [^\n]* ${h2_sink_port} ${h2_sink_addr} "
+	send "show servers state be2"
+	expect ~ "\n8 be2 2 s_agent 127[.]0[.]0[.]1 [^\n]* 10[.]8[.]8[.]8 8888"
+	# the explicit identifiers were honoured
+	send "show servers state be2"
+	expect ~ "\n8 be2 1 s_plain 127[.]0[.]0[.]1 "
+
+	# the idle connection pool settings
+	send "show servers conn"
+	expect ~ "\nbe2/s_plain 8/1 127[.]0[.]0[.]1 18001 - 12000 [0-9]+ [0-9]+ [0-9]+ [0-9]+ [0-9]+ [0-9]+ [0-9]+ 5 "
+	send "show servers conn"
+	expect ~ "\nbe/s_up 7/1 127[.]0[.]0[.]1 18001 - 5000 "
+}
