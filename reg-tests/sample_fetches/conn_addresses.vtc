@@ -9,6 +9,12 @@ varnishtest "Test the connection address and multiplexer sample fetches"
 # boolean in case of socket creation failure. This needs to be debugged on
 # that platform.
 
+# A single thread is used because act_conn, fe_conn and dst_conn are
+# over-counted when several threads accept in parallel on a loaded
+# machine: the process then reports current connections which were never
+# established (see "CurrConns" in "show info" vs "CumConns"). That is
+# unrelated to what this test checks.
+
 feature ignore_unknown_macro
 
 server s1 {
@@ -20,6 +26,7 @@ haproxy h1 -conf {
     global
     .if feature(THREAD)
         thread-groups 1
+        nbthread 1
     .endif
         chroot /
 
