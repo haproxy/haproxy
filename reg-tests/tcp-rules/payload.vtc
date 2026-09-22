@@ -9,6 +9,10 @@ varnishtest "Test the raw payload fetches of the TCP rule sets"
 # trailing bytes, and the server answers with the same framing, so that
 # payload_lv() has something to extract on both sides, including with a
 # relative second offset.
+#
+# The historical spellings without the "req."/"res." prefix are read
+# alongside the modern ones. They are usable in both directions, so the
+# very same "payload" keyword is evaluated once per side here.
 
 feature ignore_unknown_macro
 
@@ -19,12 +23,12 @@ server s1 {
 
 syslog Slg -level info {
 	recv
-	expect ~ "^<134>.*: reqlen=11 lv=hello p=hello first=h relative=elloZ reslen=12 rlv=onions rp=onions bytes=12$"
+	expect ~ "^<134>.*: reqlen=11 lv=hello p=hello first=h relative=elloZ reslen=12 rlv=onions rp=onions bytes=12 dlen=11 dlv=hello dp=hello drp=onions$"
 
 	# the second client never sends enough data, wait_end becomes true
 	# once the inspection delay has expired and the rule rejects it
 	recv
-	expect ~ "^<134>.*: reqlen=3 lv=- p=- first=- relative=- reslen=- rlv=- rp=- bytes=0$"
+	expect ~ "^<134>.*: reqlen=3 lv=- p=- first=- relative=- reslen=- rlv=- rp=- bytes=0 dlen=3 dlv=- dp=- drp=-$"
 } -start
 
 haproxy h1 -conf {
@@ -49,7 +53,7 @@ haproxy h1 -conf {
 	# emitted when the stream ends: a format made only of var() fetches is
 	# emitted as soon as the server connection is established, which is
 	# before the response side rules have run
-	log-format "reqlen=%[var(txn.reqlen)] lv=%[var(txn.lv)] p=%[var(txn.p)] first=%[var(txn.first)] relative=%[var(txn.rel)] reslen=%[var(txn.reslen)] rlv=%[var(txn.rlv)] rp=%[var(txn.rp)] bytes=%B"
+	log-format "reqlen=%[var(txn.reqlen)] lv=%[var(txn.lv)] p=%[var(txn.p)] first=%[var(txn.first)] relative=%[var(txn.rel)] reslen=%[var(txn.reslen)] rlv=%[var(txn.rlv)] rp=%[var(txn.rp)] bytes=%B dlen=%[var(txn.dlen)] dlv=%[var(txn.dlv)] dp=%[var(txn.dp)] drp=%[var(txn.drp)]"
 
 	# a short delay is enough since everything arrives at once, and it
 	# bounds the duration of the rejected case below
@@ -64,6 +68,11 @@ haproxy h1 -conf {
 	# a relative second offset, one byte after the length field
 	tcp-request content set-var(txn.rel)    req.payload_lv(0,4,+1)
 
+	# the deprecated spellings, which report the same values
+	tcp-request content set-var(txn.dlen)   req_len
+	tcp-request content set-var(txn.dlv)    payload_lv(0,4)
+	tcp-request content set-var(txn.dp)     payload(4,5)
+
 	# the rules above are not final, so as long as neither of the two
 	# below matches the analysis is retried when more data arrives
 	tcp-request content accept if { req.len ge 11 }
@@ -77,6 +86,8 @@ haproxy h1 -conf {
 	tcp-response content set-var(txn.reslen) res.len
 	tcp-response content set-var(txn.rlv)    res.payload_lv(0,4)
 	tcp-response content set-var(txn.rp)     res.payload(4,6)
+	# the same unprefixed keyword, evaluated on the response side
+	tcp-response content set-var(txn.drp)    payload(4,6)
 	tcp-response content accept if { res.len ge 12 }
 
 	server s1 ${s1_addr}:${s1_port}
