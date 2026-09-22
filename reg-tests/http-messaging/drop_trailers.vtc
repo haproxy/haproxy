@@ -1,0 +1,204 @@
+varnishtest "Test the options dropping the HTTP trailers"
+
+# "option http-drop-request-trailers" and
+# "option http-drop-response-trailers" had no coverage.
+#
+# vtest can send HTTP/1 trailers but cannot parse them, so neither end
+# of the chain may be a vtest HTTP peer when the trailers are expected
+# to be forwarded. The messages leaving the proxy under test are
+# therefore observed at the byte level by two extra haproxy instances
+# running in TCP mode, one on each side, and each of them reports
+# through its log whether the trailer field name is present in what it
+# relayed. This gives a positive assertion for both the dropped and the
+# forwarded case.
+
+feature ignore_unknown_macro
+
+syslog Sreq -level info {
+	recv
+	expect ~ "case=drop trailers=- "
+	recv
+	expect ~ "case=keep trailers=yes "
+} -start
+
+syslog Sres -level info {
+	recv
+	expect ~ "case=drop trailers=- "
+	recv
+	expect ~ "case=keep trailers=yes "
+} -start
+
+# the origin of the request side, which unlike a vtest server accepts
+# trailers
+haproxy horigin -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend origin
+	bind "fd@${origin}"
+	# close after the response so that the TCP session of the observer
+	# ends at once instead of lingering until the client timeout
+	option httpclose
+	http-request return status 200
+} -start
+
+# the origin of the response side, which emits the trailers
+server s2 -repeat 2 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked"
+	send "5\r\nworld\r\n0\r\nx-rtlr1: rvalue1\r\n\r\n"
+} -start
+
+# request side observer, between the proxy and the origin
+haproxy hreq -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	log "${Sreq_addr}:${Sreq_port}" local0 info
+
+    defaults
+	mode tcp
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend sink
+	bind "fd@${sink}"
+	log-format "case=%[var(txn.case)] trailers=%[var(txn.tlr)] bytes=%B"
+
+	# the rules are replayed as the data arrives, the last evaluation
+	# before the delay expires is the one which gets logged
+	tcp-request inspect-delay 100ms
+	tcp-request content set-var(txn.case) str(drop) if { req.payload(0,0) -m sub "/drop" }
+	tcp-request content set-var(txn.case) str(keep) if { req.payload(0,0) -m sub "/keep" }
+	tcp-request content set-var(txn.tlr)  str(yes)  if { req.payload(0,0) -m sub "x-tlr1" }
+
+	default_backend be
+    backend be
+	server origin ${horigin_origin_addr}:${horigin_origin_port}
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # the request side option belongs to the backend
+    frontend fe_req
+	bind "fd@${fereq}"
+	use_backend be_req_drop if { path -m beg /drop }
+	default_backend be_req_keep
+
+    backend be_req_drop
+	option http-drop-request-trailers
+	server origin ${hreq_sink_addr}:${hreq_sink_port}
+
+    backend be_req_keep
+	no option http-drop-request-trailers
+	server origin ${hreq_sink_addr}:${hreq_sink_port}
+
+    # the response side option belongs to the frontend, hence two of them
+    frontend fe_res_drop
+	bind "fd@${feresdrop}"
+	option http-drop-response-trailers
+	default_backend be_res
+
+    frontend fe_res_keep
+	bind "fd@${fereskeep}"
+	default_backend be_res
+
+    backend be_res
+	server s2 ${s2_addr}:${s2_port}
+} -start
+
+# response side observer, between the client and the proxy
+haproxy hres -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	log "${Sres_addr}:${Sres_port}" local0 info
+
+    defaults
+	mode tcp
+	log global
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend sink_drop
+	bind "fd@${sinkdrop}"
+	log-format "case=drop trailers=%[var(txn.rtlr)] bytes=%B"
+	default_backend be_drop
+    backend be_drop
+	tcp-response inspect-delay 100ms
+	tcp-response content set-var(txn.rtlr) str(yes) if { res.payload(0,0) -m sub "x-rtlr1" }
+	server h1 ${h1_feresdrop_addr}:${h1_feresdrop_port}
+
+    frontend sink_keep
+	bind "fd@${sinkkeep}"
+	log-format "case=keep trailers=%[var(txn.rtlr)] bytes=%B"
+	default_backend be_keep
+    backend be_keep
+	tcp-response inspect-delay 100ms
+	tcp-response content set-var(txn.rtlr) str(yes) if { res.payload(0,0) -m sub "x-rtlr1" }
+	server h1 ${h1_fereskeep_addr}:${h1_fereskeep_port}
+} -start
+
+# the request trailers are dropped on their way to the origin
+client c1 -connect ${h1_fereq_sock} {
+	txreq -req POST -url "/drop" -hdr "transfer-encoding: chunked" -nolen
+	send "5\r\nhello\r\n0\r\nx-tlr1: value1\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+} -run
+
+# and forwarded without the option
+client c2 -connect ${h1_fereq_sock} {
+	txreq -req POST -url "/keep" -hdr "transfer-encoding: chunked" -nolen
+	send "5\r\nhello\r\n0\r\nx-tlr1: value1\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+} -run
+
+# the response trailers are dropped, so the message is one vtest can parse
+client c3 -connect ${hres_sinkdrop_sock} {
+	txreq -url "/res"
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 5
+} -run
+
+# here they are forwarded, so only the headers are parsed and the rest
+# is left to the observer
+client c4 -connect ${hres_sinkkeep_sock} {
+	txreq -url "/res"
+	rxresphdrs
+	expect resp.status == 200
+	# "5\r\nworld\r\n" "0\r\n" "x-rtlr1: rvalue1\r\n" "\r\n"
+	recv 33
+} -run
+
+syslog Sreq -wait
+syslog Sres -wait
