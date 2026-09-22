@@ -6,6 +6,10 @@ varnishtest "Test the proxy and server state sample fetches"
 # usable server and one disabled server so that nbsrv() and srv_is_up()
 # have something to distinguish.
 
+# A single thread is used because act_conn and fe_conn are over-counted
+# when several threads accept in parallel on a loaded machine, which
+# would make the connection counters below unpredictable.
+
 feature ignore_unknown_macro
 
 server s1 {
@@ -17,6 +21,7 @@ haproxy h1 -conf {
     global
     .if feature(THREAD)
         thread-groups 1
+        nbthread 1
     .endif
         chroot /
 
