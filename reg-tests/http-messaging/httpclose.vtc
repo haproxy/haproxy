@@ -1,0 +1,215 @@
+varnishtest "Test the option httpclose"
+
+# "option httpclose" only appeared in other tests as a way to get rid of
+# the idle connections, its own behavior was never checked. It closes
+# the connection of the side it is declared on, the frontend for the
+# client one and the backend for the server one, a listener counting for
+# both, and it adds a "Connection: close" header in that direction if
+# there is none.
+#
+# Whether the client connection was closed is directly observable, and
+# whether the server one was is reported by bc_reused: a connection
+# which was closed cannot be reused by the next request, so the fetch
+# stays at zero. The backends which are expected to reuse their
+# connection ask for "http-reuse always" and the process is pinned to a
+# single thread since the idle connections are per thread.
+
+feature ignore_unknown_macro
+
+# fe1: only the client connection is closed, the server one is reused by
+# the second client, hence a single connection serving two requests
+server s1 {
+	rxreq
+	expect req.http.connection == "<undef>"
+	txresp
+	rxreq
+	expect req.http.connection == "<undef>"
+	txresp
+} -start
+
+# be2: only the server connection is closed, and the request carries the
+# header, hence one connection per request
+server s2 {
+	rxreq
+	expect req.http.connection == "close"
+	txresp
+} -repeat 2 -start
+
+# fe3 is a listener, so both sides are closed
+server s3 {
+	rxreq
+	expect req.http.connection == "close"
+	txresp
+} -repeat 2 -start
+
+# be4 adds "http-pretend-keepalive": the server must not see the header
+# although its connection is closed once the response is received
+server s4 {
+	rxreq
+	expect req.http.connection == "<undef>"
+	txresp
+} -repeat 2 -start
+
+# fe5 and be5 undo the option inherited from their defaults section, so
+# both sides stay in keep-alive
+server s5 {
+	rxreq
+	txresp
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	nbthread 1
+
+    defaults common
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	http-reuse always
+
+    # the same, with the option, for the two proxies which undo it
+    defaults closing
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	http-reuse always
+	option httpclose
+
+    frontend fe1 from common
+	bind "fd@${fe1}"
+	option httpclose
+	default_backend be1
+
+    backend be1 from common
+	http-after-response set-header x-reused "%[bc_reused]"
+	server s1 ${s1_addr}:${s1_port}
+
+    frontend fe2 from common
+	bind "fd@${fe2}"
+	default_backend be2
+
+    backend be2 from common
+	option httpclose
+	http-after-response set-header x-reused "%[bc_reused]"
+	server s2 ${s2_addr}:${s2_port}
+
+    listen fe3 from common
+	bind "fd@${fe3}"
+	option httpclose
+	http-after-response set-header x-reused "%[bc_reused]"
+	server s3 ${s3_addr}:${s3_port}
+
+    frontend fe4 from common
+	bind "fd@${fe4}"
+	default_backend be4
+
+    backend be4 from common
+	option httpclose
+	option http-pretend-keepalive
+	http-after-response set-header x-reused "%[bc_reused]"
+	server s4 ${s4_addr}:${s4_port}
+
+    # these two inherit the option and undo it
+    frontend fe5 from closing
+	bind "fd@${fe5}"
+	no option httpclose
+	default_backend be5
+
+    backend be5 from closing
+	no option httpclose
+	http-after-response set-header x-reused "%[bc_reused]"
+	server s5 ${s5_addr}:${s5_port}
+} -start
+
+# the option is on the frontend: the response announces the close, the
+# client connection is closed, and the server connection is not
+client c1a -connect ${h1_fe1_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "close"
+	expect resp.http.x-reused == "0"
+	expect_close
+} -run
+
+client c1b -connect ${h1_fe1_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "close"
+	# the server connection of the previous client was left intact
+	expect resp.http.x-reused == "1"
+	expect_close
+} -run
+
+# the option is on the backend: the client connection survives two
+# requests while each of them gets a new server connection
+client c2 -connect ${h1_fe2_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "<undef>"
+	expect resp.http.x-reused == "0"
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "<undef>"
+	expect resp.http.x-reused == "0"
+} -run
+
+# a listener closes both sides
+client c3a -connect ${h1_fe3_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "close"
+	expect resp.http.x-reused == "0"
+	expect_close
+} -run
+
+client c3b -connect ${h1_fe3_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "close"
+	# the server connection was closed too, so there is nothing to reuse
+	expect resp.http.x-reused == "0"
+	expect_close
+} -run
+
+# "http-pretend-keepalive" only hides the header from the server
+client c4 -connect ${h1_fe4_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-reused == "0"
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-reused == "0"
+} -run
+
+# "no option httpclose" restores the keep-alive on both sides
+client c5 -connect ${h1_fe5_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "<undef>"
+	expect resp.http.x-reused == "0"
+
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.connection == "<undef>"
+	expect resp.http.x-reused == "1"
+} -run
