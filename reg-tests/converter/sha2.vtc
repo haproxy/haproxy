@@ -4,16 +4,25 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 
 feature ignore_unknown_macro
 
+# Both requests of the client below travel on the same connection, so
+# the server keeps its own connection open for the two of them. Serving
+# them in two iterations would close it after the first response, right
+# when the second request is sent over the connection haproxy reuses,
+# and the client would get a close instead of a response.
 server s1 {
 	rxreq
 	txresp
-} -repeat 2 -start
+
+	rxreq
+	txresp
+} -start
 
 haproxy h1 -conf {
     global
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
     defaults
 	mode http
