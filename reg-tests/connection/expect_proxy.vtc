@@ -63,9 +63,9 @@ client c2 -connect ${h1_fe1_sock} {
 } -run
 
 client c3 -connect ${h1_fe1_sock} {
-	# a malformed header is rejected as well
+	# a malformed header is rejected as soon as its line is complete, so
+	# nothing else is sent here: the request would race with the reset
 	send "PROXY TCP4 not an address at all\r\n"
-	txreq
 	expect_close
 } -run
 
