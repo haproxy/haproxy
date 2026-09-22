@@ -34,6 +34,9 @@ haproxy h1 -conf {
     frontend fe
 	bind "fd@${fe}"
 	id 11
+	# an explicit value so that fe_tarpit_timeout has something to
+	# report other than the "timeout connect" it defaults to
+	timeout tarpit 1234ms
 
 	# proxy identifiers and names
 	http-response set-header x-feid       "%[fe_id]"
@@ -81,6 +84,7 @@ haproxy h1 -conf {
 	http-response set-header x-stopping   "%[stopping]"
 	http-response set-header x-uptime     "%[uptime]"
 	http-response set-header x-cltimeout  "%[fe_client_timeout]"
+	http-response set-header x-tptimeout  "%[fe_tarpit_timeout]"
 
 	default_backend be
 
@@ -147,4 +151,5 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.x-stopping   == "0"
 	expect resp.http.x-uptime     ~  "^[0-9]+$"
 	expect resp.http.x-cltimeout  ~  "^[0-9]+$"
+	expect resp.http.x-tptimeout  == "1234"
 } -run
