@@ -20,6 +20,11 @@ varnishtest "Test the ungrpc converter"
 #
 # that is 27 bytes, prefixed by the gRPC header "00 0000001b": one byte
 # telling the message is not compressed and its length over four bytes.
+#
+# Two other messages are sent to the second and third frontends below,
+# one exercising every field type the converter accepts as its second
+# argument, the other one made of two gRPC messages so that the loop
+# looking for the field in the next message is covered as well.
 
 feature ignore_unknown_macro
 
@@ -74,6 +79,100 @@ haproxy h1 -conf {
 	http-after-response set-header x-eq2   "%[var(txn.eq2)]"
 	http-after-response set-header x-eq3   "%[var(txn.eq3)]"
 	http-after-response set-header x-miss  "%[var(txn.miss)]"
+
+    # Every type accepted as the second argument of the converter, on the
+    # message below, whose fields are numbered after the type they hold:
+    #
+    #   1  string   "hello"      0a 05 "hello"
+    #   2  int32    -1           10 ffffffffffffffffff01
+    #   3  uint32   4294967295   18 ffffffff0f
+    #   4  int64    1234567890123        20 cb89ec8ff723
+    #   5  uint64   4294967296   28 8080808010
+    #   6  sint32   -3           30 05           (zigzag)
+    #   7  sint64   -2147483649  38 8180808010   (zigzag)
+    #   8  bool     true         40 01
+    #   9  enum     2            48 02
+    #   10 fixed32  0xdeadbeef   55 efbeadde     (little endian)
+    #   11 sfixed32 -2           5d feffffff
+    #   12 float    1.5          65 0000c03f
+    #   13 fixed64  0x0102030405060708   69 0807060504030201
+    #   14 sfixed64 -2           71 feffffffffffffff
+    #   15 double   2.5          79 0000000000000440
+    #
+    # that is 91 bytes, hence the "00 0000005b" gRPC header.
+    frontend fe2
+	bind "fd@${fe2}"
+	option http-buffer-request
+	http-request wait-for-body time "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	http-request set-var(txn.t01) req.body,ungrpc(1)
+	http-request set-var(txn.t02) req.body,ungrpc(2,int32)
+	http-request set-var(txn.t03) req.body,ungrpc(3,uint32)
+	http-request set-var(txn.t04) req.body,ungrpc(4,int64)
+	http-request set-var(txn.t05) req.body,ungrpc(5,uint64)
+	http-request set-var(txn.t06) req.body,ungrpc(6,sint32)
+	http-request set-var(txn.t07) req.body,ungrpc(7,sint64)
+	http-request set-var(txn.t08) req.body,ungrpc(8,bool)
+	http-request set-var(txn.t09) req.body,ungrpc(9,enum)
+	http-request set-var(txn.t10) req.body,ungrpc(10,fixed32)
+	http-request set-var(txn.t11) req.body,ungrpc(11,sfixed32)
+	http-request set-var(txn.t12) req.body,ungrpc(12,float)
+	http-request set-var(txn.t13) req.body,ungrpc(13,fixed64)
+	http-request set-var(txn.t14) req.body,ungrpc(14,sfixed64)
+	http-request set-var(txn.t15) req.body,ungrpc(15,double)
+
+	# without a type, the value is returned as it is encoded: the bytes
+	# of the varint for a varint, the 8 raw bytes for a 64 bit field
+	http-request set-var(txn.b09) req.body,ungrpc(9),hex
+	http-request set-var(txn.b13) req.body,ungrpc(13),hex
+
+	# a type which does not match the wire type of the field returns
+	# nothing, in either direction
+	http-request set-var(txn.m1)  req.body,ungrpc(1,int32)
+	http-request set-var(txn.m2)  req.body,ungrpc(2,fixed32)
+	http-request set-var(txn.m3)  req.body,ungrpc(10,int32)
+
+	http-request return status 200
+
+	http-after-response set-header x-t01 "%[var(txn.t01)]"
+	http-after-response set-header x-t02 "%[var(txn.t02)]"
+	http-after-response set-header x-t03 "%[var(txn.t03)]"
+	http-after-response set-header x-t04 "%[var(txn.t04)]"
+	http-after-response set-header x-t05 "%[var(txn.t05)]"
+	http-after-response set-header x-t06 "%[var(txn.t06)]"
+	http-after-response set-header x-t07 "%[var(txn.t07)]"
+	http-after-response set-header x-t08 "%[var(txn.t08)]"
+	http-after-response set-header x-t09 "%[var(txn.t09)]"
+	http-after-response set-header x-t10 "%[var(txn.t10)]"
+	http-after-response set-header x-t11 "%[var(txn.t11)]"
+	http-after-response set-header x-t12 "%[var(txn.t12)]"
+	http-after-response set-header x-t13 "%[var(txn.t13)]"
+	http-after-response set-header x-t14 "%[var(txn.t14)]"
+	http-after-response set-header x-t15 "%[var(txn.t15)]"
+	http-after-response set-header x-b09 "%[var(txn.b09)]"
+	http-after-response set-header x-b13 "%[var(txn.b13)]"
+	http-after-response set-header x-m1  "%[var(txn.m1)]"
+	http-after-response set-header x-m2  "%[var(txn.m2)]"
+	http-after-response set-header x-m3  "%[var(txn.m3)]"
+
+    # a body made of two gRPC messages, "00 00000005 0a03616161" holding
+    # the string field 1 and "00 00000002 1007" holding the varint field
+    # 2: the converter has to walk over the first message to find the
+    # field of the second one.
+    frontend fe3
+	bind "fd@${fe3}"
+	option http-buffer-request
+	http-request wait-for-body time "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	http-request set-var(txn.g1)  req.body,ungrpc(1)
+	http-request set-var(txn.g2)  req.body,ungrpc(2,int32)
+	http-request set-var(txn.g3)  req.body,ungrpc(3,int32)
+
+	http-request return status 200
+
+	http-after-response set-header x-g1 "%[var(txn.g1)]"
+	http-after-response set-header x-g2 "%[var(txn.g2)]"
+	http-after-response set-header x-g3 "%[var(txn.g3)]"
 } -start
 
 client c1 -connect ${h1_fe_sock} {
@@ -91,4 +190,45 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.x-eq2   == "7"
 	expect resp.http.x-eq3   == "7"
 	expect resp.http.x-miss  == ""
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txreq -req POST -url "/" -hdr "content-length: 96" -nolen
+	sendhex "00 0000005b"
+	sendhex "0a0568656c6c6f 10ffffffffffffffffff01 18ffffffff0f 20cb89ec8ff723 288080808010 3005 388180808010 4001 4802"
+	sendhex "55efbeadde 5dfeffffff 650000c03f 69080706050403020171feffffffffffffff 790000000000000440"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-t01 == "hello"
+	expect resp.http.x-t02 == "-1"
+	expect resp.http.x-t03 == "4294967295"
+	expect resp.http.x-t04 == "1234567890123"
+	expect resp.http.x-t05 == "4294967296"
+	expect resp.http.x-t06 == "-3"
+	expect resp.http.x-t07 == "-2147483649"
+	expect resp.http.x-t08 == "1"
+	expect resp.http.x-t09 == "2"
+	expect resp.http.x-t10 == "3735928559"
+	expect resp.http.x-t11 == "-2"
+	# the fractional part of a float or a double is lost, the value is
+	# always returned as an integer
+	expect resp.http.x-t12 == "1"
+	expect resp.http.x-t13 == "72623859790382856"
+	expect resp.http.x-t14 == "-2"
+	expect resp.http.x-t15 == "2"
+	expect resp.http.x-b09 == "02"
+	expect resp.http.x-b13 == "0807060504030201"
+	expect resp.http.x-m1  == ""
+	expect resp.http.x-m2  == ""
+	expect resp.http.x-m3  == ""
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+	txreq -req POST -url "/" -hdr "content-length: 17" -nolen
+	sendhex "00 00000005 0a03616161 00 00000002 1007"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-g1 == "aaa"
+	expect resp.http.x-g2 == "7"
+	expect resp.http.x-g3 == ""
 } -run
