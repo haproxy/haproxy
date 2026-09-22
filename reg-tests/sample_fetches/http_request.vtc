@@ -68,7 +68,15 @@ haproxy h1 -conf {
 	# the source address to the hash and return a binary block
 	http-request set-var(txn.x_base32) base32
 	http-request set-var(txn.x_base32src) base32+src,hex,lower
+	http-request set-var(txn.x_adate) accept_date
 	http-request set-var(txn.x_url32) url32
+	# request_date is the accept date plus the handshake and idle times,
+	# so it cannot be earlier than the accept date. The difference is
+	# expected to be zero here since the request follows the accept
+	# immediately.
+	http-request set-var(txn.x_rdate) request_date
+	http-request set-var(txn.x_rdiff) request_date,sub(txn.x_adate)
+	http-request set-var(txn.x_rdms)  request_date(ms)
 	http-request set-var(txn.x_url32src) url32+src,hex,lower
 	http-request set-var(txn.x_bodylen) req.body_len
 	http-request set-var(txn.x_bodysize) req.body_size
@@ -107,6 +115,9 @@ haproxy h1 -conf {
 	http-response set-header x-base32 "%[var(txn.x_base32)]"
 	http-response set-header x-base32src "%[var(txn.x_base32src)]"
 	http-response set-header x-url32 "%[var(txn.x_url32)]"
+	http-response set-header x-rdate "%[var(txn.x_rdate)]"
+	http-response set-header x-rdiff "%[var(txn.x_rdiff)]"
+	http-response set-header x-rdms "%[var(txn.x_rdms)]"
 	http-response set-header x-url32src "%[var(txn.x_url32src)]"
 	http-response set-header x-bodylen "%[var(txn.x_bodylen)]"
 	http-response set-header x-bodysize "%[var(txn.x_bodysize)]"
@@ -172,6 +183,10 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.x-base32     ~  "^[0-9]+$"
 	expect resp.http.x-base32src  ~  "^[0-9a-f]{16}$"
 	expect resp.http.x-url32      ~  "^[0-9]+$"
+	# ten digits until 2286, thirteen for the millisecond unit
+	expect resp.http.x-rdate      ~  "^1[0-9]{9}$"
+	expect resp.http.x-rdms       ~  "^1[0-9]{12}$"
+	expect resp.http.x-rdiff      == "0"
 	expect resp.http.x-url32src   ~  "^[0-9a-f]{16}$"
 
 	expect resp.http.x-bodylen    == "21"
