@@ -14,10 +14,25 @@ varnishtest "Test the transaction state fetches and the logging actions"
 
 feature ignore_unknown_macro
 
+# The four requests which reach the server are served on a single
+# connection. A server closing after each response would close it just
+# as the client sends its next request over the same connection, which
+# haproxy reuses, and the client then gets a close instead of a
+# response. That made this test fail when the whole suite runs with
+# "--j 32".
 server s1 {
 	rxreq
 	txresp
-} -repeat 4 -start
+
+	rxreq
+	txresp
+
+	rxreq
+	txresp
+
+	rxreq
+	txresp
+} -start
 
 # vtest's syslog server only matches the messages emitted at its own
 # level, so two of them are needed to observe the effect of
