@@ -4,10 +4,11 @@ varnishtest "Test the connection retries, retry-on and option redispatch"
 # txn.conn_retries and txn.redispatched fetches which report their
 # effect were not covered either.
 #
-# Three backends are used: one whose only server is unreachable, one
+# Four backends are used: one whose only server is unreachable, one
 # which redispatches to a healthy server after the first attempt fails,
-# and one which retries at the HTTP layer when the server answers with a
-# 503.
+# one which retries at the HTTP layer when the server answers with a
+# 503, and a copy of the latter where the "disable-l7-retry" action
+# cancels that retry.
 
 feature ignore_unknown_macro
 
@@ -24,6 +25,11 @@ server s2 {
 server s3 {
 	rxreq
 	txresp -hdr "x-second: yes"
+} -start
+
+server s4 {
+	rxreq
+	txresp -status 503
 } -start
 
 haproxy h1 -conf {
@@ -43,6 +49,7 @@ haproxy h1 -conf {
 	bind "fd@${fe}"
 	use_backend redisp if { path /redisp }
 	use_backend l7     if { path /l7 }
+	use_backend nol7   if { path /nol7 }
 	default_backend dead
 
 	http-after-response set-header x-retries "%[txn.conn_retries]"
@@ -74,6 +81,17 @@ haproxy h1 -conf {
 	option redispatch
 	server bad ${s2_addr}:${s2_port}
 	server good ${s3_addr}:${s3_port}
+
+    # same, but an http-request rule disables the L7 retry, so the 503 is
+    # delivered as it is and the second server is never contacted
+    backend nol7
+	balance first
+	retries 1
+	retry-on 503
+	option redispatch
+	http-request disable-l7-retry
+	server bad ${s4_addr}:${s4_port}
+	server good ${s3_addr}:${s3_port}
 } -start
 
 client c1 -connect ${h1_fe_sock} {
@@ -103,4 +121,14 @@ client c3 -connect ${h1_fe_sock} {
 	expect resp.http.x-second  == "yes"
 	expect resp.http.x-retries == "1"
 	expect resp.http.x-redisp  == "1"
+} -run
+
+client c4 -connect ${h1_fe_sock} {
+	# "disable-l7-retry" leaves the 503 of the first server untouched
+	txreq -url "/nol7"
+	rxresp
+	expect resp.status == 503
+	expect resp.http.x-second  == "<undef>"
+	expect resp.http.x-retries == "0"
+	expect resp.http.x-redisp  == "0"
 } -run
