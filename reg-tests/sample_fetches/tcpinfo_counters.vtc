@@ -1,0 +1,50 @@
+#EXCLUDE_TARGETS=osx,generic
+varnishtest "Test the TCP_INFO counters of the client connection"
+
+# fc_unacked, fc_sacked, fc_lost, fc_retrans, fc_fackets and
+# fc_reordering had no coverage. They report the counters of the
+# TCP_INFO structure of the client connection, so their value depends
+# on what happened on the network and only their presence and their
+# type can be checked. fc_fackets, fc_sacked and fc_reordering do not
+# exist on macOS and none of them exists without TCP_INFO, hence the
+# excluded targets above, which reg-tests/sample_fetches/tcpinfo_rtt.vtc
+# does not need for fc_rtt and fc_rttvar alone.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	http-request return status 200
+	http-after-response set-header x-unacked    "%[fc_unacked]"
+	http-after-response set-header x-sacked     "%[fc_sacked]"
+	http-after-response set-header x-lost       "%[fc_lost]"
+	http-after-response set-header x-retrans    "%[fc_retrans]"
+	http-after-response set-header x-fackets    "%[fc_fackets]"
+	http-after-response set-header x-reordering "%[fc_reordering]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-unacked    ~ "^[0-9]+$"
+	expect resp.http.x-sacked     ~ "^[0-9]+$"
+	expect resp.http.x-lost       ~ "^[0-9]+$"
+	expect resp.http.x-retrans    ~ "^[0-9]+$"
+	expect resp.http.x-fackets    ~ "^[0-9]+$"
+	# the reordering threshold has a non-zero default on Linux
+	expect resp.http.x-reordering ~ "^[0-9]+$"
+} -run
