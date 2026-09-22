@@ -1,0 +1,183 @@
+#REGTEST_TYPE=devel
+
+varnishtest "Test the ssl_fc_* and ssl_bc_* connection sample fetches"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(wolfSSL) && !ssllib_name_startswith(LibreSSL) && openssl_version_atleast(1.1.1)'"
+feature ignore_unknown_macro
+
+# The existing SSL tests cover the certificate fetches (ssl_f_*, ssl_c_*
+# and ssl_s_*) but almost none of the ones describing the connection
+# itself. This test chains a clear frontend to an SSL backend and an SSL
+# frontend so that both families are read on the same exchange: the
+# ssl_bc_* ones from the client side of the SSL connection and the
+# ssl_fc_* ones from its server side.
+#
+# The first pair pins the version to TLSv1.2 so that the negotiated
+# parameters and the fetches which only exist below TLSv1.3, such as the
+# session key, are the same everywhere. A second pair pins TLSv1.3 to
+# reach the fetches which only exist there: the supported_versions
+# extension and the traffic secrets.
+
+server s1 -repeat 4 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        # needed by the ssl_fc_*list_bin and ssl_fc_cipherlist_* fetches
+        tune.ssl.capture-buffer-size 512
+        # needed by the session key and random fetches
+        tune.ssl.keylog on
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+
+        # the client side of the SSL connection
+        http-response set-header x-bc          "%[ssl_bc]"
+        http-response set-header x-bc-alpn     "%[ssl_bc_alpn]"
+        http-response set-header x-bc-cipher   "%[ssl_bc_cipher]"
+        http-response set-header x-bc-protocol "%[ssl_bc_protocol]"
+        http-response set-header x-bc-algks    "%[ssl_bc_alg_keysize]"
+        http-response set-header x-bc-useks    "%[ssl_bc_use_keysize]"
+        http-response set-header x-bc-sni      "%[ssl_bc_sni]"
+        http-response set-header x-bc-resumed  "%[ssl_bc_is_resumed]"
+        http-response set-header x-bc-sessid   "%[ssl_bc_session_id,hex]"
+        http-response set-header x-bc-uniqid   "%[ssl_bc_unique_id,hex]"
+        http-response set-header x-bc-crand    "%[ssl_bc_client_random,hex]"
+        http-response set-header x-bc-srand    "%[ssl_bc_server_random,hex]"
+        http-response set-header x-bc-key      "%[ssl_bc_session_key,hex]"
+
+        server s1 "${h1_ssl_addr}:${h1_ssl_port}" ssl verify none alpn http/1.1 sni str(www.test1.com) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2
+
+    listen ssl-lst
+        bind "fd@${ssl}" ssl crt ${testdir}/certs/common.pem alpn h2,http/1.1 ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2
+
+        # the server side of the same connection
+        http-response set-header x-fc          "%[ssl_fc]"
+        http-response set-header x-fc-alpn     "%[ssl_fc_alpn]"
+        http-response set-header x-fc-cipher   "%[ssl_fc_cipher]"
+        http-response set-header x-fc-protocol "%[ssl_fc_protocol]"
+        http-response set-header x-fc-hello-id "%[ssl_fc_protocol_hello_id]"
+        http-response set-header x-fc-algks    "%[ssl_fc_alg_keysize]"
+        http-response set-header x-fc-useks    "%[ssl_fc_use_keysize]"
+        http-response set-header x-fc-has-sni  "%[ssl_fc_has_sni]"
+        http-response set-header x-fc-sni      "%[ssl_fc_sni]"
+        http-response set-header x-fc-has-crt  "%[ssl_fc_has_crt]"
+        http-response set-header x-fc-crtname  "%[ssl_fc_crtname]"
+        http-response set-header x-fc-resumed  "%[ssl_fc_is_resumed]"
+        http-response set-header x-fc-early    "%[ssl_fc_has_early]"
+        http-response set-header x-fc-sessid   "%[ssl_fc_session_id,hex]"
+        http-response set-header x-fc-uniqid   "%[ssl_fc_unique_id,hex]"
+        http-response set-header x-fc-crand    "%[ssl_fc_client_random,hex]"
+        http-response set-header x-fc-srand    "%[ssl_fc_server_random,hex]"
+        http-response set-header x-fc-key      "%[ssl_fc_session_key,hex]"
+
+        # the captured client hello, which needs tune.ssl.capture-buffer-size
+        http-response set-header x-fc-cl-str   "%[ssl_fc_cipherlist_str]"
+        http-response set-header x-fc-cl-hex   "%[ssl_fc_cipherlist_hex]"
+        http-response set-header x-fc-cl-bin   "%[ssl_fc_cipherlist_bin,hex]"
+        http-response set-header x-fc-cl-xxh   "%[ssl_fc_cipherlist_xxh]"
+        http-response set-header x-fc-eclist   "%[ssl_fc_eclist_bin,hex]"
+        http-response set-header x-fc-ecfmt    "%[ssl_fc_ecformats_bin,hex]"
+        http-response set-header x-fc-extlist  "%[ssl_fc_extlist_bin,hex]"
+        http-response set-header x-fc-sigalgs  "%[ssl_fc_sigalgs_bin,hex]"
+        http-response set-header x-fc-versions "%[ssl_fc_supported_versions_bin,hex]"
+
+        server s1 ${s1_addr}:${s1_port}
+
+    listen clear13-lst
+        bind "fd@${clear13lst}"
+
+        http-response set-header x-bc13-protocol "%[ssl_bc_protocol]"
+        http-response set-header x-bc13-secrets  "%[ssl_bc_client_handshake_traffic_secret,hex] %[ssl_bc_server_handshake_traffic_secret,hex] %[ssl_bc_client_traffic_secret_0,hex] %[ssl_bc_server_traffic_secret_0,hex] %[ssl_bc_exporter_secret,hex]"
+
+        server s1 "${h1_ssl13_addr}:${h1_ssl13_port}" ssl verify none alpn http/1.1 ssl-min-ver TLSv1.3 ssl-max-ver TLSv1.3
+
+    listen ssl13-lst
+        bind "fd@${ssl13}" ssl crt ${testdir}/certs/common.pem alpn http/1.1 ssl-min-ver TLSv1.3 ssl-max-ver TLSv1.3
+
+        http-response set-header x-fc13-protocol "%[ssl_fc_protocol]"
+        http-response set-header x-fc13-versions "%[ssl_fc_supported_versions_bin,hex]"
+        http-response set-header x-fc13-secrets  "%[ssl_fc_client_handshake_traffic_secret,hex] %[ssl_fc_server_handshake_traffic_secret,hex] %[ssl_fc_client_traffic_secret_0,hex] %[ssl_fc_server_traffic_secret_0,hex] %[ssl_fc_exporter_secret,hex]"
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+
+    # backend connection
+    expect resp.http.x-bc          == "1"
+    expect resp.http.x-bc-alpn     == "http/1.1"
+    expect resp.http.x-bc-protocol == "TLSv1.2"
+    expect resp.http.x-bc-cipher   ~  "^[A-Za-z0-9_-]+$"
+    expect resp.http.x-bc-algks    ~  "^[0-9]+$"
+    expect resp.http.x-bc-useks    ~  "^[0-9]+$"
+    expect resp.http.x-bc-sni      == "www.test1.com"
+    expect resp.http.x-bc-resumed  == "0"
+    expect resp.http.x-bc-sessid   ~  "^[0-9A-F]+$"
+    expect resp.http.x-bc-uniqid   ~  "^[0-9A-F]+$"
+    expect resp.http.x-bc-crand    ~  "^[0-9A-F]{64}$"
+    expect resp.http.x-bc-srand    ~  "^[0-9A-F]{64}$"
+    expect resp.http.x-bc-key      ~  "^[0-9A-F]{96}$"
+
+    # frontend connection, seen from the other end of the same handshake
+    expect resp.http.x-fc          == "1"
+    expect resp.http.x-fc-alpn     == "http/1.1"
+    expect resp.http.x-fc-protocol == "TLSv1.2"
+    expect resp.http.x-fc-hello-id ~  "^[0-9]+$"
+    expect resp.http.x-fc-cipher   == resp.http.x-bc-cipher
+    expect resp.http.x-fc-algks    == resp.http.x-bc-algks
+    expect resp.http.x-fc-useks    == resp.http.x-bc-useks
+    expect resp.http.x-fc-has-sni  == "1"
+    expect resp.http.x-fc-sni      == "www.test1.com"
+    expect resp.http.x-fc-crtname  ~  "common[.]pem$"
+    expect resp.http.x-fc-resumed  == "0"
+    # on the frontend side the session id is the one the client proposed,
+    # which is empty on a connection which is not being resumed
+    expect resp.http.x-fc-sessid   == ""
+    expect resp.http.x-fc-uniqid   ~  "^[0-9A-F]+$"
+    expect resp.http.x-fc-crand    == resp.http.x-bc-crand
+    expect resp.http.x-fc-srand    == resp.http.x-bc-srand
+    expect resp.http.x-fc-key      == resp.http.x-bc-key
+
+    # the captured ClientHello
+    expect resp.http.x-fc-cl-bin   ~  "^[0-9A-F]+$"
+    expect resp.http.x-fc-cl-hex   == resp.http.x-fc-cl-bin
+    expect resp.http.x-fc-cl-str   ~  "^[A-Za-z0-9_-]"
+    expect resp.http.x-fc-cl-xxh   ~  "^[-0-9]+$"
+    expect resp.http.x-fc-extlist  ~  "^[0-9A-F]+$"
+    expect resp.http.x-fc-sigalgs  ~  "^[0-9A-F]+$"
+    expect resp.http.x-fc-eclist   ~  "^[0-9A-F]+$"
+    expect resp.http.x-fc-ecfmt    ~  "^[0-9A-F]+$"
+    # a TLSv1.2 client does not send the supported_versions extension
+    expect resp.http.x-fc-versions == ""
+} -run
+
+client c2 -connect ${h1_clear13lst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-bc13-protocol == "TLSv1.3"
+    expect resp.http.x-fc13-protocol == "TLSv1.3"
+    # 0304 is TLSv1.3, possibly preceded by the GREASE value of the client
+    expect resp.http.x-fc13-versions ~  "0304"
+    # the five secrets are exported on both ends and must match
+    expect resp.http.x-fc13-secrets  ~  "^[0-9A-F]+ [0-9A-F]+ [0-9A-F]+ [0-9A-F]+ [0-9A-F]+$"
+    expect resp.http.x-bc13-secrets  == resp.http.x-fc13-secrets
+} -run
