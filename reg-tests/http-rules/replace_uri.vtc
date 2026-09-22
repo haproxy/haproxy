@@ -65,36 +65,49 @@ haproxy h1 -conf {
 	server s1 ${s1_addr}:${s1_port}
 } -start
 
-client c1 -connect ${h1_fe_sock} {
+# Each request gets its own connection: the server closes after every
+# response, and a second request sent over the connection haproxy
+# reuses would race with that close.
+client c1a -connect ${h1_fe_sock} {
 	# origin form, the whole target is prefixed
 	txreq -url "/bar?t=prefix"
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-url == "/pfx/bar?t=prefix"
+} -run
 
+client c1b -connect ${h1_fe_sock} {
 	# absolute form, the scheme and the authority are preserved
 	txreq -url "http://www.example.com/bar?t=prefix" -hdr "Host: www.example.com"
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-url == "http://www.example.com/pfx/bar?t=prefix"
+} -run
 
+client c1c -connect ${h1_fe_sock} {
 	# the scheme itself may be rewritten
 	txreq -url "http://www.example.com/bar?t=scheme" -hdr "Host: www.example.com"
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-url == "https://www.example.com/bar?t=scheme"
+} -run
 
+client c1d -connect ${h1_fe_sock} {
 	txreq -url "/bar?t=nomatch"
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-url == "/bar?t=nomatch"
+} -run
 
+client c1e -connect ${h1_fe_sock} {
 	# replace-path ignores the query string, replace-pathq includes it
 	txreq -url "/bar?t=path"
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-url == "/rp/bar?t=path"
+} -run
 
+client c1f -connect ${h1_fe_sock} {
 	txreq -url "/bar?t=pathq"
 	rxresp
 	expect resp.status == 200
