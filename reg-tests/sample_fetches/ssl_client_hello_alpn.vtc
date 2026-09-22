@@ -1,0 +1,113 @@
+varnishtest "Test the req.ssl_alpn fetch on a raw TLS ClientHello"
+
+# req.ssl_alpn is the last fetch of the raw ClientHello family which had
+# no coverage of its own: it is only used as a condition in
+# reg-tests/checks/tcp-check-ssl.vtc. It differs from its neighbours by
+# returning one sample per protocol name of the ALPN extension, so that
+# only the first one is seen by a converter or a log-format while an ACL
+# matches any of them.
+#
+# As for the other tests of this family, the ClientHellos are crafted by
+# hand since the fetch parses the raw request buffer of a TCP proxy and
+# not the contents deciphered by an SSL data layer.
+
+feature ignore_unknown_macro
+
+syslog S1 -level info {
+	# two protocol names, the first one is the returned sample, both
+	# are matched by the ACL
+	recv
+	expect ~ "alpn=h2 h2=1 h11=1 acme=-$"
+	# a single name, as in the "acme-tls/1" example of the doc
+	recv
+	expect ~ "alpn=acme-tls/1 h2=- h11=- acme=1$"
+	# no ALPN extension at all
+	recv
+	expect ~ "alpn=- h2=- h11=- acme=-$"
+	# an ALPN extension too short to hold a name
+	recv
+	expect ~ "alpn=- h2=- h11=- acme=-$"
+	# a name longer than the extension which holds it
+	recv
+	expect ~ "alpn=- h2=- h11=- acme=-$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	nbthread 1
+
+    defaults
+	mode tcp
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+	bind "fd@${fe1}"
+	log ${S1_addr}:${S1_port} local0
+	log-format "alpn=%[var(txn.a)] h2=%[var(txn.h2)] h11=%[var(txn.h11)] acme=%[var(txn.acme)]"
+
+	tcp-request inspect-delay 100ms
+	# a log-format or a converter only sees the first protocol name
+	tcp-request content set-var(txn.a)    req.ssl_alpn
+	# while an ACL matches any of them
+	tcp-request content set-var(txn.h2)   int(1) if { req.ssl_alpn h2 }
+	tcp-request content set-var(txn.h11)  int(1) if { req.ssl_alpn http/1.1 }
+	tcp-request content set-var(txn.acme) int(1) if { req.ssl_alpn acme-tls/1 }
+	tcp-request content reject
+} -start
+
+# The ClientHellos share the 43-byte body of the other ClientHello tests:
+#   16 03 01 LL LL    TLS record: handshake, TLSv1.0
+#   01 00 00 LL       Handshake: ClientHello
+#   03 03             client_version, TLSv1.2
+#   00 .. 1f          Random[32]
+#   00                session_id_len = 0
+#   00 02 13 02       cipher_len = 2, one cipher suite
+#   01 00             compression_len = 1, method 0
+#   LL LL             extensions_len
+# and only differ by the extensions which follow.
+
+# server_name, then an ALPN (0010) advertising "h2" and "http/1.1":
+#   0010 000e          extension ALPN, 14 bytes
+#   000c               protocol_names_len
+#   02 6832            "h2"
+#   08 687474702f312e31    "http/1.1"
+client c1 -connect ${h1_fe1_sock} {
+	sendhex "160301 0059 01000055 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 002a 00000014001200000f 7777772e6578616d706c652e636f6d 0010000e000c026832 08687474702f312e31"
+	expect_close
+} -run
+
+# a single "acme-tls/1" name
+client c2 -connect ${h1_fe1_sock} {
+	sendhex "160301 0040 0100003c 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 0011 0010000d000b 0a61636d652d746c732f31"
+	expect_close
+} -run
+
+# a single unrelated extension (renegotiation_info): no ALPN
+client c3 -connect ${h1_fe1_sock} {
+	sendhex "160301 0034 01000030 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 0005 ff01000100"
+	expect_close
+} -run
+
+# an ALPN extension whose body is only the 2-byte list length: it cannot
+# hold a name, and the fetch must give up rather than read the next
+# extension header as a name length.
+client c4 -connect ${h1_fe1_sock} {
+	sendhex "160301 003a 01000036 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 000b 00100002 0000 ff01000100"
+	expect_close
+} -run
+
+# an ALPN extension announcing a 32-byte name while only 2 bytes of it
+# fit in the extension: the name must not be read from the 32 0xaa bytes
+# of the extension which follows.
+client c5 -connect ${h1_fe1_sock} {
+	sendhex "160301 005c 01000058 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 002d 00100005 0003 20 6832 ff010020 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	expect_close
+} -run
+
+syslog S1 -wait
