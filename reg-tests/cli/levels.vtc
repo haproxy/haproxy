@@ -1,0 +1,86 @@
+varnishtest "Test the privilege levels of the CLI"
+
+# The "operator" and "user" CLI commands, which drop the privileges of
+# the current connection, had no coverage, and "show cli level" was only
+# reported by the smoke test. This test walks down the three levels and
+# checks both what each of them still allows and what it refuses.
+#
+# The levels only apply to the connection they were set on, and vtest
+# opens a new connection for every "send", so each case chains the
+# level change and the command it is meant to affect in a single line.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	http-request return status 200
+
+    backend be
+	server s1 127.0.0.1:1 disabled
+} -start
+
+haproxy h1 -cli {
+	# the socket declared by the test harness is an admin one
+	send "show cli level"
+	expect ~ "^admin"
+
+	# dropping to operator, then to user
+	send "operator; show cli level"
+	expect ~ "\noperator"
+	send "user; show cli level"
+	expect ~ "\nuser"
+	# the levels only go down, an operator cannot become admin again
+	send "operator; user; show cli level"
+	expect ~ "\nuser"
+
+	# reading the statistics is allowed at every level
+	send "operator; show stat"
+	expect ~ "\n# pxname,svname,qcur"
+	send "user; show stat"
+	expect ~ "\n# pxname,svname,qcur"
+	send "user; show info"
+	expect ~ "Name: HAProxy"
+
+	# changing a global setting requires admin
+	send "set maxconn global 1234; show info"
+	expect ~ "\nMaxconn: 1234\n"
+	send "operator; set maxconn global 4321"
+	expect ~ "Permission denied"
+	send "user; set maxconn global 4321"
+	expect ~ "Permission denied"
+	# and it was really left untouched
+	send "show info"
+	expect ~ "\nMaxconn: 1234\n"
+
+	# so does entering the expert or experimental modes
+	send "user; expert-mode on"
+	expect ~ "Permission denied"
+	send "operator; experimental-mode on"
+	expect ~ "Permission denied"
+
+	# and so does modifying an ACL or a map
+	send "operator; add acl virt@nosuchacl foo"
+	expect ~ "Permission denied"
+
+	# clearing the counters is what an operator is allowed to do, while
+	# changing a server state turns out to require admin as well
+	send "operator; clear counters"
+	expect !~ "Permission denied"
+	send "user; clear counters"
+	expect ~ "Permission denied"
+	send "operator; set server be/s1 state ready"
+	expect ~ "Permission denied"
+}
