@@ -5,6 +5,10 @@ varnishtest "Test the raw TLS hello fetches of the TCP rule sets"
 # req_ssl_hello_type, req_ssl_ver, req_ssl_sni and rep_ssl_hello_type
 # aliases. They all parse the raw buffer of a TCP proxy, without any SSL
 # data layer, so the handshake messages are crafted by hand here.
+#
+# The second frontend covers the other format req.ssl_ver understands,
+# the SSLv2 CLIENT-HELLO, which none of the other fetches parses, and
+# the dotted notation their ACLs accept as a pattern.
 
 feature ignore_unknown_macro
 
@@ -24,6 +28,15 @@ syslog S1 -level info {
 	# one unrelated extension: no supported_groups and no session ticket
 	recv
 	expect ~ "type=1 ver=196611 ec=0 st=0 sni=- dtype=1 dver=196611 dsni=- rtype=2 drtype=2 bytes=[0-9]+$"
+	# an SSLv2 CLIENT-HELLO announcing SSLv3.0, short record header
+	recv
+	expect ~ "sslv2 ver=196608 dver=196608 type=- sni=- eq30=1 gt30=-$"
+	# an SSLv2 CLIENT-HELLO announcing TLSv1.0, long record header
+	recv
+	expect ~ "sslv2 ver=196609 dver=196609 type=- sni=- eq30=- gt30=1$"
+	# not SSL at all
+	recv
+	expect ~ "sslv2 ver=- dver=- type=- sni=- eq30=- gt30=-$"
 } -start
 
 haproxy h1 -conf {
@@ -60,6 +73,25 @@ haproxy h1 -conf {
 	tcp-request content accept if { req.ssl_hello_type 1 }
 
 	default_backend be
+
+    # req.ssl_ver is the only one of the family which also parses the
+    # SSLv2 CLIENT-HELLO record format, where the version is not at the
+    # same place at all. This frontend rejects everything, the fetches
+    # are only reported in the log.
+    frontend fe2
+	bind "fd@${fe2}"
+	log ${S1_addr}:${S1_port} local0
+	log-format "sslv2 ver=%[var(txn.v)] dver=%[var(txn.dv)] type=%[var(txn.t)] sni=%[var(txn.n)] eq30=%[var(txn.eq)] gt30=%[var(txn.gt)]"
+
+	tcp-request inspect-delay 100ms
+	tcp-request content set-var(txn.v)  req.ssl_ver
+	tcp-request content set-var(txn.dv) req_ssl_ver
+	tcp-request content set-var(txn.t)  req.ssl_hello_type
+	tcp-request content set-var(txn.n)  req.ssl_sni
+	# both spellings of the ACL parse their pattern in dotted notation
+	tcp-request content set-var(txn.eq) int(1) if { req.ssl_ver 3.0 }
+	tcp-request content set-var(txn.gt) int(1) if { req_ssl_ver gt 3.0 }
+	tcp-request content reject
 
     backend be
 	tcp-response inspect-delay 100ms
@@ -98,6 +130,33 @@ client c2 -connect ${h1_fe1_sock} {
 client c3 -connect ${h1_fe1_sock} {
 	sendhex "160301 0034 01000030 0303 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f 00 00021302 0100 0005 ff01000100"
 	recv 49
+} -run
+
+# SSLv2 CLIENT-HELLO with the short record header:
+#   80 1c                 length = 28, no padding
+#   01                    msg_type = CLIENT-HELLO
+#   03 00                 version = SSLv3.0
+#   00 03                 cipher_len, a multiple of 3
+#   00 00                 session_id_len, 0 or 16
+#   00 10                 challenge_len, 16 to 32
+#   010080                one cipher
+#   11 .. 20              challenge[16]
+client c4 -connect ${h1_fe2_sock} {
+	sendhex "801c 01 0300 0003 0000 0010 010080 1112131415161718191a1b1c1d1e1f20"
+	expect_close
+} -run
+
+# same with the long record header, which carries a padding length, two
+# ciphers, a 32-byte challenge and announces TLSv1.0
+client c5 -connect ${h1_fe2_sock} {
+	sendhex "002f 02 01 0301 0006 0000 0020 010080020080 1112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30 aabb"
+	expect_close
+} -run
+
+# a plain HTTP request is neither an SSLv3 record nor an SSLv2 hello
+client c6 -connect ${h1_fe2_sock} {
+	send "GET / HTTP/1.0\r\n\r\n"
+	expect_close
 } -run
 
 syslog S1 -wait
