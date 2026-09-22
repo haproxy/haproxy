@@ -9,6 +9,13 @@ varnishtest "Test the general purpose counters and tags of the stick counters"
 # and the legacy scalar one (gpc0, gpc1 and gpt0) may not live in the
 # same table, hence the two tables below, tracked by two distinct stick
 # counters.
+#
+# The legacy spellings of the sc1_ and sc2_ shorthands need their own
+# counter to track a legacy table, which the first frontend cannot
+# provide since its sc1 tracks the array table, so they are exercised by
+# a second frontend where the three counters track the same entry of one
+# legacy table. A third frontend is only there for the generic clear of
+# the array form, which needs a counter tracking an array table.
 
 feature ignore_unknown_macro
 
@@ -124,6 +131,73 @@ haproxy h1 -conf {
 	http-after-response set-header x-slgt0 "%[src_get_gpt0(leg)]"
 	http-after-response set-header x-slr0  "%[src_gpc0_rate(leg)]"
 	http-after-response set-header x-slr1  "%[src_gpc1_rate(leg)]"
+
+    backend leg2
+	stick-table type ip size 1m expire 1h store gpc0,gpc0_rate(10s),gpc1,gpc1_rate(10s),gpt0
+
+    backend arr2
+	stick-table type ip size 1m expire 1h store gpc(2),gpc_rate(2,10s),gpt(2)
+
+    backend cnt2
+	stick-table type ip size 1m expire 1h store conn_cnt,conn_rate(10s)
+
+    frontend fe2
+	bind "fd@${fe2}"
+
+	# the three counters track the same entry, so an increment through
+	# one of them is immediately visible through the other two
+	http-request track-sc0 src table leg2
+	http-request track-sc1 src table leg2
+	http-request track-sc2 src table leg2
+
+	http-request sc-set-gpt0(1) 4                  if { path /inc }
+	http-request set-var(txn.i00) sc0_inc_gpc0     if { path /inc }
+	http-request set-var(txn.i10) sc1_inc_gpc0     if { path /inc }
+	http-request set-var(txn.i20) sc2_inc_gpc0     if { path /inc }
+	http-request set-var(txn.i11) sc1_inc_gpc1     if { path /inc }
+	http-request set-var(txn.i21) sc2_inc_gpc1     if { path /inc }
+	http-request set-var(txn.ig1) sc_inc_gpc1(0)   if { path /inc }
+
+	http-request set-var(txn.c00) sc0_clr_gpc0     if { path /clr }
+	http-request set-var(txn.c10) sc1_clr_gpc0     if { path /clr }
+	http-request set-var(txn.c11) sc1_clr_gpc1     if { path /clr }
+	http-request set-var(txn.c20) sc2_clr_gpc0     if { path /clr }
+	http-request set-var(txn.c21) sc2_clr_gpc1     if { path /clr }
+	http-request set-var(txn.cg1) sc_clr_gpc1(0)   if { path /clr }
+
+	# the src_ spellings take their table as an argument and do not need
+	# the entry to be tracked at all
+	http-request set-var(txn.si)  src_inc_gpc(0,arr2)      if { path /src }
+	http-request set-var(txn.si0) src_inc_gpc0(leg2)       if { path /src }
+	http-request set-var(txn.si1) src_inc_gpc1(leg2)       if { path /src }
+	http-request set-var(txn.su)  src_updt_conn_cnt(cnt2)  if { path /src }
+	http-request set-var(txn.sc)  src_clr_gpc(0,arr2)      if { path /srcclr }
+	http-request set-var(txn.sc0) src_clr_gpc0(leg2)       if { path /srcclr }
+	http-request set-var(txn.sc1) src_clr_gpc1(leg2)       if { path /srcclr }
+
+	http-request return status 200
+
+	http-after-response set-header x-i0  "%[var(txn.i00)] %[var(txn.i10)] %[var(txn.i20)]"
+	http-after-response set-header x-i1  "%[var(txn.i11)] %[var(txn.i21)] %[var(txn.ig1)]"
+	http-after-response set-header x-c0  "%[var(txn.c00)] %[var(txn.c10)] %[var(txn.c20)]"
+	http-after-response set-header x-c1  "%[var(txn.c11)] %[var(txn.c21)] %[var(txn.cg1)]"
+	http-after-response set-header x-si  "%[var(txn.si)] %[var(txn.si0)] %[var(txn.si1)] %[var(txn.su)]"
+	http-after-response set-header x-sc  "%[var(txn.sc)] %[var(txn.sc0)] %[var(txn.sc1)]"
+	# the readers of the two other shorthands
+	http-after-response set-header x-r1  "%[sc1_get_gpc0] %[sc1_get_gpc1] %[sc1_get_gpt0]"
+	http-after-response set-header x-r1r "%[sc1_gpc0_rate] %[sc1_gpc1_rate]"
+
+    backend arr3
+	stick-table type ip size 1m expire 1h store gpc(1),gpc_rate(1,10s)
+
+    frontend fe3
+	bind "fd@${fe3}"
+	http-request track-sc0 src table arr3
+	http-request sc-inc-gpc(0,0)
+	http-request set-var(txn.cg) sc_clr_gpc(0,0)
+	http-request return status 200
+	http-after-response set-header x-cg "%[var(txn.cg)]"
+	http-after-response set-header x-g  "%[sc_get_gpc(0,0)]"
 } -start
 
 client c1 -connect ${h1_fe_sock} {
@@ -221,4 +295,48 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.x-tclr  == "0"
 	expect resp.http.x-tclr0 == "0"
 	expect resp.http.x-tclr1 == "0"
+} -run
+
+# the legacy spellings of the sc1_ and sc2_ shorthands, and the src_
+# spellings of the increment and clear operations
+client c2 -connect ${h1_fe2_sock} {
+	# six increments of the same entry, three on gpc0 and three on gpc1,
+	# each returning the new value
+	txreq -url "/inc"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-i0 == "1 2 3"
+	expect resp.http.x-i1 == "1 2 3"
+	expect resp.http.x-r1 == "3 3 4"
+	expect resp.http.x-r1r == "3 3"
+
+	# the first clear of each counter returns the value it had, the
+	# following ones see zero
+	txreq -url "/clr"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-c0 == "3 0 0"
+	expect resp.http.x-c1 == "3 0 0"
+	# the tag is not affected by the counter resets
+	expect resp.http.x-r1 == "0 0 4"
+
+	# the src_ spellings work on entries which are not tracked here
+	txreq -url "/src"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-si == "1 1 1 1"
+
+	txreq -url "/srcclr"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-sc == "1 1 1"
+} -run
+
+# the generic clear of the array form
+client c3 -connect ${h1_fe3_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cg == "1"
+	expect resp.http.x-g  == "0"
 } -run
