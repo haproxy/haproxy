@@ -1,0 +1,172 @@
+varnishtest "Test the stream state fetches of an HTTP/2 connection"
+
+# fs.id was only covered by a QUIC test, and bs.id, fs.aborted,
+# bs.aborted, fs.rst_code, bs.rst_code, fc_settings_streams_limit,
+# bc_settings_streams_limit and bc_glitches had no coverage at all.
+# They describe the multiplexed stream and its connection, so they need
+# HTTP/2 on both sides, which vtest provides.
+#
+# The first listener runs two complete streams, the second one has its
+# stream reset by the client and the third one by the server. The two
+# reset cases are observed through the log since no response reaches the
+# client there.
+
+feature ignore_unknown_macro
+
+# announces a limit of its own so that bc_settings_streams_limit can be
+# told apart from the frontend one
+server s1 {
+	rxpri
+	stream 0 {
+		txsettings -maxstreams 42
+		rxsettings
+		txsettings -ack
+	} -run
+	stream 1 {
+		rxhdrs
+		txresp
+	} -run
+	stream 3 {
+		rxhdrs
+		txresp
+	} -run
+} -start
+
+# never answers, the client gives up first
+server s2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+	stream 1 {
+		rxhdrs
+		delay 0.5
+		txresp
+	} -run
+} -start
+
+# resets the stream with the "internal error" code
+server s3 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+	stream 1 {
+		rxhdrs
+		txrst -err 2
+	} -run
+} -start
+
+syslog S1 -level info {
+	# the client reset its stream with the "cancel" code. Only the side
+	# which aborted is checked in the termination state, its second
+	# letter depends on the phase the stream had reached.
+	recv
+	expect ~ "fe2 fs=1/8 bs=0/- term=C.$"
+	# the server reset it with the "internal error" code
+	recv
+	expect ~ "fe3 fs=0/- bs=1/2 term=S.$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+	# an explicit value, so that the frontend limit is visibly the one
+	# haproxy announces and not the one the client announced
+	tune.h2.fe.max-concurrent-streams 30
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen fe1
+	bind "fd@${fe1}" proto h2
+	http-response set-header x-ids  "fs=%[fs.id] bs=%[bs.id]"
+	http-response set-header x-abrt "fs=%[fs.aborted] bs=%[bs.aborted]"
+	http-response set-header x-lim  "fc=%[fc_settings_streams_limit] bc=%[bc_settings_streams_limit]"
+	http-response set-header x-gl   "fc=%[fc_glitches] bc=%[bc_glitches]"
+	server s1 ${s1_addr}:${s1_port} proto h2
+
+    listen fe2
+	bind "fd@${fe2}" proto h2
+	log ${S1_addr}:${S1_port} local0
+	log-format "fe2 fs=%[fs.aborted]/%[fs.rst_code] bs=%[bs.aborted]/%[bs.rst_code] term=%[txn.sess_term_state]"
+	server s2 ${s2_addr}:${s2_port} proto h2
+
+    listen fe3
+	bind "fd@${fe3}" proto h2
+	log ${S1_addr}:${S1_port} local0
+	log-format "fe3 fs=%[fs.aborted]/%[fs.rst_code] bs=%[bs.aborted]/%[bs.rst_code] term=%[txn.sess_term_state]"
+	server s3 ${s3_addr}:${s3_port} proto h2
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings -maxstreams 7
+		rxsettings
+		txsettings -ack
+	} -run
+
+	# the stream ids are those of each side of the proxy, the client
+	# connection being reused for the second stream just like the
+	# server one
+	stream 1 {
+		txreq
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-ids  == "fs=1 bs=1"
+		expect resp.http.x-abrt == "fs=0 bs=0"
+		# the frontend limit is the one haproxy announces, the backend
+		# one is the limit the server announced
+		expect resp.http.x-lim  == "fc=30 bc=42"
+		expect resp.http.x-gl   == "fc=0 bc=0"
+	} -run
+
+	stream 3 {
+		txreq
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-ids  == "fs=3 bs=3"
+	} -run
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+	# 8 is the "cancel" error code
+	stream 1 {
+		txreq
+		txrst -err 8
+	} -run
+	delay 0.3
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+	stream 1 {
+		txreq
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+syslog S1 -wait
