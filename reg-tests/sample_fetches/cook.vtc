@@ -14,6 +14,7 @@ haproxy h1 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
     defaults
 	timeout client 30s
@@ -27,10 +28,18 @@ haproxy h1 -conf {
         http-request set-var(txn.val) req.cook_val()
         http-request set-var(txn.val_cook2) req.cook_val(cook2)
         http-request set-var(txn.cook_names) req.cook_names
+        # req.cook() returns the value as a string, req.cook_val() as an
+        # integer, and the unnamed form takes the first cookie
+        http-request set-var(txn.cook2) req.cook(cook2)
+        http-request set-var(txn.cook_any) req.cook()
+        http-request set-var(txn.cook_none) req.cook(nope)
         http-response set-header count %[var(txn.count)]
         http-response set-header val %[var(txn.val)]
         http-response set-header val_cook2 %[var(txn.val_cook2)]
         http-response set-header cook_names %[var(txn.cook_names)]
+        http-response set-header cook2 %[var(txn.cook2)]
+        http-response set-header cook_any %[var(txn.cook_any)]
+        http-response set-header cook_none %[var(txn.cook_none)]
 
         default_backend be
 
@@ -47,6 +56,9 @@ client c1 -connect ${h1_fe_sock} {
     expect resp.http.val == "0"
     expect resp.http.val_cook2 == "123"
     expect resp.http.cook_names == "cook1,cook2,cook3"
+    expect resp.http.cook2 == "123"
+    expect resp.http.cook_any == "0"
+    expect resp.http.cook_none == ""
 } -run
 
 # TEST - 2
@@ -61,6 +73,7 @@ haproxy h2 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
     defaults
 	timeout client 30s
@@ -98,6 +111,7 @@ haproxy h3 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
     defaults
 	timeout client 30s
@@ -138,6 +152,7 @@ haproxy h4 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
     defaults
 	timeout client 30s
