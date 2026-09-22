@@ -226,6 +226,11 @@ syslog S1 -wait
 # abortonclose on backend only
 client  c5 -connect ${h2_fe1_sock} {
     txreq -url /c5
+    # leave haproxy the time to read the request and to start connecting,
+    # otherwise the close may be seen while the request is still being
+    # parsed, which is reported as a client abort during the headers and
+    # not during the connection retries
+    delay 0.05
 } -run
 
 # Wait c5 log entry
