@@ -1,0 +1,94 @@
+varnishtest "Test the ungrpc converter"
+
+# The ungrpc converter had no coverage while the protobuf one is tested
+# by nested_and_flat.vtc. ungrpc differs from protobuf by the 5-byte
+# gRPC header it skips first, and by the fact that only the first
+# converter of a chain may be an ungrpc, the following ones being
+# protobuf.
+#
+# The message below is the "Rectangle" of the documentation example:
+#
+#   message Point     { int32 latitude = 1; int32 longitude = 2; }
+#   message PPoint    { Point point = 59; }
+#   message Rectangle { string name = 1; PPoint lo = 48; PPoint hi = 49; }
+#
+# encoded as, with the tags in varint form:
+#
+#   0a 05 "hello"                     field 1, length-delimited
+#   8203 07 da03 04 0807 1009         field 48 > 59 > {1=7, 2=9}
+#   8a03 07 da03 04 080b 100d         field 49 > 59 > {1=11, 2=13}
+#
+# that is 27 bytes, prefixed by the gRPC header "00 0000001b": one byte
+# telling the message is not compressed and its length over four bytes.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+	option http-buffer-request
+	http-request wait-for-body time "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	# a length-delimited field needs no type
+	http-request set-var(txn.name)  req.body,ungrpc(1)
+
+	# the four leaves of the two nested messages
+	http-request set-var(txn.lolat) req.body,ungrpc(48.59.1,int32)
+	http-request set-var(txn.lolon) req.body,ungrpc(48.59.2,int32)
+	http-request set-var(txn.hilat) req.body,ungrpc(49.59.1,int32)
+	http-request set-var(txn.hilon) req.body,ungrpc(49.59.2,int32)
+
+	# an intermediary field extracted as a binary sample
+	http-request set-var(txn.inner) req.body,ungrpc(48.59),hex
+
+	# the three documented equivalent spellings of the first latitude,
+	# where only the first converter of the chain is an ungrpc
+	http-request set-var(txn.eq1)   req.body,ungrpc(48.59),protobuf(1,int32)
+	http-request set-var(txn.eq2)   req.body,ungrpc(48),protobuf(59.1,int32)
+	http-request set-var(txn.eq3)   req.body,ungrpc(48),protobuf(59),protobuf(1,int32)
+
+	# a field which is not in the message
+	http-request set-var(txn.miss)  req.body,ungrpc(50,int32)
+
+	http-request return status 200
+
+	http-after-response set-header x-name  "%[var(txn.name)]"
+	http-after-response set-header x-lolat "%[var(txn.lolat)]"
+	http-after-response set-header x-lolon "%[var(txn.lolon)]"
+	http-after-response set-header x-hilat "%[var(txn.hilat)]"
+	http-after-response set-header x-hilon "%[var(txn.hilon)]"
+	http-after-response set-header x-inner "%[var(txn.inner)]"
+	http-after-response set-header x-eq1   "%[var(txn.eq1)]"
+	http-after-response set-header x-eq2   "%[var(txn.eq2)]"
+	http-after-response set-header x-eq3   "%[var(txn.eq3)]"
+	http-after-response set-header x-miss  "%[var(txn.miss)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -req POST -url "/" -hdr "content-length: 32" -nolen
+	sendhex "00 0000001b 0a0568656c6c6f 820307da030408071009 8a0307da0304080b100d"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-name  == "hello"
+	expect resp.http.x-lolat == "7"
+	expect resp.http.x-lolon == "9"
+	expect resp.http.x-hilat == "11"
+	expect resp.http.x-hilon == "13"
+	expect resp.http.x-inner == "08071009"
+	expect resp.http.x-eq1   == "7"
+	expect resp.http.x-eq2   == "7"
+	expect resp.http.x-eq3   == "7"
+	expect resp.http.x-miss  == ""
+} -run
