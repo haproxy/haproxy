@@ -38,6 +38,10 @@ haproxy h1 -conf {
 	bind "fd@${fe}"
 	capture response header x-num len 16
 
+	# res.body and res.body_len only see what has already been received,
+	# which wait-for-body makes deterministic here
+	http-response wait-for-body time "${HAPROXY_TEST_TIMEOUT-5s}"
+
 	http-response set-header x-status    "%[status]"
 	http-response set-header x-txnstatus "%[txn.status]"
 	http-response set-header x-ver        "%[res.ver]"
@@ -75,6 +79,11 @@ haproxy h1 -conf {
 	http-response set-header x-cooknames  "%[res.cook_names]"
 
 	http-response set-header x-bodysize   "%[res.body_size]"
+	http-response set-header x-body       "%[res.body]"
+	http-response set-header x-bodylen    "%[res.body_len]"
+
+	# the status as it was received from the server, before any rewrite
+	http-response set-header x-srvstatus  "%[server_status]"
 
 	# the pre-parsed header block must carry the lowercase header names
 	# and their values, here "x-num" and "42"
@@ -136,6 +145,9 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.x-cooknames == "c1,c2,path"
 
 	expect resp.http.x-bodysize  == "5"
+	expect resp.http.x-body      == "hello"
+	expect resp.http.x-bodylen   == "5"
+	expect resp.http.x-srvstatus == "201"
 
 	expect resp.http.x-hdrsbin   ~  "782d6e756d023432"
 	expect resp.http.x-hdrs      == "yes"
