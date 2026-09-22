@@ -62,6 +62,15 @@ haproxy h1 -conf {
         http-response set-header x-jwt-token %[var(txn.bearer)]
         http-response set-header x-jwt-alg %[var(txn.jwt_alg)]
 
+        # both query converters return the decoded part they are named
+        # after when they are called without any argument, and perform a
+        # json_query on it otherwise
+        http-response set-header x-jwt-header %[var(txn.bearer),jwt_header_query]
+        http-response set-header x-jwt-payload %[var(txn.bearer),jwt_payload_query]
+        http-response set-header x-jwt-sub %[var(txn.bearer),jwt_payload_query('$.sub')]
+        http-response set-header x-jwt-iat %[var(txn.bearer),jwt_payload_query('$.iat',"int"),add(1)]
+        http-response set-header x-jwt-nokey %[var(txn.bearer),jwt_payload_query('$.nokey')]
+
         http-response set-header x-jwt-verify-HS256 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs256")] if { var(txn.jwt_alg) -m str "HS256" }
         http-response set-header x-jwt-verify-HS384 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs384")] if { var(txn.jwt_alg) -m str "HS384" }
         http-response set-header x-jwt-verify-HS512 %[var(txn.bearer),jwt_verify(txn.jwt_alg,"hmac key hs512")] if { var(txn.jwt_alg) -m str "HS512" }
@@ -165,6 +174,13 @@ client c1 -connect ${h1_mainfe_sock} {
     expect resp.status == 200
     expect resp.http.x-jwt-alg == "HS256"
     expect resp.http.x-jwt-verify-HS256 == "1"
+    # the two parts of that token are {"alg":"HS256","typ":"JWT"} and
+    # {"sub":"1234567890","name":"John Doe","iat":1516239022}
+    expect resp.http.x-jwt-header ~ "\"alg\":\"HS256\""
+    expect resp.http.x-jwt-payload ~ "\"name\":\"John Doe\""
+    expect resp.http.x-jwt-sub == "1234567890"
+    expect resp.http.x-jwt-iat == "1516239023"
+    expect resp.http.x-jwt-nokey == ""
 } -run
 
 client c2 -connect ${h1_mainfe_sock} {

@@ -5083,6 +5083,7 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 	if (args[0].type != ARGT_STR) {
 		smp->data.u.str = *decoded_header;
 		smp->data.type = SMP_T_STR;
+		retval = 1;
 		goto end;
 	}
 
