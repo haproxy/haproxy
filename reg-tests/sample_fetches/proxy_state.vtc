@@ -9,12 +9,20 @@ varnishtest "Test the proxy and server state sample fetches"
 # A single thread is used because act_conn and fe_conn are over-counted
 # when several threads accept in parallel on a loaded machine, which
 # would make the connection counters below unpredictable.
+#
+# The server holds its connection until the client has read the response
+# because srv_conn() counts the established connections: if the server
+# closed as soon as it answered, its connection could be released before
+# the response rules run and the counter would be read as zero.
 
 feature ignore_unknown_macro
+
+barrier b1 cond 2
 
 server s1 {
 	rxreq
 	txresp
+	barrier b1 sync
 } -start
 
 haproxy h1 -conf {
@@ -105,6 +113,7 @@ haproxy h1 -conf {
 client c1 -connect ${h1_fe_sock} {
 	txreq
 	rxresp
+	barrier b1 sync
 	expect resp.status == 200
 
 	expect resp.http.x-feid       == "11"
