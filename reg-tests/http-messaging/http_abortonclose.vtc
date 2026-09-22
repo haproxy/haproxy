@@ -68,6 +68,7 @@ haproxy h1 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
@@ -118,19 +119,26 @@ haproxy h2 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
         # WT: limit false-positives causing "HTTP header incomplete" due to
         # idle server connections being randomly used and randomly expiring
         # under us.
         tune.idle-pool.shared off
 
+    # The client of the /c5 request below aborts while the connection to
+    # the server is being retried, and the abort has to be noticed
+    # before the retries are over. A hundred milliseconds is not much
+    # for a process which is starved by a parallel run of the whole
+    # suite, where this was seen reporting the 503 of the exhausted
+    # retries instead, so the connect timeout is one second here.
     defaults
         mode http
         no option abortonclose
         retries 1
         timeout client  10s
         timeout server  10s
-        timeout connect 100ms
+        timeout connect 1s
         timeout queue   5s
 
     frontend fe1
