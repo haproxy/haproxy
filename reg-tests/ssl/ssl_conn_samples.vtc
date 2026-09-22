@@ -65,6 +65,11 @@ haproxy h1 -conf {
     listen ssl-lst
         bind "fd@${ssl}" ssl crt ${testdir}/certs/common.pem alpn h2,http/1.1 ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2
 
+        # only meaningful on a connection which performs a handshake, and
+        # a no-op once it is done, which is the case here since no early
+        # data is used
+        http-request wait-for-handshake
+
         # the server side of the same connection
         http-response set-header x-fc          "%[ssl_fc]"
         http-response set-header x-fc-alpn     "%[ssl_fc_alpn]"
@@ -84,6 +89,8 @@ haproxy h1 -conf {
         http-response set-header x-fc-crand    "%[ssl_fc_client_random,hex]"
         http-response set-header x-fc-srand    "%[ssl_fc_server_random,hex]"
         http-response set-header x-fc-key      "%[ssl_fc_session_key,hex]"
+        # the duration of that handshake, in milliseconds
+        http-response set-header x-fc-hs       "%[fc.timer.handshake]"
 
         # the captured client hello, which needs tune.ssl.capture-buffer-size
         http-response set-header x-fc-cl-str   "%[ssl_fc_cipherlist_str]"
@@ -155,6 +162,8 @@ client c1 -connect ${h1_clearlst_sock} {
     expect resp.http.x-fc-crand    == resp.http.x-bc-crand
     expect resp.http.x-fc-srand    == resp.http.x-bc-srand
     expect resp.http.x-fc-key      == resp.http.x-bc-key
+    # the handshake took some time, possibly less than a millisecond
+    expect resp.http.x-fc-hs       ~  "^[0-9]+$"
 
     # the captured ClientHello
     expect resp.http.x-fc-cl-bin   ~  "^[0-9A-F]+$"
