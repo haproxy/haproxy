@@ -1,0 +1,142 @@
+varnishtest "Test the health adjusting from observed traffic"
+
+# The "observe", "error-limit" and "on-error" server settings had no
+# coverage. They adjust the health of a server from the traffic it
+# serves instead of from the health checks, which makes them testable
+# without any timer: the state changes exactly when the configured
+# number of consecutive errors has been served.
+#
+# The health checks themselves are directed at a second haproxy
+# instance which accepts the connections and never answers, so that no
+# check can ever complete and interfere with what is observed here.
+
+feature ignore_unknown_macro
+
+# in layer7 mode a 500 is an error while a 404 is not
+server s1 {
+	rxreq
+	expect req.url == "/ok"
+	txresp -status 404
+
+	rxreq
+	expect req.url == "/ko"
+	txresp -status 500
+
+	rxreq
+	expect req.url == "/ko"
+	txresp -status 500
+} -start
+
+# the sink: it accepts the check connections and holds them forever
+haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode tcp
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  1h
+	timeout server  1h
+
+    frontend sink
+	bind "fd@${sink}"
+	tcp-request inspect-delay 1h
+	tcp-request content accept if { req.len gt 1000000 }
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        chroot /
+
+    defaults
+	mode http
+	# an HTTP check never completes against the sink, contrary to a
+	# plain layer 4 one which would succeed as soon as it connects
+	option httpchk GET /
+	retries 0
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout check   1h
+
+    frontend fe
+	bind "fd@${fe}"
+	use_backend be4 if { path -m beg /l4 }
+	default_backend be7
+
+    # two consecutive layer 7 errors mark the server down
+    backend be7
+	id 7
+	server s1 ${s1_addr}:${s1_port} id 1 check addr ${h2_sink_addr} port ${h2_sink_port} inter 100ms observe layer7 error-limit 2 on-error mark-down
+
+    # one failed connection is enough here
+    backend be4
+	id 4
+	server s1 127.0.0.1:1 id 1 check addr ${h2_sink_addr} port ${h2_sink_port} inter 100ms observe layer4 error-limit 1 on-error mark-down
+} -start
+
+haproxy h1 -cli {
+	# nothing observed yet, the servers are up
+	send "show stat be7 4 1 typed"
+	expect ~ "S[.]7[.]1[.][0-9]+[.]status[.]1:[A-Za-z]+:str:UP"
+	send "show stat be4 4 1 typed"
+	expect ~ "S[.]4[.]1[.][0-9]+[.]status[.]1:[A-Za-z]+:str:UP"
+}
+
+client c1 -connect ${h1_fe_sock} {
+	# a 404 is a valid response, it does not count as an error
+	txreq -url "/ok"
+	rxresp
+	expect resp.status == 404
+
+	# first error
+	txreq -url "/ko"
+	rxresp
+	expect resp.status == 500
+
+	# second one, the limit is reached
+	txreq -url "/ko"
+	rxresp
+	expect resp.status == 500
+} -run
+
+haproxy h1 -cli {
+	send "show stat be7 4 1 typed"
+	expect ~ "S[.]7[.]1[.][0-9]+[.]status[.]1:[A-Za-z]+:str:DOWN"
+	# the state change is attributed to the health analysis, not to a
+	# check result
+	send "show stat be7 4 1 typed"
+	expect ~ "S[.]7[.]1[.][0-9]+[.]check_status[.]1:[A-Za-z]+:str:[*]? ?HANA"
+}
+
+client c2 -connect ${h1_fe_sock} {
+	# the backend has no usable server left
+	txreq -url "/ko"
+	rxresp
+	expect resp.status == 503
+} -run
+
+client c3 -connect ${h1_fe_sock} {
+	# the layer4 backend points at a closed port, the connection error
+	# is observed and reaches the limit at once
+	txreq -url "/l4"
+	rxresp
+	expect resp.status == 503
+} -run
+
+haproxy h1 -cli {
+	send "show stat be4 4 1 typed"
+	expect ~ "S[.]4[.]1[.][0-9]+[.]status[.]1:[A-Za-z]+:str:DOWN"
+}
+
+client c4 -connect ${h1_fe_sock} {
+	txreq -url "/l4"
+	rxresp
+	expect resp.status == 503
+} -run
