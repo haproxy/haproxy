@@ -377,7 +377,10 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		goto error;
 	sl->info.res.status = code;
 
-	if (h1m->state == H1_MSG_DONE)
+	/* The EOM must not be reported for 1xx interim responses. The final
+	 * response is expected next.
+	 */
+	if (h1m->state == H1_MSG_DONE && (code >= 200 || code == 101))
 		htx_set_eom(htx);
 	return 1;
 
