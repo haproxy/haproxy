@@ -1,0 +1,35 @@
+varnishtest "Health-checks: http-check send with an absolute URI and a host header"
+feature ignore_unknown_macro
+
+# When an HTTP health-check request is sent with an absolute URI, a host
+# header updates the authority of the URI. This may move the start-line in
+# the HTX message, so the flags set on the start-line afterwards, such as
+# the one announcing the content-length of the body, must be set on the new
+# one. Otherwise the request is sent with a body but without its
+# content-length.
+
+server s1 {
+    rxreq
+    expect req.method == POST
+    expect req.url == "http://a-much-longer-host-name.example.org/chk"
+    expect req.http.host == "a-much-longer-host-name.example.org"
+    expect req.http.content-length == 5
+    expect req.bodylen == 5
+    expect req.body == "hello"
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    backend be
+        option httpchk
+        http-check send meth POST uri http://a/chk ver HTTP/1.1 hdr host a-much-longer-host-name.example.org body "hello"
+        server srv ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
+} -start
+
+server s1 -wait

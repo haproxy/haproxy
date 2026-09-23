@@ -1791,6 +1791,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 				if ((sl->flags & HTX_SL_F_HAS_AUTHORITY) && isteqi(hdr->name, ist("host"))) {
 					if (!http_update_authority(htx, sl, hdr_value))
 						goto error_htx;
+					/* the start-line may have been moved */
+					sl = http_get_stline(htx);
 				}
 				if (isteqi(hdr->name, ist("connection")))
 					connection_hdr = 1;
