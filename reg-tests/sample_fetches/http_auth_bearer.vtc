@@ -3,8 +3,11 @@ varnishtest "http_auth_bearer() on the authorization header and on a custom one"
 # The fetch returns the token of a "Bearer" authorization, either from the
 # Authorization header or from the header given as argument. For the custom
 # header, the value must be the "Bearer" scheme followed by at least one
-# space and the token. When the custom header is absent, nothing is found,
-# so that the Authorization header is checked by the next rule.
+# space and the token, whatever the token length. In particular a token
+# of 6 characters, as long as the word "Bearer" itself, must be found, and
+# a lone "Bearer" without any token is not a Bearer authorization. When the
+# custom header is absent, nothing is found, so that the Authorization
+# header is checked by the next rule.
 
 feature ignore_unknown_macro
 
@@ -29,6 +32,11 @@ client c1 -connect ${h1_fe_sock} {
     expect resp.status == 200
     expect resp.http.tok == "a"
 
+    txreq -hdr "x-tok: Bearer abcdef"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.tok == "abcdef"
+
     txreq -hdr "x-tok: Bearer abcdefg"
     rxresp
     expect resp.status == 200
@@ -40,7 +48,11 @@ client c1 -connect ${h1_fe_sock} {
     expect resp.status == 200
     expect resp.http.tok == "xyz123"
 
-    # another scheme
+    # no token, or another scheme
+    txreq -hdr "x-tok: Bearer"
+    rxresp
+    expect resp.status == 404
+
     txreq -hdr "x-tok: Basic abcdef"
     rxresp
     expect resp.status == 404

@@ -1473,10 +1473,11 @@ static int smp_fetch_http_auth_bearer(const struct arg *args, struct sample *smp
 
 		ctx.blk = NULL;
 		if (http_find_header(htx, hdr_name, &ctx, 0)) {
+			struct ist value = ctx.value;
 			struct ist type = istsplit(&ctx.value, ' ');
 
 			/* no space was found or the space is the first character or no "Bearer" method */
-			if (!istlen(type) || istlen(type) == istlen(ctx.value) || !isteqi(type, ist("Bearer")))
+			if (!istlen(type) || istlen(type) == istlen(value) || !isteqi(type, ist("Bearer")))
 				return 0;
 
 			/* There must be "at least" one space character between
