@@ -2360,6 +2360,18 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	/* Remove stream from recv_list if present. */
 	LIST_DEL_INIT(&qcs->el_recv);
 
+	/* Check if RESET_STREAM received before stream layer initialization.
+	 * If true, prepare QCS purgeing immediately.
+	 */
+	if (!qcs_sc(qcs) && !(qcs->flags & QC_SF_DETACH)) {
+		qcs_close_local(qcs);
+
+		BUG_ON(LIST_INLIST(&qcs->el_send));
+		TRACE_STATE("add stream in purg_list", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		LIST_APPEND(&qcs->qcc->purg_list, &qcs->el_send);
+		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
+	}
+
  out:
 	if (qcc->glitches != prev_glitches && !(qcc->flags & QC_CF_IS_BACK))
 		session_add_glitch_ctr(qcc->conn->owner, qcc->glitches - prev_glitches);
