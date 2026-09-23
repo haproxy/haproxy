@@ -6738,7 +6738,7 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 			BUG_ON(sl); /* Only one start-line expected */
 			sl = htx_get_blk_ptr(htx, blk);
 			h2s->status = sl->info.res.status;
-			if (sl->flags & HTX_SL_F_XFER_LEN)
+			if ((sl->flags & HTX_SL_F_XFER_LEN) && (h2s->status == 101 || h2s->status >= 200))
 				h2s->flags |= H2_SF_MORE_HTX_DATA;
 			if ((sl->flags & HTX_SL_F_BODYLESS_RESP) || h2s->status == 204 || h2s->status == 304)
 				h2s->flags |= H2_SF_BODYLESS_RESP;
