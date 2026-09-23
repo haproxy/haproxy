@@ -1351,6 +1351,36 @@ static ncb_sz_t qcs_rx_avail_data(struct qcs *qcs)
 	return b ? ncb_data(&b->ncb, 0) : 0;
 }
 
+/* Account for <bytes> in <qcc> connection flow-control. If needed, a MAX_DATA
+ * frame is prepared for emission.
+ */
+static void qcc_account_for_conn_fctl(struct qcc *qcc, uint64_t bytes)
+{
+	struct quic_frame *frm;
+
+	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
+
+	qcc->lfctl.offsets_consume += bytes;
+	if (qcc->lfctl.md - qcc->lfctl.offsets_consume < qcc->lfctl.md_init / 2) {
+		TRACE_DATA("increase conn credit via MAX_DATA", QMUX_EV_QCS_RECV, qcc->conn);
+		frm = qc_frm_alloc(QUIC_FT_MAX_DATA);
+		if (!frm) {
+			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
+			              muxc_tevt_type_internal_err);
+			goto out;
+		}
+
+		qcc->lfctl.md = qcc->lfctl.offsets_consume + qcc->lfctl.md_init;
+		frm->max_data.max_data = qcc->lfctl.md;
+
+		LIST_APPEND(&qcc->lfctl.frms, &frm->list);
+		tasklet_wakeup(qcc->wait_event.tasklet);
+	}
+
+ out:
+	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
+}
+
 /* Remove <bytes> from <buf> current Rx buffer of <qcs> stream. Flow-control
  * for received offsets may be allocated for the peer if needed.
  */
@@ -1422,23 +1452,7 @@ static void qcs_consume(struct qcs *qcs, uint64_t bytes, struct qc_stream_rxbuf 
 	}
 
  conn_fctl:
-	qcc->lfctl.offsets_consume += bytes;
-	if (qcc->lfctl.md - qcc->lfctl.offsets_consume < qcc->lfctl.md_init / 2) {
-		TRACE_DATA("increase conn credit via MAX_DATA", QMUX_EV_QCS_RECV, qcc->conn, qcs);
-		frm = qc_frm_alloc(QUIC_FT_MAX_DATA);
-		if (!frm) {
-			qcc_set_error(qcc, QC_ERR_INTERNAL_ERROR, 0,
-			              muxc_tevt_type_internal_err);
-			return;
-		}
-
-		qcc->lfctl.md = qcc->lfctl.offsets_consume + qcc->lfctl.md_init;
-
-		frm->max_data.max_data = qcc->lfctl.md;
-
-		LIST_APPEND(&qcs->qcc->lfctl.frms, &frm->list);
-		tasklet_wakeup(qcc->wait_event.tasklet);
-	}
+	qcc_account_for_conn_fctl(qcc, bytes);
 
 	TRACE_LEAVE(QMUX_EV_QCS_RECV, qcc->conn, qcs);
 }
@@ -2403,6 +2417,10 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		                 struct qc_stream_rxbuf, off_node);
 		qcs_free_rxbuf(qcs, b);
 	}
+
+	qcc_account_for_conn_fctl(qcc, to_consume);
+	/* Ensure final size checks coherence for future STREAM frames. */
+	qcs->rx.offset_max = final_size;
 
 	/* Remove stream from recv_list if present. */
 	LIST_DEL_INIT(&qcs->el_recv);
