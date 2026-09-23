@@ -2377,7 +2377,6 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	/* don't send any error message as we're in the body */
 	http_set_term_flags(s);
 	http_reply_and_close(s, txn->status, NULL);
-	stream_inc_http_fail_ctr(s);
 	DBG_TRACE_DEVEL("leaving on error",
 			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_HTTP_ERR, s, txn);
 	return 0;

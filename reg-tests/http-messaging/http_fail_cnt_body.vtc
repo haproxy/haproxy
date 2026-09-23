@@ -1,0 +1,84 @@
+varnishtest "http_fail_cnt on errors while the response body is forwarded"
+
+# The http_fail_cnt counter counts the responses which failed because of the
+# server. An abort of the server in the middle of the body is one failure
+# and must be counted once, while a client aborting the download is not a
+# server failure at all.
+#
+# The cases are:
+#   - /srv: the server announces 100 bytes, sends 3, waits for the client
+#     to have read them and closes: http_fail_cnt must be 1;
+#   - /cli: the server announces 100000 bytes and sends 100, the client
+#     reads them and closes: http_fail_cnt must be 0.
+
+feature ignore_unknown_macro
+
+barrier b1 cond 2 -cyclic
+
+server s1 {
+    rxreq
+    expect req.url == "/srv"
+    txresp -nolen -hdr "content-length: 100" -body "abc"
+    barrier b1 sync
+} -start
+
+server s2 {
+    rxreq
+    expect req.url == "/cli"
+    txresp -nolen -hdr "content-length: 100000" -bodylen 100
+    barrier b1 sync
+    expect_close
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    backend st
+        stick-table type string size 10 store http_fail_cnt
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request track-sc0 path table st
+        use_backend be2 if { path /cli }
+        default_backend be1
+
+    backend be1
+        server s1 ${s1_addr}:${s1_port}
+
+    backend be2
+        server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/srv"
+    rxresphdrs
+    expect resp.status == 200
+    recv 3
+    barrier b1 sync
+    expect_close
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+    txreq -url "/cli"
+    rxresphdrs
+    expect resp.status == 200
+    recv 100
+    barrier b1 sync
+} -run
+
+# let the second stream see the client close
+delay 0.5
+
+haproxy h1 -cli {
+    send "show table st"
+    expect ~ "key=/srv .*http_fail_cnt=1\n"
+}
+
+haproxy h1 -cli {
+    send "show table st"
+    expect ~ "key=/cli .*http_fail_cnt=0\n"
+}
