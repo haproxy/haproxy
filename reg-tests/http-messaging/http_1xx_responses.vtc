@@ -1,0 +1,396 @@
+# This reg-test checks the handling of 1xx interim responses (mainly 100
+# Continue and 103 Early Hints). These responses must be forwarded to the
+# client and must not end the HTTP transaction. The final response must still
+# be properly parsed and forwarded, with its payload, if any.
+#
+# Interim responses are tested from H1 and H2 servers, to H1 and H2 clients,
+# when they are emitted by the server or by HAProxy itself (via
+# "http-request early-hint" or when handling "Expect: 100-continue" header on
+# its own).
+
+varnishtest "Test 1xx interim responses (100 Continue and 103 Early Hints)"
+feature ignore_unknown_macro
+
+# H1 server sending 103 responses before a final response with a
+# content-length payload, then with a chunked payload, then with no payload
+server s1 {
+	rxreq
+	expect req.url == "/clen"
+	txresp -status 103 -nolen \
+	  -hdr "Link: </style.css>; rel=preload; as=style"
+	txresp -status 103 -nolen \
+	  -hdr "Link: </script.js>; rel=preload; as=script"
+	txresp -status 200 \
+	  -body "response 1"
+
+	rxreq
+	expect req.url == "/chunked"
+	txresp -status 103 -nolen \
+	  -hdr "Link: </style.css>; rel=preload; as=style"
+	txresp -status 200 -nolen \
+	  -hdr "Transfer-Encoding: chunked" \
+	  -body "a\r\nresponse 2\r\n0\r\n\r\n"
+
+	rxreq
+	expect req.url == "/no-body"
+	txresp -status 103 -nolen \
+	  -hdr "Link: </style.css>; rel=preload; as=style"
+	txresp -status 204 -nolen
+
+	rxreq
+	expect req.url == "/close"
+	txresp -status 103 -nolen \
+	  -hdr "Link: </style.css>; rel=preload; as=style"
+	txresp -status 200 -nolen \
+	  -hdr "Connection: close" \
+	  -body "response 4"
+} -repeat 2 -start
+
+# H1 server handling "Expect: 100-continue" on its own
+server s2 {
+	rxreqhdrs
+	expect req.method == "POST"
+	expect req.http.expect == "100-continue"
+	expect req.bodylen == "<undef>"
+	txresp -status 100 -nolen
+	rxreqbody
+	expect req.bodylen == 10
+	expect req.body == "request 1 "
+	txresp -status 200 \
+	  -body "response 1"
+} -repeat 2 -start
+
+# H1 server never seeing the "Expect" header, because it was handled by
+# HAProxy. The whole request must be received.
+server s3 {
+	rxreq
+	expect req.method == "POST"
+	expect req.http.expect == <undef>
+	expect req.bodylen == 10
+	expect req.body == "request 2 "
+	txresp -status 200 \
+	  -body "response 2"
+} -start
+
+# H1 server replying to a request for which HAProxy emitted early hints
+server s4 {
+	rxreq
+	expect req.url == "/early-hint"
+	txresp -status 200 \
+	  -body "response 3"
+} -repeat 2 -start
+
+# H2 server sending 103 responses before the final response
+server s5 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		expect req.http.:path == "/clen"
+		txresp -status 103 -nostrend \
+		  -hdr "link" "</style.css>; rel=preload; as=style"
+		txresp -status 103 -nostrend \
+		  -hdr "link" "</script.js>; rel=preload; as=script"
+		txresp -status 200 \
+		  -body "response 1"
+	} -run
+
+	stream 3 {
+		rxreq
+		expect req.http.:path == "/no-body"
+		txresp -status 103 -nostrend \
+		  -hdr "link" "</style.css>; rel=preload; as=style"
+		txresp -status 204
+	} -run
+} -start
+
+# H2 server handling "Expect: 100-continue" on its own
+server s6 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxhdrs
+		expect req.method == "POST"
+		expect req.http.expect == "100-continue"
+		txresp -status 100 -nostrend
+		rxdata -all
+		expect req.body == "request 1 "
+		txresp -status 200 \
+		  -body "response 1"
+	} -run
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # 103 Early Hints from an H1 server
+    listen fe1
+	bind "fd@${fe1}"
+	bind "fd@${fe1h2}" proto h2
+	server s1 ${s1_addr}:${s1_port}
+
+    # 100 Continue from an H1 server
+    listen fe2
+	bind "fd@${fe2}"
+	bind "fd@${fe2h2}" proto h2
+	server s2 ${s2_addr}:${s2_port}
+
+    # 100 Continue emitted by HAProxy itself
+    listen fe3
+	bind "fd@${fe3}"
+	http-request wait-for-body time 1s
+	server s3 ${s3_addr}:${s3_port}
+
+    # 103 Early Hints emitted by HAProxy itself
+    listen fe4
+	bind "fd@${fe4}"
+	bind "fd@${fe4h2}" proto h2
+	http-request early-hint Link "</style.css>; rel=preload; as=style"
+	http-request early-hint Link "</script.js>; rel=preload; as=script"
+	server s4 ${s4_addr}:${s4_port}
+
+    # 103 Early Hints from an H2 server
+    listen fe5
+	bind "fd@${fe5}"
+	server s5 ${s5_addr}:${s5_port} proto h2
+
+    # 100 Continue from an H2 server
+    listen fe6
+	bind "fd@${fe6}"
+	server s6 ${s6_addr}:${s6_port} proto h2
+} -start
+
+# H1 client / H1 server : 103 Early Hints
+client c1 -connect ${h1_fe1_sock} {
+	txreq -url "/clen"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</style.css>; rel=preload; as=style"
+	expect resp.http.content-length == <undef>
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</script.js>; rel=preload; as=script"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.link == <undef>
+	expect resp.body == "response 1"
+
+	txreq -url "/chunked"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</style.css>; rel=preload; as=style"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.body == "response 2"
+
+	txreq -url "/no-body"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</style.css>; rel=preload; as=style"
+	rxresp
+	expect resp.status == 204
+	expect resp.bodylen == 0
+
+	txreq -url "/close"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</style.css>; rel=preload; as=style"
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "response 4"
+} -run
+
+# H2 client / H1 server : 103 Early Hints
+client c2 -connect ${h1_fe1h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -url "/clen"
+		rxhdrs
+		expect resp.status == 103
+		expect resp.http.link == "</style.css>; rel=preload; as=style"
+		rxhdrs
+		expect resp.status == 103
+		expect resp.http.link == "</script.js>; rel=preload; as=script"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.link == <undef>
+		expect resp.body == "response 1"
+	} -run
+
+	stream 3 {
+		txreq -url "/chunked"
+		rxhdrs
+		expect resp.status == 103
+		expect resp.http.link == "</style.css>; rel=preload; as=style"
+		rxresp
+		expect resp.status == 200
+		expect resp.body == "response 2"
+	} -run
+
+	stream 5 {
+		txreq -url "/no-body"
+		rxhdrs
+		expect resp.status == 103
+		expect resp.http.link == "</style.css>; rel=preload; as=style"
+		rxresp
+		expect resp.status == 204
+		expect resp.bodylen == 0
+	} -run
+
+	stream 7 {
+		txreq -url "/close"
+		rxhdrs
+		expect resp.status == 103
+		expect resp.http.link == "</style.css>; rel=preload; as=style"
+		rxresp
+		expect resp.status == 200
+		expect resp.body == "response 4"
+	} -run
+} -run
+
+# H1 client / H1 server : 100 Continue from the server
+client c3 -connect ${h1_fe2_sock} {
+	txreq -method POST -url "/" \
+	  -hdr "Expect: 100-continue" \
+	  -body "request 1 "
+	rxresphdrs
+	expect resp.status == 100
+	expect resp.http.content-length == <undef>
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "response 1"
+} -run
+
+# H2 client / H1 server : 100 Continue from the server
+client c4 -connect ${h1_fe2h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -method POST -scheme "http" -url "/" -nostrend \
+		  -hdr "content-length" "10" \
+		  -hdr "expect" "100-continue"
+		rxhdrs
+		expect resp.status == 100
+		txdata -data "request 1 "
+		rxresp
+		expect resp.status == 200
+		expect resp.body == "response 1"
+	} -run
+} -run
+
+# H1 client / H1 server : 100 Continue from HAProxy
+client c5 -connect ${h1_fe3_sock} {
+	txreq -method POST -url "/" \
+	  -hdr "Expect: 100-continue" \
+	  -body "request 2 "
+	rxresphdrs
+	expect resp.status == 100
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "response 2"
+} -run
+
+# H1 client / H1 server : 103 Early Hints from HAProxy
+client c6 -connect ${h1_fe4_sock} {
+	txreq -url "/early-hint"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</style.css>; rel=preload; as=style"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.link == <undef>
+	expect resp.body == "response 3"
+} -run
+
+# H2 client / H1 server : 103 Early Hints from HAProxy
+client c7 -connect ${h1_fe4h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -url "/early-hint"
+		rxhdrs
+		expect resp.status == 103
+		expect resp.http.link == "</style.css>; rel=preload; as=style"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.link == <undef>
+		expect resp.body == "response 3"
+	} -run
+} -run
+
+# H1 client / H2 server : 103 Early Hints
+client c8 -connect ${h1_fe5_sock} {
+	txreq -url "/clen"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</style.css>; rel=preload; as=style"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</script.js>; rel=preload; as=script"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.link == <undef>
+	expect resp.body == "response 1"
+
+	txreq -url "/no-body"
+	rxresphdrs
+	expect resp.status == 103
+	expect resp.http.link == "</style.css>; rel=preload; as=style"
+	rxresp
+	expect resp.status == 204
+	expect resp.bodylen == 0
+} -run
+
+# H1 client / H2 server : 100 Continue from the server
+client c9 -connect ${h1_fe6_sock} {
+	txreq -method POST -url "/" \
+	  -hdr "Expect: 100-continue" \
+	  -body "request 1 "
+	rxresphdrs
+	expect resp.status == 100
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "response 1"
+} -run
