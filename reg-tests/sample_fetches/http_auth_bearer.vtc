@@ -1,0 +1,57 @@
+varnishtest "http_auth_bearer() on the authorization header and on a custom one"
+
+# The fetch returns the token of a "Bearer" authorization, either from the
+# Authorization header or from the header given as argument. For the custom
+# header, the value must be the "Bearer" scheme followed by at least one
+# space and the token. When the custom header is absent, nothing is found,
+# so that the Authorization header is checked by the next rule.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request return status 200 hdr tok "%[http_auth_bearer(x-tok)]" if { http_auth_bearer(x-tok) -m found }
+        http-request return status 201 hdr tok "%[http_auth_bearer]" if { http_auth_bearer -m found }
+        http-request return status 404
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    # custom header, tokens of several lengths
+    txreq -hdr "x-tok: Bearer a"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.tok == "a"
+
+    txreq -hdr "x-tok: Bearer abcdefg"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.tok == "abcdefg"
+
+    # several spaces are allowed between the scheme and the token
+    txreq -hdr "x-tok: bearer   xyz123"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.tok == "xyz123"
+
+    # another scheme
+    txreq -hdr "x-tok: Basic abcdef"
+    rxresp
+    expect resp.status == 404
+
+    # the Authorization header
+    txreq -hdr "authorization: Bearer abcdef"
+    rxresp
+    expect resp.status == 201
+    expect resp.http.tok == "abcdef"
+
+    txreq -hdr "authorization: Basic YTpi"
+    rxresp
+    expect resp.status == 404
+} -run

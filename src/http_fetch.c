@@ -1486,6 +1486,8 @@ static int smp_fetch_http_auth_bearer(const struct arg *args, struct sample *smp
 			ctx.value = istskip(ctx.value, ' ');
 			chunk_initlen(&bearer_val, istptr(ctx.value), 0, istlen(ctx.value));
 		}
+		else
+			return 0;
 	}
 	else {
 		txn = smp->strm->txn.http;
