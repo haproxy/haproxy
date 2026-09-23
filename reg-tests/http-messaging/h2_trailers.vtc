@@ -131,7 +131,7 @@ client c2 -connect ${h1_fe_rsp_sock} {
 # invalid trailers: all of them must cause a stream error. The window update
 # emitted after the request headers is consumed before sending the trailers so
 # that the next frame to be received is necessarily the reset.
-client c3 -connect ${h1_fe_err_sock} {
+client c3_1 -connect ${h1_fe_err_sock} {
 	txpri
 	stream 0 {
 		txsettings
@@ -149,56 +149,122 @@ client c3 -connect ${h1_fe_err_sock} {
 		rxresp
 		expect resp.status == 200
 	} -run
+} -run
+
+client c3_2 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
 
 	# a literal pseudo-header is forbidden in trailers
-	stream 3 {
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr ":method" "GET"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
+
+client c3_3 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
 
 	# an indexed pseudo-header is forbidden in trailers as well. The frame
-	# sent below is a HEADERS frame on stream 5 with ES+EH set, whose
+	# sent below is a HEADERS frame on stream 1 with ES+EH set, whose
 	# payload is a single indexed field (":method: GET" from the static
 	# table).
-	stream 5 {
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
-		sendhex "00 00 01  01  05  00 00 00 05   82"
+		sendhex "00 00 01  01  05  00 00 00 01   82"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
+
+client c3_4 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
 
 	# upper case letters are forbidden in trailer names
-	stream 7 {
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "X-Tlr" "value"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
+
+client c3_5 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
 
 	# a trailer name must be a valid token
-	stream 9 {
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "x tlr" "value"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
+
+client c3_6 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
 
 	# NUL, CR and LF are forbidden in trailer values
-	stream 11 {
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "x-tlr" "val\rue"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 13 {
+client c3_7 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "x-tlr" "val\nue"
@@ -206,13 +272,25 @@ client c3 -connect ${h1_fe_err_sock} {
 		expect rst.err == PROTOCOL_ERROR
 	} -run
 
+} -run
+
+client c3_8 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
 	# a NUL in the value cannot be emitted by vtest, so the trailers frame
-	# is crafted by hand below: it's a HEADERS frame on stream 15 with
+	# is crafted by hand below: it's a HEADERS frame on stream 1 with
 	# ES+EH set, carrying the literal field "x-tlr: val<NUL>ue".
-	stream 15 {
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
-		sendhex "00 00 0e  01  05  00 00 00 0f"
+		sendhex "00 00 0e  01  05  00 00 00 01"
 		sendhex "00 05 782d746c72 06 76616c007565"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
@@ -221,7 +299,7 @@ client c3 -connect ${h1_fe_err_sock} {
 
 # the fields affecting the message framing or the routing are forbidden in
 # trailers, each of them is checked on its own stream
-client c4 -connect ${h1_fe_err_sock} {
+client c4_1 -connect ${h1_fe_err_sock} {
 	txpri
 	stream 0 {
 		txsettings
@@ -238,56 +316,133 @@ client c4 -connect ${h1_fe_err_sock} {
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 3 {
+client c4_2 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "content-length" "5"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 5 {
+client c4_3 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "connection" "close"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 7 {
+client c4_4 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "proxy-connection" "close"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 9 {
+client c4_5 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "keep-alive" "timeout=5"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 11 {
+client c4_6 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "upgrade" "websocket"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 13 {
+client c4_7 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "te" "trailers"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
+} -run
 
-	stream 15 {
+client c4_8 -connect ${h1_fe_err_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
 		txreq -req POST -url / -nostrend
 		rxwinup
 		txreq -noadd -hdr "transfer-encoding" "chunked"
