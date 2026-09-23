@@ -2321,6 +2321,7 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	struct qcs *qcs;
 	struct qc_stream_rxbuf *b;
 	int prev_glitches = qcc->glitches;
+	uint64_t to_consume;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
@@ -2362,11 +2363,27 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 
 	if (qcs->rx.offset_max > final_size ||
 	    ((qcs->flags & QC_SF_SIZE_KNOWN) && qcs->rx.offset_max != final_size)) {
-		TRACE_ERROR("final size error on RESET_STREAM", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV, qcc->conn, qcs);
+		TRACE_ERROR("final size error on RESET_STREAM",
+		            QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR, qcc->conn, qcs);
 		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR, 0,
 		              muxc_tevt_type_proto_err);
 		goto err;
 	}
+
+	/* Discarded data to account for in connection flow control. */
+	to_consume = final_size - qcs->rx.offset;
+
+	/* Ensure final size respects the current stream and connection flow control limits. */
+	if (final_size > qcs->rx.msd ||
+	    qcc->lfctl.offsets_recv + to_consume > qcc->lfctl.md) {
+		TRACE_ERROR("flow control violation on RESET_STREAM final size",
+		            QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR, qcc->conn, qcs);
+		qcc_set_error(qcc, QC_ERR_FLOW_CONTROL_ERROR, 0,
+		              muxc_tevt_type_proto_err);
+		goto err;
+	}
+
+	qcc->lfctl.offsets_recv += to_consume;
 
 	qcs->flags |= QC_SF_SIZE_KNOWN|QC_SF_RECV_RESET;
 	qcs_close_remote(qcs);
