@@ -2560,7 +2560,7 @@ static int cache_emit_early_hints(struct stream *s, const char *hint_data,
 
   error:
 	channel_htx_truncate(&s->res, htxbuf(&s->res.buf));
-	s->txn.http->status = 0;
+	s->txn.http->status = -1;
 	return 0;
 }
 

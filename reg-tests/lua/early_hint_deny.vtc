@@ -1,0 +1,52 @@
+varnishtest "Lua: deny action evaluated after an early-hint rule"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+# A Lua action returning act.DENY does not set any status, the deny is then
+# answered with the default 403. The status of the transaction is used while
+# a 103 response is being built by early-hint rules, and it must be restored
+# afterwards, otherwise the deny is answered with a 500 and logged with a
+# null status.
+
+syslog Slg1 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe fe/<NOSRV> .* 403 .* \"GET /plain HTTP/1.1\""
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe fe/<NOSRV> .* 403 .* \"GET /eh HTTP/1.1\""
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.lua.bool-sample-conversion normal
+        lua-load ${testdir}/early_hint_deny.lua
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        log ${Slg1_addr}:${Slg1_port} local0
+        option httplog
+        http-request early-hint link "</style.css>; rel=preload" if { path /eh }
+        http-request lua.deny
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/plain"
+    rxresp
+    expect resp.status == 403
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+    txreq -url "/eh"
+    rxresp
+    expect resp.status == 103
+    expect resp.http.link == "</style.css>; rel=preload"
+    rxresp
+    expect resp.status == 403
+} -run
+
+syslog Slg1 -wait

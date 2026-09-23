@@ -1410,7 +1410,7 @@ static enum act_return http_action_early_hint(struct act_rule *rule, struct prox
 	 * HTTP 103 response from the buffer */
 	channel_htx_truncate(res, htx);
 	ret = ACT_RET_ERR;
-	s->txn.http->status = 0;
+	s->txn.http->status = -1;
 	goto leave;
 }
 

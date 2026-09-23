@@ -4854,7 +4854,10 @@ int http_early_hint_end(struct stream *s)
 		return 0;
 	if (!http_forward_proxy_resp(s, 0))
 		return 0;
-	s->txn.http->status = 0;
+	/* Restore the initial status of the transaction, so that rules
+	 * evaluated after this one may set theirs, e.g. a deny.
+	 */
+	s->txn.http->status = -1;
 	return 1;
 }
 
