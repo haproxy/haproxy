@@ -840,6 +840,14 @@ static enum act_return tcp_action_capture(struct act_rule *rule, struct proxy *p
 	char **cap = s->req_cap;
 	int len, opt;
 
+	/* The capture slot was declared in the proxy holding the rule, but the
+	 * slots of the stream are those of its frontend. When the rule is
+	 * evaluated from a listen section used as a backend, the slot does not
+	 * exist, so the rule is ignored.
+	 */
+	if (px != strm_fe(s))
+		goto end;
+
 	opt = ((rule->from == ACT_F_TCP_REQ_CNT) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES);
 	if (flags & ACT_FLAG_FINAL)
 		opt |= SMP_OPT_FINAL;
