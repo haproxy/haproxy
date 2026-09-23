@@ -3057,6 +3057,7 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 	             !b_data(res) &&
 	             htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = res->area;
+		const int eom = blk->flags & HTX_BLK_FL_EOM;
 
 		TRACE_DATA("perform zero-copy DATA transfer",
 		           H3_EV_TX_FRAME|H3_EV_TX_DATA, qcs->qcc->conn, qcs);
@@ -3074,6 +3075,11 @@ static int h3_resp_data_send(struct qcs *qcs, struct htx *htx,
 		buf->area = old_area;
 		buf->data = buf->head = 0;
 		total += fsize;
+
+		if (eom) {
+			TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+			*fin = 1;
+		}
 
 		goto end;
 	}
