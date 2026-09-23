@@ -6347,7 +6347,7 @@ next_frame:
 	 * to convert 200 response to 101 htx response. We only support this if
 	 * the connection supports RFC8441.
 	 * On the backend, that means the origin server advertised the setting.
-	 * On the frontend, RFC 8441 §3 only requires the server (us) to
+	 * On the frontend, RFC 8441 section 3 only requires the server (us) to
 	 * advertise it; clients are not required to echo it back. Use whether
 	 * we ourselves advertised it as the gate.
 	 */
