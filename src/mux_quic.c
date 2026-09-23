@@ -2149,6 +2149,10 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		return 0;
 	}
 
+	/* Wakeup tasklet if QCS inserted in purge list. May happen after remote closure. */
+	if (qcs_is_completed(qcs))
+		tasklet_wakeup(qcc->wait_event.tasklet);
+
  out:
 	TRACE_LEAVE(QMUX_EV_QCC_RECV, qcc->conn);
 	return 0;
@@ -2366,6 +2370,9 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 
 	qcs->flags |= QC_SF_SIZE_KNOWN|QC_SF_RECV_RESET;
 	qcs_close_remote(qcs);
+	/* Wakeup tasklet if QCS inserted in purge list. May happen after remote closure. */
+	if (qcs_is_completed(qcs))
+		tasklet_wakeup(qcc->wait_event.tasklet);
 
 	/* RFC 9000 3.2. Receiving Stream States
 	 *
