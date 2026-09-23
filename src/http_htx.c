@@ -784,9 +784,10 @@ int http_remove_header(struct htx *htx, struct http_hdr_ctx *ctx)
  */
 int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist host)
 {
-	struct buffer *temp = get_trash_chunk();
+	struct buffer *temp;
 	struct ist meth, vsn, uri, authority;
 	struct http_uri_parser parser;
+	int ret;
 
 	uri = htx_sl_req_uri(sl);
 	parser = http_uri_parser_init(uri);
@@ -797,6 +798,16 @@ int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist h
 	/* Don't update the uri if there is no change */
 	if (isteq(host, authority))
 		return 1;
+
+	/* <host> may itself be stored in a trash chunk (e.g. the result of a
+	 * replace-header rule), and the replacement of the header value may
+	 * already have rotated the trash chunks for a defrag. A rotating
+	 * trash chunk could then be the one holding <host>, so a dedicated one
+	 * is used here.
+	 */
+	temp = alloc_trash_chunk();
+	if (!temp)
+		return 0;
 
 	/* Start by copying old method and version */
 	chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)); /* meth */
@@ -810,8 +821,9 @@ int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist h
 	chunk_memcat(temp, istend(authority), istend(uri) - istend(authority));
 	uri = ist2(temp->area + meth.len + vsn.len, host.len + uri.len - authority.len); /* uri */
 
-	return http_replace_stline(htx, meth, uri, vsn);
-
+	ret = http_replace_stline(htx, meth, uri, vsn);
+	free_trash_chunk(temp);
+	return ret;
 }
 
 /* Update the header host by extracting the authority of the uri <uri>. flags of
