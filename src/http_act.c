@@ -794,6 +794,14 @@ static enum act_return http_action_req_capture(struct act_rule *rule, struct pro
 	char **cap = s->req_cap;
 	int len;
 
+	/* The capture slot was declared in the proxy holding the rule, but the
+	 * slots of the stream are those of its frontend. When the rule is
+	 * evaluated from a listen section used as a backend, the slot does not
+	 * exist, so the rule is ignored.
+	 */
+	if (px != strm_fe(s))
+		return ACT_RET_CONT;
+
 	key = sample_fetch_as_type(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.cap.expr, SMP_T_STR);
 	if (!key)
 		return ACT_RET_CONT;

@@ -1,0 +1,59 @@
+varnishtest "capture with a length in a listen section also used as a backend"
+
+# A "capture <expr> len <n>" rule creates a capture slot in the section it
+# is declared in. The capture slots of a stream are those of its frontend,
+# so when the section is a "listen" which is also reached as the backend
+# of another frontend, the slot does not exist for the streams coming from
+# there and the rule must be ignored. Otherwise the rule writes into a slot
+# array which may not exist, or into a slot which belongs to the frontend.
+#
+# The cases are:
+#   - the listen section reached directly: the capture works;
+#   - reached from a frontend which has no capture at all;
+#   - reached from a frontend which has its own capture, which must be
+#     left untouched.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe_nocap
+        bind "fd@${fe_nocap}"
+        use_backend lst
+
+    frontend fe_cap
+        bind "fd@${fe_cap}"
+        capture request header x-a len 1
+        use_backend lst
+
+    listen lst
+        bind "fd@${lst}"
+        http-request capture req.hdr(x-b) len 40
+        http-request return status 200 hdr cap0 "%[capture.req.hdr(0)]"
+} -start
+
+client c1 -connect ${h1_lst_sock} {
+    txreq -hdr "x-b: hello"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.cap0 == "hello"
+} -run
+
+client c2 -connect ${h1_fe_nocap_sock} {
+    txreq -hdr "x-b: hello"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.cap0 == "<undef>"
+} -run
+
+client c3 -connect ${h1_fe_cap_sock} {
+    txreq -hdr "x-a: A" -hdr "x-b: hello"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.cap0 == "A"
+} -run

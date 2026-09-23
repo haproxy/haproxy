@@ -15780,8 +15780,11 @@ capture <sample> [ len <length> | id <id> ]
   sample fetch methods to feed it into headers or anything. The length should
   be limited given that this size will be allocated for each capture during the
   whole stream life. Note that the length is only usable with "http-request"
-  rules. Please check section 7.3 (Fetching samples), "capture request header"
-  and "capture response header" for more information.
+  rules. Such a slot only exists in the section which declares it, so when this
+  rule is placed in a "listen" section which is also used as the backend of
+  another frontend, it is ignored for the streams coming from that frontend.
+  Please check section 7.3 (Fetching samples), "capture request header" and
+  "capture response header" for more information.
 
   If the keyword "id" is used instead of "len", the action tries to store the
   captured string in a previously declared capture slot. This is useful to run
