@@ -4111,6 +4111,12 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 		/* Register conn for idle front closing. */
 		LIST_APPEND(&mux_stopping_data[tid].list, &conn->stopping_list);
 
+		if (tick_isset(qcc->task->expire)) {
+			/* Activate client timeout until the first bytes of data are received. */
+			TRACE_DEVEL("activate default timeout", QMUX_EV_QCC_NEW, conn);
+			task_queue(qcc->task);
+		}
+
 		/* init read cycle */
 		tasklet_wakeup(qcc->wait_event.tasklet);
 
