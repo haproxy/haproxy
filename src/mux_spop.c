@@ -14,6 +14,7 @@
 #include <haproxy/spoe.h>
 #include <haproxy/session.h>
 #include <haproxy/stconn.h>
+#include <haproxy/sym.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
 

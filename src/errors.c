@@ -14,6 +14,7 @@
 #include <haproxy/global.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/ring.h>
+#include <haproxy/sym.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 

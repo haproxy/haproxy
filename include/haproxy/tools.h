@@ -22,11 +22,6 @@
 #ifndef _HAPROXY_TOOLS_H
 #define _HAPROXY_TOOLS_H
 
-#ifdef USE_BACKTRACE
-// for backtrace() on Linux
-#define _GNU_SOURCE
-#endif
-
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -47,10 +42,6 @@
 #include <haproxy/namespace-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/tools-t.h>
-
-#if defined(USE_BACKTRACE) && defined(HA_HAVE_WORKING_BACKTRACE)
-#include <execinfo.h>
-#endif
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
@@ -104,7 +95,6 @@ static inline size_t strnlen2(const char *s, size_t maxlen)
  */
 extern THREAD_LOCAL int itoa_idx; /* index of next itoa_str to use */
 extern THREAD_LOCAL char itoa_str[][171];
-extern int build_is_static;
 extern char *ultoa_r(unsigned long n, char *buffer, int size);
 extern char *lltoa_r(long long int n, char *buffer, int size);
 extern char *sltoa_r(long n, char *buffer, int size);
@@ -1134,42 +1124,12 @@ void dump_area_with_syms(struct buffer *output, const void *base, const void *ad
                          const void *special, const char *spec_type, const char *spec_name);
 void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int unsafe);
 int may_access(const void *ptr);
-const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *addr);
-const void *resolve_dso_name(struct buffer *buf, const char *pfx, const void *addr);
 void make_tar_header(char *output, const char *pfx, const char *fname, const char *link, size_t size, mode_t mode);
 int load_file_into_tar(char **storage, size_t *size, const char *pfx, const char *fname, const char *input, const char *link);
-const char *get_exec_path(void);
-void *get_sym_curr_addr(const char *name);
-void *get_sym_next_addr(const char *name);
 int dump_libs(struct buffer *output, int with_addr);
 void collect_libs(void);
 void free_collected_libs(void);
 int copy_libs_to_file(void);
-
-/* Note that this may result in opening libgcc() on first call, so it may need
- * to have been called once before chrooting.
- */
-static forceinline int my_backtrace(void **buffer, int max)
-{
-#if !defined(USE_BACKTRACE)
-	return 0;
-#elif defined(HA_HAVE_WORKING_BACKTRACE)
-	return backtrace(buffer, max);
-#else
-	const struct frame {
-		const struct frame *next;
-		void *ra;
-	} *frame;
-	int count;
-
-	frame = __builtin_frame_address(0);
-	for (count = 0; count < max && may_access(frame) && may_access(frame->ra);) {
-		buffer[count++] = frame->ra;
-		frame = frame->next;
-	}
-	return count;
-#endif
-}
 
 /* same as realloc() except that ptr is also freed upon failure */
 static inline void *my_realloc2(void *ptr, size_t size)

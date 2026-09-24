@@ -58,6 +58,7 @@
 #include <haproxy/sock.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
+#include <haproxy/sym.h>
 #include <haproxy/systemd.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>

@@ -28,6 +28,7 @@
 #include <haproxy/pool-os.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
+#include <haproxy/sym.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 

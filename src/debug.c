@@ -52,6 +52,7 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/proxy.h>
 #include <haproxy/stconn.h>
+#include <haproxy/sym.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
