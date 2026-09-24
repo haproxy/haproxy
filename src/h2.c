@@ -750,8 +750,8 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 			goto fail;
 	}
 
-	/* RFC7540#8.1.2.1 mandates to reject request pseudo-headers */
-	if (fields & (H2_PHDR_FND_AUTH|H2_PHDR_FND_METH|H2_PHDR_FND_PATH|H2_PHDR_FND_SCHM))
+	/* Reject request pseudo-headers, including RFC8441's :protocol. */
+	if (fields & (H2_PHDR_FND_AUTH|H2_PHDR_FND_METH|H2_PHDR_FND_PATH|H2_PHDR_FND_SCHM|H2_PHDR_FND_PROT))
 		goto fail;
 
 	/* Let's dump the response now if not yet emitted. */
