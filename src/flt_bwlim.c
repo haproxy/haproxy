@@ -26,7 +26,8 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 
-const char *bwlim_flt_id = "bandwidth limitation filter";
+const char *bwlim_in_flt_id = "input bandwidth limitation filter";
+const char *bwlim_out_flt_id = "output bandwidth limitation filter";
 
 struct flt_ops bwlim_ops;
 
@@ -374,7 +375,11 @@ static enum act_return bwlim_set_limit(struct act_rule *rule, struct proxy *px,
 	int opt;
 
 	list_for_each_entry(filter, &s->strm_flt.filters, list) {
-		if (FLT_ID(filter) == bwlim_flt_id && FLT_CONF(filter) == conf) {
+		if (FLT_ID(filter) == bwlim_in_flt_id && FLT_CONF(filter) == conf) {
+			st = filter->ctx;
+			break;
+		}
+		if (FLT_ID(filter) == bwlim_out_flt_id && FLT_CONF(filter) == conf) {
 			st = filter->ctx;
 			break;
 		}
@@ -453,7 +458,7 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 
 	list_for_each_entry(fconf, &px->filter_configs, list) {
 		conf = NULL;
-		if (fconf->id == bwlim_flt_id) {
+		if (fconf->id == bwlim_in_flt_id || fconf->id == bwlim_out_flt_id) {
 			conf = fconf->conf;
 			if (strcmp(rule->arg.act.p[0], conf->name) == 0)
 				break;
@@ -760,7 +765,7 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 		memprintf(err, "'%s' : a name is expected as first argument ", args[*cur_arg]);
 		goto error;
 	}
-	conf->flags = BWLIM_FL_NONE;
+	conf->flags = ((fconf->id == bwlim_in_flt_id) ? BWLIM_FL_IN : BWLIM_FL_OUT);
 	conf->name = strdup(args[pos]);
 	if (!conf->name) {
 		memprintf(err, "%s: out of memory", args[*cur_arg]);
@@ -768,7 +773,7 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 	}
 
 	list_for_each_entry(fc, &px->filter_configs, list) {
-		if (fc->id == bwlim_flt_id) {
+		if (fc->id == bwlim_in_flt_id || fc->id == bwlim_out_flt_id) {
 			struct bwlim_config *c = fc->conf;
 
 			if (strcmp(conf->name, c->name) == 0) {
@@ -916,8 +921,6 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 		}
 	}
 	else {
-		/* Per-stream: limit downloads only for now */
-		conf->flags |= BWLIM_FL_OUT;
 		if (!conf->period) {
 			memprintf(err, "'%s' : <default-period> option is missing", args[*cur_arg]);
 			goto error;
@@ -929,7 +932,7 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 	}
 
 	*cur_arg = pos;
-	fconf->id   = bwlim_flt_id;
+	fconf->name = conf->name;
 	fconf->ops  = &bwlim_ops;
 	fconf->conf = conf;
 	return 0;
@@ -951,30 +954,15 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 static int parse_bwlim_in_flt(char **args, int *cur_arg, struct proxy *px, struct flt_conf *fconf,
 			      char **err, void *private)
 {
-	int ret;
-
-	ret = parse_bwlim_flt(args, cur_arg, px, fconf, err, private);
-	if (!ret) {
-		struct bwlim_config *conf = fconf->conf;
-
-		conf->flags |= BWLIM_FL_IN;
-	}
-
-	return ret;
+	fconf->id = bwlim_in_flt_id;
+	return parse_bwlim_flt(args, cur_arg, px, fconf, err, private);
 }
 
 static int parse_bwlim_out_flt(char **args, int *cur_arg, struct proxy *px, struct flt_conf *fconf,
 			       char **err, void *private)
 {
-	int ret;
-
-	ret = parse_bwlim_flt(args, cur_arg, px, fconf, err, private);
-	if (!ret) {
-		struct bwlim_config *conf = fconf->conf;
-
-		conf->flags |= BWLIM_FL_OUT;
-	}
-	return ret;
+	fconf->id = bwlim_out_flt_id;
+	return parse_bwlim_flt(args, cur_arg, px, fconf, err, private);
 }
 
 /* Declare the filter parser for "trace" keyword */
