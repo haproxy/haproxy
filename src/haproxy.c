@@ -2218,6 +2218,12 @@ static void step_init_2(int argc, char** argv)
 	}
 	last_defproxy = NULL; /* This variable is not used after parsing. */
 
+	/* In fileless mode (haterm, haload, ...) it's the only place where
+	 * we'll be able to initialize the worker id.
+	 */
+	if (!master)
+		init_worker_id();
+
 	if (global.tune.options & GTUNE_PURGE_DEFAULTS) {
 		/* destroy unreferenced defaults proxies  */
 		defaults_px_destroy_all_unref();
