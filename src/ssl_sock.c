@@ -6026,7 +6026,11 @@ void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf)
 	free(bind_conf->ca_sign_pass);
 	if (bind_conf->keys_ref && !--bind_conf->keys_ref->refcount) {
 		free(bind_conf->keys_ref->filename);
-		free(bind_conf->keys_ref->tlskeys);
+		if (bind_conf->keys_ref->tlskeys) {
+			ha_memset_s(bind_conf->keys_ref->tlskeys, 0,
+			            sizeof(*bind_conf->keys_ref->tlskeys) * TLS_TICKETS_NO);
+			free(bind_conf->keys_ref->tlskeys);
+		}
 		LIST_DELETE(&bind_conf->keys_ref->list);
 		free(bind_conf->keys_ref);
 	}
@@ -8608,7 +8612,10 @@ static int cli_parse_set_tlskeys(char **args, char *payload, struct appctx *appc
 		return cli_err(appctx, "'set ssl tls-key' received invalid base64 encoded TLS key.\n");
 
 	trash.data = ret;
-	if (ssl_sock_update_tlskey_ref(ref, &trash) < 0)
+	ret = ssl_sock_update_tlskey_ref(ref, &trash);
+	ha_memset_s(trash.area, 0, trash.data);
+	chunk_reset(&trash);
+	if (ret < 0)
 		return cli_err(appctx, "'set ssl tls-key' received a key of wrong size.\n");
 
 	return cli_msg(appctx, LOG_INFO, "TLS ticket key updated!\n");

@@ -1551,6 +1551,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 			thisline[--len] = 0;
 
 		dec_size = base64dec(thisline, len, (char *) (keys_ref->tlskeys + i % TLS_TICKETS_NO), sizeof(union tls_sess_key));
+		ha_memset_s(thisline, 0, sizeof(thisline));
 		if (dec_size < 0) {
 			memprintf(err, "'%s' : unable to decode base64 key on line %d", args[cur_arg+1], i + 1);
 			goto fail;
@@ -1590,11 +1591,16 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	return 0;
 
   fail:
+	ha_memset_s(thisline, 0, sizeof(thisline));
 	if (f)
 		fclose(f);
 	if (keys_ref) {
 		free(keys_ref->filename);
-		free(keys_ref->tlskeys);
+		if (keys_ref->tlskeys) {
+			ha_memset_s(keys_ref->tlskeys, 0,
+			            sizeof(*keys_ref->tlskeys) * TLS_TICKETS_NO);
+			free(keys_ref->tlskeys);
+		}
 		free(keys_ref);
 	}
 	return ERR_ALERT | ERR_FATAL;
