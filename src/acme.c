@@ -3604,7 +3604,7 @@ int acme_challenge_ready(const char *crt, const char *dns)
 	if (ctx->cfg->cond_ready & ACME_RDY_CLI)
 		auth = ctx->auths;
 	while (auth) {
-		if (strncmp(dns, auth->dns.ptr, auth->dns.len) == 0) {
+		if (isteq(ist(dns), auth->dns)) {
 			if ((auth->ready & ACME_RDY_CLI) == 0) {
 				auth->ready |= ACME_RDY_CLI;
 				found++;
