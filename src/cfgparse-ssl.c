@@ -1965,6 +1965,7 @@ static int srv_parse_client_sigalgs(char **args, int *cur_arg, struct proxy *px,
 		memprintf(err, "'%s' : missing signature algorithm list", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	ha_free(&newsrv->ssl_ctx.client_sigalgs);
 	newsrv->ssl_ctx.client_sigalgs = strdup(arg);
 	if (!newsrv->ssl_ctx.client_sigalgs) {
 		memprintf(err, "out of memory");
@@ -2016,6 +2017,7 @@ static int srv_parse_curves(char **args, int *cur_arg, struct proxy *px, struct 
 		memprintf(err, "'%s' : missing curves list", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	ha_free(&newsrv->ssl_ctx.curves);
 	newsrv->ssl_ctx.curves = strdup(arg);
 	if (!newsrv->ssl_ctx.curves) {
 		memprintf(err, "out of memory");
@@ -2177,6 +2179,7 @@ static int srv_parse_sigalgs(char **args, int *cur_arg, struct proxy *px, struct
 		memprintf(err, "'%s' : missing signature algorithm list", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	ha_free(&newsrv->ssl_ctx.sigalgs);
 	newsrv->ssl_ctx.sigalgs = strdup(arg);
 	if (!newsrv->ssl_ctx.sigalgs) {
 		memprintf(err, "out of memory");
