@@ -2777,6 +2777,18 @@ static void srv_ssl_settings_cpy(struct server *srv, const struct server *src)
 		srv->ssl_ctx.verify_host = strdup(src->ssl_ctx.verify_host);
 	if (src->ssl_ctx.ciphers != NULL)
 		srv->ssl_ctx.ciphers = strdup(src->ssl_ctx.ciphers);
+#if defined(SSL_CTX_set1_curves_list)
+	if (src->ssl_ctx.curves != NULL)
+		srv->ssl_ctx.curves = strdup(src->ssl_ctx.curves);
+#endif
+#if defined(SSL_CTX_set1_sigalgs_list)
+	if (src->ssl_ctx.sigalgs != NULL)
+		srv->ssl_ctx.sigalgs = strdup(src->ssl_ctx.sigalgs);
+#endif
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	if (src->ssl_ctx.client_sigalgs != NULL)
+		srv->ssl_ctx.client_sigalgs = strdup(src->ssl_ctx.client_sigalgs);
+#endif
 	if (src->ssl_ctx.options)
 		srv->ssl_ctx.options = src->ssl_ctx.options;
 	if (src->ssl_ctx.methods.flags)
