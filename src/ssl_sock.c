@@ -5965,6 +5965,15 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 	srv->ssl_ctx.sni = NULL;
 #endif
 	ha_free(&srv->ssl_ctx.ciphers);
+#if defined(SSL_CTX_set1_curves_list)
+	ha_free(&srv->ssl_ctx.curves);
+#endif
+#if defined(SSL_CTX_set1_sigalgs_list)
+	ha_free(&srv->ssl_ctx.sigalgs);
+#endif
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	ha_free(&srv->ssl_ctx.client_sigalgs);
+#endif
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	ha_free(&srv->ssl_ctx.ciphersuites);
 #endif
