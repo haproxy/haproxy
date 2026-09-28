@@ -621,6 +621,7 @@ static void sink_forward_session_release(struct appctx *appctx)
 	HA_SPIN_LOCK(SFT_LOCK, &sft->lock);
 	BUG_ON(sft->appctx != appctx);
 	__sink_forward_session_deinit(sft);
+	sft->last_close = now_ms;
 	HA_SPIN_UNLOCK(SFT_LOCK, &sft->lock);
 }
 
@@ -695,7 +696,6 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 		goto out_close;
 	appctx->svcctx = (void *)sft;
 	appctx_wakeup(appctx);
-	sft->last_conn = now_ms;
 	return appctx;
 
 	/* Error unrolling */
@@ -723,11 +723,19 @@ static struct task *process_sink_forward(struct task * task, void *context, unsi
 			 *
 			 * We enforce a tempo to ensure we don't perform more than 1 session
 			 * establishment attempt per second.
+			 *
+			 * Note: last_close will wrap after 24.85 days, which may happen if
+			 * the server remains unavailable for that long, in that case it will
+			 * cause the tick_is_expired() test to always fail since tempo will be
+			 * in the future. This means the applet will stop trying to reconnect
+			 * to the server. We accept this pitfall because a server that was
+			 * unavailable for that long can be considered as definitely dead, but
+			 * this is something to keep in mind.
 			 */
 			if (!sft->appctx) {
-				int tempo = tick_add(sft->last_conn, MS_TO_TICKS(1000));
+				int tempo = tick_add(sft->last_close, MS_TO_TICKS(1000));
 
-				if (sft->last_conn == TICK_ETERNITY || tick_is_expired(tempo, now_ms))
+				if (sft->last_close == TICK_ETERNITY || tick_is_expired(tempo, now_ms))
 					sft->appctx = sink_forward_session_create(sink, sft);
 				else if (task->expire == TICK_ETERNITY)
 					task->expire = tempo;
