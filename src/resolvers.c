@@ -3540,12 +3540,7 @@ int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err)
 void resolvers_setup_proxy(struct proxy *px)
 {
 	px->maxconn = 0;
-	px->conn_retries = 1; /* FIXME ignored since 91e785ed
-	                       * ("MINOR: stream: Rely on a per-stream max connection retries value")
-	                       * If this is really expected this should be set on the stream directly
-	                       * because the proxy is not part of the main proxy list and thus
-	                       * lacks the required post init for this setting to be considered
-	                       */
+	px->conn_retries = 1;
 	px->timeout.server = TICK_ETERNITY;
 	px->timeout.client = TICK_ETERNITY;
 	px->timeout.connect = 1000; // by default same than timeout.resolve

@@ -420,11 +420,7 @@ void sink_setup_proxy(struct proxy *px)
 {
 	px->mode = PR_MODE_SYSLOG;
 	px->maxconn = 0;
-	px->conn_retries = 1; /* FIXME ignored since 91e785ed
-	                       * ("MINOR: stream: Rely on a per-stream max connection retries value")
-	                       * If this is really expected this should be set on the stream directly
-	                       * because the proxy lacks the CAP_FE so this setting is not considered
-	                       */
+	px->conn_retries = 1;
 	px->timeout.server = TICK_ETERNITY;
 	px->timeout.client = TICK_ETERNITY;
 	px->timeout.connect = TICK_ETERNITY;
