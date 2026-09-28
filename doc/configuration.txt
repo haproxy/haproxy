@@ -29755,6 +29755,24 @@ Supported item flags are (may be enabled/disabled from item's arguments):
           Incomplete numerical values (e.g.: '%B' when logasap is used),
           which are normally prefixed with '+' without encoding, will be
           encoded as-is. Also, '+E' option will be ignored.
+          As described in section 8.6, characters outside the 32..126 range
+          are escaped one byte at a time, using the JSON escape sequences,
+          so that the output remains pure printable ASCII whatever the
+          input. This includes valid UTF-8 sequences, meaning that non-ASCII
+          text will appear as its individual bytes once decoded (e.g.
+          U+00E9, encoded as 0xC3 0xA9, is logged as "\u00C3\u00A9"). See
+          "utf8" below to preserve such text.
+  * utf8: combined with "json", permits to let valid multi-byte UTF-8 sequences
+          pass unescaped. The C1 control characters (U+0080 to U+009F) are
+          still escaped, represented by their code point. Invalid sequences are
+          escaped one byte at a time so that the output always remains valid
+          UTF-8. Note that since valid UTF-8 is emitted as-is, a client may use
+          some special characters to alter the rendering of a log line on a
+          terminal or in a log viewer, such as direction changes, zero-width
+          characters, or line and paragraph separators. Thus it is recommended
+          to only use it for contents coming from trusted sources, or when logs
+          are not meant to be displayed on a terminal. It has no effect without
+          "json".
   * cbor: automatically encode value in CBOR format
           (when set globally, only named logformat items are considered)
           By default, cbor encoded data is represented in HEX form so
@@ -29775,6 +29793,7 @@ Supported item flags are (may be enabled/disabled from item's arguments):
     log-format-sd %{+Q,+E}o\ [exampleSDID@1234\ header=%[capture.req.hdr(0)]]
 
     log-format "%{+json}o %(request)r %(custom_expr)[str(custom)]"
+    log-format "%{+json,+utf8}o %(request)r %(custom_expr)[str(custom)]"
     log-format "%{+cbor}o %(request)r %(custom_expr)[str(custom)]"
 
 Please refer to the table below for currently defined aliases :
@@ -30752,6 +30771,10 @@ is the same for the character '"' which becomes "#22", as well as '{', '|' and
 This does not apply to the cbor encoding, which already uses either safe hex
 digits, or properly delimited binary blocks that will not be sent to a terminal
 but will be consumed by a CBOR parser.
+
+The json encoding uses the JSON escape sequences instead, and the +utf8 option
+also lets valid multi-byte UTF-8 sequences pass as-is (see the "utf8" flag in
+section 8.2.6).
 
 Note that the space character (' ') is not encoded in headers, which can cause
 issues for tools relying on space count to locate fields. A typical header

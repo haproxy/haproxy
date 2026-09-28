@@ -48,7 +48,8 @@
 #define LOG_OPT_ESC             0x00000040
 #define LOG_OPT_MERGE_SPACES    0x00000080
 #define LOG_OPT_BIN             0x00000100
-/* unused: 0x00000200 ... 0x00000800 */
+#define LOG_OPT_UTF8            0x00000200 // only used with LOG_OPT_ENCODE_JSON (utf-8 pass-through)
+/* unused: 0x00000400 ... 0x00000800 */
 #define LOG_OPT_ENCODE_JSON     0x00001000
 #define LOG_OPT_ENCODE_CBOR     0x00002000
 #define LOG_OPT_ENCODE          0x00003000

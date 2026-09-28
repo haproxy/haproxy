@@ -428,6 +428,7 @@ struct logformat_node_args node_args_list[] = {
 	{ "X", LOG_OPT_HEXA },
 	{ "E", LOG_OPT_ESC },
 	{ "bin", LOG_OPT_BIN },
+	{ "utf8", LOG_OPT_UTF8 },
 	{ "json", LOG_OPT_ENCODE_JSON },
 	{ "cbor", LOG_OPT_ENCODE_CBOR },
 	{  0,  0 }
@@ -2021,6 +2022,7 @@ struct lf_buildctx {
 	int options;   /* LOG_OPT_* options */
 	int typecast;  /* same as logformat_node->typecast */
 	int in_text;   /* inside variable-length text */
+	int utf8_skip; /* JSON: continuation bytes of an already emitted UTF-8 sequence */
 };
 
 static THREAD_LOCAL char lf_buildbuf[256]; /* fixed size buffer for building small strings */
@@ -2267,9 +2269,57 @@ static inline char *_lf_json_escape_seq(char *start, char *stop, unsigned char b
 	return start;
 }
 
+/* Checks whether <s> starts with a multi-byte UTF-8 sequence which is valid as
+ * per RFC 3629 and does not span more than <len> bytes: no overlong form, no
+ * surrogate (U+D800..U+Dfff), nothing beyond U+10FFFF (U+FFFE and U+FFFF,
+ * which utf8_next() rejects as well, are simply escaped). The sequence may be
+ * terminated by a NUL byte before <len> bytes, since it is not a continuation
+ * byte. On success the code point is stored into <c> and the sequence length
+ * (2 to 4) is returned, otherwise zero is returned.
+ */
+static inline int _lf_json_utf8_len(const char *s, size_t len, unsigned int *c)
+{
+	unsigned char ret;
+
+	ret = utf8_next(s, MIN(len, 4), c);
+	if (utf8_return_code(ret) != UTF8_CODE_OK)
+		return 0;
+
+	ret = utf8_return_length(ret);
+	if (ret < 2 || ret > 4 || *c > 0x10FFFF)
+		return 0;
+
+	return ret;
+}
+
+/* Writes at <start> the valid UTF-8 sequence of <len> bytes found at <seq> and
+ * representing code point <c>, as reported by _lf_json_utf8_len(). It is
+ * copied as-is, except for the C1 control characters (U+0080 .. U+009F) which,
+ * just like the C0 ones (U+0000 .. U+001F), could be interpreted by a
+ * terminal, and which are written as their \u00XX escape sequence instead.
+ *
+ * The function returns the address of the byte immediately after the last
+ * written byte, or NULL if the whole sequence does not fit before <stop>, so
+ * that a sequence is never truncated. It will not append a terminating NULL
+ * byte.
+ */
+static inline char *_lf_json_utf8_seq(char *start, char *stop,
+                                      const char *seq, int len, unsigned int c)
+{
+	if (c < 0xa0)
+		return _lf_json_escape_seq(start, stop, c);
+
+	if (start + len > stop)
+		return NULL;
+	memcpy(start, seq, len);
+	return start + len;
+}
+
 /* helper function for _lf_encode_bytes() to encode a single byte
  * and escape it with <escape> if found in <map> or escape it with
- * '\' if found in json_escape_map
+ * '\' if found in json_escape_map. With LOG_OPT_UTF8, valid multi-byte
+ * UTF-8 sequences are emitted at once when their first byte is met
+ * instead, the following ones being skipped.
  *
  * The function assumes that at least 1 byte is available for writing
  *
@@ -2282,9 +2332,24 @@ static inline char *_lf_json_escape_byte(char *start, char *stop,
                                          const char **pending, uint8_t cbor_string_prefix,
                                          struct lf_buildctx *ctx)
 {
+	unsigned int c;
+	int len;
+
+	if (ctx->utf8_skip) {
+		/* already emitted with the sequence's first byte */
+		ctx->utf8_skip--;
+		return start;
+	}
+
 	if (!ha_bit_test((unsigned char)(*byte), map)) {
 		if (!ha_bit_test((unsigned char)(*byte), json_escape_map))
 			*start++ = *byte;
+		else if ((ctx->options & LOG_OPT_UTF8) &&
+		         (len = _lf_json_utf8_len(byte, end ? end - byte : 4, &c))) {
+			start = _lf_json_utf8_seq(start, stop, byte, len, c);
+			if (start)
+				ctx->utf8_skip = len - 1;
+		}
 		else
 			start = _lf_json_escape_seq(start, stop, *byte);
 	}
@@ -2326,8 +2391,10 @@ static char *_lf_encode_bytes(char *start, char *stop,
 	                     const char **pending, uint8_t cbor_string_prefix,
 	                     struct lf_buildctx *ctx);
 
-	if (ctx->options & LOG_OPT_ENCODE_JSON)
+	if (ctx->options & LOG_OPT_ENCODE_JSON) {
 		encode_byte = _lf_json_escape_byte;
+		ctx->utf8_skip = 0;
+	}
 	else if (ctx->options & LOG_OPT_ENCODE_CBOR)
 		encode_byte = _lf_cbor_map_escape_byte;
 	else if (ctx->options & LOG_OPT_ESC)
@@ -2443,26 +2510,40 @@ static char *lf_encode_chunk(char *start, char *stop,
 
 /* Same as escape_string() but for a JSON string content: the bytes tagged in
  * json_escape_map cannot all be expressed with the two-character form that
- * escape_string() emits, the others need the \u00XX one.
+ * escape_string() emits, the others need the \u00XX one. When <raw> is set,
+ * valid multi-byte UTF-8 sequences are emitted as-is instead (see
+ * _lf_json_utf8_seq()).
  *
  * Return the address of the \0 character, or NULL on error
  */
 static char *_lf_json_escape_string(char *start, char *stop,
-                                    const char *string, const char *string_stop)
+                                    const char *string, const char *string_stop,
+                                    int raw)
 {
 	if (start < stop) {
 		stop--; /* reserve one byte for the final '\0' */
 		while (start < stop && string < string_stop && *string != '\0') {
-			if (!ha_bit_test((unsigned char)(*string), json_escape_map))
-				*start++ = *string;
-			else {
-				char *next = _lf_json_escape_seq(start, stop, *string);
+			unsigned int c;
+			char *next;
+			int len;
 
-				if (!next)
-					break; /* does not fit, truncate here */
-				start = next;
+			if (!ha_bit_test((unsigned char)(*string), json_escape_map)) {
+				*start++ = *string++;
+				continue;
 			}
-			string++;
+
+			len = raw ? _lf_json_utf8_len(string, string_stop - string, &c) : 0;
+			if (len)
+				next = _lf_json_utf8_seq(start, stop, string, len, c);
+			else {
+				len = 1;
+				next = _lf_json_escape_seq(start, stop, *string);
+			}
+
+			if (!next)
+				break; /* does not fit, truncate here */
+			start = next;
+			string += len;
 		}
 		*start = '\0';
 		return start;
@@ -2517,7 +2598,8 @@ static inline char *_lf_text_len(char *dst, const char *src,
 		else if (ctx->options & LOG_OPT_ENCODE_JSON) {
 			char *ret;
 
-			ret = _lf_json_escape_string(dst, dst + size, src, src + len);
+			ret = _lf_json_escape_string(dst, dst + size, src, src + len,
+			                             !!(ctx->options & LOG_OPT_UTF8));
 			if (ret == NULL)
 				return NULL;
 			len = ret - dst;
@@ -3790,7 +3872,9 @@ static void init_log()
 	 * spares us from having to care about the UTF-8 validity that RFC 8259
 	 * #8.1 demands, since a header value is made of arbitrary bytes and not
 	 * of text. On top of that, RFC 8259 #7 mandates escaping the double
-	 * quote, the backslash and everything below 0x20.
+	 * quote, the backslash and everything below 0x20. The raw JSON encoding
+	 * is the only exception: its encoders detect the valid multi-byte UTF-8
+	 * sequences by themselves and emit them as-is.
 	 */
 	memset(json_escape_map, 0, sizeof(json_escape_map));
 

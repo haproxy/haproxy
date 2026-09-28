@@ -6,7 +6,9 @@ feature ignore_unknown_macro
 # JSON encoding has no reason to be more permissive than the plain one.
 # Escaping them all also makes the output valid UTF-8, which RFC 8259 #8.1
 # requires, without having to guess what the logged bytes represent: a header
-# value is arbitrary bytes, not text.
+# value is arbitrary bytes, not text. The +utf8 option bypasses this, letting
+# valid multi-byte UTF-8 sequences pass as-is, and still escapes all other
+# bytes above 126 one at a time so that the output remains valid UTF-8.
 
 haproxy h1 -conf {
     global
@@ -15,6 +17,10 @@ haproxy h1 -conf {
     .endif
 
     ring myring
+        size 16384
+        format raw
+
+    ring rawring
         size 16384
         format raw
 
@@ -30,6 +36,13 @@ haproxy h1 -conf {
         log ring@myring local0
         log-format "{\"hdr\":%{+json}[capture.req.hdr(0)],\"bin\":%{+json}[str(Gw==),b64dec]}"
         http-request return status 200
+
+    frontend fe_raw
+        bind "fd@${fe_raw}"
+        capture request header x len 64
+        log ring@rawring local0
+        log-format "%{+json,+utf8}o %(hdr)[capture.req.hdr(0)] %(bin)[str(w6nCm+KC),b64dec]"
+        http-request return status 200
 } -start
 
 # an ESC, which has no two-character form, a tab, which has one, a double quote
@@ -44,6 +57,15 @@ client c1 -connect ${h1_fe_sock} {
 # continuation byte, are encoded the same way: one escape per byte
 client c2 -connect ${h1_fe_sock} {
     txreq -url "/high" -hdr "x: A\xc3\xa9B\xaaC"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# in raw mode: a valid UTF-8 sequence, a lone continuation byte, an overlong
+# form, an encoded surrogate, a C1 control character, a 4-byte sequence, one
+# beyond U+10FFFF and a sequence truncated by the end of the value
+client c3 -connect ${h1_fe_raw_sock} {
+    txreq -url "/raw" -hdr "x: A\xc3\xa9B\xaaC\xc0\x81D\xed\xa0\x80E\xc2\x9bF\xf0\x9f\x98\x80G\xf4\x90\x80\x80H\xe2\x82"
     rxresp
     expect resp.status == 200
 } -run
@@ -74,4 +96,19 @@ haproxy h1 -cli {
 haproxy h1 -cli {
     send "show events myring -s"
     expect !~ "\\?"
+}
+
+# in raw mode, the valid UTF-8 sequences are emitted as-is, the C1 control
+# character as its code point's escape sequence, and all other bytes above the
+# printable range get one escape per byte, so that the output remains valid
+# UTF-8
+haproxy h1 -cli {
+    send "show events rawring"
+    expect ~ "\"hdr\": \"A\xc3\xa9B\\\\u00AAC\\\\u00C0\\\\u0081D\\\\u00ED\\\\u00A0\\\\u0080E\\\\u009BF\xf0\x9f\x98\x80G\\\\u00F4\\\\u0090\\\\u0080\\\\u0080H\\\\u00E2\\\\u0082\""
+}
+
+# same in the binary sample path, where the truncated sequence ends the sample
+haproxy h1 -cli {
+    send "show events rawring"
+    expect ~ "\"bin\": \"\xc3\xa9\\\\u009B\\\\u00E2\\\\u0082\""
 }
