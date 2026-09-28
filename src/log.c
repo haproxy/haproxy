@@ -2123,13 +2123,16 @@ static inline char *_lf_cbor_escape_byte(char *start, char *stop,
 /* helper function for _lf_encode_bytes() to encode a single byte
  * and escape it with <escape> if found in <map>
  *
+ * All these helpers receive the current byte in <byte> and the end of the
+ * input in <end>, which is NULL when the input is NUL-terminated.
+ *
  * The function assumes that at least 1 byte is available for writing
  *
  * Returns the address of the byte immediately after the last written byte
  * on success, or NULL on error. It will not append terminating NULL byte.
  */
 static inline char *_lf_map_escape_byte(char *start, char *stop,
-                                        const char *byte,
+                                        const char *byte, const char *end,
                                         const char escape, const long *map,
                                         const char **pending, uint8_t cbor_string_prefix,
                                         struct lf_buildctx *ctx)
@@ -2152,7 +2155,7 @@ static inline char *_lf_map_escape_byte(char *start, char *stop,
  * on success, or NULL on error. It will not append terminating NULL byte.
  */
 static inline char *_lf_cbor_map_escape_byte(char *start, char *stop,
-                                             const char *byte,
+                                             const char *byte, const char *end,
                                              const char escape, const long *map,
                                              const char **pending, uint8_t cbor_string_prefix,
                                              struct lf_buildctx *ctx)
@@ -2201,7 +2204,7 @@ static inline char *_lf_cbor_map_escape_byte(char *start, char *stop,
  * on success, or NULL on error. It will not append terminating NULL byte.
  */
 static inline char *_lf_rfc5424_escape_byte(char *start, char *stop,
-                                            const char *byte,
+                                            const char *byte, const char *end,
                                             const char escape, const long *map,
                                             const char **pending, uint8_t cbor_string_prefix,
                                             struct lf_buildctx *ctx)
@@ -2274,7 +2277,7 @@ static inline char *_lf_json_escape_seq(char *start, char *stop, unsigned char b
  * on success, or NULL on error. It will not append terminating NULL byte.
  */
 static inline char *_lf_json_escape_byte(char *start, char *stop,
-                                         const char *byte,
+                                         const char *byte, const char *end,
                                          const char escape, const long *map,
                                          const char **pending, uint8_t cbor_string_prefix,
                                          struct lf_buildctx *ctx)
@@ -2318,7 +2321,7 @@ static char *_lf_encode_bytes(char *start, char *stop,
 	const char *pending;
 	uint8_t cbor_string_prefix = 0;
 	char *(*encode_byte)(char *start, char *stop,
-	                     const char *byte,
+	                     const char *byte, const char *bytes_stop,
 	                     const char escape, const long *map,
 	                     const char **pending, uint8_t cbor_string_prefix,
 	                     struct lf_buildctx *ctx);
@@ -2362,7 +2365,8 @@ static char *_lf_encode_bytes(char *start, char *stop,
 		 */
 		if (bytes && !bytes_stop) {
 			while (start < stop && *bytes != '\0') {
-				ret = encode_byte(start, stop, bytes, escape, map,
+				ret = encode_byte(start, stop, bytes, bytes_stop,
+				                  escape, map,
 				                  &pending, cbor_string_prefix,
 				                  ctx);
 				if (ret == NULL)
@@ -2372,7 +2376,8 @@ static char *_lf_encode_bytes(char *start, char *stop,
 			}
 		} else if (bytes) {
 			while (start < stop && bytes < bytes_stop) {
-				ret = encode_byte(start, stop, bytes, escape, map,
+				ret = encode_byte(start, stop, bytes, bytes_stop,
+				                  escape, map,
 				                  &pending, cbor_string_prefix,
 				                  ctx);
 				if (ret == NULL)
