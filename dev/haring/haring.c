@@ -176,7 +176,7 @@ int dump_ring_as_buf(struct buffer buf, size_t ofs, int flags)
 					fprintf(stderr, "Note: incomplete message at offset %llu, dumping "
 						"its first %llu byte(s) and stopping.\n",
 						(unsigned long long)ofs, (unsigned long long)msg_len);
-					warned;
+					warned = 1;
 				}
 				truncated = 1;
 			}
