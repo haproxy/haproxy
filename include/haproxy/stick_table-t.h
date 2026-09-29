@@ -189,6 +189,7 @@ struct stktable {
 	unsigned int size;        /* maximum number of sticky sessions in table */
 	int expire;               /* time to live for sticky sessions (milliseconds) */
 	int data_size;            /* the size of the data that is prepended *before* stksess */
+	int proto_size;           /* the rough size of the data+fixed key over the peers protocol */
 	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */
 	unsigned int data_nbelem[STKTABLE_DATA_TYPES]; /* to store nb_elem in case of array types */
 	unsigned int brates_factor; /* Factor used for IN/OUT bytes rates */

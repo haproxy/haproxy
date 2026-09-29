@@ -1385,6 +1385,7 @@ int stktable_alloc_data_type(struct stktable *t, int type, const char *sa, const
 	}
 
 	t->data_size      += t->data_nbelem[type] * stktable_type_size(stktable_data_types[type].std_type);
+	t->proto_size     += t->data_nbelem[type] * stktable_type_proto_size(stktable_data_types[type].std_type);
 	t->data_ofs[type]  = -t->data_size;
 	return PE_NONE;
 }
@@ -1678,6 +1679,13 @@ int parse_stick_table(const char *file, int linenum, char **args,
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
+
+	/* the key is sent as-is for most types (string is trimmed), and 11
+	 * extra bytes of encapsulation are added when sending (measured).
+	 */
+	t->proto_size += 11;
+	if (t->type != SMP_T_STR)
+		t->proto_size += t->key_size;
 
  out:
 	return err_code;
