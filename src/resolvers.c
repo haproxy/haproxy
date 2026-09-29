@@ -812,7 +812,11 @@ static struct task *resolv_srvrq_expire_task(struct task *t, void *context, unsi
 
 	enter_resolver_code();
 	HA_SPIN_LOCK(DNS_LOCK, &srv->srvrq->resolvers->lock);
-	resolv_srvrq_cleanup_srv(srv);
+	/* the server may have been assigned an SRV record by the resolvers
+	 * in the mean time, which resets the expiration date.
+	 */
+	if (tick_is_expired(t->expire, now_ms))
+		resolv_srvrq_cleanup_srv(srv);
 	HA_SPIN_UNLOCK(DNS_LOCK, &srv->srvrq->resolvers->lock);
 	leave_resolver_code();
 
