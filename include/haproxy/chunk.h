@@ -181,7 +181,7 @@ static forceinline struct buffer *alloc_trash_chunk_sz(size_t size)
  */
 static forceinline struct buffer *alloc_best_trash_chunk(const struct buffer *buf, size_t size)
 {
-	if (pool_head_large_trash && buf->size == pool_head_large_trash->size)
+	if (pool_head_large_trash && (buf->size == pool_head_large_trash->size || buf->data >  pool_head_trash->size))
 		return alloc_trash_chunk_sz(size);
 	else if (size <= pool_head_trash->size)
 		return alloc_trash_chunk();

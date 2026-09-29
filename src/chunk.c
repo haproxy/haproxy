@@ -168,7 +168,7 @@ struct buffer *get_trash_chunk_sz(size_t size)
  */
 struct buffer *get_best_trash_chunk(const struct buffer *buf, size_t size)
 {
-	if (large_trash_size && buf->size == large_trash_size)
+	if (large_trash_size && (buf->size == large_trash_size || buf->data > trash_size))
 		return get_trash_chunk_sz(size);
 	else if (size <= trash_size)
 		return get_trash_chunk();
