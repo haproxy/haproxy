@@ -2002,8 +2002,8 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 	 * of type FINAL_SIZE_ERROR; see Section 11 for details on error
 	 * handling.
 	 */
-	if (qcs->flags & QC_SF_SIZE_KNOWN &&
-	    (offset + len > qcs->rx.offset_max || (fin && offset + len < qcs->rx.offset_max))) {
+	if (((qcs->flags & QC_SF_SIZE_KNOWN) && offset + len > qcs->rx.offset_max) ||
+	    (fin && offset + len < qcs->rx.offset_max)) {
 		TRACE_ERROR("final size error", QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR, qcc->conn, qcs);
 		qcc_set_error(qcc, QC_ERR_FINAL_SIZE_ERROR, 0,
 		              muxc_tevt_type_proto_err);
