@@ -3543,7 +3543,10 @@ enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, str
 		memprintf(err,
 			  "fetch method '%s' extracts information from '%s', none of which is available here",
 			  args[cur_arg-1], sample_src_names(expr->fetch->use));
-		free(expr);
+		release_sample_expr(expr);
+		ha_free(&rule->arg.resolv.varname);
+		ha_free(&rule->arg.resolv.resolvers_id);
+		ha_free(&rule->arg.resolv.opts);
 		return ACT_RET_PRS_ERR;
 	}
 	rule->arg.resolv.expr = expr;
