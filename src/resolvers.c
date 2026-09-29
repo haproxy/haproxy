@@ -1478,8 +1478,12 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		offset = 0;
 		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE,
 		                    &offset, 0);
-		if (len == 0)
-			continue;
+
+		/* a zero length is either an error or the root name. We can't
+		 * know where the next record starts in case of error.
+		 */
+		if (len == 0 && (reader >= bufend || *reader != 0))
+			goto skip_parsing_additional_records;
 
 		if (reader + offset + 10 > bufend)
 			goto invalid_resp;
@@ -1515,10 +1519,14 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		offset = 0;
 		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 
-		if (len == 0) {
+		/* a zero length is either an error or the root name (e.g. the
+		 * OPT pseudo-record). We can't know where the next record
+		 * starts in case of error.
+		 */
+		if (len == 0 && (reader >= bufend || *reader != 0)) {
 			pool_free(resolv_answer_item_pool, answer_record);
 			answer_record = NULL;
-			continue;
+			goto skip_parsing_additional_records;
 		}
 
 		memcpy(answer_record->name, tmpname, len);
