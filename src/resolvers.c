@@ -4162,6 +4162,12 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+			if (!tout) {
+				ha_alert("parsing [%s:%d]: <%s %s> must not be null.\n",
+					 file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 			if (args[1][2] == 't')
 				curr_resolvers->timeout.retry = tout;
 			else {
