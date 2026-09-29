@@ -4118,6 +4118,12 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		curr_resolvers->resolve_retries = atoi(args[1]);
+		if (curr_resolvers->resolve_retries < 1) {
+			ha_alert("parsing [%s:%d] : '%s' expects a strictly positive integer as argument (was '%s').\n",
+				 file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 	}
 	else if (strcmp(args[0], "timeout") == 0) {
 		if (!*args[1]) {
