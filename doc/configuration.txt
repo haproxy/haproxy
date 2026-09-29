@@ -21210,6 +21210,11 @@ nameserver <name> <address>[:port] [param*]
   TCP follows the normal resolver error path and does not start another
   fallback.
 
+  The optional [param*] arguments are only supported with a stream address
+  prefix: for a datagram nameserver ("udp@", "udp4@", "udp6@", "dgram+" or a
+  plain address), any argument following the address is ignored and a
+  warning is emitted during the configuration parsing.
+
   If a stream protocol address prefix is used, the nameserver will be
   considered as a stream server (TCP for instance) and
   "server" parameters found in 5.2 paragraph which are relevant for DNS

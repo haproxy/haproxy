@@ -4001,6 +4001,12 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 		else {
+			if (*args[3]) {
+				ha_warning("parsing [%s:%d] : '%s %s' : arguments following the address are ignored for datagram nameservers, they are only supported with 'tcp@' addresses.\n",
+				           file, linenum, args[0], args[1]);
+				err_code |= ERR_WARN;
+			}
+
 			if (dns_dgram_init(newnameserver, sk) < 0) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
