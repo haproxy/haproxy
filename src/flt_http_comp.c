@@ -857,8 +857,8 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 	int ret = 0;
 	const char *res;
 
-	/* always default to compress responses */
-	comp = proxy_get_comp(proxy, COMP_FL_DIR_RES);
+	/* Algorithms enable their direction unless an explicit direction was set. */
+	comp = proxy_get_comp(proxy, 0);
 	if (comp == NULL) {
 		memprintf(err, "'%s': out of memory.", args[0]);
 		ret = -1;
@@ -899,6 +899,8 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			cur_arg++;
 			continue;
 		}
+		if (!(comp->flags & COMP_FL_DIR_FORCED))
+			comp->flags |= COMP_FL_DIR_RES;
 	}
 	else if (strcmp(args[1], "algo-req") == 0) {
 		struct comp_ctx *ctx;
@@ -923,6 +925,8 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			ret = -1;
 			goto end;
 		}
+		if (!(comp->flags & COMP_FL_DIR_FORCED))
+			comp->flags |= COMP_FL_DIR_REQ;
 	}
 	else if (strcmp(args[1], "offload") == 0) {
 		if (proxy->cap & PR_CAP_DEF) {
@@ -1002,12 +1006,12 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 		}
 		if (strcmp(args[2], "request") == 0) {
 			comp->flags &= ~COMP_FL_DIR_RES;
-			comp->flags |= COMP_FL_DIR_REQ;
+			comp->flags |= (COMP_FL_DIR_FORCED | COMP_FL_DIR_REQ);
 		} else if (strcmp(args[2], "response") == 0) {
 			comp->flags &= ~COMP_FL_DIR_REQ;
-			comp->flags |= COMP_FL_DIR_RES;
+			comp->flags |= (COMP_FL_DIR_FORCED | COMP_FL_DIR_RES);
 		} else if (strcmp(args[2], "both") == 0)
-			comp->flags |= COMP_FL_DIR_REQ | COMP_FL_DIR_RES;
+			comp->flags |= (COMP_FL_DIR_FORCED | COMP_FL_DIR_REQ | COMP_FL_DIR_RES);
 		else {
 			memprintf(err, "'%s' expects 'request', 'response', or 'both'.", args[0]);
 			ret = -1;
