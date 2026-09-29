@@ -2978,6 +2978,16 @@ static int resolvers_finalize_config(void)
 						continue;
 					}
 				}
+				else if (srv->srvrq->resolvers != srv->resolvers) {
+					/* the SRV request is shared by all servers of
+					 * the proxy using the same SRV name, and the
+					 * servers are updated under its resolvers' lock.
+					 */
+					ha_alert("%s '%s', server '%s': all servers using SRV record '%s' must use the same resolvers section ('%s' was already used).\n",
+						 proxy_type_str(px), px->id, srv->id, srv->srvrq->name, srv->srvrq->resolvers->id);
+					err_code |= (ERR_ALERT|ERR_ABORT);
+					continue;
+				}
 
 				srv->srvrq_check = task_new_anywhere();
 				if (!srv->srvrq_check) {
