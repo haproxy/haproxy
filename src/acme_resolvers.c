@@ -82,8 +82,11 @@ void acme_rslv_free(struct acme_rslv *rslv)
 {
 	if (!rslv)
 		return;
-	if (rslv->requester)
+	if (rslv->requester) {
+		HA_SPIN_LOCK(DNS_LOCK, &rslv->resolvers->lock);
 		resolv_unlink_resolution(rslv->requester);
+		HA_SPIN_UNLOCK(DNS_LOCK, &rslv->resolvers->lock);
+	}
 	free(rslv->hostname_dn);
 	istfree(&rslv->txt);
 	free(rslv);
@@ -145,12 +148,18 @@ struct acme_rslv *acme_rslv_start(struct acme_auth *auth, unsigned int *dnstasks
 		goto error;
 	}
 
+	/* the resolution is processed by the resolvers' thread, which
+	 * requires its lock to be held.
+	 */
+	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 	if (resolv_link_resolution(rslv, OBJ_TYPE_ACME_RSLV, 0) < 0) {
+		HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 		memprintf(errmsg, "Could not create resolution task for \"%.*s\"\n", hostname_len, hostname);
 		goto error;
 	}
 
 	resolv_trigger_resolution(rslv->requester);
+	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 
 	return rslv;
 
