@@ -2434,6 +2434,10 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		LIST_APPEND(&qcs->qcc->purg_list, &qcs->el_send);
 		tasklet_wakeup(qcs->qcc->wait_event.tasklet);
 	}
+	else {
+		/* Wake-up upper stream layer to notify about reset on read. */
+		qcs_alert(qcs);
+	}
 
  out:
 	if (qcc->glitches != prev_glitches && !(qcc->flags & QC_CF_IS_BACK))
