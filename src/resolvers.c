@@ -1573,6 +1573,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 			memcpy(&answer_record->data.in6.sin6_addr, reader, answer_record->data_len);
 		}
 		else {
+			/* ignored record, skip its data */
+			reader += answer_record->data_len;
 			pool_free(resolv_answer_item_pool, answer_record);
 			answer_record = NULL;
 			continue;
