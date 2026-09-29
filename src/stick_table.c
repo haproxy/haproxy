@@ -191,8 +191,19 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
 	if (t->type != SMP_T_STR)
 		memcpy(ts->key.key, key->key, t->key_size);
 	else {
-		memcpy(ts->key.key, key->key, MIN(t->key_size - 1, key->key_len));
-		ts->key.key[MIN(t->key_size - 1, key->key_len)] = 0;
+		int key_len = key->key_len;
+
+		if (key_len > t->key_size - 1)
+			key_len = t->key_size - 1;
+
+		if (key_len + t->proto_size > global.tune.bufsize)
+			key_len = global.tune.bufsize - t->proto_size;
+
+		if (key_len < 0)
+			key_len = 0;
+
+		memcpy(ts->key.key, key->key, key_len);
+		ts->key.key[key_len] = 0;
 	}
 }
 
@@ -1686,6 +1697,13 @@ int parse_stick_table(const char *file, int linenum, char **args,
 	t->proto_size += 11;
 	if (t->type != SMP_T_STR)
 		t->proto_size += t->key_size;
+
+	if (t->proto_size > global.tune.bufsize) {
+		ha_alert("parsing [%s:%d] : %s: too large key+data (%d bytes on wire) for bufsize (%u). Reduce key len, reduce stored data, or increase tune.bufsize.\n",
+			 file, linenum, args[0], t->proto_size, global.tune.bufsize);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
 
  out:
 	return err_code;
