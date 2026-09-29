@@ -1409,7 +1409,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		/* Lookup to see if we already had this entry */
 		found = 0;
 
-		for (eb32 = eb32_lookup(&r_res->answer_tree, key); eb32 != NULL;  eb32 = eb32_next(eb32)) {
+		for (eb32 = eb32_lookup(&r_res->answer_tree, key); eb32 != NULL; eb32 = eb32_next_dup(eb32)) {
 			tmp_record = eb32_entry(eb32, typeof(*tmp_record), link);
 			if (tmp_record->type != answer_record->type)
 				continue;
