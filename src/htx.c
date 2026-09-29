@@ -1327,41 +1327,6 @@ struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data)
 	return blk;
 }
 
-/* Moves the block <blk> just before the block <ref>. Both blocks must be in the
- * HTX message <htx> and <blk> must be placed after <ref>. pointer to these
- * blocks are updated to remain valid after the move.
- *
- * It is the caller responsibility to take care the result remains valid.
- */
-void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref)
-{
-	struct htx_blk *cblk, *pblk;
-
-	cblk = *blk;
-	for (pblk = htx_get_prev_blk(htx, cblk); pblk; pblk = htx_get_prev_blk(htx, pblk)) {
-		htx->flags |= HTX_FL_UNORDERED;
-
-		/* transfer EOM to <pblk> before swapping blocs */
-		if (cblk->flags & HTX_BLK_FL_EOM) {
-			pblk->flags |= HTX_BLK_FL_EOM;
-			cblk->flags &= ~HTX_BLK_FL_EOM;
-		}
-
-		/* Swap .flags, .addr and .info fields */
-		cblk->flags ^= pblk->flags; pblk->flags ^= cblk->flags; cblk->flags ^= pblk->flags;
-		cblk->addr ^= pblk->addr; pblk->addr ^= cblk->addr; cblk->addr ^= pblk->addr;
-		cblk->info ^= pblk->info; pblk->info ^= cblk->info; cblk->info ^= pblk->info;
-
-		if (cblk->addr == pblk->addr)
-			cblk->addr += htx_get_blksz(pblk);
-		if (pblk == *ref)
-			break;
-		cblk = pblk;
-	}
-	*blk = cblk;
-	*ref = pblk;
-}
-
 /* Append the HTX message <src> to the HTX message <dst>. It returns 1 on
  * success and 0 on error.  All the message or nothing is copied. If an error
  * occurred, all blocks from <src> already appended to <dst> are truncated. On

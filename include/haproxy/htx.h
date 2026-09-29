@@ -56,7 +56,6 @@ size_t htx_add_data_type(struct htx *htx, const struct ist data, enum htx_blk_ty
 size_t htx_add_data(struct htx *htx, const struct ist data);
 size_t htx_add_raw_data(struct htx *htx, const struct ist data);
 struct htx_blk *htx_add_last_data(struct htx *htx, struct ist data);
-void htx_move_blk_before(struct htx *htx, struct htx_blk **blk, struct htx_blk **ref);
 int htx_append_msg(struct htx *dst, const struct htx *src);
 struct buffer *htx_move_to_small_buffer(struct buffer *dst, struct buffer *src);
 struct buffer *htx_move_to_large_buffer(struct buffer *dst, struct buffer *src);

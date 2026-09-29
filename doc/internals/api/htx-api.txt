@@ -440,12 +440,6 @@ help (others could be added) :
       remains on the last block of the message. This function is dedicated to
       regular DATA blocks, it must not be used for tunneled data.
 
-    - htx_move_blk_before() moves a specific block just before another one. Both
-      blocks must already be in the HTX message and the block to move must
-      always be placed after the "pivot". The flag marking the end of the
-      message, if any, is kept on the last block of the message. However it
-      remains the caller responsibility to take care the result is still valid.
-
 Once added, there are three functions to update the block's payload :
 
     - htx_replace_stline() updates a start-line. The HTX block must be passed as
