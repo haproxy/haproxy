@@ -44,6 +44,7 @@
 #define COMP_FL_OFFLOAD		0x00000001 /* Compression offload */
 #define COMP_FL_DIR_REQ		0x00000002 /* Compress requests */
 #define COMP_FL_DIR_RES		0x00000004 /* Compress responses */
+#define COMP_FL_DIR_FORCED	0x00000008 /* Compress direction was forced */
 
 struct comp {
 	struct comp_algo *algos_res; /* Algos available for response */
