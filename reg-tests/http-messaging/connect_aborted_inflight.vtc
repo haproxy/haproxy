@@ -1,0 +1,71 @@
+# A CONNECT request ends at its headers, even when the tunnel is subsequently
+# rejected. DATA frames received after the rejection must still carry raw
+# tunnel data, not HTTP payload. Otherwise, transferring them into a request
+# buffer whose message already ended triggers an HTX assertion.
+
+varnishtest "In-flight H2 tunnel data after a CONNECT rejection"
+feature ignore_unknown_macro
+
+barrier b0 cond 2
+barrier b1 cond 2
+
+server s1 {
+	rxreq
+	expect req.method == "CONNECT"
+	barrier b0 sync
+	# Keep the response unfinished while the client sends more tunnel data.
+	txresp -status 403 -hdr "content-length: 6" -nolen
+	barrier b1 sync
+	send "denied"
+	expect_close
+} -start
+
+haproxy hap -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen fe
+	bind "fd@${fe}" proto h2
+	server s1 "${s1_addr}:${s1_port}"
+} -start
+
+client c1 -connect ${hap_fe_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+	} -run
+
+	stream 1 {
+		txreq -noadd \
+		  -litHdr inc plain ":method" plain "CONNECT" \
+		  -litHdr inc plain ":authority" plain "example.com:443" \
+		  -nostrend
+		# Leave raw data pending in the request buffer, preserving its EOM.
+		txdata -data "early tunnel data" -nostrend
+		barrier b0 sync
+		rxwinup
+		rxwinup
+		rxhdrs
+		expect resp.status == 403
+
+		# Simulate data already in flight when the rejection was sent.
+		# Wait for its window update before allowing the response to end.
+		txdata -data "late tunnel data" -nostrend
+		rxwinup
+		delay 0.1
+		barrier b1 sync
+		rxdata
+		expect resp.body == "denied"
+	} -run
+} -run

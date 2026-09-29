@@ -6612,9 +6612,14 @@ try_again:
 
 	/* Tunneled data must never be mixed with HTTP data. A dedicated block
 	 * type is used for them. This way, the end of the HTTP message, reported
-	 * just after the headers for a tunneled stream, is preserved.
+	 * just after the headers for a tunneled stream, is preserved. On the
+	 * request side, this remains true after a tunnel attempt was aborted:
+	 * some tunneled data may still be in flight after the early end of the
+	 * message was reported. On the response side, an aborted tunnel carries
+	 * a regular HTTP response instead.
 	 */
-	if (h2s->flags & H2_SF_BODY_TUNNEL)
+	if ((h2s->flags & H2_SF_BODY_TUNNEL) ||
+	    (!(h2c->flags & H2_CF_IS_BACK) && (h2s->flags & H2_SF_TUNNEL_ABRT)))
 		sent = htx_add_raw_data(htx, ist2(b_head(&h2c->dbuf), flen));
 	else
 		sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
