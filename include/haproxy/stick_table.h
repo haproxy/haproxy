@@ -141,6 +141,25 @@ static inline int stktable_type_size(int type)
 	return 0;
 }
 
+/* return upper protocol size for standard data type <type> when transported
+ * over the peers protocol.
+ */
+static inline int stktable_type_proto_size(int type)
+{
+	switch(type) {
+	case STD_T_SINT:
+	case STD_T_UINT:
+		return 5;  // 32-bit varint
+	case STD_T_ULL:
+		return 9;  // 64-bit varint
+	case STD_T_FRQP:
+		return 15; // 3*32-bit varint
+	case STD_T_DICT:
+		return 5;  // 32-bit varint
+	}
+	return 0;
+}
+
 int stktable_alloc_data_type(struct stktable *t, int type, const char *sa, const char *sa2);
 
 /* return pointer for data type <type> in sticky session <ts> of table <t>, all
