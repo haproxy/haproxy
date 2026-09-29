@@ -3422,6 +3422,59 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 	goto end;
 }
 
+/* Skip tunneled data from the HTX message <htx> for the stream <h1s>. Both
+ * the request and the response are in DONE state on the server side and no
+ * tunnel was established. Some raw data may still be in flight and must be
+ * discarded instead of reporting a processing error. Return the number of
+ * bytes consumed, at most <count>, or zero if nothing was done or on error.
+ */
+static size_t h1_skip_tunnel(struct h1s *h1s, struct htx *htx, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){count});
+
+	blk = htx_get_head_blk(htx);
+
+	while (blk && count) {
+		uint32_t vlen;
+
+		type = htx_get_blk_type(blk);
+		if (type != HTX_BLK_RAW_DATA)
+			goto error;
+
+		sz = htx_get_blksz(blk);
+		vlen = MIN(sz, count);
+		ret += vlen;
+		count -= vlen;
+		if (sz == vlen)
+			blk = htx_remove_blk(htx, blk);
+		else {
+			htx_cut_data_blk(htx, blk, vlen);
+			break;
+		}
+	}
+
+	TRACE_PROTO("H1 tunneled data skipped", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
+
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+  error:
+	ret = 0;
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error on tunneled",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+	goto end;
+}
+
 /* Try to send the trailers from the HTX message <htx> for the stream <h1s>. It
  * returns the number of bytes consumed or zero if nothing was done or if an
  * error occurred. No more than <count> bytes can be sent.
@@ -3628,6 +3681,10 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				break;
 
 			case H1_MSG_DONE:
+				if ((h1c->flags & H1C_F_IS_BACK) && h1s->res.state == H1_MSG_DONE) {
+					ret = h1_skip_tunnel(h1s, htx, count);
+					break;
+				}
 				TRACE_STATE("unexpected data xferred in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				__fallthrough;
 
@@ -3674,11 +3731,14 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 	/* Both the request and the response reached the DONE state. So set EOI
 	 * flag on the conn-stream. Most of time, the flag will already be set,
 	 * except for protocol upgrades. Report an error if data remains blocked
-	 * in the output buffer.
+	 * in the output buffer, except for raw request data after an aborted
+	 * tunnel: these may remain because of <count> or output congestion and
+	 * will be skipped on a later call.
 	 */
 	if (h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {
 		se_fl_set(h1s->sd, SE_FL_EOI);
-		if (!htx_is_empty(htx)) {
+		if (!htx_is_empty(htx) &&
+		    (!(h1c->flags & H1C_F_IS_BACK) || htx_get_blk_type(htx_get_head_blk(htx)) != HTX_BLK_RAW_DATA)) {
 			htx->flags |= HTX_FL_PROCESSING_ERROR;
 			h1s->flags |= H1S_F_PROCESSING_ERROR;
 			se_fl_set(h1s->sd, SE_FL_ERROR);
