@@ -1749,7 +1749,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 
 			/* Compare only the same addresses class. */
 			if (resolv_opts->pref_net[j].family != ip_type)
-				goto next;
+				continue;
 
 			if ((ip_type == AF_INET &&
 			     in_net_ipv4(ip,
@@ -1773,7 +1773,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 
 			list_for_each_entry(srv, &record->attached_servers, ip_rec_item) {
 				if (srv == owner)
-					goto next;
+					continue;
 				if (srv->proxy == owner->proxy) {
 					already_used = 1;
 					break;
