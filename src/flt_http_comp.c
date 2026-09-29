@@ -1140,18 +1140,19 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 	struct flt_conf *fconf_req = NULL;
 	struct flt_conf *fconf_res = NULL;
 	int explicit = 0;
-	int comp = 0;
 	int err = 0;
 
 	if (proxy->comp == NULL)
 		goto end;
 	if (!LIST_ISEMPTY(&proxy->filter_configs)) {
 		list_for_each_entry(fconf, &proxy->filter_configs, list) {
-			if (fconf->id == http_comp_req_flt_id || fconf->id == http_comp_res_flt_id)
-				comp = 1;
+			if (fconf->id == http_comp_req_flt_id)
+				fconf_req = fconf;
+			else if (fconf->id == http_comp_res_flt_id)
+				fconf_res = fconf;
 			else if (fconf->id == cache_store_flt_id) {
-				if (comp) {
-					ha_alert("config: %s '%s': unable to enable the compression filter "
+				if (fconf_res) {
+					ha_alert("config: %s '%s': unable to enable the compression filter on response "
 						 "before any cache filter.\n",
 						 proxy_type_str(proxy), proxy->id);
 					err++;
@@ -1168,38 +1169,47 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 				explicit = 1;
 		}
 	}
-	if (comp)
-		goto end;
-	else if (explicit) {
-		ha_alert("config: %s '%s': require an explicit filter declaration to use "
-			 "HTTP compression\n", proxy_type_str(proxy), proxy->id);
-		err++;
-		goto end;
+	if ((proxy->comp->flags & COMP_FL_DIR_REQ) && !fconf_req) {
+		if (explicit) {
+			ha_alert("config: %s '%s': require an explicit filter declaration to use "
+				 "HTTP request compression\n", proxy_type_str(proxy), proxy->id);
+			err++;
+			goto end;
+		}
+		/* Implicit declaration of the request compression filter is always the last
+		 * one */
+		fconf_req = calloc(1, sizeof(*fconf));
+		if (!fconf_req)
+			goto out_of_memory;
+		fconf_req->id   = http_comp_req_flt_id;
+		fconf_req->conf = proxy->comp;
+		fconf_req->ops  = &comp_req_ops;
+		LIST_APPEND(&proxy->filter_configs, &fconf_req->list);
 	}
-
-	/* Implicit declaration of the compression filter is always the last
-	 * one */
-	fconf_req = calloc(1, sizeof(*fconf));
-	fconf_res = calloc(1, sizeof(*fconf));
-	if (!fconf_req || !fconf_res) {
-		ha_alert("config: %s '%s': out of memory\n",
-			 proxy_type_str(proxy), proxy->id);
-		ha_free(&fconf_req);
-		ha_free(&fconf_res);
-		err++;
-		goto end;
+	if ((proxy->comp->flags & COMP_FL_DIR_RES) && !fconf_res) {
+		if (explicit) {
+			ha_alert("config: %s '%s': require an explicit filter declaration to use "
+				 "HTTP response compression\n", proxy_type_str(proxy), proxy->id);
+			err++;
+			goto end;
+		}
+		/* Implicit declaration of the response compression filter is always the last
+		 * one */
+		fconf_res = calloc(1, sizeof(*fconf));
+		if (!fconf_res)
+			goto out_of_memory;
+		fconf_res->id   = http_comp_res_flt_id;
+		fconf_res->conf = proxy->comp;
+		fconf_res->ops  = &comp_res_ops;
+		LIST_APPEND(&proxy->filter_configs, &fconf_res->list);
 	}
-	fconf_req->id   = http_comp_req_flt_id;
-	fconf_req->conf = proxy->comp;
-	fconf_req->ops  = &comp_req_ops;
-	LIST_APPEND(&proxy->filter_configs, &fconf_req->list);
-
-	fconf_res->id   = http_comp_res_flt_id;
-	fconf_res->conf = proxy->comp;
-	fconf_res->ops  = &comp_res_ops;
-	LIST_APPEND(&proxy->filter_configs, &fconf_res->list);
  end:
 	return err;
+
+ out_of_memory:
+	ha_alert("config: %s '%s': out of memory\n", proxy_type_str(proxy), proxy->id);
+	err++;
+	goto end;
 }
 
 /*
