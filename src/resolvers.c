@@ -3094,6 +3094,13 @@ void resolv_stats_clear_counters(int clrall, struct list *stat_modules)
 			list_for_each_entry(ns, &resolvers->nameservers, list) {
 				counters = EXTRA_COUNTERS_GET(ns->extra_counters, mod);
 				memcpy(counters, mod->counters, mod->counters_size);
+
+				/* restore the identity fields which are not counters */
+				if (mod == &rslv_stats_module) {
+					ns->counters->id = ns->id;
+					ns->counters->ns_puid = ns->puid;
+					ns->counters->pid = resolvers->id;
+				}
 			}
 		}
 	}
