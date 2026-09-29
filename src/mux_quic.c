@@ -2670,6 +2670,19 @@ static void qcs_destroy(struct qcs *qcs)
 			qcc_release_remote_stream(qcc, id);
 	}
 
+	/* If some data are not yet consumed, account them in conn flow
+	 * control. On frontend, this may happen when FE stream is released
+	 * prior to request completion.
+	 *
+	 * TODO QCS should not be released if not closed remotely to guarantee
+	 * the connection flow control consistency
+	 */
+	if (!qcs_is_close_remote(qcs) && qcs->rx.offset_max > qcs->rx.offset) {
+		COUNT_IF(1, "QCS is released while not remotely closed. "
+		            "This may cause miscalculation in conn flow control.");
+		qcc_account_for_conn_fctl(qcc, qcs->rx.offset_max - qcs->rx.offset);
+	}
+
 	qcs_free(qcs);
 
 	/* Rearm http-keep-alive timeout when last request stream is freed. */
