@@ -3406,6 +3406,13 @@ static int h3_close(struct qcs *qcs, enum qcc_app_ops_close_side side)
 		qcc_report_glitch(qcs->qcc, 1);
 		return 1;
 	}
+	else if (h3s->type == H3S_T_QPACK_DEC || h3s->type == H3S_T_QPACK_ENC) {
+		TRACE_ERROR("closure detected on QPACK stream", H3_EV_H3S_END, qcs->qcc->conn, qcs);
+		qcc_set_error(qcs->qcc, H3_ERR_CLOSED_CRITICAL_STREAM, 1,
+		              muxc_tevt_type_proto_err);
+		qcc_report_glitch(qcs->qcc, 1);
+		return 1;
+	}
 
 	return 0;
 }
