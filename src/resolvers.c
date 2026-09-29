@@ -2923,8 +2923,29 @@ static int resolvers_finalize_config(void)
 		list_for_each_entry(srv, &px->servers, el_px) {
 			struct resolvers *resolvers;
 
-			if (!srv->resolvers_id)
+			if (!srv->resolvers_id) {
+				/* A server with an SRV name but no resolvers
+				 * will never be resolved, yet it's attached to
+				 * the SRV request shared with other servers of
+				 * this proxy using the same name, which could
+				 * pick it during the assignment of the SRV
+				 * records (it would crash on its NULL
+				 * srvrq_check task). But the SRV request must
+				 * also be removed altogether: otherwise, on a
+				 * reload with a server state file, the server
+				 * could be re-added to the SRV request's
+				 * named_servers tree and crash on the same
+				 * NULL srvrq_check when scheduling its
+				 * expiration task, and any later SRV response
+				 * could also pick it from that tree. Let's
+				 * detach it and drop the reference.
+				 */
+				if (srv->srvrq) {
+					LIST_DEL_INIT(&srv->srv_rec_item);
+					srv->srvrq = NULL;
+				}
 				continue;
+			}
 
 			if ((resolvers = find_resolvers_by_id(srv->resolvers_id)) == NULL) {
 				ha_alert("%s '%s', server '%s': unable to find required resolvers '%s'\n",
