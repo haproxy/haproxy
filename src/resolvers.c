@@ -2485,13 +2485,16 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 				break;
 
 			case RSLV_RESP_TRUNCATED:
-				res->status = RSLV_STATUS_OTHER;
 				ns->counters->app.resolver.truncated++;
 				if (dns_server_type_is_dgram(type) &&
 				    dns_nameserver_has_fallback(ns) &&
 				    resolv_send_tcp_fallback(res, ns,
-				                            res->response_query_records[0].type))
+				                            res->response_query_records[0].type)) {
+					/* if the TCP response never comes, it's a timeout */
+					res->status = RSLV_STATUS_TIMEOUT;
 					continue;
+				}
+				res->status = RSLV_STATUS_OTHER;
 				break;
 
 			case RSLV_RESP_NO_EXPECTED_RECORD:
