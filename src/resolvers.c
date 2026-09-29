@@ -1946,6 +1946,13 @@ int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 			offset = i+1;
 			continue;
 		}
+
+		/* labels are limited to 63 chars, and a NUL char would
+		 * truncate the name for callers relying on strdup().
+		 */
+		if (i - offset >= DNS_MAX_LABEL_SIZE || !str[i])
+			return -1;
+
 		dn[i+1] = tolower((unsigned char)str[i]);
 	}
 	dn[offset] = i - offset;
