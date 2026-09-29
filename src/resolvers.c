@@ -699,7 +699,9 @@ int resolv_read_name(unsigned char *buffer, unsigned char *bufend,
 
   out:
 	/* offset computation:
-	 * parse from <name> until finding either NULL or a pointer "c0xx"
+	 * walk the labels from <name> until finding either the terminating
+	 * zero or a pointer "c0xx". Labels may contain any byte, and were
+	 * already validated above.
 	 */
 	reader  = name;
 	*offset = 0;
@@ -712,8 +714,8 @@ int resolv_read_name(unsigned char *buffer, unsigned char *bufend,
 			*offset += 1;
 			break;
 		}
-		*offset += 1;
-		++reader;
+		*offset += *reader + 1;
+		reader  += *reader + 1;
 	}
 	return nb_bytes;
 
