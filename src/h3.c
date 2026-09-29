@@ -1862,6 +1862,13 @@ static ssize_t h3_parse_goaway_frm(struct h3c *h3c, const struct buffer *buf,
 		return -1;
 	}
 
+	if (ret != len) {
+		TRACE_ERROR("mismatch on GOAWAY frame length", H3_EV_RX_FRAME, h3c->qcc->conn);
+		h3c->err = H3_ERR_FRAME_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		return -1;
+	}
+
 	if ((h3c->flags & H3_CF_GOAWAY_RECV) && id > h3c->id_shut_r) {
 		h3c->err = H3_ERR_ID_ERROR;
 		qcc_report_glitch(h3c->qcc, 1);
