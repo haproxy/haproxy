@@ -4797,10 +4797,13 @@ static int h1_subscribe(struct stconn *sc, int event_type, struct wait_event *es
 		 * If the stconn attempts to subscribe, and the
 		 * mux isn't subscribed to the connection, then it
 		 * probably means the connection wasn't established
-		 * yet, so we have to subscribe.
+		 * yet, so we have to subscribe. However, if output
+		 * processing is blocked waiting for the response,
+		 * connection send readiness cannot unblock it. The
+		 * receive path will wake the stream instead.
 		 */
 		h1c = h1s->h1c;
-		if (!(h1c->wait_event.events & SUB_RETRY_SEND))
+		if (!(h1c->wait_event.events & SUB_RETRY_SEND) && !(h1s->flags & H1S_F_TX_BLK))
 			h1c->conn->xprt->subscribe(h1c->conn,
 						   h1c->conn->xprt_ctx,
 						   SUB_RETRY_SEND,
