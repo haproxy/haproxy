@@ -2060,6 +2060,7 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 		res->last_valid = now_ms;
 
 		LIST_INIT(&res->requesters);
+		LIST_INIT(&res->list);
 		res->response.answer_tree = EB_ROOT;
 		res->response.next = NULL;
 
