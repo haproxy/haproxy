@@ -2402,6 +2402,7 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 	struct eb32_node *eb;
 	struct resolv_requester *req;
 	int keep_answer_items;
+	int allow_truncated_srv;
 
 	resolvers = ns->parent;
 	max_payload_size = dns_server_type_is_stream(type) ?
@@ -2449,9 +2450,11 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 		res->nb_responses++;
 
 		max_answer_records = (max_payload_size - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE;
+		allow_truncated_srv = !(dns_server_type_is_dgram(type) &&
+		                        dns_nameserver_has_fallback(ns));
+	validate:
 		dns_resp = resolv_validate_dns_response(buf, bufend, res, max_answer_records,
-		                                       !(dns_server_type_is_dgram(type) &&
-		                                         dns_nameserver_has_fallback(ns)));
+		                                       allow_truncated_srv);
 
 		switch (dns_resp) {
 			case RSLV_RESP_VALID:
@@ -2493,6 +2496,14 @@ static int resolv_process_responses(struct dns_nameserver *ns, enum dns_server_t
 					/* if the TCP response never comes, it's a timeout */
 					res->status = RSLV_STATUS_TIMEOUT;
 					continue;
+				}
+				if (!allow_truncated_srv &&
+				    res->response_query_records[0].type == DNS_RTYPE_SRV) {
+					/* no fallback possible, a truncated SRV
+					 * response may still be partially used.
+					 */
+					allow_truncated_srv = 1;
+					goto validate;
 				}
 				res->status = RSLV_STATUS_OTHER;
 				break;
