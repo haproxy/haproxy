@@ -2720,12 +2720,16 @@ error:
 static int sample_conv_us_ltime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct buffer *temp;
-	time_t curr_date = smp->data.u.sint / 1000000; /* convert us to s */
-	uint64_t ns = (smp->data.u.sint % 1000000) * 1000; /*  us part to ns */
+	long long date = smp->data.u.sint;
+	time_t curr_date;
+	uint64_t ns;
 
-	/* add offset */
+	/* add offset, which is expressed in the same unit as the input */
 	if (args[1].type == ARGT_SINT)
-		curr_date += args[1].data.sint;
+		date += args[1].data.sint;
+
+	curr_date = date / 1000000; /* convert us to s */
+	ns = (date % 1000000) * 1000; /*  us part to ns */
 
 	temp = conv_time_common(args[0].data.str.area, curr_date, ns, 1);
 	smp->data.u.str = *temp;
@@ -2739,12 +2743,16 @@ static int sample_conv_us_ltime(const struct arg *args, struct sample *smp, void
 static int sample_conv_ms_ltime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct buffer *temp;
-	time_t curr_date = smp->data.u.sint / 1000; /* convert ms to s */
-	uint64_t ns = (smp->data.u.sint % 1000) * 1000000; /*  ms part to ns */
+	long long date = smp->data.u.sint;
+	time_t curr_date;
+	uint64_t ns;
 
-	/* add offset */
+	/* add offset, which is expressed in the same unit as the input */
 	if (args[1].type == ARGT_SINT)
-		curr_date += args[1].data.sint;
+		date += args[1].data.sint;
+
+	curr_date = date / 1000; /* convert ms to s */
+	ns = (date % 1000) * 1000000; /*  ms part to ns */
 
 	temp = conv_time_common(args[0].data.str.area, curr_date, ns, 1);
 	smp->data.u.str = *temp;
@@ -2794,12 +2802,16 @@ static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *p
 static int sample_conv_us_utime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct buffer *temp;
-	time_t curr_date = smp->data.u.sint / 1000000; /* convert us to s */
-	uint64_t ns = (smp->data.u.sint % 1000000) * 1000; /*  us part to ns */
+	long long date = smp->data.u.sint;
+	time_t curr_date;
+	uint64_t ns;
 
-	/* add offset */
+	/* add offset, which is expressed in the same unit as the input */
 	if (args[1].type == ARGT_SINT)
-		curr_date += args[1].data.sint;
+		date += args[1].data.sint;
+
+	curr_date = date / 1000000; /* convert us to s */
+	ns = (date % 1000000) * 1000; /*  us part to ns */
 
 	temp = conv_time_common(args[0].data.str.area, curr_date, ns, 0);
 	smp->data.u.str = *temp;
@@ -2813,12 +2825,16 @@ static int sample_conv_us_utime(const struct arg *args, struct sample *smp, void
 static int sample_conv_ms_utime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct buffer *temp;
-	time_t curr_date = smp->data.u.sint / 1000; /* convert ms to s */
-	uint64_t ns = (smp->data.u.sint % 1000) * 1000000; /*  ms part to ns */
+	long long date = smp->data.u.sint;
+	time_t curr_date;
+	uint64_t ns;
 
-	/* add offset */
+	/* add offset, which is expressed in the same unit as the input */
 	if (args[1].type == ARGT_SINT)
-		curr_date += args[1].data.sint;
+		date += args[1].data.sint;
+
+	curr_date = date / 1000; /* convert ms to s */
+	ns = (date % 1000) * 1000000; /*  ms part to ns */
 
 	temp = conv_time_common(args[0].data.str.area, curr_date, ns, 0);
 	smp->data.u.str = *temp;
