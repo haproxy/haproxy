@@ -1,0 +1,79 @@
+# Test "all servers purge" runtime API
+
+varnishtest "Purge all servers via CLI"
+
+feature cmd "command -v socat"
+feature ignore_unknown_macro
+
+barrier b1 cond 2
+
+server s1 {
+	rxreq
+	barrier b1 sync
+	txresp
+} -start
+
+haproxy h1 -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+	stats socket "${tmpdir}/h1/stats" level admin
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+		use_backend be2
+
+	backend be1
+		server srv1 ${h1_fint_addr}:${h1_fint_port} check
+		server srv2 ${h1_fint_addr}:${h1_fint_port} track srv1
+
+	backend be2
+		balance first
+		server srv1 ${s1_addr}:${s1_port}
+		server srv2 ${s1_addr}:${s1_port}
+
+	frontend fe_int
+		bind "fd@${fint}"
+		http-request return status 200
+} -start
+
+# wait for haproxy startup
+client c0 -connect ${h1_fint_sock} {
+	txreq
+	rxresp
+} -run
+
+shell {
+	out=$(echo "purge all servers be1" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Servers backend iteration performed: 1 removed, 0 scheduled, 1 skipped." ] || \
+	  { echo "expect failure: track server must be skipped: ${out}"; exit 1; }
+}
+
+# Start a long request to temporarily block server deletion
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == "200"
+} -start
+
+shell {
+	out=$(echo "purge all servers be2" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Servers backend iteration performed: 1 removed, 1 scheduled, 0 skipped." ] || \
+	  { echo "expect failure: server with active conn should be scheduled: ${out}"; exit 1; }
+}
+
+barrier b1 sync
+
+shell {
+	# Check that the server is deleted
+	out=$(echo "wait 1s srv-unknown be2/srv1" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	[ "$out" = "Done." ] || \
+	  { echo "expect failure: wait srv-unknown failure: ${out}"; exit 1; }
+}
