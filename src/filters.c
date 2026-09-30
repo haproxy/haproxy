@@ -1922,6 +1922,12 @@ static int parse_filter_config(char **args, int section_type, struct proxy *curp
 	int cur_arg = 1;
 	int i;
 
+	if ((curpx->cap & PR_CAP_DEF) && !*curpx->id) {
+		memprintf(err, "parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.",
+			  file, line, args[0]);
+		return -1;
+	}
+
 	inst = NULL;
 	if (!*args[cur_arg]) {
 		memprintf(err,
@@ -2118,6 +2124,12 @@ static int parse_filter_enable(char **args, int section_type, struct proxy *curp
 	unsigned int enable = (strcmp(args[0], "filter-enable") == 0);
 	int cur_arg;
 
+	if ((curpx->cap & PR_CAP_DEF) && !*curpx->id) {
+		memprintf(err, "parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.",
+			  file, line, args[0]);
+		return -1;
+	}
+
 	if (!*args[1]) {
 		memprintf(err,
 			  "parsing [%s:%d] : missing argument for '%s' in %s '%s'.",
@@ -2196,6 +2208,12 @@ static int parse_filter_sequence(char **args, int section_type, struct proxy *cu
 	enum flt_pos pos;
 	int cur_arg;
 	int ret = 0;
+
+	if ((curpx->cap & PR_CAP_DEF) && !*curpx->id) {
+		memprintf(err, "parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.",
+			  file, line, args[0]);
+		return -1;
+	}
 
 	if (!*args[1]) {
 		memprintf(err, "missing argument for '%s' in %s '%s'.", args[0], proxy_type_str(curpx), curpx->id);
