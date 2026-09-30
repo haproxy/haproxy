@@ -32,10 +32,40 @@ extern const char *http_comp_req_flt_id;
 extern const char *http_comp_res_flt_id;
 extern const char *decomp_req_flt_id;
 extern const char *decomp_res_flt_id;
-
 extern const char *cache_store_flt_id;
+
+extern const char *trace_filter_cls_name;
+extern const char *cache_store_filter_cls_name;
+extern const char *http_comp_req_filter_cls_name;
+extern const char *http_comp_res_filter_cls_name;
+extern const char *decomp_req_filter_cls_name;
+extern const char *decomp_res_filter_cls_name;
+extern const char *bwlim_in_filter_cls_name;
+extern const char *bwlim_out_filter_cls_name;
+
+extern struct filter_class flt_trace_cls;
+extern struct filter_class flt_cache_store_cls;
+extern struct filter_class flt_http_comp_req_cls;
+extern struct filter_class flt_http_comp_res_cls;
+extern struct filter_class flt_decomp_req_cls;
+extern struct filter_class flt_decomp_res_cls;
+extern struct filter_class flt_bwlim_in_cls;
+extern struct filter_class flt_bwlim_out_cls;
+
+#if defined(USE_SPOE)
 extern const char *spoe_filter_id;
+extern const char *spoe_filter_cls_name;
+extern struct filter_class flt_spoe_cls;
+#endif
+#if defined(USE_LUA)
+extern const char *hlua_filter_cls_name;
+extern struct filter_class flt_lua_cls;
+#endif
+#if defined(USE_FCGI)
 extern const char *fcgi_flt_id;
+extern const char *fcgi_filter_cls_name;
+extern struct filter_class flt_fcgi_cls;
+#endif
 
 #define FLT_ID(flt)   (flt)->config->id
 #define FLT_CONF(flt) (flt)->config->conf
@@ -233,5 +263,20 @@ flt_update_offsets(struct filter *filter, struct channel *chn, int len)
 		FLT_OFF(f, chn) += len;
 	}
 }
+
+
+/**************************************************************/
+
+struct filter_class *filter_find_class(const char *name);
+
+int filter_register_class(struct filter_class *cls, const char *name,
+			  int (*parse)(char **args, struct proxy *px,
+				       struct filter_instance *inst, char **err));
+int filter_place_class(struct filter_class *cls, unsigned int side,
+		       const char *ref_name, enum flt_pos pos);
+int filter_register_class_full(struct filter_class *cls, const char *name,
+			       int (*parse)(char **args, struct proxy *px,
+					    struct filter_instance *inst, char **err),
+			       const char *ref_name, enum flt_pos pos);
 
 #endif /* _HAPROXY_FILTERS_H */

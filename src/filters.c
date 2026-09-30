@@ -30,6 +30,35 @@
 
 #define TRACE_SOURCE &trace_strm
 
+/* All internal filter classes (should be extended if new filters are added) */
+struct filter_class flt_trace_cls;
+struct filter_class flt_cache_store_cls;
+struct filter_class flt_http_comp_req_cls;
+struct filter_class flt_http_comp_res_cls;
+struct filter_class flt_decomp_req_cls;
+struct filter_class flt_decomp_res_cls;
+#if defined(USE_SPOE)
+struct filter_class flt_spoe_cls;
+#endif
+#if defined(USE_LUA)
+struct filter_class flt_lua_cls;
+#endif
+struct filter_class flt_bwlim_in_cls;
+struct filter_class flt_bwlim_out_cls;
+#if defined(USE_FCGI)
+struct filter_class flt_fcgi_cls;
+#endif
+
+/* Global list of all filter classes */
+static struct list filter_classes = LIST_HEAD_INIT(filter_classes);
+
+/* Ordered list of filter classes dedicated to the request/response processing */
+static struct list req_filter_classes = LIST_HEAD_INIT(req_filter_classes);
+static struct list res_filter_classes = LIST_HEAD_INIT(res_filter_classes);
+
+/* Used to be sure internal filters classes are initialized before any other ones */
+static int filter_classes_initialized = 0;
+
 /* Pool used to allocate filters */
 DECLARE_STATIC_TYPED_POOL(pool_head_filter, "filter", struct filter);
 
@@ -1251,9 +1280,282 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
+
+/* Checks that all registered filter classes are placed on at least one
+ * side. The classes are placed with filter_place_class() (see
+ * filter_init_classes() for the internal classes), so a class without
+ * placement is useless and most probably comes from a module registration
+ * bug.
+ * Returns a combination of ERR_* flags, ERR_NONE on success.
+ */
+static int flt_precheck_classes()
+{
+	struct filter_class *cls;
+	int err_code = ERR_NONE;
+
+	list_for_each_entry(cls, &filter_classes, list) {
+		if (!LIST_INLIST(&cls->req.list) && !LIST_INLIST(&cls->res.list)) {
+			ha_alert("filters: class '%s' is placed neither on the request side nor on the response side.\n",
+				 cls->name);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+	return err_code;
+}
+
+/* Helper function used to initialized a filter class with the given name,
+ * flags (FLT_CLS_FL_*) and instance parsing function (may be NULL).
+ */
+static inline void flt_init_class(struct filter_class *cls, const char *name, unsigned int flags,
+				  int (*parse)(char **args, struct proxy *px,
+					       struct filter_instance *inst, char **err))
+{
+	cls->name = name;
+	cls->flags = flags;
+	cls->parse = parse;
+	LIST_INIT(&cls->req.before);
+	LIST_INIT(&cls->req.after);
+	LIST_INIT(&cls->req.list);
+
+	LIST_INIT(&cls->res.before);
+	LIST_INIT(&cls->res.after);
+	LIST_INIT(&cls->res.list);
+
+	LIST_INIT(&cls->list);
+}
+
+/* Finds a filter class by name in the global list, NULL if unknown. */
+struct filter_class *filter_find_class(const char *name)
+{
+	struct filter_class *cls;
+
+	list_for_each_entry(cls, &filter_classes, list) {
+		if (strcmp(cls->name, name) == 0)
+			return cls;
+	}
+	return NULL;
+}
+
+/* Registers a new filter class, with the parsing function <parse> used to
+ * finalize the filter instances of this class (may be NULL if the class does
+ * not support the "filter-config" directive). The class is initialized and
+ * added to the global "filter_classes" list only — it is not usable on any side
+ * until placed with filter_place_class(). Must be called after
+ * filter_init_classes().
+ * Returns 0 on success, -1 on error (too early call, duplicate name).
+ */
+int filter_register_class(struct filter_class *cls, const char *name,
+			  int (*parse)(char **args, struct proxy *px,
+				       struct filter_instance *inst, char **err))
+{
+	const char *err;
+	int ret = -1;
+
+	if (!filter_classes_initialized) {
+		ha_alert("filters: class '%s' registered before internal classes were initialized\n", name);
+		goto out;
+	}
+	if (filter_find_class(name)) {
+		ha_alert("filters: duplicate filter class name '%s'\n", name);
+		goto out;
+	}
+	err = invalid_prefix_char(name);
+	if (err) {
+		ha_alert("filters: character '%c' is not permitted in filter class name.\n", *err);
+		goto out;
+	}
+
+	flt_init_class(cls, name, 0, parse);
+	LIST_APPEND(&filter_classes, &cls->list);
+	ret = 0;
+  out:
+	return ret;
+}
+
+/* Places <cls> on <side> (FLT_SIDE_REQ or FLT_SIDE_RES), before or after the
+ * reference class <ref_name>. The class is appended in the reference class'
+ * req/res .before or .after constraint list; the final evaluation order is
+ * resolved later. The global ordered lists are never touched here.  Call it
+ * once per side; the positions may differ per side.
+ * Returns 0 on success, -1 on error (unknown ref, ref not present on that side,
+ * class already placed on that side).
+ */
+int filter_place_class(struct filter_class *cls, unsigned int side,
+		       const char *ref_name, enum flt_pos pos)
+{
+	struct filter_class *ref;
+	int ret = -1;
+
+	if (!filter_classes_initialized) {
+		ha_alert("filters: class '%s' placed before internal classes were initialized\n", cls->name);
+		goto out;
+	}
+	ref = filter_find_class(ref_name);
+	if (!ref) {
+		ha_alert("filters: unknown reference class '%s' for class '%s'\n", ref_name, cls->name);
+		goto out;
+	}
+
+	if (side == FLT_SIDE_REQ) {
+		if (LIST_INLIST(&cls->req.list)) {
+			ha_alert("filters: class '%s' already placed on request side\n", cls->name);
+			goto out;
+		}
+		if (!LIST_INLIST(&ref->req.list)) {
+			ha_alert("filters: reference class '%s' has no request side\n", ref_name);
+			goto out;
+		}
+		LIST_APPEND((pos == FLT_POS_BEFORE) ? &ref->req.before : &ref->req.after,
+			    &cls->req.list);
+	}
+	else {
+		if (LIST_INLIST(&cls->res.list)) {
+			ha_alert("filters: class '%s' already placed on response side\n", cls->name);
+			goto out;
+		}
+		if (!LIST_INLIST(&ref->res.list)) {
+			ha_alert("filters: reference class '%s' has no response side\n", ref_name);
+			goto out;
+		}
+		LIST_APPEND((pos == FLT_POS_BEFORE) ? &ref->res.before : &ref->res.after,
+			    &cls->res.list);
+	}
+	ret = 0;
+  out:
+	return ret;
+}
+
+/* Registers a new filter class named <name> and places it on both sides,
+ * before or after the reference class <ref_name>. Convenience function for
+ * the common symmetric case, equivalent to filter_register_class() followed
+ * by filter_place_class() on FLT_SIDE_REQ and FLT_SIDE_RES.
+ * Returns 0 on success, -1 on error. */
+int filter_register_class_full(struct filter_class *cls, const char *name,
+			       int (*parse)(char **args, struct proxy *px,
+					    struct filter_instance *inst, char **err),
+			       const char *ref_name, enum flt_pos pos)
+{
+	if (filter_register_class(cls, name, parse) < 0)
+		goto err;
+	if (filter_place_class(cls, FLT_SIDE_REQ, ref_name, pos) < 0)
+		goto cleanup_on_err;
+	if (filter_place_class(cls, FLT_SIDE_RES, ref_name, pos) < 0)
+		goto cleanup_on_err;
+
+	return 0;
+
+  cleanup_on_err:
+	LIST_DELETE(&cls->list);
+	LIST_INIT(&cls->list);
+	/* fallthrough */
+  err:
+	return -1;
+}
+
+/* Init function responsible to initialize all intenral filter classes and to
+ * insert them is global list above. The default evaluation order of all
+ * internal filters is defined in this function.
+ *
+ * Exemple to register a new filter class:
+ *
+ * static struct filter_class flt_myfilter_cls;
+ *
+ * static int myfilter_register_class(void)
+ * {
+ *    if (filter_register_class(&flt_myfilter_cls, "myfilter", myfilter_parse_def) < 0)
+ *       return -1;
+ *
+ *    // before spoe on request, after lua on response
+ *     if (filter_place_class(&flt_myfilter_cls, FLT_SIDE_REQ, "spoe", FLT_POS_BEFORE) < 0)
+ *       return -1;
+ *    if (filter_place_class(&flt_myfilter_cls, FLT_SIDE_RES, "lua", FLT_POS_AFTER) < 0)
+ *       return -1;
+ *    return 0;
+ * }
+ * INITCALL1(STG_INIT, myfilter_register_class);
+ */
+static void filter_init_classes(void)
+{
+	/* TODO: the filter names must come from the filters (the filter id most probably) */
+	flt_init_class(&flt_trace_cls,         trace_filter_cls_name,         FLT_CLS_FL_MULTI, NULL);
+	flt_init_class(&flt_cache_store_cls,   cache_store_filter_cls_name,   FLT_CLS_FL_MULTI, NULL);
+	flt_init_class(&flt_http_comp_req_cls, http_comp_req_filter_cls_name, 0,                NULL);
+	flt_init_class(&flt_http_comp_res_cls, http_comp_res_filter_cls_name, 0,                NULL);
+	flt_init_class(&flt_decomp_req_cls,    decomp_req_filter_cls_name,    0,                NULL);
+	flt_init_class(&flt_decomp_res_cls,    decomp_res_filter_cls_name,    0,                NULL);
+#if defined(USE_SPOE)
+	flt_init_class(&flt_spoe_cls,          spoe_filter_cls_name,          FLT_CLS_FL_MULTI, NULL);
+#endif
+#if defined(USE_LUA)
+	flt_init_class(&flt_lua_cls,           hlua_filter_cls_name,          FLT_CLS_FL_MULTI, NULL);
+#endif
+	flt_init_class(&flt_bwlim_in_cls,      bwlim_in_filter_cls_name,      FLT_CLS_FL_MULTI, NULL);
+	flt_init_class(&flt_bwlim_out_cls,     bwlim_out_filter_cls_name,     FLT_CLS_FL_MULTI, NULL);
+#if defined(USE_FCGI)
+	flt_init_class(&flt_fcgi_cls,          fcgi_filter_cls_name,          0,                NULL);
+#endif
+
+	LIST_APPEND(&filter_classes, &flt_trace_cls.list);
+	LIST_APPEND(&filter_classes, &flt_cache_store_cls.list);
+	LIST_APPEND(&filter_classes, &flt_decomp_req_cls.list);
+	LIST_APPEND(&filter_classes, &flt_decomp_res_cls.list);
+#if defined(USE_SPOE)
+	LIST_APPEND(&filter_classes, &flt_spoe_cls.list);
+#endif
+#if defined(USE_LUA)
+	LIST_APPEND(&filter_classes, &flt_lua_cls.list);
+#endif
+	LIST_APPEND(&filter_classes, &flt_http_comp_req_cls.list);
+	LIST_APPEND(&filter_classes, &flt_http_comp_res_cls.list);
+	LIST_APPEND(&filter_classes, &flt_bwlim_in_cls.list);
+	LIST_APPEND(&filter_classes, &flt_bwlim_out_cls.list);
+#if defined(USE_FCGI)
+	LIST_APPEND(&filter_classes, &flt_fcgi_cls.list);
+#endif
+
+	LIST_APPEND(&req_filter_classes, &flt_trace_cls.req.list);
+	LIST_APPEND(&req_filter_classes, &flt_decomp_req_cls.req.list);
+#if defined(USE_LUA)
+	LIST_APPEND(&req_filter_classes, &flt_lua_cls.req.list);
+#endif
+#if defined(USE_SPOE)
+	LIST_APPEND(&req_filter_classes, &flt_spoe_cls.req.list);
+#endif
+	LIST_APPEND(&req_filter_classes, &flt_http_comp_res_cls.req.list);
+	LIST_APPEND(&req_filter_classes, &flt_decomp_res_cls.req.list);
+	LIST_APPEND(&req_filter_classes, &flt_http_comp_req_cls.req.list);
+	LIST_APPEND(&req_filter_classes, &flt_bwlim_in_cls.req.list);
+#if defined(USE_FCGI)
+	LIST_APPEND(&req_filter_classes, &flt_fcgi_cls.req.list);
+#endif
+
+#if defined(USE_FCGI)
+	LIST_APPEND(&res_filter_classes, &flt_fcgi_cls.res.list);
+#endif
+	LIST_APPEND(&res_filter_classes, &flt_trace_cls.res.list);
+	LIST_APPEND(&res_filter_classes, &flt_decomp_res_cls.res.list);
+	LIST_APPEND(&res_filter_classes, &flt_cache_store_cls.res.list);
+#if defined(USE_SPOE)
+	LIST_APPEND(&res_filter_classes, &flt_spoe_cls.res.list);
+#endif
+#if defined(USE_LUA)
+	LIST_APPEND(&res_filter_classes, &flt_lua_cls.res.list);
+#endif
+	LIST_APPEND(&res_filter_classes, &flt_http_comp_res_cls.res.list);
+	LIST_APPEND(&res_filter_classes, &flt_decomp_req_cls.res.list);
+	LIST_APPEND(&res_filter_classes, &flt_bwlim_out_cls.res.list);
+
+	filter_classes_initialized = 1;
+}
+
+
+
+REGISTER_PRE_CHECK(flt_precheck_classes);
 REGISTER_POST_CHECK(flt_init_all);
 REGISTER_PER_THREAD_INIT(flt_init_all_per_thread);
 REGISTER_PER_THREAD_DEINIT(flt_deinit_all_per_thread);
+
+INITCALL0(STG_REGISTER, filter_init_classes);
 
 /*
  * Local variables:

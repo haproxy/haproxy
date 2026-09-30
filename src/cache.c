@@ -56,6 +56,7 @@
 static uint64_t cache_hash_seed = 0;
 
 const char *cache_store_flt_id = "cache store filter";
+const char *cache_store_filter_cls_name = "cache-store";
 
 extern struct applet http_cache_applet;
 
