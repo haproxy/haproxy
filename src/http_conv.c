@@ -63,6 +63,7 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 	struct buffer *temp;
 	struct tm tm;
 	int sec_frac = 0;
+	int frac_digits = 0;
 	time_t curr_date;
 
 	/* add offset */
@@ -72,11 +73,13 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
         /* report in milliseconds */
         if (args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_MS) {
 		sec_frac = smp->data.u.sint % 1000;
+		frac_digits = 3;
                 smp->data.u.sint /= 1000;
         }
         /* report in microseconds */
         else if (args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_US) {
 		sec_frac = smp->data.u.sint % 1000000;
+		frac_digits = 6;
                 smp->data.u.sint /= 1000000;
         }
 
@@ -86,19 +89,14 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 	get_gmtime(curr_date, &tm);
 
 	temp = get_trash_chunk();
-	if (args[1].type == ARGT_SINT && args[1].data.sint != TIME_UNIT_S) {
-	    temp->data = snprintf(temp->area, temp->size - temp->data,
-	                          "%s, %02d %s %04d %02d:%02d:%02d.%d GMT",
-			          day[tm.tm_wday], tm.tm_mday, mon[tm.tm_mon],
-			          1900+tm.tm_year,
-			          tm.tm_hour, tm.tm_min, tm.tm_sec, sec_frac);
-	} else {
-	    temp->data = snprintf(temp->area, temp->size - temp->data,
-	                          "%s, %02d %s %04d %02d:%02d:%02d GMT",
-			          day[tm.tm_wday], tm.tm_mday, mon[tm.tm_mon],
-			          1900+tm.tm_year,
-			          tm.tm_hour, tm.tm_min, tm.tm_sec);
-        }
+	temp->data = snprintf(temp->area, temp->size - temp->data,
+	                      (frac_digits == 6) ? "%s, %02d %s %04d %02d:%02d:%02d.%06d GMT" :
+	                      (frac_digits == 3) ? "%s, %02d %s %04d %02d:%02d:%02d.%03d GMT" :
+	                                           "%s, %02d %s %04d %02d:%02d:%02d GMT",
+	                      day[tm.tm_wday], tm.tm_mday, mon[tm.tm_mon],
+	                      1900+tm.tm_year,
+	                      tm.tm_hour, tm.tm_min, tm.tm_sec,
+	                      sec_frac);
 
 	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
