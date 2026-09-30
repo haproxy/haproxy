@@ -28,6 +28,8 @@
 
 const char *bwlim_in_flt_id = "input bandwidth limitation filter";
 const char *bwlim_out_flt_id = "output bandwidth limitation filter";
+const char *bwlim_in_filter_cls_name = "bwlim-in";
+const char *bwlim_out_filter_cls_name = "bwlim-out";
 
 struct flt_ops bwlim_ops;
 

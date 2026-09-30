@@ -38,6 +38,8 @@
 
 const char *decomp_req_flt_id = "decomp-req filter";
 const char *decomp_res_flt_id = "decomp-res filter";
+const char *decomp_req_filter_cls_name = "decomp-req";
+const char *decomp_res_filter_cls_name = "decomp-res";
 
 struct flt_ops decomp_req_ops;
 struct flt_ops decomp_res_ops;

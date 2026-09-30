@@ -34,6 +34,7 @@ static struct fcgi_app *fcgi_apps = NULL;
 
 struct flt_ops fcgi_flt_ops;
 const char *fcgi_flt_id = "FCGI filter";
+const char *fcgi_filter_cls_name = "fcgi";
 
 /* The fcgi-app filter was implicitly declared (ie without the filter keyword,
  * via use-fcgi-app).

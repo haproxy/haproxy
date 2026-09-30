@@ -221,6 +221,7 @@ struct spoe_config {
 
 /* SPOE filter id. Used to identify SPOE filters */
 const char *spoe_filter_id = "SPOE filter";
+const char *spoe_filter_cls_name = "spoe";
 
 /* The name of the SPOE engine, used during the parsing */
 char *curengine = NULL;

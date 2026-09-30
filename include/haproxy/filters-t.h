@@ -43,6 +43,7 @@ struct stream;
 struct channel;
 struct flt_conf;
 struct filter;
+struct filter_instance;
 
 /* Descriptor for a "filter" keyword. The ->parse() function returns 0 in case
  * of success, or a combination of ERR_* flags if an error is encountered. The
@@ -255,6 +256,41 @@ struct chn_flt {
 	struct filter *current;               /* From which filter resume processing, for a specific channel. */
 	unsigned char nb_data_filters;        /* Number of data filters registered on channel */
 	unsigned long long offset;
+};
+
+/**************************************************************/
+
+#define FLT_SIDE_REQ  0x01
+#define FLT_SIDE_RES  0x02
+
+enum flt_pos {
+	FLT_POS_BEFORE,
+	FLT_POS_AFTER,
+};
+
+/* filter class flags */
+#define FLT_CLS_FL_MULTI  0x01   /* Set if several class instances are allowed per proxy */
+
+struct filter_class {
+	const char *name;           /* The filter class name, must be unique */
+	unsigned int flags;         /* FLT_CLS_FL_* */
+
+	/* Callback to parse the arguments of a filter instance and produce
+	 * the filter configuration (inst->fconf).
+	 */
+	int (*parse)(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+	struct {
+		struct list before; /* classes moved before current class for request */
+		struct list after;  /* classes moved after current class for request */
+		struct list list;   /* classes registered on request analysis */
+	} req;
+	struct {
+		struct list before; /* classes moved before current class on response */
+		struct list after;  /* classes moved after current class on response */
+		struct list list;   /* classes registered on response analysis */
+	} res;
+
+	struct list list; /* Link in global list of filter classes */
 };
 
 #endif /* _HAPROXY_FILTERS_T_H */

@@ -416,6 +416,8 @@ static lua_State *hlua_states[MAX_THREADS + 1];
 
 #define HLUA_FLT_CTX_FL_PAYLOAD  0x00000001
 
+const char *hlua_filter_cls_name = "lua";
+
 struct hlua_reg_filter  {
 	char *name;
 	int flt_ref[MAX_THREADS + 1];

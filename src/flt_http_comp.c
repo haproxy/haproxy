@@ -29,6 +29,8 @@
 
 const char *http_comp_req_flt_id = "comp-req filter";
 const char *http_comp_res_flt_id = "comp-res filter";
+const char *http_comp_req_filter_cls_name = "http-comp-req";
+const char *http_comp_res_filter_cls_name = "http-comp-res";
 
 struct flt_ops comp_req_ops;
 struct flt_ops comp_res_ops;
