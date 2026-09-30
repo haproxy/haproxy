@@ -2429,6 +2429,7 @@ static int hld_cfg_finalize(void)
 		fconf->id = fcgi_flt_id;
 		fconf->conf = fcgi_conf;
 		fconf->ops = &fcgi_flt_ops;
+		fconf->flags |= FLT_CFG_FL_LEGACY;
 		LIST_APPEND(&hld_proxy.filter_configs, &fconf->list);
 	}
 

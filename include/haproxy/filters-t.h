@@ -26,6 +26,7 @@
 
 /* Flags set on a filter config */
 #define FLT_CFG_FL_HTX    0x00000001  /* The filter can filter HTX streams */
+#define FLT_CFG_FL_LEGACY 0x00000002  /* Declared with the legacy "filter" directive */
 
 /* Flags set on a filter instance */
 #define FLT_FL_IS_BACKEND_FILTER  0x0001 /* The filter is a backend filter */
