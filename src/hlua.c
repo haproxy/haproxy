@@ -12588,6 +12588,42 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
+/* Parse the arguments of a "lua" filter instance. The lua filter name is the
+ * instance id, as declared with core.register_filter() in a lua script (the id
+ * is mandatory for this class, several instances are allowed). The instance
+ * arguments are passed to the lua filter, relying on the legacy "filter"
+ * keyword parser.
+ * Returns 0 on success, < 0 on error.
+ */
+int hlua_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct flt_kw *kw;
+	char *kw_name = NULL;
+	int ret;
+
+	if (!inst->id) {
+		memprintf(err, "'%s' : missing filter instance id", hlua_filter_cls_name);
+		return -1;
+	}
+
+	kw_name = memprintf(&kw_name, "lua.%s", inst->id);
+	if (!kw_name) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	kw = flt_find_kw(kw_name);
+	if (!kw || !kw->parse) {
+		memprintf(err, "unknown lua filter '%s'", inst->id);
+		free(kw_name);
+		return -1;
+	}
+
+	ret = flt_parse_instance_legacy(px, inst, err, kw_name, kw->parse, kw->private);
+
+	free(kw_name);
+	return ret;
+}
+
 __LJMP static int hlua_register_data_filter(lua_State *L)
 {
 	struct filter *filter;

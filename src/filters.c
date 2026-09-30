@@ -1759,6 +1759,42 @@ int flt_init_class_refs(struct proxy *px)
 	return -1;
 }
 
+/* Helper function for filter classes: calls the legacy "filter" keyword
+ * parsing function <parse> on the arguments of the filter instance <inst>,
+ * as if the line "filter <kw> <inst args...>" was found in the configuration
+ * of the proxy <px>. <private> is passed as-is to the parsing function.
+ * Returns 0 on success, < 0 on error.
+ */
+int flt_parse_instance_legacy(struct proxy *px, struct filter_instance *inst, char **err,
+			 const char *kw,
+			 int (*parse)(char **args, int *cur_arg, struct proxy *px,
+				      struct flt_conf *fconf, char **err, void *private),
+			 void *private)
+{
+	char *fargs[MAX_LINE_ARGS+1];
+	int i, ret, cur_arg;
+
+	/* the legacy parsing functions expect the keyword at args[*cur_arg],
+	 * followed by the filter arguments. Like for the config parser, the
+	 * arguments must be terminated by an empty string, not a NULL pointer.
+	 */
+
+	fargs[0] = (char *)kw;
+	for (i = 0; inst->conf.argv[i] && *inst->conf.argv[i]; i++)
+		fargs[i+1] = inst->conf.argv[i];
+	fargs[i+1] = "";
+
+	cur_arg = 0;
+	ret = parse(fargs, &cur_arg, px, inst->fconf, err, private);
+	if (ret == 0 && *fargs[cur_arg]) {
+		/* some arguments were not consumed by the parsing function */
+		memprintf(err, "'filter-config %s' : unknown keyword '%s'",
+		          inst->class->name, fargs[cur_arg]);
+		ret = -1;
+	}
+	return ret;
+}
+
 /* Registers a new filter class, with the parsing function <parse> used to
  * finalize the filter instances of this class (may be NULL if the class does
  * not support the "filter-config" directive). The class is initialized and
@@ -1900,22 +1936,22 @@ int filter_register_class_full(struct filter_class *cls, const char *name,
 static void filter_init_classes(void)
 {
 	/* TODO: the filter names must come from the filters (the filter id most probably) */
-	flt_init_class(&flt_trace_cls,         trace_filter_cls_name,         FLT_CLS_FL_MULTI, NULL);
-	flt_init_class(&flt_cache_store_cls,   cache_store_filter_cls_name,   FLT_CLS_FL_MULTI, NULL);
-	flt_init_class(&flt_http_comp_req_cls, http_comp_req_filter_cls_name, 0,                NULL);
-	flt_init_class(&flt_http_comp_res_cls, http_comp_res_filter_cls_name, 0,                NULL);
-	flt_init_class(&flt_decomp_req_cls,    decomp_req_filter_cls_name,    0,                NULL);
-	flt_init_class(&flt_decomp_res_cls,    decomp_res_filter_cls_name,    0,                NULL);
+	flt_init_class(&flt_trace_cls,         trace_filter_cls_name,         FLT_CLS_FL_MULTI, trace_flt_parse_instance);
+	flt_init_class(&flt_cache_store_cls,   cache_store_filter_cls_name,   FLT_CLS_FL_MULTI, cache_store_flt_parse_instance);
+	flt_init_class(&flt_http_comp_req_cls, http_comp_req_filter_cls_name, 0,                http_comp_req_flt_parse_instance);
+	flt_init_class(&flt_http_comp_res_cls, http_comp_res_filter_cls_name, 0,                http_comp_res_flt_parse_instance);
+	flt_init_class(&flt_decomp_req_cls,    decomp_req_filter_cls_name,    0,                decomp_req_flt_parse_instance);
+	flt_init_class(&flt_decomp_res_cls,    decomp_res_filter_cls_name,    0,                decomp_res_flt_parse_instance);
 #if defined(USE_SPOE)
-	flt_init_class(&flt_spoe_cls,          spoe_filter_cls_name,          FLT_CLS_FL_MULTI, NULL);
+	flt_init_class(&flt_spoe_cls,          spoe_filter_cls_name,          FLT_CLS_FL_MULTI, spoe_flt_parse_instance);
 #endif
 #if defined(USE_LUA)
-	flt_init_class(&flt_lua_cls,           hlua_filter_cls_name,          FLT_CLS_FL_MULTI, NULL);
+	flt_init_class(&flt_lua_cls,           hlua_filter_cls_name,          FLT_CLS_FL_MULTI, hlua_flt_parse_instance);
 #endif
-	flt_init_class(&flt_bwlim_in_cls,      bwlim_in_filter_cls_name,      FLT_CLS_FL_MULTI, NULL);
-	flt_init_class(&flt_bwlim_out_cls,     bwlim_out_filter_cls_name,     FLT_CLS_FL_MULTI, NULL);
+	flt_init_class(&flt_bwlim_in_cls,      bwlim_in_filter_cls_name,      FLT_CLS_FL_MULTI, bwlim_in_flt_parse_instance);
+	flt_init_class(&flt_bwlim_out_cls,     bwlim_out_filter_cls_name,     FLT_CLS_FL_MULTI, bwlim_out_flt_parse_instance);
 #if defined(USE_FCGI)
-	flt_init_class(&flt_fcgi_cls,          fcgi_filter_cls_name,          0,                NULL);
+	flt_init_class(&flt_fcgi_cls,          fcgi_filter_cls_name,          0,                fcgi_flt_parse_instance);
 #endif
 
 	LIST_APPEND(&filter_classes, &flt_trace_cls.list);

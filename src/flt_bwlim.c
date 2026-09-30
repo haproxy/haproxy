@@ -967,6 +967,56 @@ static int parse_bwlim_out_flt(char **args, int *cur_arg, struct proxy *px, stru
 	return parse_bwlim_flt(args, cur_arg, px, fconf, err, private);
 }
 
+static int bwlim_flt_parse_instance(const char *kw, char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	char *fargs[MAX_LINE_ARGS+1];
+	int i, ret, cur_arg;
+
+	fargs[0] = (char *)kw;
+	fargs[1] = (char *)inst->id;
+	for (i = 0; args[i] && *args[i]; i++)
+		fargs[i+2] = args[i];
+	fargs[i+2] = "";
+
+	cur_arg = 0;
+	ret = parse_bwlim_flt(fargs, &cur_arg, px, inst->fconf, err, NULL);
+	if (ret == 0 && *fargs[cur_arg]) {
+		memprintf(err, "'filter-config %s' : unknown keyword '%s'", inst->class->name, fargs[cur_arg]);
+		ret = -1;
+	}
+	return ret;
+}
+
+/* Parse the arguments of a "bwlim-in" filter instance. the bandwith limitation
+ * name is the instance id. It relies on bwlim_flt_parse_instance().
+ * Returns 0 on success, < 0 on error.
+ */
+int bwlim_in_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	if (flt_find_instance(px, &flt_bwlim_out_cls, inst->id)) {
+		memprintf(err, "bwlim filter '%s' already declared for proxy '%s'\n", inst->id, px->id);
+		return -1;
+	}
+
+	inst->fconf->id = bwlim_in_flt_id;
+	return bwlim_flt_parse_instance("bwlim-in", args, px, inst, err);
+}
+
+/* Parse the arguments of a "bwlim-out" filter instance. the bandwith limitation
+ * name is the instance id. It relies on bwlim_flt_parse_instance().
+ * Returns 0 on success, < 0 on error.
+ */
+int bwlim_out_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	if (flt_find_instance(px, &flt_bwlim_in_cls, inst->id)) {
+		memprintf(err, "bwlim filter '%s' already declared for proxy '%s'\n", inst->id, px->id);
+		return -1;
+	}
+
+	inst->fconf->id = bwlim_out_flt_id;
+	return bwlim_flt_parse_instance("bwlim-out", args, px, inst, err);
+}
+
 /* Declare the filter parser for "trace" keyword */
 static struct flt_kw_list flt_kws = { "BWLIM", { }, {
 		{ "bwlim-in",  parse_bwlim_in_flt, NULL },

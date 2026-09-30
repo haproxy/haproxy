@@ -561,6 +561,45 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
+/* Parse the arguments of a "fcgi" filter instance. The fcgi-app name is the
+ * instance id, it must be set, and no argument is expected.
+ * Returns 0 on success, < 0 on error.
+ */
+int fcgi_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct fcgi_flt_conf *fcgi_conf;
+
+	if (!inst->id) {
+		memprintf(err, "'filter-config %s' : missing filter instance id, the fcgi-app name is expected",
+		          fcgi_filter_cls_name);
+		return -1;
+	}
+	if (*args) {
+		memprintf(err, "'filter-config %s' : unexpected argument '%s'",
+		          fcgi_filter_cls_name, args[0]);
+		return -1;
+	}
+
+	fcgi_conf = calloc(1, sizeof(*fcgi_conf));
+	if (!fcgi_conf) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	fcgi_conf->name = strdup(inst->id);
+	if (!fcgi_conf->name) {
+		free(fcgi_conf);
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	LIST_INIT(&fcgi_conf->param_rules);
+	LIST_INIT(&fcgi_conf->hdr_rules);
+
+	inst->fconf->id   = fcgi_flt_id;
+	inst->fconf->conf = fcgi_conf;
+	inst->fconf->ops  = &fcgi_flt_ops;
+	return 0;
+}
+
 /* Parses the "use-fcgi-app" proxy keyword */
 static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curpx,
 				    const struct proxy *defpx, const char *file, int line,
