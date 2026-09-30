@@ -2710,7 +2710,7 @@ static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *sm
 	if (!ts)
 		return 1;
 
-	smp->data.u.sint = HA_ATOMIC_LOAD(&ts->ref_cnt);
+	smp->data.u.sint = HA_ATOMIC_LOAD(&ts->ref_cnt) - 1; // don't count ourselves
 
 	stktable_release(t, ts);
 	return 1;
