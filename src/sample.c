@@ -5672,7 +5672,7 @@ static int smp_fetch_quic_enabled(const struct arg *args, struct sample *smp, co
 #else
 	smp->data.u.sint = 0;
 #endif
-	return smp->data.u.sint;
+	return 1;
 }
 
 /* Timing events re{q,s}.timer.  */
