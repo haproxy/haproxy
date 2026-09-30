@@ -1254,6 +1254,70 @@ parse_decomp_res_flt(char **args, int *cur_arg, struct proxy *px,
 	return 0;
 }
 
+/* Parse the arguments of a "decomp-req" filter instance. No argument is
+ * expected.
+ * Returns 0 on success, < 0 on error.
+ */
+int decomp_req_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct decomp *decomp;
+
+	if (!(px->cap & PR_CAP_FE)) {
+		memprintf(err, "'decomp-req' filter not allowed because %s '%s' has no frontend capability\n",
+		          proxy_type_str(px), px->id);
+		return -1;
+	}
+	if (*args) {
+		memprintf(err, "'filter-config %s' : unexpected argument '%s'",
+		          decomp_req_filter_cls_name, args[0]);
+		return -1;
+	}
+
+	decomp = proxy_get_decomp(px, 0);
+	if (decomp == NULL) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	decomp->flags |= DECOMP_FL_DIR_REQ;
+
+	inst->fconf->id   = decomp_req_flt_id;
+	inst->fconf->conf = &decomp->req;
+	inst->fconf->ops  = &decomp_req_ops;
+	return 0;
+}
+
+/* Parse the arguments of a "decomp-res" filter instance. No argument is
+ * expected.
+ * Returns 0 on success, < 0 on error.
+ */
+int decomp_res_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct decomp *decomp;
+
+	if (!(px->cap & PR_CAP_BE)) {
+		memprintf(err, "'decomp-res' filter not allowed because %s '%s' has no backend capability\n",
+		          proxy_type_str(px), px->id);
+		return -1;
+	}
+	if (*args) {
+		memprintf(err, "'filter-config %s' : unexpected argument '%s'",
+		          decomp_res_filter_cls_name, args[0]);
+		return -1;
+	}
+
+	decomp = proxy_get_decomp(px, 0);
+	if (decomp == NULL) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	decomp->flags |= DECOMP_FL_DIR_RES;
+
+	inst->fconf->id   = decomp_res_flt_id;
+	inst->fconf->conf = &decomp->res;
+	inst->fconf->ops  = &decomp_res_ops;
+	return 0;
+}
+
 int
 check_implicit_decomp_flt(struct proxy *proxy)
 {

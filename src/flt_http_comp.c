@@ -1143,6 +1143,65 @@ parse_http_comp_res_flt(char **args, int *cur_arg, struct proxy *px,
 	return 0;
 }
 
+/* Parse the arguments of a "http-comp-req" filter instance. No argument is
+ * expected.
+ * Returns 0 on success, < 0 on error.
+ */
+int http_comp_req_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct comp *comp;
+
+	if (*args) {
+		memprintf(err, "'filter-config %s' : unexpected argument '%s'",
+		          http_comp_req_filter_cls_name, args[0]);
+		return -1;
+	}
+
+	comp = proxy_get_comp(px, 0);
+	if (comp == NULL) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	/* Implicit instances mirror options; they must not restore a direction
+	 * removed by a later option or a local defaults override.
+	 */
+	if (!(inst->flags & FLT_INST_F_IMPLICIT))
+		comp->flags |= COMP_FL_DIR_REQ;
+
+	inst->fconf->id   = http_comp_req_flt_id;
+	inst->fconf->conf = px->comp;
+	inst->fconf->ops  = &comp_req_ops;
+	return 0;
+}
+
+/* Parse the arguments of a "http-comp-res" filter instance. No argument is
+ * expected.
+ * Returns 0 on success, < 0 on error.
+ */
+int http_comp_res_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct comp *comp;
+
+	if (*args) {
+		memprintf(err, "'filter-config %s' : unexpected argument '%s'",
+		          http_comp_res_filter_cls_name, args[0]);
+		return -1;
+	}
+
+	comp = proxy_get_comp(px, 0);
+	if (comp == NULL) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	if (!(inst->flags & FLT_INST_F_IMPLICIT))
+		comp->flags |= COMP_FL_DIR_RES;
+
+	inst->fconf->id   = http_comp_res_flt_id;
+	inst->fconf->conf = px->comp;
+	inst->fconf->ops  = &comp_res_ops;
+	return 0;
+}
+
 int
 check_implicit_http_comp_flt(struct proxy *proxy)
 {

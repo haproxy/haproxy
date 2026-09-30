@@ -3606,6 +3606,44 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
+/* Parse the arguments of a "cache-store" filter instance. The cache name is the
+ * instance id (the id is mandatory for this class, several instances are
+ * allowed), no argument is expected.
+ * Returns 0 on success, < 0 on error.
+ */
+int cache_store_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct cache_flt_conf *cconf;
+
+	if (!inst->id) {
+		memprintf(err, "'filter-config %s' : missing filter instance id",
+		          cache_store_filter_cls_name);
+		return -1;
+	}
+	if (*args) {
+		memprintf(err, "'filter-config %s' : unexpected argument '%s'",
+		          cache_store_filter_cls_name, args[0]);
+		return -1;
+	}
+
+	cconf = calloc(1, sizeof(*cconf));
+	if (!cconf) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	cconf->c.name = strdup(inst->id);
+	if (!cconf->c.name) {
+		free(cconf);
+		memprintf(err, "out of memory");
+		return -1;
+	}
+
+	inst->fconf->id   = cache_store_flt_id;
+	inst->fconf->conf = cconf;
+	inst->fconf->ops  = &cache_ops;
+	return 0;
+}
+
 /* It reserves a struct show_cache_ctx for the local variables */
 static int cli_parse_show_cache(char **args, char *payload, struct appctx *appctx, void *private)
 {

@@ -2678,6 +2678,21 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
+/* Parse the arguments of a "spoe" filter instance, relying on the legacy
+ * "filter" keyword parser.
+ * Returns 0 on success, < 0 on error.
+ */
+int spoe_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	struct proxy *old_curproxy = curproxy;
+	int ret;
+
+	curproxy = px;
+	ret = flt_parse_instance_legacy(px, inst, err, "spoe", parse_spoe_flt, NULL);
+	curproxy = old_curproxy;
+	return ret;
+}
+
 /* Send message of a SPOE group. This is the action_ptr callback of a rule
  * associated to a "send-spoe-group" action.
  *

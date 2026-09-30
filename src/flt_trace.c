@@ -691,6 +691,31 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 	return -1;
 }
 
+/* Parse the arguments of a "trace" filter instance (see "filter-config"
+ * directive), relying on the legacy "filter" keyword parser.
+ * Returns 0 on success, < 0 on error.
+ */
+int trace_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	char *fargs[MAX_LINE_ARGS+1];
+	int i, ret, cur_arg;
+
+	fargs[0] = "trace";
+	fargs[1] = "name";
+	fargs[2] = (char *)inst->id;
+	for (i = 0; args[i] && *args[i]; i++)
+		fargs[i+3] = args[i];
+	fargs[i+3] = "";
+
+	cur_arg = 0;
+	ret = parse_trace_flt(fargs, &cur_arg, px, inst->fconf, err, NULL);
+	if (ret == 0 && *fargs[cur_arg]) {
+		memprintf(err, "'filter-config %s' : unknown keyword '%s'", inst->class->name, fargs[cur_arg]);
+		ret = -1;
+	}
+	return ret;
+}
+
 /* Declare the filter parser for "trace" keyword */
 static struct flt_kw_list flt_kws = { "TRACE", { }, {
 		{ "trace", parse_trace_flt, NULL },

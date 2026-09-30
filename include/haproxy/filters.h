@@ -67,6 +67,27 @@ extern const char *fcgi_filter_cls_name;
 extern struct filter_class flt_fcgi_cls;
 #endif
 
+/* Parsing functions of the internal filter classes, called to finalize a
+ * filter instance (see "filter-config" directive)
+ */
+int trace_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+int cache_store_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+int http_comp_req_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+int http_comp_res_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+int decomp_req_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+int decomp_res_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+#if defined(USE_LUA)
+int hlua_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+#endif
+#if defined(USE_SPOE)
+int spoe_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+#endif
+int bwlim_in_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+int bwlim_out_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+#if defined(USE_FCGI)
+int fcgi_flt_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err);
+#endif
+
 #define FLT_ID(flt)   (flt)->config->id
 #define FLT_CONF(flt) (flt)->config->conf
 #define FLT_OPS(flt)  (flt)->config->ops
@@ -272,6 +293,18 @@ flt_update_offsets(struct filter *filter, struct channel *chn, int len)
 /**************************************************************/
 
 struct filter_class *filter_find_class(const char *name);
+
+/* Helper function for filter classes: calls the legacy "filter" keyword
+ * parsing function <parse> on the arguments of the filter instance <inst>,
+ * as if the line "filter <kw> <inst args...>" was found in the configuration
+ * of the proxy <px>. <private> is passed as-is to the parsing function.
+ * Returns 0 on success, < 0 on error.
+ */
+int flt_parse_instance_legacy(struct proxy *px, struct filter_instance *inst, char **err,
+			 const char *kw,
+			 int (*parse)(char **args, int *cur_arg, struct proxy *px,
+				      struct flt_conf *fconf, char **err, void *private),
+			 void *private);
 
 int filter_register_class(struct filter_class *cls, const char *name,
 			  int (*parse)(char **args, struct proxy *px,
