@@ -2352,7 +2352,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 		match = my_memmem(b_head(&check->bi), b_data(&check->bi), istptr(expect->data), istlen(expect->data)) != NULL;
 		break;
 	case TCPCHK_EXPECT_STRING_REGEX:
-		match = regex_exec2(expect->regex, b_head(&check->bi), MIN(b_data(&check->bi), b_size(&check->bi)-1));
+		/* The input buffer may not be allocated at all, in which case
+		 * b_head() is NULL while regex_exec2() requires a writable
+		 * area of at least <length>+1 bytes. There is nothing to match
+		 * against in that case.
+		 */
+		match = (b_size(&check->bi) &&
+			 regex_exec2(expect->regex, b_head(&check->bi),
+				     MIN(b_data(&check->bi), b_size(&check->bi)-1)));
 		break;
 
 	case TCPCHK_EXPECT_BINARY_REGEX:
