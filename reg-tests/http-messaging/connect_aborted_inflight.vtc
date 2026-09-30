@@ -51,10 +51,10 @@ client c1 -connect ${hap_fe_sock} {
 		  -litHdr inc plain ":method" plain "CONNECT" \
 		  -litHdr inc plain ":authority" plain "example.com:443" \
 		  -nostrend
+		rxwinup
 		# Leave raw data pending in the request buffer, preserving its EOM.
 		txdata -data "early tunnel data" -nostrend
 		barrier b0 sync
-		rxwinup
 		rxwinup
 		rxhdrs
 		expect resp.status == 403
