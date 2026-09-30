@@ -1266,8 +1266,9 @@ int http_parse_qvalue(const char *qvalue, const char **end)
 		goto out;
 	q = (*qvalue++ - '0') * 1000;
 
-	if (*qvalue++ != '.')
+	if (*qvalue != '.')
 		goto out;
+	qvalue++;
 
 	if (!isdigit((unsigned char)*qvalue))
 		goto out;
