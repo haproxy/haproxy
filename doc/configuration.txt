@@ -28682,7 +28682,8 @@ url32+src : binary
 
 url_ip : ip
   This extracts the IP address from the request's URL when the host part is
-  presented as an IP address. Its use is very limited. For instance, a
+  presented as an IP address. The fetch fails when the host part is a name,
+  as no resolution is performed. Its use is very limited. For instance, a
   monitoring system might use this field as an alternative for the source IP in
   order to test what path a given source address would follow, or to force an
   entry in a table for a given source address. It may be used in combination
@@ -28690,7 +28691,9 @@ url_ip : ip
 
 url_port : integer
   This extracts the port part from the request's URL. Note that if the port is
-  not specified in the request, port 80 is assumed..
+  not specified in the request, port 80 is assumed. As for "url_ip", this only
+  works when the authority of the URL is presented as an address, the fetch
+  fails when it is a host name since no resolution is performed here.
 
 urlp([<name>[,<delim>[,i]]]) : string
 url_param([<name>[,<delim>[,i]]]) : string
