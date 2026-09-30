@@ -1626,6 +1626,10 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->conf.args.list);
 	LIST_INIT(&p->conf.lf_checks);
 	LIST_INIT(&p->filter_configs);
+	LIST_INIT(&p->filter_req_instances);
+	LIST_INIT(&p->filter_res_instances);
+	LIST_INIT(&p->conf.filter_classes_req);
+	LIST_INIT(&p->conf.filter_classes_res);
 	LIST_INIT(&p->tcpcheck.preset_vars);
 
 	MT_LIST_INIT(&p->lbprm.lb_free_list);
@@ -2936,6 +2940,7 @@ static void defaults_px_free(struct proxy *defproxy)
 	proxy_free_common(defproxy);
 
 	/* default proxy specific cleanup */
+	flt_free_instances(defproxy);
 	if (defproxy->defsrv)
 		srv_free_params(defproxy->defsrv);
 	ha_free(&defproxy->defbe.name);
@@ -3197,6 +3202,14 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 
 	px->cap = cap;
 	px->last_change = ns_to_sec(now_ns);
+
+	/* Create the filter class references. Filters are not supported on
+	 * internal proxies, they are skipped for them.
+	 */
+	if (!(cap & PR_CAP_INT) && flt_init_class_refs(px) < 0) {
+		memprintf(errmsg, "out of memory");
+		goto fail;
+	}
 
 	/* Internal proxies or with empty name are not stored in the named tree. */
 	if (name && name[0] != '\0' && !(cap & PR_CAP_INT))
