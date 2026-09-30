@@ -1996,6 +1996,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		send_log(s->be, LOG_ALERT,
 			 "Blocking cacheable cookie in response from instance %s, server %s.\n",
 			 s->be->id, objt_server(s->target) ? __objt_server(s->target)->id : "<dispatch>");
+		txn->status = 502;
 		goto deny;
 	}
 
