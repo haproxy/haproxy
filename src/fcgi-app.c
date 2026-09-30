@@ -84,12 +84,21 @@ struct fcgi_app *fcgi_app_find_by_name(const char *name)
 
 struct fcgi_flt_conf *find_px_fcgi_conf(struct proxy *px)
 {
+	struct filter_instance *inst;
 	struct flt_conf *fconf;
 
 	list_for_each_entry(fconf, &px->filter_configs, list) {
 		if (fconf->id == fcgi_flt_id)
 			return fconf->conf;
 	}
+
+	/* no legacy filter found, look for a finalized fcgi filter instance
+	 * (instances are not finalized during the configuration parsing, in
+	 * that case they are skipped)
+	 */
+	inst = flt_find_instance(px, filter_find_class(fcgi_filter_cls_name), NULL);
+	if (inst && inst->fconf)
+		return inst->fconf->conf;
 	return NULL;
 }
 

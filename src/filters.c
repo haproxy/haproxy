@@ -372,13 +372,36 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
  * Calls 'init' callback for all filters attached to a proxy. This happens after
  * the configuration parsing. Filters can finish to fill their config. Returns
  * (ERR_ALERT|ERR_FATAL) if an error occurs, 0 otherwise.
+ *
+ * The callback is called for the legacy filters (px->filter_configs) and
+ * for the finalized filter instances (inst->fconf). Nothing is shared
+ * between the legacy filters and the instances. When the instances are
+ * attached to the evaluation path, the legacy mode or the instances mode
+ * will be chosen and only the corresponding list will be iterated here.
  */
 static int
 flt_init(struct proxy *proxy)
 {
+	struct filter_instance *inst;
 	struct flt_conf *fconf;
 
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
+		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
+			return ERR_ALERT|ERR_FATAL;
+	}
+	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
+		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
+			return ERR_ALERT|ERR_FATAL;
+	}
+	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
+		if (LIST_INLIST(&inst->req.list))
+			continue; /* already handled from the request side */
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
 		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
 			return ERR_ALERT|ERR_FATAL;
 	}
@@ -389,13 +412,36 @@ flt_init(struct proxy *proxy)
  * Calls 'init_per_thread' callback for all filters attached to a proxy for each
  * threads. This happens after the thread creation. Filters can finish to fill
  * their config. Returns (ERR_ALERT|ERR_FATAL) if an error occurs, 0 otherwise.
+ *
+ * The callback is called for the legacy filters (px->filter_configs) and
+ * for the finalized filter instances (inst->fconf). Nothing is shared
+ * between the legacy filters and the instances. When the instances are
+ * attached to the evaluation path, the legacy mode or the instances mode
+ * will be chosen and only the corresponding list will be iterated here.
  */
 static int
 flt_init_per_thread(struct proxy *proxy)
 {
+	struct filter_instance *inst;
 	struct flt_conf *fconf;
 
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
+		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
+			return ERR_ALERT|ERR_FATAL;
+	}
+	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
+		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
+			return ERR_ALERT|ERR_FATAL;
+	}
+	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
+		if (LIST_INLIST(&inst->req.list))
+			continue; /* already handled from the request side */
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
 		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
 			return ERR_ALERT|ERR_FATAL;
 	}
@@ -450,6 +496,11 @@ flt_init_all_per_thread()
  * after the configuration parsing but before filters initialization. Returns
  * the number of encountered errors.
  */
+/* Note: for now, only the legacy filters (px->filter_configs) are handled
+ * here. When the filter instances are attached to the evaluation path, we
+ * will have to choose between the legacy mode and the instances mode, and
+ * iterate the right list here. Do not forget!
+ */
 int
 flt_check(struct proxy *proxy)
 {
@@ -465,13 +516,52 @@ flt_check(struct proxy *proxy)
 	return err;
 }
 
+/* Calls 'check' callback for all finalized filter instances of the proxy
+ * <px>, during the post-proxy-check stage (the instances are not
+ * finalized yet during the configuration checks, see flt_check()). Returns
+ * a combination of ERR_* flags, ERR_NONE on success.
+ */
+static int flt_check_instances(struct proxy *px)
+{
+	struct filter_instance *inst;
+	struct flt_conf *fconf;
+	int err = 0;
+
+	list_for_each_entry(inst, &px->filter_req_instances, req.list) {
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
+		if (fconf->ops->check)
+			err += fconf->ops->check(px, fconf);
+	}
+	list_for_each_entry(inst, &px->filter_res_instances, res.list) {
+		if (LIST_INLIST(&inst->req.list))
+			continue; /* already handled from the request side */
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
+		if (fconf->ops->check)
+			err += fconf->ops->check(px, fconf);
+	}
+	if (err)
+		err = ERR_ALERT | ERR_FATAL;
+	return err;
+}
+
 /*
- * Calls 'denit' callback for all filters attached to a proxy. This happens when
- * HAProxy is stopped.
+ * Calls 'deinit' callback for all filters attached to a proxy. This happens
+ * when HAProxy is stopped.
+ *
+ * The callback is called for the legacy filters (px->filter_configs) and
+ * for the finalized filter instances (inst->fconf). Nothing is shared
+ * between the legacy filters and the instances. When the instances are
+ * attached to the evaluation path, the legacy mode or the instances mode
+ * will be chosen and only the corresponding list will be iterated here.
  */
 void
 flt_deinit(struct proxy *proxy)
 {
+	struct filter_instance *inst;
 	struct flt_conf *fconf, *back;
 
 	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
@@ -480,19 +570,54 @@ flt_deinit(struct proxy *proxy)
 		LIST_DELETE(&fconf->list);
 		free(fconf);
 	}
+	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
+		if (fconf->ops->deinit)
+			fconf->ops->deinit(proxy, fconf);
+	}
+	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
+		if (LIST_INLIST(&inst->req.list))
+			continue; /* already handled from the request side */
+		fconf = inst->fconf;
+		if (fconf && fconf->ops && fconf->ops->deinit)
+			fconf->ops->deinit(proxy, fconf);
+	}
 	flt_free_instances(proxy);
 }
 
 /*
- * Calls 'denit_per_thread' callback for all filters attached to a proxy for
+ * Calls 'deinit_per_thread' callback for all filters attached to a proxy for
  * each threads. This happens before exiting a thread.
+ *
+ * The callback is called for the legacy filters (px->filter_configs) and
+ * for the finalized filter instances (inst->fconf), iterating the flat
+ * per-side lists of the proxy.
  */
 void
 flt_deinit_per_thread(struct proxy *proxy)
 {
+	struct filter_instance *inst;
 	struct flt_conf *fconf, *back;
 
 	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
+		if (fconf->ops->deinit_per_thread)
+			fconf->ops->deinit_per_thread(proxy, fconf);
+	}
+	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
+		if (fconf->ops->deinit_per_thread)
+			fconf->ops->deinit_per_thread(proxy, fconf);
+	}
+	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
+		if (LIST_INLIST(&inst->req.list))
+			continue; /* already handled from the request side */
+		fconf = inst->fconf;
+		if (!fconf)
+			continue;
 		if (fconf->ops->deinit_per_thread)
 			fconf->ops->deinit_per_thread(proxy, fconf);
 	}
@@ -1608,6 +1733,147 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 	return -1;
 }
 
+/*
+ * Parses the "filter-config" keyword. A filter instance is created for the
+ * given filter class and attached to the current proxy. The instance
+ * arguments are only copied here, they will be finalized during the
+ * post-check stage. The syntax is:
+ *
+ *   filter-config <class-name> [ id <id> ] [enabled] args...
+ *
+ * The "id" and "enabled" tokens, if set, must be the first options, in that
+ * order. The id is optional, but it is mandatory for filter classes allowing
+ * several instances per proxy. A instance inherited from a defaults
+ * section or coming from an implicit declaration (e.g. use-fcgi-app) may be
+ * overridden by a instance with the same class and id, but duplicating an
+ * explicit instance inside the same proxy is rejected.
+ */
+static int parse_filter_config(char **args, int section_type, struct proxy *curpx,
+			       const struct proxy *defpx, const char *file, int line, char **err)
+{
+	struct filter_instance *inst, *old_inst;
+	struct filter_class *cls;
+	const char *id = NULL;
+	const char *err2;
+	int enabled = 0;
+	int cur_arg = 1;
+	int i;
+
+	inst = NULL;
+	if (!*args[cur_arg]) {
+		memprintf(err,
+			  "parsing [%s:%d] : missing argument for '%s' in %s '%s'.",
+			  file, line, args[0], proxy_type_str(curpx), curpx->id);
+		goto error;
+	}
+
+	cls = filter_find_class(args[cur_arg]);
+	if (!cls) {
+		memprintf(err,
+			  "parsing [%s:%d] : '%s' : unknown filter class '%s'.",
+			  file, line, args[0], args[cur_arg]);
+		goto error;
+	}
+	cur_arg++;
+
+	/* optional "id <id>" and "enabled" tokens, in that order */
+	if (strcmp(args[cur_arg], "id") == 0) {
+		if (!*args[cur_arg+1]) {
+			memprintf(err,
+				  "parsing [%s:%d] : '%s %s' : missing filter instance id.",
+				  file, line, args[0], args[1]);
+			goto error;
+		}
+		id = args[cur_arg+1];
+		err2 = invalid_prefix_char(id);
+		if (err2) {
+			memprintf(err,
+				  "parsing [%s:%d] : '%s %s' : invalid character '%c' in filter instance id '%s'.",
+				  file, line, args[0], args[1], *err2, id);
+			goto error;
+		}
+		cur_arg += 2;
+	}
+	if (strcmp(args[cur_arg], "enabled") == 0) {
+		enabled = 1;
+		cur_arg++;
+	}
+
+	if ((cls->flags & FLT_CLS_FL_MULTI) && !id) {
+		memprintf(err,
+			  "parsing [%s:%d] : '%s %s' : missing filter instance id, several instances are allowed for this filter class.",
+			  file, line, args[0], args[1]);
+		goto error;
+	}
+
+	inst = calloc(1, sizeof(*inst));
+	if (!inst)
+		goto oom;
+
+	inst->class   = cls;
+	inst->px      = curpx;
+	inst->enabled = enabled;
+	inst->flags   = 0; /* explicit declaration */
+
+	if (id) {
+		inst->id = strdup(id);
+		if (!inst->id)
+			goto oom;
+	}
+	inst->conf.file = strdup(file);
+	if (!inst->conf.file)
+		goto oom;
+	inst->conf.line = line;
+
+	/* copy the instance arguments, they will be finalized later */
+	for (i = cur_arg; *args[i]; i++);
+
+	inst->conf.argc = i - cur_arg;
+	inst->conf.argv = calloc(inst->conf.argc + 1, sizeof(*inst->conf.argv));
+	if (!inst->conf.argv)
+		goto oom;
+	for (i = 0; i < inst->conf.argc; i++) {
+		inst->conf.argv[i] = strdup(args[cur_arg + i]);
+		if (!inst->conf.argv[i])
+			goto oom;
+	}
+
+	/* A instance inherited from a defaults section or coming from an
+	 * implicit declaration is overridden by the new one (last wins). But
+	 * an explicit instance declared in this same proxy cannot be
+	 * duplicated.
+	 */
+	old_inst = flt_find_instance(curpx, cls, id);
+	if (old_inst) {
+		if (!(old_inst->flags & (FLT_INST_F_INHERITED|FLT_INST_F_IMPLICIT))) {
+			memprintf(err,
+				  "'%s %s%s%s%s' : duplicate filter instance, already declared at %s:%d.",
+				  args[0], args[1],
+				  id ? " id " : "", id ? id : "", enabled ? " enabled" : "",
+				  old_inst->conf.file, old_inst->conf.line);
+			goto error;
+		}
+		flt_free_instance(old_inst);
+	}
+
+	if (flt_init_instance(inst, curpx) < 0) {
+		memprintf(err,
+			  "parsing [%s:%d] : '%s %s' : filter class reference not found in %s '%s'.",
+			  file, line, args[0], args[1], proxy_type_str(curpx), curpx->id);
+		goto error;
+	}
+	return 0;
+
+  error:
+	if (inst)
+		flt_free_instance(inst);
+	return -1;
+
+  oom:
+	memprintf(err, "parsing [%s:%d] : '%s' : out of memory", file, line, args[0]);
+	goto error;
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
@@ -1617,12 +1883,217 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
  * not enabled. */
 static struct cfg_kw_list cfg_kws = {ILH, {
 		{ CFG_LISTEN, "filter", parse_filter },
+		{ CFG_LISTEN, "filter-config", parse_filter_config },
 		{ 0, NULL, NULL },
 	}
 };
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
+
+/* Moves the instance <inst> from the class references tree to the flat
+ * per-side list of the proxy <px>, recursively: the instances reordered
+ * to be executed before <inst> are moved first, then <inst> itself and
+ * finally the instances reordered to be executed after it.
+ */
+static void flt_flatten_instance(struct proxy *px, struct filter_instance *inst, unsigned int side)
+{
+	struct filter_instance *d, *back;
+
+	if (side == FLT_SIDE_REQ) {
+		list_for_each_entry_safe(d, back, &inst->req.reordered_before, req.list)
+			flt_flatten_instance(px, d, side);
+		LIST_DEL_INIT(&inst->req.list);
+		LIST_APPEND(&px->filter_req_instances, &inst->req.list);
+		list_for_each_entry_safe(d, back, &inst->req.reordered_after, req.list)
+			flt_flatten_instance(px, d, side);
+	}
+	else {
+		list_for_each_entry_safe(d, back, &inst->res.reordered_before, res.list)
+			flt_flatten_instance(px, d, side);
+		LIST_DEL_INIT(&inst->res.list);
+		LIST_APPEND(&px->filter_res_instances, &inst->res.list);
+		list_for_each_entry_safe(d, back, &inst->res.reordered_after, res.list)
+			flt_flatten_instance(px, d, side);
+	}
+}
+
+/* Moves the instances of the list <instances> to the flat per-side list of the
+ * proxy <px>, in evaluation order (see flt_flatten_instance()).
+ */
+static void flt_flatten_inst_list(struct proxy *px, struct list *instances, unsigned int side)
+{
+	struct filter_instance *inst, *back;
+
+	if (side == FLT_SIDE_REQ) {
+		list_for_each_entry_safe(inst, back, instances, req.list)
+			flt_flatten_instance(px, inst, side);
+	}
+	else {
+		list_for_each_entry_safe(inst, back, instances, res.list)
+			flt_flatten_instance(px, inst, side);
+	}
+}
+
+/* Flattens the filter instances of the proxy <px>: the class references
+ * tree is consumed to produce the flat per-side lists of the proxy, in
+ * evaluation order. The class references and the consumed filter-enable and
+ * filter-sequence entries are released.
+ */
+static void flt_flatten_instances(struct proxy *px)
+{
+	struct filter_class_ref *ref, *refback;
+
+	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_req, list) {
+		flt_flatten_inst_list(px, &ref->reordered_before, FLT_SIDE_REQ);
+		flt_flatten_inst_list(px, &ref->instances, FLT_SIDE_REQ);
+		flt_flatten_inst_list(px, &ref->reordered_after, FLT_SIDE_REQ);
+		LIST_DELETE(&ref->list);
+		free(ref);
+	}
+	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_res, list) {
+		flt_flatten_inst_list(px, &ref->reordered_before, FLT_SIDE_RES);
+		flt_flatten_inst_list(px, &ref->instances, FLT_SIDE_RES);
+		flt_flatten_inst_list(px, &ref->reordered_after, FLT_SIDE_RES);
+		LIST_DELETE(&ref->list);
+		free(ref);
+	}
+
+}
+
+/* Post-parses the filter instances of the proxy <proxy>. For each
+ * instance, some sanity checks are performed and the ->parse() callback of
+ * the filter class is called to produce the filter configuration
+ * (inst->fconf). This happens after the configuration parsing, during the
+ * post-parsing stage. Returns a combination of ERR_* flags, ERR_NONE on
+ * success.
+ */
+static int flt_precheck_instance(struct proxy *proxy, struct filter_instance *inst)
+{
+	char *err = NULL;
+
+	if (!inst->class->parse) {
+		ha_alert("config: %s '%s' : filter class '%s' does not support 'filter-config' (instance from %s:%d).\n",
+			 proxy_type_str(proxy), proxy->id, inst->class->name,
+			 inst->conf.file, inst->conf.line);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	inst->fconf = calloc(1, sizeof(*inst->fconf));
+	if (!inst->fconf) {
+		ha_alert("config: %s '%s' : out of memory.\n",
+			 proxy_type_str(proxy), proxy->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	inst->fconf->name = inst->class->name;
+
+	if (inst->class->parse(inst->conf.argv, proxy, inst, &err) < 0) {
+		ha_alert("config: %s '%s' : error in instance of filter class '%s' from %s:%d : %s.\n",
+			 proxy_type_str(proxy), proxy->id, inst->class->name,
+			 inst->conf.file, inst->conf.line,
+			 err && *err ? err : "unknown error");
+		return ERR_ALERT | ERR_FATAL;
+	}
+	if (!inst->fconf->ops) {
+		ha_alert("config: %s '%s' : filter class '%s' defined no callbacks for the instance from %s:%d.\n",
+			 proxy_type_str(proxy), proxy->id, inst->class->name,
+			 inst->conf.file, inst->conf.line);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	return ERR_NONE;
+}
+
+/* Post-parses the instances of the class reference <ref>. Only one
+ * instance is allowed for classes without FLT_CLS_FL_MULTI. Returns a
+ * combination of ERR_* flags, ERR_NONE on success.
+ */
+static int flt_precheck_class_instances(struct proxy *proxy, struct filter_class_ref *ref, unsigned int side)
+{
+	struct filter_instance *inst;
+	int err_code = ERR_NONE;
+	int count = 0;
+
+	if (side == FLT_SIDE_REQ) {
+		list_for_each_entry(inst, &ref->instances, req.list)
+			count++;
+	}
+	else {
+		list_for_each_entry(inst, &ref->instances, res.list)
+			count++;
+	}
+
+	if (count > 1 && !(ref->class->flags & FLT_CLS_FL_MULTI)) {
+		if (side == FLT_SIDE_REQ) {
+			list_for_each_entry(inst, &ref->instances, req.list) {
+				ha_alert("config: %s '%s' : several instances of filter class '%s', but only one is allowed (see %s:%d).\n",
+					 proxy_type_str(proxy), proxy->id, ref->class->name,
+					 inst->conf.file, inst->conf.line);
+			}
+		}
+		else {
+			list_for_each_entry(inst, &ref->instances, res.list) {
+				ha_alert("config: %s '%s' : several instances of filter class '%s', but only one is allowed (see %s:%d).\n",
+					 proxy_type_str(proxy), proxy->id, ref->class->name,
+					 inst->conf.file, inst->conf.line);
+			}
+		}
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (side == FLT_SIDE_REQ) {
+		list_for_each_entry(inst, &ref->instances, req.list)
+			err_code |= flt_precheck_instance(proxy, inst);
+	}
+	else {
+		list_for_each_entry(inst, &ref->instances, res.list)
+			err_code |= flt_precheck_instance(proxy, inst);
+	}
+	return err_code;
+}
+
+static int flt_precheck_instances(struct proxy *proxy)
+{
+	struct filter_class_ref *ref;
+	int err_code = ERR_NONE;
+
+	/* iterate over all the class references of the proxy: the request side
+	 * first, then the references of the classes with no request side from
+	 * the response side
+	 */
+	list_for_each_entry(ref, &proxy->conf.filter_classes_req, list)
+		err_code |= flt_precheck_class_instances(proxy, ref, FLT_SIDE_REQ);
+	list_for_each_entry(ref, &proxy->conf.filter_classes_res, list) {
+		if (LIST_INLIST(&ref->class->req.list))
+			continue; /* already handled from the request side */
+		err_code |= flt_precheck_class_instances(proxy, ref, FLT_SIDE_RES);
+	}
+	return err_code;
+}
+
+
+/* Calls flt_precheck_instances() for all proxies, see above */
+static int flt_precheck_instances_all()
+{
+	struct proxy *px;
+	int err_code = ERR_NONE;
+
+	list_for_each_entry(px, &main_proxies, el) {
+		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
+			continue;
+
+		err_code |= flt_precheck_instances(px);
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			ha_alert("Failed to parse the filter instances of proxy '%s'.\n",
+				 px->id);
+			return err_code;
+		}
+		/* produce the flat per-side lists of the proxy and release the
+		 * configuration structures
+		 */
+		flt_flatten_instances(px);
+	}
+	return 0;
+}
 
 /* Checks that all registered filter classes are placed on at least one
  * side. The classes are placed with filter_place_class() (see
@@ -2009,7 +2480,9 @@ static void filter_init_classes(void)
 
 
 
+REGISTER_PRE_CHECK(flt_precheck_instances_all);
 REGISTER_PRE_CHECK(flt_precheck_classes);
+REGISTER_POST_PROXY_CHECK(flt_check_instances);
 REGISTER_POST_CHECK(flt_init_all);
 REGISTER_PER_THREAD_INIT(flt_init_all_per_thread);
 REGISTER_PER_THREAD_DEINIT(flt_deinit_all_per_thread);
