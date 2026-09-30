@@ -3788,7 +3788,7 @@ int main(int argc, char **argv)
 	 * if really not wanted.
 	 */
 
-	if (!global.chroot) {
+	if (!global.chroot && !(global.tune.options & GTUNE_SET_DUMPABLE)) {
 		int chroot_permitted = geteuid() == 0;
 
 #if defined(USE_PRCTL) && defined(PR_CAPBSET_READ) && defined(CAP_SYS_CHROOT)
