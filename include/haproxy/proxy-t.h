@@ -492,6 +492,7 @@ struct proxy {
 		unsigned int def_ref;           /* default proxy only refcount */
 		struct list filter_classes_req; /* list of the filter class refs with a request side */
 		struct list filter_classes_res; /* list of the filter class refs with a response side */
+		struct list filter_enabled;     /* list of the filters to enable on this proxy */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
 	struct ceb_root *used_server_addr;      /* list of server addresses in use */

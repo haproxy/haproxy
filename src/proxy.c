@@ -1639,6 +1639,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->filter_res_instances);
 	LIST_INIT(&p->conf.filter_classes_req);
 	LIST_INIT(&p->conf.filter_classes_res);
+	LIST_INIT(&p->conf.filter_enabled);
 	LIST_INIT(&p->tcpcheck.preset_vars);
 
 	MT_LIST_INIT(&p->lbprm.lb_free_list);
