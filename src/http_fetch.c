@@ -1844,6 +1844,7 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 	char *val_beg, *val_end;
 	char *cook = NULL;
 	size_t cook_l = 0;
+	int is_req = !(check || (chn && chn->flags & CF_ISRESP));
 	int cnt;
 
 	if (args->type == ARGT_STR){
@@ -1854,7 +1855,7 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 	if (!htx)
 		return 0;
 
-	hdr = (!(check || (chn && chn->flags & CF_ISRESP)) ? ist("Cookie") : ist("Set-Cookie"));
+	hdr = (is_req ? ist("Cookie") : ist("Set-Cookie"));
 
 	val_end = val_beg = NULL;
 	ctx.blk = NULL;
@@ -1880,6 +1881,11 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 							    &smp->data.u.str.area,
 							    &smp->data.u.str.data))) {
 			cnt++;
+			if (!is_req) {
+				/* there's a single cookie per set-cookie header */
+				val_beg = NULL;
+				break;
+			}
 		}
 	}
 
