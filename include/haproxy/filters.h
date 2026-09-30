@@ -150,6 +150,7 @@ int fcgi_flt_parse_instance(char **args, struct proxy *px, struct filter_instanc
 
 void flt_deinit(struct proxy *p);
 int  flt_check(struct proxy *p);
+int  flt_has_explicit_config(const struct proxy *px);
 int  flt_copy_instances(struct proxy *px, const struct proxy *defpx);
 void flt_free_instances(struct proxy *px);
 int  flt_init_class_refs(struct proxy *px);

@@ -3165,48 +3165,31 @@ int proxy_ref_defaults(struct proxy *px, struct proxy *defpx, char **errmsg)
 
 	/* Explicit filter instances and enable/sequence directives may only be
 	 * inherited by proxies of one type, never by listen or defaults sections.
-	 * Class references are always present, so check their instances rather
-	 * than the refs lists. Implicit instances do not restrict inheritance.
+	 * Implicit instances do not restrict inheritance.
 	 */
-	{
-		struct filter_class_ref *ref;
-		struct filter_instance *inst;
-		int has_filters = (!LIST_ISEMPTY(&defpx->conf.filter_enabled) ||
-				   !LIST_ISEMPTY(&defpx->conf.filter_sequences));
-
-		list_for_each_entry(ref, &defpx->conf.filter_classes_req, list) {
-			list_for_each_entry(inst, &ref->instances, req.list)
-				has_filters |= !(inst->flags & FLT_INST_F_IMPLICIT);
+	if (flt_has_explicit_config(defpx)) {
+		if (px->cap & PR_CAP_DEF) {
+			memprintf(errmsg, "a defaults section cannot inherit from a defaults section defining"
+				 " filter directives (defaults section at %s:%d)",
+				 defpx->conf.file, defpx->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
 		}
-		list_for_each_entry(ref, &defpx->conf.filter_classes_res, list) {
-			list_for_each_entry(inst, &ref->instances, res.list)
-				has_filters |= !(inst->flags & FLT_INST_F_IMPLICIT);
+		else if ((px->cap & PR_CAP_LISTEN) == PR_CAP_LISTEN) {
+			memprintf(errmsg, "a listen section cannot inherit from a defaults section defining"
+				 " filter directives (defaults section at %s:%d)",
+				 defpx->conf.file, defpx->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
 		}
-
-		if (has_filters) {
-			if (px->cap & PR_CAP_DEF) {
-				memprintf(errmsg, "a defaults section cannot inherit from a defaults section defining"
-					 " filter directives (defaults section at %s:%d)",
-					 defpx->conf.file, defpx->conf.line);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-			else if ((px->cap & PR_CAP_LISTEN) == PR_CAP_LISTEN) {
-				memprintf(errmsg, "a listen section cannot inherit from a defaults section defining"
-					 " filter directives (defaults section at %s:%d)",
-					 defpx->conf.file, defpx->conf.line);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-			else if ((defcap == PR_CAP_BE || defcap == PR_CAP_FE) && (px->cap & PR_CAP_LISTEN) != defcap) {
-				memprintf(errmsg, "frontends and backends cannot inherit from the same defaults section"
-					 " if it defines filter directives (defaults section at %s:%d)",
-					 defpx->conf.file, defpx->conf.line);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-			defpx->cap = (defpx->cap & ~PR_CAP_LISTEN) | (px->cap & PR_CAP_LISTEN);
+		else if ((defcap == PR_CAP_BE || defcap == PR_CAP_FE) && (px->cap & PR_CAP_LISTEN) != defcap) {
+			memprintf(errmsg, "frontends and backends cannot inherit from the same defaults section"
+				 " if it defines filter directives (defaults section at %s:%d)",
+				 defpx->conf.file, defpx->conf.line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
 		}
+		defpx->cap = (defpx->cap & ~PR_CAP_LISTEN) | (px->cap & PR_CAP_LISTEN);
 	}
 
 	/* The proxy inherits the filter instances of its defaults section. It

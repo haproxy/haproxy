@@ -318,6 +318,57 @@ list_filters(FILE *out)
 	free(filters);
 }
 
+/* Checks for explicit filter instances or enable/sequence directives during
+ * configuration parsing, before the class references are flattened. Inherited
+ * directives count too, but implicit instances do not select a config mode.
+ */
+int flt_has_explicit_config(const struct proxy *px)
+{
+	struct filter_class_ref *ref;
+	struct filter_instance *inst;
+
+	if (!LIST_ISEMPTY(&px->conf.filter_enabled) || !LIST_ISEMPTY(&px->conf.filter_sequences))
+		return 1;
+
+	list_for_each_entry(ref, &px->conf.filter_classes_req, list) {
+		list_for_each_entry(inst, &ref->instances, req.list) {
+			if (!(inst->flags & FLT_INST_F_IMPLICIT))
+				return 1;
+		}
+	}
+	list_for_each_entry(ref, &px->conf.filter_classes_res, list) {
+		list_for_each_entry(inst, &ref->instances, res.list) {
+			if (!(inst->flags & FLT_INST_F_IMPLICIT))
+				return 1;
+		}
+	}
+	return 0;
+}
+
+/* Reject mixing an explicit legacy "filter" declaration with "filter-*"
+ * directives in the same proxy. Implicit filters may coexist with either mode.
+ */
+static int flt_check_config_mode(struct proxy *px, int legacy, char **err)
+{
+	struct flt_conf *fconf;
+
+	if (legacy) {
+		if (flt_has_explicit_config(px))
+			goto error;
+	}
+	else {
+		list_for_each_entry(fconf, &px->filter_configs, list) {
+			if (fconf->flags & FLT_CFG_FL_LEGACY)
+				goto error;
+		}
+	}
+	return 0;
+
+  error:
+	memprintf(err, "'filter' and 'filter-*' directives cannot be used together in the same proxy (including inherited directives).");
+	return -1;
+}
+
 /*
  * Parses the "filter" keyword. All keywords must be handled by filters
  * themselves
@@ -334,6 +385,9 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			  file, line, args[0]);
 		return -1;
 	}
+	if (flt_check_config_mode(curpx, 1, err) < 0)
+		return -1;
+
 	if (strcmp(args[0], "filter") == 0) {
 		struct flt_kw *kw;
 		int cur_arg;
@@ -388,6 +442,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			goto error;
 		}
 
+		fconf->flags |= FLT_CFG_FL_LEGACY;
 		LIST_APPEND(&curpx->filter_configs, &fconf->list);
 	}
 	return 0;
@@ -1928,6 +1983,9 @@ static int parse_filter_config(char **args, int section_type, struct proxy *curp
 		return -1;
 	}
 
+	if (flt_check_config_mode(curpx, 0, err) < 0)
+		return -1;
+
 	inst = NULL;
 	if (!*args[cur_arg]) {
 		memprintf(err,
@@ -2137,6 +2195,9 @@ static int parse_filter_enable(char **args, int section_type, struct proxy *curp
 		return -1;
 	}
 
+	if (flt_check_config_mode(curpx, 0, err) < 0)
+		return -1;
+
 	for (cur_arg = 1; *args[cur_arg]; cur_arg++) {
 		if (parse_filter_enable_entry(args[cur_arg], enable, curpx, file, line, err) < 0)
 			return -1;
@@ -2214,6 +2275,9 @@ static int parse_filter_sequence(char **args, int section_type, struct proxy *cu
 			  file, line, args[0]);
 		return -1;
 	}
+
+	if (flt_check_config_mode(curpx, 0, err) < 0)
+		return -1;
 
 	if (!*args[1]) {
 		memprintf(err, "missing argument for '%s' in %s '%s'.", args[0], proxy_type_str(curpx), curpx->id);

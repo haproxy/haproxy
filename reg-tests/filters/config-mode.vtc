@@ -1,0 +1,452 @@
+varnishtest "Legacy filter declarations and filter-* directives cannot be mixed"
+
+feature ignore_unknown_macro
+
+# The two modes can be selected independently on different proxies. Multiple
+# declarations within one mode are allowed, including instances-mode defaults.
+haproxy h1 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend legacy_fe from plain
+        bind "fd@${legacy_fe}"
+        filter trace
+        filter trace
+        default_backend instances_be
+
+    backend instances_be from plain
+        filter-config trace id a
+        filter-config trace id b enabled
+        filter-enable trace/a
+        filter-disable trace/b
+        filter-sequence request trace/b:before(trace/a)
+
+    backend legacy_be from plain
+        filter trace
+
+    defaults instances
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        filter-config trace id inherited
+        filter-enable trace/inherited
+
+    frontend instances_fe from instances
+        bind "fd@${instances_fe}"
+        filter-config trace id local
+        filter-enable trace/local
+        filter-sequence response trace/local:before(trace/inherited)
+        default_backend legacy_be
+}
+
+# Implicit cache filters populate both legacy configs and instances. They do
+# not select a mode: either explicit syntax can follow an implicit declaration.
+haproxy h2 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    cache store
+        total-max-size 1
+
+    backend implicit_then_legacy
+        http-request cache-use store
+        filter cache store
+
+    backend implicit_then_instances
+        http-request cache-use store
+        filter-config trace id test
+        filter-enable trace/test
+        filter-disable cache-store/store
+        filter-sequence response cache-store/store:before(trace/test)
+
+    backend implicit_then_explicit_instance
+        http-request cache-use store
+        filter-config cache-store id store enabled
+}
+
+# Reject every directive in either declaration order, in frontends, backends
+# and listen sections. Also reject legacy filters after inherited directives.
+# Listen inheritance is already forbidden and is covered in defaults-inheritance.
+# Response-only instances must be detected as well as bidirectional ones.
+
+# filter-config (bidirectional)
+# frontend, legacy-first.
+haproxy h3 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter trace
+        filter-config trace id test
+}
+
+# frontend, instances-first.
+haproxy h4 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter-config trace id test
+        filter trace
+}
+
+# frontend, inherited.
+haproxy h5 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-config trace id test
+
+    frontend px from filters
+        filter trace
+}
+
+# backend, legacy-first.
+haproxy h6 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter trace
+        filter-config trace id test
+}
+
+# backend, instances-first.
+haproxy h7 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter-config trace id test
+        filter trace
+}
+
+# backend, inherited.
+haproxy h8 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-config trace id test
+
+    backend px from filters
+        filter trace
+}
+
+# listen, legacy-first.
+haproxy h9 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter trace
+        filter-config trace id test
+}
+
+# listen, instances-first.
+haproxy h10 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter-config trace id test
+        filter trace
+}
+
+# filter-config (response-only)
+# frontend, legacy-first.
+haproxy h11 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter trace
+        filter-config cache-store id store
+}
+
+# frontend, instances-first.
+haproxy h12 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter-config cache-store id store
+        filter trace
+}
+
+# frontend, inherited.
+haproxy h13 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-config cache-store id store
+
+    frontend px from filters
+        filter trace
+}
+
+# backend, legacy-first.
+haproxy h14 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter trace
+        filter-config cache-store id store
+}
+
+# backend, instances-first.
+haproxy h15 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter-config cache-store id store
+        filter trace
+}
+
+# backend, inherited.
+haproxy h16 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-config cache-store id store
+
+    backend px from filters
+        filter trace
+}
+
+# listen, legacy-first.
+haproxy h17 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter trace
+        filter-config cache-store id store
+}
+
+# listen, instances-first.
+haproxy h18 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter-config cache-store id store
+        filter trace
+}
+
+# filter-enable
+# frontend, legacy-first.
+haproxy h19 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter trace
+        filter-enable trace/test
+}
+
+# frontend, instances-first.
+haproxy h20 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter-enable trace/test
+        filter trace
+}
+
+# frontend, inherited.
+haproxy h21 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-enable trace/test
+
+    frontend px from filters
+        filter trace
+}
+
+# backend, legacy-first.
+haproxy h22 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter trace
+        filter-enable trace/test
+}
+
+# backend, instances-first.
+haproxy h23 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter-enable trace/test
+        filter trace
+}
+
+# backend, inherited.
+haproxy h24 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-enable trace/test
+
+    backend px from filters
+        filter trace
+}
+
+# listen, legacy-first.
+haproxy h25 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter trace
+        filter-enable trace/test
+}
+
+# listen, instances-first.
+haproxy h26 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter-enable trace/test
+        filter trace
+}
+
+# filter-disable
+# frontend, legacy-first.
+haproxy h27 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter trace
+        filter-disable trace/test
+}
+
+# frontend, instances-first.
+haproxy h28 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter-disable trace/test
+        filter trace
+}
+
+# frontend, inherited.
+haproxy h29 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-disable trace/test
+
+    frontend px from filters
+        filter trace
+}
+
+# backend, legacy-first.
+haproxy h30 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter trace
+        filter-disable trace/test
+}
+
+# backend, instances-first.
+haproxy h31 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter-disable trace/test
+        filter trace
+}
+
+# backend, inherited.
+haproxy h32 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-disable trace/test
+
+    backend px from filters
+        filter trace
+}
+
+# listen, legacy-first.
+haproxy h33 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter trace
+        filter-disable trace/test
+}
+
+# listen, instances-first.
+haproxy h34 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter-disable trace/test
+        filter trace
+}
+
+# filter-sequence
+# frontend, legacy-first.
+haproxy h35 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter trace
+        filter-sequence response trace/test:before(trace)
+}
+
+# frontend, instances-first.
+haproxy h36 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    frontend px from filters
+        filter-sequence response trace/test:before(trace)
+        filter trace
+}
+
+# frontend, inherited.
+haproxy h37 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-sequence response trace/test:before(trace)
+
+    frontend px from filters
+        filter trace
+}
+
+# backend, legacy-first.
+haproxy h38 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter trace
+        filter-sequence response trace/test:before(trace)
+}
+
+# backend, instances-first.
+haproxy h39 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    backend px from filters
+        filter-sequence response trace/test:before(trace)
+        filter trace
+}
+
+# backend, inherited.
+haproxy h40 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+        filter-sequence response trace/test:before(trace)
+
+    backend px from filters
+        filter trace
+}
+
+# listen, legacy-first.
+haproxy h41 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter trace
+        filter-sequence response trace/test:before(trace)
+}
+
+# listen, instances-first.
+haproxy h42 -conf-BAD {'filter' and 'filter-*' directives cannot be used together in the same proxy} {
+    defaults filters
+
+    listen px from filters
+        filter-sequence response trace/test:before(trace)
+        filter trace
+}
