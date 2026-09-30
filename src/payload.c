@@ -333,8 +333,12 @@ smp_fetch_req_ssl_ec_ext(const struct arg *args, struct sample *smp, const char 
 		hs_len -= 4 + ext_len;
 		data   += 4 + ext_len;
 	}
-	/* server name not found */
-	goto not_ssl_hello;
+
+	/* EC not found */
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = 0;
+	smp->flags = SMP_F_VOLATILE;
+	return 1;
 
  too_short:
 	smp->flags = SMP_F_MAY_CHANGE;
