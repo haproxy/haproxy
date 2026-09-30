@@ -10299,6 +10299,10 @@ no option checkcache
     - those with a 'Cache-control: no-cache="set-cookie"' header
     - those with a 'Cache-control: no-cache="set-cookie,' header
       (allowing other fields after set-cookie)
+    - those which carry neither freshness information ("Cache-control" with a
+      "max-age" or an "s-maxage", or an "Expires" header) nor a validator (an
+      "ETag" or a "Last-Modified" header), since such a response is not
+      stored by a compliant cache.
 
   If a response doesn't respect these requirements, then it will be blocked
   just as if it was from an "http-response deny" rule, with an "HTTP 502 bad
