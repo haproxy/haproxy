@@ -4761,6 +4761,12 @@ wait { -h | <delay> } [<condition> [<args>...]]
     not met. If everything is OK before the delay, a success is returned and
     the operation is terminated.
 
+  - be-unknown <proxy> : this will wait for the specified backend name to be
+    available for a new instance to be created. This will fail if a proxy with
+    this name already exists, unless if this is a backend flagged for
+    background deletion, in which case a success will be returned if the
+    deletion is completed before the delay.
+
   - srv-removable <proxy>/<server> : this will wait for the specified server to
     be removable by the "del server" command, i.e. be in maintenance and no
     longer have any connection on it (neither active or idle). Some conditions

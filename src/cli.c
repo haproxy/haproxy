@@ -2473,6 +2473,9 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 	else if (strcmp(args[2], "be-removable") == 0) {
 		ctx->cond = CLI_WAIT_COND_BE_UNUSED;
 	}
+	else if (strcmp(args[2], "be-unknown") == 0) {
+		ctx->cond = CLI_WAIT_COND_BE_UNKNWN;
+	}
 	else if (*args[2]) {
 		/* show the command's help either upon request (-h) or error */
 		err = "Usage: wait {-h|<duration>} [condition [args...]]\n"
@@ -2485,6 +2488,7 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 			"    - srv-removable <px>/<sv> : wait for this server to become removable.\n"
 			"    - srv-unknown <px>/<sv> : wait for this server name to be available.\n"
 			"    - be-removable <px> : wait for this backend to become removable.\n"
+			"    - be-unknown <px> : wait for this backend name to become available.\n"
 			"";
 
 		if (strcmp(args[2], "-h") == 0)
@@ -2516,6 +2520,7 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 	}
 
 	case CLI_WAIT_COND_BE_UNUSED:
+	case CLI_WAIT_COND_BE_UNKNWN:
 		if (!*args[3])
 			return cli_err(appctx, "Missing backend name.\n");
 		ctx->args[0] = strdup(args[3]);
@@ -2590,6 +2595,33 @@ static int cli_io_handler_wait(struct appctx *appctx)
 			/* unrecoverable failure */
 			ctx->error = CLI_WAIT_ERR_FAIL;
 			ctx->msg = "Server not scheduled for purge.\n";
+			return 1;
+		}
+	}
+	else if (ctx->cond == CLI_WAIT_COND_BE_UNKNWN) {
+		struct proxy *px;
+
+		if (proxy_find_by_name(ctx->args[0], PR_CAP_DEF, 0)) {
+			ctx->error = CLI_WAIT_ERR_FAIL;
+			ctx->msg = "Name already used by a default instance.\n";
+			return 1;
+		}
+
+		px = proxy_find_by_name(ctx->args[0], PR_CAP_NONE, 0);
+		if (!px) {
+			/* immediate success */
+			ctx->error = CLI_WAIT_ERR_DONE;
+			return 1;
+		}
+		else if (px->cap & PR_CAP_FE) {
+			ctx->error = CLI_WAIT_ERR_FAIL;
+			ctx->msg = "Name already used by a frontend/listen instance.\n";
+			return 1;
+		}
+		else if (!(px->flags & PR_FL_TO_PURGE)) {
+			/* unrecoverable failure */
+			ctx->error = CLI_WAIT_ERR_FAIL;
+			ctx->msg = "Backend not scheduled for purge.\n";
 			return 1;
 		}
 	}

@@ -104,6 +104,7 @@ enum cli_wait_cond {
 	CLI_WAIT_COND_SRV_UNUSED,// wait for server to become unused
 	CLI_WAIT_COND_SRV_UNKNWN,// wait for server name to be available
 	CLI_WAIT_COND_BE_UNUSED, // wait for backend to become unused
+	CLI_WAIT_COND_BE_UNKNWN, // wait for backend name to be available
 };
 
 struct cli_wait_ctx {
