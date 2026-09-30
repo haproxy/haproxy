@@ -70,7 +70,8 @@ haproxy h5 -conf-OK {
         filter-sequence response trace/local:before(trace/b)
         http-request return status 200
 
-    backend be from filters
+    frontend fe2 from filters
+        bind "fd@${fe2}"
         filter-config trace id local enabled
         filter-enable trace/b
         filter-disable trace/a

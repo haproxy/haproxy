@@ -1,0 +1,419 @@
+varnishtest "Filter directives restrict defaults inheritance to one proxy type"
+
+feature ignore_unknown_macro
+
+# Each explicit directive independently restricts inheritance. The rejection
+# cases are intentionally minimal: -conf-BAD checks both exit status and the
+# specific parsing diagnostic, before listener or filter finalization checks.
+
+# filter-config (bidirectional)
+# Frontend first, then backend.
+haproxy h1 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-config trace id inherited
+
+    frontend fe from filters
+    backend be from filters
+}
+
+# Backend first, then frontend.
+haproxy h2 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-config trace id inherited
+
+    backend be from filters
+    frontend fe from filters
+}
+
+# Listen sections must not inherit these directives.
+haproxy h3 -conf-BAD {a listen section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-config trace id inherited
+
+    listen li from filters
+}
+
+# Defaults-to-defaults inheritance must fail at the defaults declaration.
+haproxy h4 -conf-BAD {a defaults section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-config trace id inherited
+
+    defaults derived from filters
+}
+
+# filter-config (response-only)
+# Frontend first, then backend.
+haproxy h5 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-config cache-store id store
+
+    frontend fe from filters
+    backend be from filters
+}
+
+# Backend first, then frontend.
+haproxy h6 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-config cache-store id store
+
+    backend be from filters
+    frontend fe from filters
+}
+
+# Listen sections must not inherit these directives.
+haproxy h7 -conf-BAD {a listen section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-config cache-store id store
+
+    listen li from filters
+}
+
+# Defaults-to-defaults inheritance must fail at the defaults declaration.
+haproxy h8 -conf-BAD {a defaults section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-config cache-store id store
+
+    defaults derived from filters
+}
+
+# filter-enable
+# Frontend first, then backend.
+haproxy h9 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-enable trace/local
+
+    frontend fe from filters
+    backend be from filters
+}
+
+# Backend first, then frontend.
+haproxy h10 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-enable trace/local
+
+    backend be from filters
+    frontend fe from filters
+}
+
+# Listen sections must not inherit these directives.
+haproxy h11 -conf-BAD {a listen section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-enable trace/local
+
+    listen li from filters
+}
+
+# Defaults-to-defaults inheritance must fail at the defaults declaration.
+haproxy h12 -conf-BAD {a defaults section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-enable trace/local
+
+    defaults derived from filters
+}
+
+# filter-disable
+# Frontend first, then backend.
+haproxy h13 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-disable trace/local
+
+    frontend fe from filters
+    backend be from filters
+}
+
+# Backend first, then frontend.
+haproxy h14 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-disable trace/local
+
+    backend be from filters
+    frontend fe from filters
+}
+
+# Listen sections must not inherit these directives.
+haproxy h15 -conf-BAD {a listen section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-disable trace/local
+
+    listen li from filters
+}
+
+# Defaults-to-defaults inheritance must fail at the defaults declaration.
+haproxy h16 -conf-BAD {a defaults section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-disable trace/local
+
+    defaults derived from filters
+}
+
+# filter-sequence
+# Frontend first, then backend.
+haproxy h17 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-sequence request trace/local:before(trace)
+
+    frontend fe from filters
+    backend be from filters
+}
+
+# Backend first, then frontend.
+haproxy h18 -conf-BAD {frontends and backends cannot inherit from the same defaults section if it defines filter directives} {
+    defaults filters
+        filter-sequence request trace/local:before(trace)
+
+    backend be from filters
+    frontend fe from filters
+}
+
+# Listen sections must not inherit these directives.
+haproxy h19 -conf-BAD {a listen section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-sequence request trace/local:before(trace)
+
+    listen li from filters
+}
+
+# Defaults-to-defaults inheritance must fail at the defaults declaration.
+haproxy h20 -conf-BAD {a defaults section cannot inherit from a defaults section defining filter directives} {
+    defaults filters
+        filter-sequence request trace/local:before(trace)
+
+    defaults derived from filters
+}
+
+# Multiple frontends or multiple backends may still share their own defaults.
+# For enable/disable/sequence-only defaults, the referenced filters are local.
+# The common ancestor contains no filter directives and remains unrestricted.
+
+# filter-config (bidirectional): same-type inheritance remains valid.
+haproxy h21 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    defaults filtered_fe from plain
+        filter-config trace id inherited
+
+    frontend fe1 from filtered_fe
+        bind "fd@${fe1}"
+        filter-config trace id local
+
+    frontend fe2 from filtered_fe
+        bind "fd@${fe2}"
+        filter-config trace id local
+
+    defaults filtered_be from plain
+        filter-config trace id inherited
+
+    backend be1 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    backend be2 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+}
+
+# filter-config (response-only): same-type inheritance remains valid.
+haproxy h22 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    cache store
+        total-max-size 1
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    defaults filtered_fe from plain
+        filter-config cache-store id store
+
+    frontend fe1 from filtered_fe
+        bind "fd@${fe1}"
+        filter-config trace id local
+
+    frontend fe2 from filtered_fe
+        bind "fd@${fe2}"
+        filter-config trace id local
+
+    defaults filtered_be from plain
+        filter-config cache-store id store
+
+    backend be1 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    backend be2 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+}
+
+# filter-enable: same-type inheritance remains valid.
+haproxy h23 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    defaults filtered_fe from plain
+        filter-enable trace/local
+
+    frontend fe1 from filtered_fe
+        bind "fd@${fe1}"
+        filter-config trace id local
+
+    frontend fe2 from filtered_fe
+        bind "fd@${fe2}"
+        filter-config trace id local
+
+    defaults filtered_be from plain
+        filter-enable trace/local
+
+    backend be1 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    backend be2 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+}
+
+# filter-disable: same-type inheritance remains valid.
+haproxy h24 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    defaults filtered_fe from plain
+        filter-disable trace/local
+
+    frontend fe1 from filtered_fe
+        bind "fd@${fe1}"
+        filter-config trace id local
+
+    frontend fe2 from filtered_fe
+        bind "fd@${fe2}"
+        filter-config trace id local
+
+    defaults filtered_be from plain
+        filter-disable trace/local
+
+    backend be1 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    backend be2 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+}
+
+# filter-sequence: same-type inheritance remains valid.
+haproxy h25 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    defaults filtered_fe from plain
+        filter-sequence request trace/local:before(trace)
+
+    frontend fe1 from filtered_fe
+        bind "fd@${fe1}"
+        filter-config trace id local
+
+    frontend fe2 from filtered_fe
+        bind "fd@${fe2}"
+        filter-config trace id local
+
+    defaults filtered_be from plain
+        filter-sequence request trace/local:before(trace)
+
+    backend be1 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    backend be2 from filtered_be
+        filter-config trace id local
+        server s1 127.0.0.1:80
+}
+
+# Empty defaults remain shareable, even when their users add local instances.
+haproxy h26 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1 from plain
+        bind "fd@${fe1}"
+        filter-config trace id local
+
+    backend be1 from plain
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    frontend fe2 from plain
+        bind "fd@${fe2}"
+        filter-config trace id local
+
+    backend be2 from plain
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    listen li from plain
+        bind "fd@${li}"
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    defaults derived from plain
+
+    backend be3 from derived
+        filter-config trace id local
+        server s1 127.0.0.1:80
+
+    frontend fe3 from derived
+        bind "fd@${fe3}"
+        filter-config trace id local
+
+    listen li2 from derived
+        bind "fd@${li2}"
+        filter-config trace id local
+        server s1 127.0.0.1:80
+}
