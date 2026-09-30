@@ -1035,6 +1035,34 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 		goto end;
 	}
 
+	if (comp->flags & COMP_FL_DIR_REQ) {
+		struct filter_class *cls;
+
+		/* also create the corresponding implicit filter instance.
+		 * There is no id nor argument.
+		 */
+		cls = filter_find_class(http_comp_req_filter_cls_name);
+		if (!cls || flt_add_implicit_instance(proxy, cls, NULL, NULL, file, line) < 0) {
+			memprintf(err, "'%s' : out of memory.", args[0]);
+			ret = -1;
+			goto end;
+		}
+	}
+
+	if (comp->flags & COMP_FL_DIR_RES) {
+		struct filter_class *cls;
+
+		/* also create the corresponding implicit filter instance.
+		 * There is no id nor argument.
+		 */
+		cls = filter_find_class(http_comp_res_filter_cls_name);
+		if (!cls || flt_add_implicit_instance(proxy, cls, NULL, NULL, file, line) < 0) {
+			memprintf(err, "'%s' : out of memory.", args[0]);
+			ret = -1;
+			goto end;
+		}
+	}
+
   end:
 	return ret;
 }

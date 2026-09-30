@@ -1164,6 +1164,28 @@ parse_decompression_options(char **args, int section, struct proxy *proxy,
 		goto end;
 	}
 
+	if (decomp->req.algos) {
+		struct filter_class *cls;
+
+		cls = filter_find_class(decomp_req_filter_cls_name);
+		if (!cls || flt_add_implicit_instance(proxy, cls, NULL, NULL, file, line) < 0) {
+			memprintf(err, "'%s' : out of memory.", args[0]);
+			ret = -1;
+			goto end;
+		}
+	}
+
+	if (decomp->res.algos) {
+		struct filter_class *cls;
+
+		cls = filter_find_class(decomp_res_filter_cls_name);
+		if (!cls || flt_add_implicit_instance(proxy, cls, NULL, NULL, file, line) < 0) {
+			memprintf(err, "'%s' : out of memory.", args[0]);
+			ret = -1;
+			goto end;
+		}
+	}
+
   end:
 	return ret;
 }
@@ -1321,6 +1343,7 @@ int decomp_res_flt_parse_instance(char **args, struct proxy *px, struct filter_i
 int
 check_implicit_decomp_flt(struct proxy *proxy)
 {
+	struct filter_class *cls;
 	struct flt_conf *fconf;
 	struct flt_conf *fconf_req = NULL;
 	struct flt_conf *fconf_res = NULL;
