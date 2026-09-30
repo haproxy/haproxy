@@ -5433,32 +5433,21 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 	return ret;
 }
 
-/* Handler for "delete backend". Runs under thread isolation. Always returns 1. */
-static int cli_parse_delete_backend(char **args, char *payload, struct appctx *appctx, void *private)
+/* Removes <px> from its attach point in the process.
+ *
+ * This operation is mandatory prior the runtime removal of a backend. Once
+ * detached, the backend is flagged for deletion.
+ *
+ * This function cannot fail. This operation is not thread-safe and must only
+ * be called under thread isolation.
+ */
+void be_unregister(struct proxy *px)
 {
 	struct event_hdl_cb_data_proxy e_cb_data;
 	struct watcher *px_watch;
-	struct proxy *px;
-	const char *msg;
-	char *be_name;
-	int ret;
 
-	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
-		return 1;
-
-	if (*args[3]) {
-		cli_err(appctx, "Usage: del backend <name>.\n");
-		return 1;
-	}
-
-	thread_isolate_full();
-
-	be_name = args[2];
-	ret = be_check_for_deletion(be_name, &px, &msg);
-	if (ret <= 0) {
-		cli_err(appctx, msg);
-		goto out;
-	}
+	/* must be a plain backend, not a frontend nor a listen */
+	BUG_ON((px->cap & PR_CAP_LISTEN) != PR_CAP_BE);
 
 	while (!MT_LIST_ISEMPTY(&px->watcher_list)) {
 		px_watch = MT_LIST_NEXT(&px->watcher_list, struct watcher *, el);
@@ -5481,7 +5470,34 @@ static int cli_parse_delete_backend(char **args, char *payload, struct appctx *a
 	/* backend deletion cannot fail anymore, time to publish the PROXY_DEL event */
 	_proxy_event_hdl_prepare(&e_cb_data, px);
 	_proxy_event_hdl_publish(EVENT_HDL_SUB_PROXY_DEL, e_cb_data, px);
+}
 
+/* Handler for "delete backend". Runs under thread isolation. Always returns 1. */
+static int cli_parse_delete_backend(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	const char *msg;
+	char *be_name;
+	int ret;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (*args[3]) {
+		cli_err(appctx, "Usage: del backend <name>.\n");
+		return 1;
+	}
+
+	thread_isolate_full();
+
+	be_name = args[2];
+	ret = be_check_for_deletion(be_name, &px, &msg);
+	if (ret <= 0) {
+		cli_err(appctx, msg);
+		goto out;
+	}
+
+	be_unregister(px);
 	thread_release();
 
 	ha_notice("Backend deleted.\n");
