@@ -314,6 +314,7 @@ struct filter_class_ref {
 /* filter instance flags */
 #define FLT_INST_F_IMPLICIT  0x01   /* The instance comes from an implicit declaration (e.g. use-fcgi-app) */
 #define FLT_INST_F_INHERITED 0x02   /* The instance was inherited from a defaults section */
+#define FLT_INST_F_SEXPLORE  0x04   /* The instance is on the current path of the sequence loop detection */
 
 struct filter_instance {
 	const char *id;               /* The filter instance id, uniq for a class and a proxy */
@@ -338,6 +339,18 @@ struct filter_instance {
 		struct list reordered_after;  /* instances moved after this instance on response */
 		struct list list;             /* Link in the response side list holding this instance */
 	} res;
+};
+
+struct filter_sequence {
+	const char *cls_name;     /* The class of the instance to move */
+	const char *id;           /* The id of the instance to move, NULL for the single instance of the class */
+	const char *cls_ref_name; /* The class of the reference entity (a class or a instance) */
+	const char *ref_id;       /* The id of the reference instance, NULL for the whole class */
+	unsigned int side;        /* FLT_SIDE_REQ or FLT_SIDE_RES */
+	enum flt_pos pos;         /* FLT_POS_BEFORE or FLT_POS_AFTER */
+	char *file;               /* The configuration file where the directive was found */
+	int line;                 /* The line in the configuration file */
+	struct list list;         /* Link in the list of filter sequences of a proxy, in configuration order */
 };
 
 struct filter_enabled {

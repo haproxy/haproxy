@@ -99,6 +99,21 @@ static void flt_free_enabled(struct filter_enabled *flt_en)
 	free(flt_en);
 }
 
+/* Frees a filter_sequence element */
+static void flt_free_sequence(struct filter_sequence *flt_seq)
+{
+	if (!flt_seq)
+		return;
+	if (LIST_INLIST(&flt_seq->list))
+		LIST_DELETE(&flt_seq->list);
+	free((void *)flt_seq->cls_name);
+	free((void *)flt_seq->id);
+	free((void *)flt_seq->cls_ref_name);
+	free((void *)flt_seq->ref_id);
+	free(flt_seq->file);
+	free(flt_seq);
+}
+
 /* Frees the instances of the list <instances> for side <side>, recursively */
 static void flt_free_inst_list(struct list *instances, unsigned int side)
 {
@@ -1669,6 +1684,7 @@ void flt_free_instances(struct proxy *px)
 {
 	struct filter_class_ref *ref, *refback;
 	struct filter_enabled *flt_en, *enback;
+	struct filter_sequence *seq, *seqback;
 
 	flt_free_inst_list(&px->filter_req_instances, FLT_SIDE_REQ);
 	flt_free_inst_list(&px->filter_res_instances, FLT_SIDE_RES);
@@ -1689,6 +1705,8 @@ void flt_free_instances(struct proxy *px)
 	list_for_each_entry_safe(flt_en, enback, &px->conf.filter_enabled, list)
 		flt_free_enabled(flt_en);
 
+	list_for_each_entry_safe(seq, seqback, &px->conf.filter_sequences, list)
+		flt_free_sequence(seq);
 }
 
 /* Deep-copies the filter instances of the defaults proxy <defpx> into the
@@ -1746,6 +1764,7 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 	struct filter_class_ref *ref;
 	struct filter_instance *inst;
 	struct filter_enabled *flt_en, *new_en;
+	struct filter_sequence *seq, *new_seq;
 
 	/* iterate over all the instances of the defaults proxy: the request
 	 * side first, then the instances of the classes with no request side
@@ -1782,6 +1801,27 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 		LIST_APPEND(&px->conf.filter_enabled, &new_en->list);
 	}
 
+	/* inherit the filter sequences too, in configuration order */
+	list_for_each_entry(seq, &defpx->conf.filter_sequences, list) {
+		new_seq = calloc(1, sizeof(*new_seq));
+		if (!new_seq)
+			goto error;
+		new_seq->cls_name = strdup(seq->cls_name);
+		new_seq->id = seq->id ? strdup(seq->id) : NULL;
+		new_seq->cls_ref_name = strdup(seq->cls_ref_name);
+		new_seq->ref_id = seq->ref_id ? strdup(seq->ref_id) : NULL;
+		new_seq->side = seq->side;
+		new_seq->pos = seq->pos;
+		new_seq->file = strdup(seq->file);
+		new_seq->line = seq->line;
+		if (!new_seq->cls_name || (seq->id && !new_seq->id) ||
+		    !new_seq->cls_ref_name || (seq->ref_id && !new_seq->ref_id) ||
+		    !new_seq->file) {
+			flt_free_sequence(new_seq);
+			goto error;
+		}
+		LIST_APPEND(&px->conf.filter_sequences, &new_seq->list);
+	}
 	return 0;
 
   error:
@@ -2025,6 +2065,153 @@ static int parse_filter_enable(char **args, int section_type, struct proxy *curp
 	return 0;
 }
 
+/* Splits the entity reference <str>, in the form "class[/id]": the class
+ * name and the id (NULL if not set) are returned in newly allocated strings
+ * in <*cls_name> and <*id>. Returns 0 on success, -1 on error.
+ */
+static int flt_parse_entity(const char *str, const char **cls_name, const char **id, char **err)
+{
+	const char *sep;
+	const char *err2;
+	size_t len;
+
+	sep = strchr(str, '/');
+	len = sep ? (size_t)(sep - str) : strlen(str);
+	if (!len || (sep && !*(sep + 1))) {
+		memprintf(err, "invalid entity '%s', expecting <class>[/<id>]", str);
+		return -1;
+	}
+
+	*cls_name = my_strndup(str, len);
+	*id = sep ? strdup(sep + 1) : NULL;
+	if (!*cls_name || (sep && !*id)) {
+		memprintf(err, "out of memory");
+		goto error;
+	}
+
+	if (*id) {
+		err2 = invalid_prefix_char(*id);
+		if (err2) {
+			memprintf(err, "invalid character '%c' in filter instance id '%s'", *err2, *id);
+			goto error;
+		}
+	}
+	return 0;
+
+  error:
+	free((void *)*cls_name);
+	free((void *)*id);
+	*cls_name = *id = NULL;
+	return -1;
+}
+
+/*
+ * Parses the "filter-sequence" keyword. The syntax is:
+ *
+ *   filter-sequence {request|response} <inst>:<pos>(<entity>) [<inst>:<pos>(<entity>) ...]
+ *
+ * where <pos> is 'before' or 'after': "A:before(B)" means the instance A
+ * is evaluated before the entity B (a class or a instance), "A:after(B)"
+ * means A is evaluated after B. The directive is
+ * only recorded here, the sequences are applied during the post-parsing
+ * stage (see flt_apply_sequences()).
+ */
+static int parse_filter_sequence(char **args, int section_type, struct proxy *curpx,
+				 const struct proxy *defpx, const char *file, int line, char **err)
+{
+	struct filter_sequence *seq = NULL;
+	const char *sep;
+	const char *entity;
+	char *left = NULL;
+	char *ref;
+	unsigned int side;
+	size_t entity_len;
+	enum flt_pos pos;
+	int cur_arg;
+	int ret = 0;
+
+	if (!*args[1]) {
+		memprintf(err, "missing argument for '%s' in %s '%s'.", args[0], proxy_type_str(curpx), curpx->id);
+		goto error;
+	}
+	if (strcmp(args[1], "request") == 0)
+		side = FLT_SIDE_REQ;
+	else if (strcmp(args[1], "response") == 0)
+		side = FLT_SIDE_RES;
+	else {
+		memprintf(err, "'request' or 'response' expected.");
+		goto error;
+	}
+	if (!*args[2]) {
+		memprintf(err, "missing sequence. The syntax is: filter-sequence {request|response} <inst>:<pos>(<entity>) [<inst>:<pos>(<entity>) ...], with <pos> being 'before' or 'after'.");
+		goto error;
+	}
+
+	for (cur_arg = 2; *args[cur_arg]; cur_arg++) {
+		sep = strchr(args[cur_arg], ':');
+		if (!sep || sep == args[cur_arg])
+			goto invalid;
+		if (strncmp(sep + 1, "before(", 7) == 0)
+			pos = FLT_POS_BEFORE;
+		else if (strncmp(sep + 1, "after(", 6) == 0)
+			pos = FLT_POS_AFTER;
+		else
+			goto invalid;
+		entity = sep + 1 + (pos == FLT_POS_BEFORE ? 7 : 6);
+		entity_len = strlen(entity);
+		if (entity_len < 2 || entity[entity_len - 1] != ')')
+			goto invalid;
+		entity_len--;
+
+		seq = calloc(1, sizeof(*seq));
+		if (!seq)
+			goto oom;
+		LIST_INIT(&seq->list);
+		seq->side = side;
+		seq->pos = pos;
+		seq->file = strdup(file);
+		seq->line = line;
+		if (!seq->file)
+			goto oom;
+
+		left = my_strndup(args[cur_arg], sep - args[cur_arg]);
+		if (!left)
+			goto oom;
+		ret = flt_parse_entity(left, &seq->cls_name, &seq->id, err);
+		free(left);
+		left = NULL;
+		if (ret < 0)
+			goto error;
+		ref = my_strndup(entity, entity_len);
+		if (!ref)
+			goto oom;
+		ret = flt_parse_entity(ref, &seq->cls_ref_name, &seq->ref_id, err);
+		free(ref);
+		if (ret < 0)
+			goto error;
+
+		LIST_APPEND(&curpx->conf.filter_sequences, &seq->list);
+		seq = NULL;
+	}
+	return 0;
+
+  invalid:
+	memprintf(err, "invalid sequence '%s', expecting <inst>:before(<entity>) or <inst>:after(<entity>).",
+		  args[cur_arg]);
+	goto error;
+
+  oom:
+	memprintf(err, "out of memory");
+	/* fallthrough */
+  error:
+	memprintf(err, "parsing [%s:%d] : '%s' : %s.",
+		  file, line, args[0], err && *err ? *err : "invalid sequence");
+	flt_free_sequence(seq);
+	free(left);
+	return -1;
+
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
  * all code contributors.
@@ -2036,6 +2223,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 		{ CFG_LISTEN, "filter-config", parse_filter_config },
 		{ CFG_LISTEN, "filter-disable", parse_filter_enable },
 		{ CFG_LISTEN, "filter-enable", parse_filter_enable },
+		{ CFG_LISTEN, "filter-sequence", parse_filter_sequence },
 		{ 0, NULL, NULL },
 	}
 };
@@ -2088,6 +2276,179 @@ static int flt_enable_filters(struct proxy *proxy)
 	return err_code;
 }
 
+
+/* Recursively checks that the instance <inst> does not create a loop in
+ * the reordered lists for side <side>. A instance is linked in exactly
+ * one list per side, so the structure is a forest: the FLT_INST_F_SEXPLORE
+ * flag, marking the instances on the current path, is enough to detect
+ * the loops. The flag is always cleared on the way out, even on error.
+ * Returns 0 if no loop is found, -1 otherwise.
+ */
+static int flt_check_instance_loop(struct filter_instance *inst, unsigned int side)
+{
+	struct filter_instance *d;
+	int ret;
+
+	if (inst->flags & FLT_INST_F_SEXPLORE)
+		goto error; /* loop */
+	inst->flags |= FLT_INST_F_SEXPLORE;
+	if (side == FLT_SIDE_REQ) {
+		list_for_each_entry(d, &inst->req.reordered_before, req.list) {
+			if (flt_check_instance_loop(d, side) < 0)
+				goto error;
+		}
+		list_for_each_entry(d, &inst->req.reordered_after, req.list) {
+			if (flt_check_instance_loop(d, side) < 0)
+				goto error;
+		}
+	}
+	else {
+		list_for_each_entry(d, &inst->res.reordered_before, res.list) {
+			if (flt_check_instance_loop(d, side) < 0)
+				goto error;
+		}
+		list_for_each_entry(d, &inst->res.reordered_after, res.list) {
+			if (flt_check_instance_loop(d, side) < 0)
+				goto error;
+		}
+	}
+	ret = 0;
+
+  out:
+	inst->flags &= ~FLT_INST_F_SEXPLORE;
+	return ret;
+
+  error:
+	ret = -1;
+	goto out;
+}
+
+/* Applies the filter sequences of the proxy <proxy>, in configuration
+ * order. Each sequence moves a instance from its current list (its class
+ * instances list or a reordered list) to the reordered list of the
+ * reference entity: the reordered list of the class reference for the
+ * sequence's side, or the reordered list of the reference instance. A
+ * sequence is ignored if the instance to move does not exist, but the
+ * reference entity must exist.
+ * Returns a combination of ERR_* flags, ERR_NONE on success.
+ */
+static int flt_apply_sequences(struct proxy *proxy)
+{
+	struct filter_class_ref *ref;
+	struct filter_instance *inst, *ref_inst;
+	struct filter_sequence *seq;
+	struct filter_class *cls, *ref_cls;
+	int err_code = ERR_NONE;
+	int count;
+
+	list_for_each_entry(seq, &proxy->conf.filter_sequences, list) {
+		/* find the instance to move. Without id, the class must have
+		 * exactly one instance. If it does not exist, just ignore the
+		 * sequence.
+		 */
+		cls = filter_find_class(seq->cls_name);
+		if (!cls)
+			continue;
+		inst = flt_find_instance_count(proxy, cls, seq->id, &count);
+		if (!inst)
+			continue;
+		if (count > 1) {
+			ha_alert("config: %s '%s' : 'filter-sequence' : several instances of filter class '%s', an id is required (from %s:%d).\n",
+				 proxy_type_str(proxy), proxy->id, seq->cls_name,
+				 seq->file, seq->line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			continue;
+		}
+
+		/* the instance has no existence on a side its class is not
+		 * placed on: ignore the sequence
+		 */
+		if ((seq->side == FLT_SIDE_REQ && !LIST_INLIST(&inst->class->req.list)) ||
+		    (seq->side == FLT_SIDE_RES && !LIST_INLIST(&inst->class->res.list)))
+			continue;
+
+		/* find the reference entity */
+		ref_cls = filter_find_class(seq->cls_ref_name);
+		if (!ref_cls) {
+			ha_alert("config: %s '%s' : 'filter-sequence' : unknown filter class '%s' (from %s:%d).\n",
+				 proxy_type_str(proxy), proxy->id, seq->cls_ref_name,
+				 seq->file, seq->line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			continue;
+		}
+		ref = flt_get_class_ref(proxy, ref_cls, seq->side);
+		if (!ref) {
+			ha_alert("config: %s '%s' : 'filter-sequence' : filter class '%s' has no %s side (from %s:%d).\n",
+				 proxy_type_str(proxy), proxy->id, seq->cls_ref_name,
+				 (seq->side == FLT_SIDE_REQ) ? "request" : "response",
+				 seq->file, seq->line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			continue;
+		}
+		ref_inst = NULL;
+		if (seq->ref_id) {
+			ref_inst = flt_find_instance(proxy, ref_cls, seq->ref_id);
+			if (!ref_inst) {
+				ha_alert("config: %s '%s' : 'filter-sequence' : no instance of filter class '%s' with id '%s' (from %s:%d).\n",
+					 proxy_type_str(proxy), proxy->id, seq->cls_ref_name,
+					 seq->ref_id, seq->file, seq->line);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				continue;
+			}
+		}
+
+		/* unlink the instance from its current side list, if any,
+		 * and append it in the right reordered list
+		 */
+		if (seq->side == FLT_SIDE_REQ) {
+			if (LIST_INLIST(&inst->req.list))
+				LIST_DEL_INIT(&inst->req.list);
+			if (seq->pos == FLT_POS_BEFORE) {
+				if (ref_inst)
+					LIST_APPEND(&ref_inst->req.reordered_before, &inst->req.list);
+				else
+					LIST_APPEND(&ref->reordered_before, &inst->req.list);
+			}
+			else {
+				if (ref_inst)
+					LIST_APPEND(&ref_inst->req.reordered_after, &inst->req.list);
+				else
+					LIST_APPEND(&ref->reordered_after, &inst->req.list);
+			}
+		}
+		else {
+			if (LIST_INLIST(&inst->res.list))
+				LIST_DEL_INIT(&inst->res.list);
+			if (seq->pos == FLT_POS_BEFORE) {
+				if (ref_inst)
+					LIST_APPEND(&ref_inst->res.reordered_before, &inst->res.list);
+				else
+					LIST_APPEND(&ref->reordered_before, &inst->res.list);
+			}
+			else {
+				if (ref_inst)
+					LIST_APPEND(&ref_inst->res.reordered_after, &inst->res.list);
+				else
+					LIST_APPEND(&ref->reordered_after, &inst->res.list);
+			}
+		}
+
+		/* a loop must not be created by the sequences: check from the
+		 * moved instance after each sequence. It is enough: before
+		 * the move, there is no loop (checked after the previous
+		 * sequence), so a new loop necessarily involves the moved
+		 * instance.
+		 */
+		if (flt_check_instance_loop(inst, seq->side) < 0) {
+			ha_alert("config: %s '%s' : 'filter-sequence' : a loop is detected around instance '%s%s%s' (from %s:%d).\n",
+				 proxy_type_str(proxy), proxy->id, inst->class->name,
+				 inst->id ? "/" : "", inst->id ? inst->id : "",
+				 seq->file, seq->line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+	return err_code;
+}
 
 /* Moves the instance <inst> from the class references tree to the flat
  * per-side list of the proxy <px>, recursively: the instances reordered
@@ -2142,6 +2503,7 @@ static void flt_flatten_instances(struct proxy *px)
 {
 	struct filter_class_ref *ref, *refback;
 	struct filter_enabled *flt_en, *enback;
+	struct filter_sequence *seq, *seqback;
 
 	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_req, list) {
 		flt_flatten_inst_list(px, &ref->reordered_before, FLT_SIDE_REQ);
@@ -2161,6 +2523,8 @@ static void flt_flatten_instances(struct proxy *px)
 	/* release the consumed filter-enable and filter-sequence entries */
 	list_for_each_entry_safe(flt_en, enback, &px->conf.filter_enabled, list)
 		flt_free_enabled(flt_en);
+	list_for_each_entry_safe(seq, seqback, &px->conf.filter_sequences, list)
+		flt_free_sequence(seq);
 }
 
 /* Post-parses the filter instances of the proxy <proxy>. For each
@@ -2292,6 +2656,12 @@ static int flt_precheck_instances_all()
 		err_code |= flt_enable_filters(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to apply the filter-enable/filter-disable directives of proxy '%s'.\n",
+				 px->id);
+			return err_code;
+		}
+		err_code |= flt_apply_sequences(px);
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			ha_alert("Failed to apply the filter sequences of proxy '%s'.\n",
 				 px->id);
 			return err_code;
 		}
