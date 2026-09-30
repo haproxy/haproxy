@@ -1,0 +1,79 @@
+varnishtest "Filter instance directives require named defaults sections"
+
+feature ignore_unknown_macro
+
+# Reject each directive in anonymous defaults before processing its arguments.
+haproxy h1 -conf-BAD {'filter-config' not allowed in anonymous 'defaults' section} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        filter-config trace id test
+}
+
+haproxy h2 -conf-BAD {'filter-sequence' not allowed in anonymous 'defaults' section} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        filter-sequence request trace/a:before(trace/b)
+}
+
+haproxy h3 -conf-BAD {'filter-enable' not allowed in anonymous 'defaults' section} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        filter-enable trace/test
+}
+
+haproxy h4 -conf-BAD {'filter-disable' not allowed in anonymous 'defaults' section} {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        filter-disable trace/test
+}
+
+# Named defaults and regular proxies still accept the directives, including
+# inherited instances and locally configured enable/disable and ordering.
+haproxy h5 -conf-OK {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults filters
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        filter-config trace id a
+        filter-config trace id b enabled
+        filter-enable trace/a
+        filter-disable trace/b
+        filter-sequence request trace/b:before(trace/a)
+
+    frontend fe from filters
+        bind "fd@${fe}"
+        filter-config trace id local enabled
+        filter-enable trace/b
+        filter-disable trace/a
+        filter-sequence response trace/local:before(trace/b)
+        http-request return status 200
+
+    backend be from filters
+        filter-config trace id local enabled
+        filter-enable trace/b
+        filter-disable trace/a
+        filter-sequence response trace/local:before(trace/b)
+        http-request return status 200
+}
