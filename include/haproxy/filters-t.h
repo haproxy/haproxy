@@ -43,6 +43,7 @@ struct stream;
 struct channel;
 struct flt_conf;
 struct filter;
+struct filter_class_ref;
 struct filter_instance;
 
 /* Descriptor for a "filter" keyword. The ->parse() function returns 0 in case
@@ -208,12 +209,14 @@ struct flt_ops {
  * accessible from a filter when instantiated in a stream
  */
 struct flt_conf {
-	const char     *name; /* The filter name (same name used to select the filter from config) */
-	const char     *id;   /* The filter id */
-	struct flt_ops *ops;  /* The filter callbacks */
-	void           *conf; /* The filter configuration */
-	struct list     list; /* Next filter for the same proxy */
-	unsigned int    flags; /* FLT_CFG_FL_* */
+	const char     *name;   /* The filter name (same name used to select the filter from config) */
+	const char     *id;     /* The filter id */
+	struct flt_ops *ops;    /* The filter callbacks */
+	void           *conf;   /* The filter configuration */
+	unsigned int    flags;  /* FLT_CFG_FL_* */
+	struct list     list;   /* Next filter for the same proxy */
+	struct list     by_req; /* Link in the list of filter to eval on the requet path */
+	struct list     by_res; /* Link in the list of filter to eval on the response path */
 };
 
 /*
@@ -291,6 +294,50 @@ struct filter_class {
 	} res;
 
 	struct list list; /* Link in global list of filter classes */
+};
+
+/* Per-proxy and per-side reference to a filter class. It anchors the
+ * instances of the class evaluated on this side for one proxy. The
+ * reference is inserted in the per-side list of the proxy, following the
+ * global class order of the side, so that the instances of a proxy are,
+ * by default, evaluated in the global class order and not in the parsing
+ * order.
+ */
+struct filter_class_ref {
+	struct filter_class *class;   /* The referenced filter class */
+	struct list reordered_before; /* instances moved before all instances of this class, on this side */
+	struct list reordered_after;  /* instances moved after all instances of this class, on this side */
+	struct list instances;        /* instances of this class evaluated on this side (parsing order) */
+	struct list list;             /* Link in one of the proxy's class refs list */
+};
+
+/* filter instance flags */
+#define FLT_INST_F_IMPLICIT  0x01   /* The instance comes from an implicit declaration (e.g. use-fcgi-app) */
+#define FLT_INST_F_INHERITED 0x02   /* The instance was inherited from a defaults section */
+
+struct filter_instance {
+	const char *id;               /* The filter instance id, uniq for a class and a proxy */
+	unsigned int enabled;         /* != 0 if enabled */
+	unsigned int flags;           /* FLT_INST_F_* */
+	struct filter_class *class;   /* filter class for this instance */
+	struct proxy *px;             /* proxy owning this instance */
+	struct flt_conf *fconf;       /* filter configuration */
+	struct {
+		char *file;
+		int line;
+		int argc;
+		char **argv;
+	} conf;                       /* The raw configuration used during parsing */
+	struct {
+		struct list reordered_before; /* instances moved before this instance on request */
+		struct list reordered_after;  /* instances moved after this instance on request */
+		struct list list;             /* Link in the request side list holding this instance */
+	} req;
+	struct {
+		struct list reordered_before; /* instances moved before this instance on response */
+		struct list reordered_after;  /* instances moved after this instance on response */
+		struct list list;             /* Link in the response side list holding this instance */
+	} res;
 };
 
 #endif /* _HAPROXY_FILTERS_T_H */

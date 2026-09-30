@@ -64,6 +64,49 @@ DECLARE_STATIC_TYPED_POOL(pool_head_filter, "filter", struct filter);
 
 static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigned int an_bit, int ret);
 
+/* Frees a filter instance and all its content */
+static void flt_free_instance(struct filter_instance *inst)
+{
+	if (!inst)
+		return;
+	if (LIST_INLIST(&inst->req.list))
+		LIST_DELETE(&inst->req.list);
+	if (LIST_INLIST(&inst->res.list))
+		LIST_DELETE(&inst->res.list);
+	if (inst->conf.argv) {
+		int i;
+
+		for (i = 0; i < inst->conf.argc; i++)
+			free(inst->conf.argv[i]);
+		free(inst->conf.argv);
+	}
+	free(inst->conf.file);
+	free((void *)inst->id);
+	free(inst->fconf);
+	free(inst);
+}
+
+/* Frees the instances of the list <instances> for side <side>, recursively */
+static void flt_free_inst_list(struct list *instances, unsigned int side)
+{
+	struct filter_instance *inst, *back;
+
+	if (side == FLT_SIDE_REQ) {
+		list_for_each_entry_safe(inst, back, instances, req.list) {
+			flt_free_inst_list(&inst->req.reordered_before, side);
+			flt_free_inst_list(&inst->req.reordered_after, side);
+			flt_free_instance(inst);
+		}
+	}
+	else {
+		list_for_each_entry_safe(inst, back, instances, res.list) {
+			flt_free_inst_list(&inst->res.reordered_before, side);
+			flt_free_inst_list(&inst->res.reordered_after, side);
+			flt_free_instance(inst);
+		}
+	}
+}
+
 /*
  * The API below is similar to flt_list_start() and flt_list_next() except that it can be
  * interrupted and resumed!
@@ -437,6 +480,7 @@ flt_deinit(struct proxy *proxy)
 		LIST_DELETE(&fconf->list);
 		free(fconf);
 	}
+	flt_free_instances(proxy);
 }
 
 /*
@@ -1265,6 +1309,173 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 	return 0;
 }
 
+/* Iterates over the instances of the list <instances> for side <side>,
+ * recursively. <fct> is called for each instance and must return 0 to
+ * continue, any other value to stop immediately; that value is then returned.
+ *
+ * Note: it must only be used on loop-free structures (the sequence loop
+ * detection runs after the sequences are applied, and aborts the startup
+ * on a loop).
+ */
+static int flt_foreach_instance(struct list *instances, unsigned int side,
+			   int (*fct)(struct filter_instance *inst, void *data), void *data)
+{
+	struct filter_instance *inst;
+	int ret;
+
+	if (side == FLT_SIDE_REQ) {
+		list_for_each_entry(inst, instances, req.list) {
+			ret = fct(inst, data);
+			if (ret)
+				return ret;
+			ret = flt_foreach_instance(&inst->req.reordered_before, side, fct, data);
+			if (ret)
+				return ret;
+			ret = flt_foreach_instance(&inst->req.reordered_after, side, fct, data);
+			if (ret)
+				return ret;
+		}
+	}
+	else {
+		list_for_each_entry(inst, instances, res.list) {
+			ret = fct(inst, data);
+			if (ret)
+				return ret;
+			ret = flt_foreach_instance(&inst->res.reordered_before, side, fct, data);
+			if (ret)
+				return ret;
+			ret = flt_foreach_instance(&inst->res.reordered_after, side, fct, data);
+			if (ret)
+				return ret;
+		}
+	}
+	return 0;
+}
+
+/* Iterates over all the instances of the proxy <px> for side <side>,
+ * recursively.
+ */
+static int flt_foreach_instance_side(struct proxy *px, unsigned int side,
+				int (*fct)(struct filter_instance *inst, void *data), void *data)
+{
+	struct list *refs = (side == FLT_SIDE_REQ ? &px->conf.filter_classes_req : &px->conf.filter_classes_res);
+	struct filter_class_ref *ref;
+	int ret;
+
+	list_for_each_entry(ref, refs, list) {
+		ret = flt_foreach_instance(&ref->instances, side, fct, data);
+		if (ret)
+			return ret;
+		ret = flt_foreach_instance(&ref->reordered_before, side, fct, data);
+		if (ret)
+			return ret;
+		ret = flt_foreach_instance(&ref->reordered_after, side, fct, data);
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
+
+/* Context for flt_match_instance_cb() */
+struct flt_match_instance_ctx {
+	struct filter_class *cls;   /* the class to match */
+	const char *id;             /* the id to match, NULL for any id */
+	unsigned int side;          /* the side being iterated (FLT_SIDE_REQ or FLT_SIDE_RES) */
+	struct filter_instance *found; /* the first matching instance, if any */
+	int count;                  /* the number of matching instances */
+};
+
+/* Callback matching the instances of the class ctx->cls with the id
+ * ctx->id (any id if NULL). The first match is recorded in ctx->found and
+ * the matches are counted in ctx->count (a instance of a class placed on
+ * both sides is counted once). With an id, the iteration stops at the
+ * first match.
+ */
+static int flt_match_instance_cb(struct filter_instance *inst, void *data)
+{
+	struct flt_match_instance_ctx *ctx = data;
+
+	if (inst->class != ctx->cls)
+		return 0;
+	if (ctx->side == FLT_SIDE_RES && LIST_INLIST(&inst->req.list))
+		return 0; /* already matched from the request side */
+	if (ctx->id && (!inst->id || strcmp(inst->id, ctx->id) != 0))
+		return 0;
+	if (!ctx->found)
+		ctx->found = inst;
+	ctx->count++;
+	return ctx->id ? 1 : 0;
+}
+
+/* Finds the filter instance of the class <cls> with the id <id> in the proxy
+ * <px>. If <id> is NULL, the first instance of the class is returned.  The
+ * number of matching instances is returned in <*count> if not NULL.
+ * Returns NULL if not found.
+ */
+static struct filter_instance *flt_find_instance_count(struct proxy *px, struct filter_class *cls,
+						   const char *id, int *count)
+{
+	struct flt_match_instance_ctx ctx = { .cls = cls, .id = id, .found = NULL, .count = 0 };
+
+	/* instances are in the flat per-side lists of the proxy, or in the
+	 * class references if the configuration was not flattened yet (or
+	 * for the defaults sections): the request side first, then the
+	 * response side
+	 */
+	ctx.side = FLT_SIDE_REQ;
+	if (flt_foreach_instance(&px->filter_req_instances, FLT_SIDE_REQ, flt_match_instance_cb, &ctx) && ctx.found)
+		goto end;
+	ctx.side = FLT_SIDE_RES;
+	if (flt_foreach_instance(&px->filter_res_instances, FLT_SIDE_RES, flt_match_instance_cb, &ctx) && ctx.found)
+		goto end;
+	ctx.side = FLT_SIDE_REQ;
+	if (flt_foreach_instance_side(px, FLT_SIDE_REQ, flt_match_instance_cb, &ctx) && ctx.found)
+		goto end;
+	ctx.side = FLT_SIDE_RES;
+	flt_foreach_instance_side(px, FLT_SIDE_RES, flt_match_instance_cb, &ctx);
+
+  end:
+	if (count)
+		*count = ctx.count;
+	return ctx.found;
+}
+
+/* Finds the filter instance of the class <cls> with the id <id> in the proxy
+ * <px>. If <id> is NULL, the first instance of the class is returned.
+ * Returns NULL if not found.
+ */
+struct filter_instance *flt_find_instance(struct proxy *px, struct filter_class *cls, const char *id)
+{
+	return flt_find_instance_count(px, cls, id, NULL);
+}
+
+
+/* Frees all filter instances of the proxy <px>, its filter class
+ * references, its filter-enable entries and its filter sequences.
+ */
+void flt_free_instances(struct proxy *px)
+{
+	struct filter_class_ref *ref, *refback;
+
+	flt_free_inst_list(&px->filter_req_instances, FLT_SIDE_REQ);
+	flt_free_inst_list(&px->filter_res_instances, FLT_SIDE_RES);
+	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_req, list) {
+		flt_free_inst_list(&ref->instances, FLT_SIDE_REQ);
+		flt_free_inst_list(&ref->reordered_before, FLT_SIDE_REQ);
+		flt_free_inst_list(&ref->reordered_after, FLT_SIDE_REQ);
+		LIST_DELETE(&ref->list);
+		free(ref);
+	}
+	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_res, list) {
+		flt_free_inst_list(&ref->instances, FLT_SIDE_RES);
+		flt_free_inst_list(&ref->reordered_before, FLT_SIDE_RES);
+		flt_free_inst_list(&ref->reordered_after, FLT_SIDE_RES);
+		LIST_DELETE(&ref->list);
+		free(ref);
+	}
+
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
@@ -1334,6 +1545,86 @@ struct filter_class *filter_find_class(const char *name)
 			return cls;
 	}
 	return NULL;
+}
+
+/* Creates the filter class references for the request side.  Returns 0 on
+ * success, -1 on error.
+ */
+static int flt_init_req_class_refs(struct proxy *px, struct list *classes)
+{
+	struct filter_class *cls;
+	struct filter_class_ref *ref;
+
+	list_for_each_entry(cls, classes, req.list) {
+		if (flt_init_req_class_refs(px, &cls->req.before) == -1)
+			goto error;
+
+		ref = calloc(1, sizeof(*ref));
+		if (!ref)
+			goto error;
+		ref->class = cls;
+		LIST_INIT(&ref->instances);
+		LIST_INIT(&ref->reordered_before);
+		LIST_INIT(&ref->reordered_after);
+		LIST_APPEND(&px->conf.filter_classes_req, &ref->list);
+
+		if (flt_init_req_class_refs(px, &cls->req.after) == -1)
+			goto error;
+	}
+
+	return 0;
+  error:
+	return -1;
+}
+
+/* Creates the filter class references for the response side.  Returns 0 on
+ * success, -1 on error.
+ */
+static int flt_init_res_class_refs(struct proxy *px, struct list *classes)
+{
+	struct filter_class *cls;
+	struct filter_class_ref *ref;
+
+	list_for_each_entry(cls, classes, res.list) {
+		if (flt_init_res_class_refs(px, &cls->res.before) == -1)
+			goto error;
+
+		ref = calloc(1, sizeof(*ref));
+		if (!ref)
+			goto error;
+		ref->class = cls;
+		LIST_INIT(&ref->instances);
+		LIST_INIT(&ref->reordered_before);
+		LIST_INIT(&ref->reordered_after);
+		LIST_APPEND(&px->conf.filter_classes_res, &ref->list);
+
+		if (flt_init_res_class_refs(px, &cls->res.after) == -1)
+			goto error;
+	}
+
+	return 0;
+  error:
+	return -1;
+}
+
+/* Creates the filter class references of the proxy <px>: one reference per
+ * registered filter class, linked in the per-side lists of the proxy following
+ * the global class order of each side.
+ * It is called during the proxy initialization, so all filter classes must be
+ * registered first.
+ * Returns 0 on success, -1 on error.
+ */
+int flt_init_class_refs(struct proxy *px)
+{
+	if (flt_init_req_class_refs(px, &req_filter_classes) == -1)
+		goto error;
+	if (flt_init_res_class_refs(px, &res_filter_classes) == -1)
+		goto error;
+	return 0;
+
+  error:
+	flt_free_instances(px);
+	return -1;
 }
 
 /* Registers a new filter class, with the parsing function <parse> used to

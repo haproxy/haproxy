@@ -490,6 +490,8 @@ struct proxy {
 		const char *file_prev;          /* file of the previous instance found with the same name, or NULL */
 		int line_prev;                  /* line of the previous instance found with the same name, or 0 */
 		unsigned int def_ref;           /* default proxy only refcount */
+		struct list filter_classes_req; /* list of the filter class refs with a request side */
+		struct list filter_classes_res; /* list of the filter class refs with a response side */
 	} conf;					/* config information */
 	struct http_ext *http_ext;	        /* http ext options */
 	struct ceb_root *used_server_addr;      /* list of server addresses in use */
@@ -517,6 +519,8 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
+	struct list filter_req_instances;	/* flat list of the filter instances evaluated on the request side */
+	struct list filter_res_instances;	/* flat list of the filter instances evaluated on the response side */
 
 	struct guid_node guid;			/* GUID global tree node */
 	struct mt_list watcher_list;		/* list of elems which currently references this proxy instance (currently only used with backends) */
