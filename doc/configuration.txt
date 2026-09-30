@@ -2157,13 +2157,13 @@ chroot { <jail dir> | auto }
   The resulting jail has no name in the filesystem and is empty and read-only,
   removing the need to prepare a dedicated jail directory.
 
-  When starting with sufficient privileges, haproxy will automatically apply
-  "chroot auto" if no "chroot" directive is used, i.e. it will isolate itself
-  in a chroot jail, and will emit a warning if it fails to do so. If there is
-  a compelling reason not to use chroot (e.g. access to a server via a UNIX
-  socket outside of the jail), it remains possible to silence the warning by
-  adding an explicit "chroot /", which has the benefit of being visible in a
-  configuration.
+  When starting with sufficient privileges and when "set-dumpable" is not set,
+  haproxy will automatically apply "chroot auto" if no "chroot" directive is
+  used, i.e. it will isolate itself in a chroot jail, and will emit a warning
+  if it fails to do so. If there is a compelling reason not to use chroot (e.g.
+  access to a server via a UNIX socket outside of the jail), it remains
+  possible to silence the warning by adding an explicit "chroot /", which has
+  the benefit of being visible in a configuration.
 
 close-spread-time <time>
   Define a time window during which idle connections and active connections
@@ -3252,20 +3252,21 @@ set-dumpable [ on | off | libs ]
 
   This option is better left disabled by default and enabled only upon a
   developer's request. By default it is disabled. Without argument, it defaults
-  to "on". If it has been enabled, it may still be forcibly disabled by prefixing
-  it with the "no" keyword or by setting it to "off". It has no impact on
-  performance nor stability but will try hard to re-enable core dumps that were
-  possibly disabled by file size limitations (ulimit -f), core size limitations
-  (ulimit -c), or "dumpability" of a process after changing its UID/GID (such
-  as /proc/sys/fs/suid_dumpable on Linux). Core dumps might still be limited by
+  to "on". If it has been enabled, it may still be forcibly disabled by
+  prefixing it with the "no" keyword or by setting it to "off". It has no
+  impact on performance nor stability but will try hard to re-enable core dumps
+  that were possibly disabled by file size limitations (ulimit -f), core size
+  limitations (ulimit -c), or "dumpability" of a process after changing its
+  UID/GID (such as /proc/sys/fs/suid_dumpable on Linux), and disables the
+  default automatic chroot when not set. Core dumps might still be limited by
   the current directory's permissions (check what directory the file is started
   from), the chroot directory's permission (it may be needed to temporarily
   disable the chroot directive or to move it to a dedicated writable location),
   or any other system-specific constraint. For example, some Linux flavours are
   notorious for replacing the default core file with a path to an executable
-  not even installed on the system (check /proc/sys/kernel/core_pattern). Often,
-  simply writing "core", "core.%p" or "/var/log/core/core.%p" addresses the
-  issue. When trying to enable this option waiting for a rare issue to
+  not even installed on the system (check /proc/sys/kernel/core_pattern).
+  Often, simply writing "core", "core.%p" or "/var/log/core/core.%p" addresses
+  the issue. When trying to enable this option waiting for a rare issue to
   re-appear, it's often a good idea to first try to obtain such a dump by
   issuing, for example, "kill -11" to the "haproxy" process and verify that it
   leaves a core where expected when dying.
