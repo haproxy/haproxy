@@ -27,6 +27,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/counters.h>
+#include <haproxy/errors.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>
@@ -103,7 +104,8 @@ void free_server_rules(struct list *srules);
 int proxy_init_per_thr(struct proxy *px);
 int proxy_finalize(struct proxy *px, int *err_code);
 
-int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm);
+int be_check_for_deletion(const char *bename, enum pr_del_mode del_mode,
+                          struct proxy **pb, const char **pm);
 void be_unregister(struct proxy *px);
 
 /*
@@ -137,6 +139,14 @@ static inline struct proxy *proxy_be_by_name(const char *name)
 static inline void proxy_index_id(struct proxy *px)
 {
 	ceb32_item_insert(&used_proxy_id, conf.uuid_node, uuid, px);
+}
+
+static inline void proxy_cancel_purge(struct proxy *px)
+{
+	if (px->flags & PR_FL_TO_PURGE) {
+		ha_notice("Backend '%s' purge cancelled.\n", px->id);
+		px->flags &= ~PR_FL_TO_PURGE;
+	}
 }
 
 /* this function initializes all timeouts for proxy p */

@@ -2597,6 +2597,15 @@ publish backend <backend>
   operation of "unpublish backend" command. This command is restricted and can
   only be issued on sockets configured for levels "operator" or "admin".
 
+purge backend <backend>
+  This is an alternative command to "del backend". Its main difference is that
+  if the backend cannot be immediately removed due to remaining connections, it
+  is flagged for background deletion instead of rejecting the command. This
+  requires that all remaining servers in it are already removed or at least
+  also flagged for background deletion (see "purge all servers"). A scheduled
+  backend deletion is cancelled if publish/unpublish operations are performed
+  again on it.
+
 purge all servers <backend>
   Removes or schedules deletion of all servers in a target backend. This is
   equivalent to using "purge server" on each entry. If a server cannot be

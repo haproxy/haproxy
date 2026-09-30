@@ -531,6 +531,7 @@ static int proxy_purge_servers(struct proxy *px, int max_srv_delete)
 		srv = LIST_NEXT(&px->servers_purge, struct server *, el_alt);
 		if (!(srv->flags & SRV_F_TO_PURGE)) {
 			LIST_DEL_INIT(&srv->el_alt);
+			proxy_cancel_purge(px);
 			continue;
 		}
 
@@ -558,6 +559,7 @@ struct task *proxy_process_purge(struct task *t, void *context, unsigned int sta
 	struct proxy *px = context;
 	/* constant for max number of server delete before yield */
 	const int max_srv_delete = 50;
+	int ret = 0;
 
 	/* Must not dereference <px> before entering thread isolation and
 	 * checking task state, as proxy_drop() performed outside isolation
@@ -580,8 +582,22 @@ struct task *proxy_process_purge(struct task *t, void *context, unsigned int sta
 		}
 	}
 
+	if (LIST_ISEMPTY(&px->servers_purge) && (px->flags & PR_FL_TO_PURGE)) {
+		/* TODO unnecessary proxy lookup */
+		ret = be_check_for_deletion(px->id, PR_DEL_MODE_SYNC, NULL, NULL);
+		if (ret < 0) {
+			proxy_cancel_purge(px);
+		}
+		else if (ret > 0) {
+			ha_notice("Backend '%s' purged.\n", px->id);
+			be_unregister(px);
+			proxy_drop(px);
+			px = NULL;
+		}
+	}
+
 	/* Set next task execution or cancel it if no more work to do. */
-	if (!LIST_ISEMPTY(&px->servers_purge))
+	if (px && (!LIST_ISEMPTY(&px->servers_purge) || (px->flags & PR_FL_TO_PURGE)))
 		t->expire = tick_add(now_ms, MS_TO_TICKS(1000));
 	else
 		t->expire = TICK_ETERNITY;
@@ -5361,7 +5377,10 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	return 1;
 }
 
-/* Test if the backend instance named <bename> can be deleted.
+/* Test if the backend instance named <bename> can be deleted. If <del_mode> is
+ * set to synchronous operation, the backend's server list must already be empty.
+ * In asynchronous deletion mode, the remaining servers must be also flagged
+ * for background deletion.
  *
  * Returns a positive integer if backend can be deleted. Else, 0 is returned if
  * backend should be deletable after some delay. A negative value indicates
@@ -5371,9 +5390,11 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
  * is found. If <pm> is not NULL, it will be used on error to point to the
  * description failure.
  */
-int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm)
+int be_check_for_deletion(const char *bename, enum pr_del_mode del_mode,
+                          struct proxy **pb, const char **pm)
 {
 	struct proxy *be = NULL;
+	struct server *srv;
 	const char *msg = NULL;
 	int ret;
 
@@ -5411,8 +5432,18 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 	}
 
 	if (!LIST_ISEMPTY(&be->servers)) {
-		msg = "Only a backend without server can be deleted.";
-		goto out;
+		if (del_mode == PR_DEL_MODE_SYNC) {
+			msg = "Only a backend without server can be deleted.";
+			goto out;
+		}
+
+		/* To allow background deletion of a proxy, all its servers have to be also flagged. */
+		list_for_each_entry(srv, &be->servers, el_px) {
+			if (!(srv->flags & SRV_F_TO_PURGE)) {
+				msg = "At least one server not flagged for purge.";
+				goto out;
+			}
+		}
 	}
 
 	/* Second, conditions that may change over time */
@@ -5461,6 +5492,11 @@ void be_unregister(struct proxy *px)
 	LIST_DELETE(&px->el);
 
 	px->flags |= PR_FL_DELETED;
+	/* Mark purge as completed. Necessary when proxy is deleted via a
+	 * concurrent "del backend", or if proxy remains after proxy_drop() to
+	 * ensure purge task won't run again.
+	 */
+	px->flags &= ~PR_FL_TO_PURGE;
 
 	/* Deinitialize the per-thread filters in the context of every thread,
 	 * before the proxy is destroyed, while the threads are still isolated.
@@ -5491,7 +5527,7 @@ static int cli_parse_delete_backend(char **args, char *payload, struct appctx *a
 	thread_isolate_full();
 
 	be_name = args[2];
-	ret = be_check_for_deletion(be_name, &px, &msg);
+	ret = be_check_for_deletion(be_name, PR_DEL_MODE_SYNC, &px, &msg);
 	if (ret <= 0) {
 		cli_err(appctx, msg);
 		goto out;
@@ -5591,6 +5627,7 @@ static int cli_parse_publish_backend(char **args, char *payload, struct appctx *
 
 	thread_isolate();
 	px->flags &= ~PR_FL_BE_UNPUBLISHED;
+	proxy_cancel_purge(px);
 
 	/* backend publish cannot fail anymore, time to publish the PROXY_PUB event */
 	_proxy_event_hdl_prepare(&e_cb_data, px);
@@ -5600,6 +5637,54 @@ static int cli_parse_publish_backend(char **args, char *payload, struct appctx *
 
 	ha_notice("Backend published.\n");
 	return cli_umsg(appctx, LOG_INFO);
+}
+
+/* Handler for "purge backend". Runs under thread isolation. Always returns 1. */
+static int cli_parse_purge_backend(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	const char *msg;
+	char *be_name;
+	int ret;
+
+	usermsgs_clr("CLI");
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (*args[3]) {
+		cli_err(appctx, "Usage: purge backend <name>.\n");
+		return 1;
+	}
+
+	thread_isolate_full();
+
+	be_name = args[2];
+	ret = be_check_for_deletion(be_name, PR_DEL_MODE_ASYNC, &px, &msg);
+	if (ret < 0) {
+		/* Unremovable backend, cancel purge. */
+		cli_err(appctx, msg);
+		goto out;
+	}
+
+	if (!ret) {
+		px->flags |= PR_FL_TO_PURGE;
+		if (!tick_isset(px->purge_task->expire))
+			px->purge_task->expire = tick_add(now_ms, 1000);
+		task_queue(px->purge_task);
+		ha_notice("Backend '%s' flagged for deletion.\n", px->id);
+		cli_msg(appctx, LOG_INFO, "Backend scheduled for purge.\n");
+	}
+	else {
+		be_unregister(px);
+		ha_notice("Backend '%s' deleted.\n", px->id);
+		cli_msg(appctx, LOG_INFO, "Backend deleted.\n");
+		proxy_drop(px);
+	}
+
+ out:
+	thread_release();
+	return 1;
 }
 
 static int cli_parse_unpublish_backend(char **args, char *payload, struct appctx *appctx, void *private)
@@ -5621,11 +5706,11 @@ static int cli_parse_unpublish_backend(char **args, char *payload, struct appctx
 
 	thread_isolate();
 	px->flags |= PR_FL_BE_UNPUBLISHED;
+	proxy_cancel_purge(px);
 
 	/* backend unpublish cannot fail anymore, time to publish the PROXY_UNPUB event */
 	_proxy_event_hdl_prepare(&e_cb_data, px);
 	_proxy_event_hdl_publish(EVENT_HDL_SUB_PROXY_UNPUB, e_cb_data, px);
-
 	thread_release();
 
 	ha_notice("Backend unpublished.\n");
@@ -5865,6 +5950,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "disable", "frontend",  NULL },                 "disable frontend <frontend>             : temporarily disable specific frontend",                          cli_parse_disable_frontend, NULL, NULL },
 	{ { "enable", "frontend",  NULL },                  "enable frontend <frontend>              : re-enable specific frontend",                                    cli_parse_enable_frontend, NULL, NULL },
 	{ { "publish", "backend",  NULL },                  "publish backend <backend>               : mark backend as ready for traffic",                              cli_parse_publish_backend, NULL, NULL },
+	{ { "purge", "backend",  NULL },                    "purge backend <backend>                 : remove a backend on background",                                 cli_parse_purge_backend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL },          "set maxconn frontend <frontend> <value> : change a frontend's maxconn setting",                            cli_parse_set_maxconn_frontend, NULL },
 	{ { "show", "default-server", NULL },               "show default-server [<backend>]         : list default-server instances in all or a single backend",       cli_parse_show_default_server, cli_io_handler_show_default_server, cli_io_release_show_default_server, },
 	{ { "show", "defaults", NULL },                     "show defaults                           : list all proxies defaults sections",                             NULL, cli_io_handler_show_defaults },
