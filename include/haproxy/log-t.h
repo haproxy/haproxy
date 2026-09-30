@@ -336,6 +336,16 @@ struct log_profile {
 	struct eb_root extra;           // extra log profile steps (if any)
 };
 
+struct log_loggers {
+	struct list list;
+	struct list loggers;
+	struct {
+		char *file;
+		int line;
+	} conf;
+	char *id;
+};
+
 /* add additional bitmasks in this struct if needed but don't
  * forget to update px_parse_log_steps() and log_orig_proxy() accordingly
  */

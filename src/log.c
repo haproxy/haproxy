@@ -435,6 +435,7 @@ struct logformat_node_args node_args_list[] = {
 };
 
 static struct list log_profile_list = LIST_HEAD_INIT(log_profile_list);
+static struct list log_loggers_list = LIST_HEAD_INIT(log_loggers_list);
 
 /*
  * callback used to configure addr source retrieval
@@ -6993,6 +6994,107 @@ out:
 	return err_code;
 }
 
+static void log_loggers_free(struct log_loggers *loggers)
+{
+	struct logger *logger, *back;
+
+	list_for_each_entry_safe(logger, back, &loggers->loggers, list) {
+		LIST_DEL_INIT(&logger->list);
+		free_logger(logger);
+	}
+}
+
+/* Deinitialize all known loggers sections */
+static void deinit_log_loggers()
+{
+	struct log_loggers *loggers, *back;
+
+	list_for_each_entry_safe(loggers, back, &log_loggers_list, list) {
+		LIST_DEL_INIT(&loggers->list);
+		log_loggers_free(loggers);
+	}
+}
+
+struct log_loggers *log_loggers_find_by_name(const char *name)
+{
+	struct log_loggers *current;
+
+	list_for_each_entry(current, &log_loggers_list, list) {
+		if (strcmp(current->id, name) == 0)
+			return current;
+	}
+	return NULL;
+}
+
+/*
+ * Parse "loggers" section and save the related loggers information.
+ *
+ * The function returns 0 in success case, otherwise, it returns error
+ * flags.
+ */
+int cfg_parse_log_loggers(const char *file, int linenum, char **args, int kwm)
+{
+	int err_code = ERR_NONE;
+	static struct log_loggers *loggers = NULL;
+	char *errmsg = NULL;
+	const char *err = NULL;
+
+	if (strcmp(args[0], "loggers") == 0) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing name for loggers section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		err = invalid_char(args[1]);
+		if (err) {
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+			         file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		loggers = log_loggers_find_by_name(args[1]);
+		if (loggers) {
+			ha_alert("Parsing [%s:%d]: loggers section '%s' has the same name as another loggers section declared at %s:%d.\n",
+				 file, linenum, args[1], loggers->conf.file, loggers->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		loggers = calloc(1, sizeof(*loggers));
+		if (loggers == NULL || !(loggers->id = strdup(args[1]))) {
+			ha_alert("Parsing [%s:%d]: cannot allocate memory for loggers section '%s'.\n",
+				 file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		LIST_INIT(&loggers->loggers);
+		loggers->conf.file = strdup(file);
+		loggers->conf.line = linenum;
+
+		/* add to list */
+		LIST_APPEND(&log_loggers_list, &loggers->list);
+	}
+	else if (strcmp(args[0], "log") == 0) {  /* parse log directive */
+		if (!parse_logger(args, &loggers->loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
+			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			 err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else {
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in loggers section.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
+out:
+	ha_free(&errmsg);
+	return err_code;
+}
+
 /* suitable for use with INITCALL0(STG_PREPARE), may not be used anymore
  * once config parsing has started since it will depend on this.
  *
@@ -7098,6 +7200,7 @@ int postresolve_logger_list(struct proxy *px, struct list *loggers,
 static int postresolve_loggers()
 {
 	struct proxy *px;
+	struct log_loggers *loggers;
 	int err_code = ERR_NONE;
 
 	/* global log directives */
@@ -7109,6 +7212,10 @@ static int postresolve_loggers()
 	list_for_each_entry(px, &cfg_log_forward, el)
 		err_code |= postresolve_logger_list(NULL, &px->loggers, "log-forward", px->id);
 
+	/* loggers from "loggers" sections */
+	list_for_each_entry(loggers, &log_loggers_list, list)
+		err_code |= postresolve_logger_list(NULL, &loggers->loggers, "loggers", loggers->id);
+
 	return err_code;
 }
 
@@ -7116,6 +7223,7 @@ static int postresolve_loggers()
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
 REGISTER_CONFIG_SECTION("log-profile", cfg_parse_log_profile, NULL);
+REGISTER_CONFIG_SECTION("loggers", cfg_parse_log_loggers, NULL);
 
 static int px_parse_log_steps(char **args, int section_type, struct proxy *curpx,
                               const struct proxy *defpx, const char *file, int line,
@@ -7307,6 +7415,7 @@ REGISTER_PER_THREAD_FREE(deinit_log_buffers);
 
 REGISTER_POST_DEINIT(deinit_log_forward);
 REGISTER_POST_DEINIT(deinit_log_profiles);
+REGISTER_POST_DEINIT(deinit_log_loggers);
 REGISTER_POST_DEINIT(deinit_log_origins);
 
 /*
