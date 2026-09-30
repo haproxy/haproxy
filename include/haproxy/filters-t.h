@@ -340,6 +340,15 @@ struct filter_instance {
 	} res;
 };
 
+struct filter_enabled {
+	const char *cls_name;   /* The class of the instances to enable/disable */
+	const char *id;         /* The id of the instance to enable/disable, NULL for all instances of the class */
+	unsigned int enable;    /* != 0 to enable the instances (filter-enable), 0 to disable them (filter-disable) */
+	char *file;             /* The configuration file where the directive was found */
+	int line;               /* The line in the configuration file */
+	struct list list;       /* Link in the list of filters to enable/disable for a proxy */
+};
+
 #endif /* _HAPROXY_FILTERS_T_H */
 
 /*

@@ -86,6 +86,19 @@ static void flt_free_instance(struct filter_instance *inst)
 	free(inst);
 }
 
+/* Frees a filter_enabled element */
+static void flt_free_enabled(struct filter_enabled *flt_en)
+{
+	if (!flt_en)
+		return;
+	if (LIST_INLIST(&flt_en->list))
+		LIST_DELETE(&flt_en->list);
+	free((void *)flt_en->cls_name);
+	free((void *)flt_en->id);
+	free(flt_en->file);
+	free(flt_en);
+}
+
 /* Frees the instances of the list <instances> for side <side>, recursively */
 static void flt_free_inst_list(struct list *instances, unsigned int side)
 {
@@ -1549,6 +1562,28 @@ static int flt_match_instance_cb(struct filter_instance *inst, void *data)
 	return ctx->id ? 1 : 0;
 }
 
+/* Context for flt_enable_cb() */
+struct flt_enable_ctx {
+	struct filter_class *cls;   /* the class to match */
+	const char *id;             /* the id to match, NULL for any id */
+	unsigned int enable;        /* the value to set inst->enabled to */
+	int found;                  /* the number of matching instances */
+};
+
+/* Callback enabling/disabling the matching instances with ctx->enable. */
+static int flt_enable_cb(struct filter_instance *inst, void *data)
+{
+	struct flt_enable_ctx *ctx = data;
+
+	if (inst->class != ctx->cls)
+		return 0;
+	if (ctx->id && (!inst->id || strcmp(inst->id, ctx->id) != 0))
+		return 0;
+	inst->enabled = ctx->enable;
+	ctx->found++;
+	return 0;
+}
+
 /* Finds the filter instance of the class <cls> with the id <id> in the proxy
  * <px>. If <id> is NULL, the first instance of the class is returned.  The
  * number of matching instances is returned in <*count> if not NULL.
@@ -1633,6 +1668,7 @@ static int flt_init_instance(struct filter_instance *inst, struct proxy *px)
 void flt_free_instances(struct proxy *px)
 {
 	struct filter_class_ref *ref, *refback;
+	struct filter_enabled *flt_en, *enback;
 
 	flt_free_inst_list(&px->filter_req_instances, FLT_SIDE_REQ);
 	flt_free_inst_list(&px->filter_res_instances, FLT_SIDE_RES);
@@ -1650,6 +1686,8 @@ void flt_free_instances(struct proxy *px)
 		LIST_DELETE(&ref->list);
 		free(ref);
 	}
+	list_for_each_entry_safe(flt_en, enback, &px->conf.filter_enabled, list)
+		flt_free_enabled(flt_en);
 
 }
 
@@ -1707,6 +1745,7 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 {
 	struct filter_class_ref *ref;
 	struct filter_instance *inst;
+	struct filter_enabled *flt_en, *new_en;
 
 	/* iterate over all the instances of the defaults proxy: the request
 	 * side first, then the instances of the classes with no request side
@@ -1724,6 +1763,23 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 			if (flt_copy_instance(px, inst) < 0)
 				goto error;
 		}
+	}
+
+	/* inherit the filter-enable entries too */
+	list_for_each_entry(flt_en, &defpx->conf.filter_enabled, list) {
+		new_en = calloc(1, sizeof(*new_en));
+		if (!new_en)
+			goto error;
+		new_en->cls_name = strdup(flt_en->cls_name);
+		new_en->id = flt_en->id ? strdup(flt_en->id) : NULL;
+		new_en->enable = flt_en->enable;
+		new_en->file = strdup(flt_en->file);
+		new_en->line = flt_en->line;
+		if (!new_en->cls_name || (flt_en->id && !new_en->id) || !new_en->file) {
+			flt_free_enabled(new_en);
+			goto error;
+		}
+		LIST_APPEND(&px->conf.filter_enabled, &new_en->list);
 	}
 
 	return 0;
@@ -1875,6 +1931,100 @@ static int parse_filter_config(char **args, int section_type, struct proxy *curp
 }
 
 
+/* Parses one "filter-enable"/"filter-disable" entry "<class>[/<id>]" and
+ * records it in the proxy <curpx>. <enable> is != 0 for "filter-enable" and
+ * 0 for "filter-disable".
+ * Returns 0 on success, -1 on error.
+ */
+static int parse_filter_enable_entry(const char *entry, unsigned int enable, struct proxy *curpx,
+				     const char *file, int line, char **err)
+{
+	struct filter_enabled *flt_en;
+	const char *sep;
+	const char *err2;
+	size_t len;
+
+	sep = strchr(entry, '/');
+	len = sep ? (size_t)(sep - entry) : strlen(entry);
+	if (!len || (sep && !*(sep + 1))) {
+		memprintf(err,
+			  "parsing [%s:%d] : 'filter-%s' : invalid entry '%s'. The syntax is: filter-%s <class>[/<id>] [<class>[/<id>] ...].",
+			  file, line, enable ? "enable" : "disable", entry,
+			  enable ? "enable" : "disable");
+		return -1;
+	}
+
+	flt_en = calloc(1, sizeof(*flt_en));
+	if (!flt_en) {
+		memprintf(err, "'filter-%s' : out of memory", enable ? "enable" : "disable");
+		return -1;
+	}
+
+	flt_en->cls_name = my_strndup(entry, len);
+	flt_en->id = sep ? strdup(sep + 1) : NULL;
+	flt_en->enable = enable;
+	flt_en->file = strdup(file);
+	flt_en->line = line;
+	if (!flt_en->cls_name || (sep && !flt_en->id) || !flt_en->file) {
+		memprintf(err, "'filter-%s' : out of memory", enable ? "enable" : "disable");
+		goto error;
+	}
+
+	if (!filter_find_class(flt_en->cls_name)) {
+		memprintf(err,
+			  "parsing [%s:%d] : 'filter-%s' : unknown filter class '%s'.",
+			  file, line, enable ? "enable" : "disable", flt_en->cls_name);
+		goto error;
+	}
+	if (flt_en->id) {
+		err2 = invalid_prefix_char(flt_en->id);
+		if (err2) {
+			memprintf(err,
+				  "parsing [%s:%d] : 'filter-%s' : invalid character '%c' in filter instance id '%s'.",
+				  file, line, enable ? "enable" : "disable", *err2, flt_en->id);
+			goto error;
+		}
+	}
+
+	LIST_APPEND(&curpx->conf.filter_enabled, &flt_en->list);
+	return 0;
+
+  error:
+	flt_free_enabled(flt_en);
+	return -1;
+}
+
+/*
+ * Parses the "filter-enable" and "filter-disable" keywords. The syntax is:
+ *
+ *   filter-enable <class>[/<id>] [<class>[/<id>] ...]
+ *   filter-disable <class>[/<id>] [<class>[/<id>] ...]
+ *
+ * The directive is only recorded here, the corresponding filter instances
+ * are enabled/disabled during the post-parsing stage (see
+ * flt_enable_filters()), so the directive order does not matter. Without id,
+ * all the instances of the class are concerned.
+ */
+static int parse_filter_enable(char **args, int section_type, struct proxy *curpx,
+			       const struct proxy *defpx, const char *file, int line, char **err)
+{
+	unsigned int enable = (strcmp(args[0], "filter-enable") == 0);
+	int cur_arg;
+
+	if (!*args[1]) {
+		memprintf(err,
+			  "parsing [%s:%d] : missing argument for '%s' in %s '%s'.",
+			  file, line, args[0], proxy_type_str(curpx), curpx->id);
+		return -1;
+	}
+
+	for (cur_arg = 1; *args[cur_arg]; cur_arg++) {
+		if (parse_filter_enable_entry(args[cur_arg], enable, curpx, file, line, err) < 0)
+			return -1;
+	}
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
  * all code contributors.
@@ -1884,11 +2034,59 @@ static int parse_filter_config(char **args, int section_type, struct proxy *curp
 static struct cfg_kw_list cfg_kws = {ILH, {
 		{ CFG_LISTEN, "filter", parse_filter },
 		{ CFG_LISTEN, "filter-config", parse_filter_config },
+		{ CFG_LISTEN, "filter-disable", parse_filter_enable },
+		{ CFG_LISTEN, "filter-enable", parse_filter_enable },
 		{ 0, NULL, NULL },
 	}
 };
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+/* Enables or disables the filter instances referenced by the
+ * "filter-enable" and "filter-disable" directives of the proxy <proxy>.
+ * This happens during the post-parsing stage, so the directive order does
+ * not matter and inherited instances can be enabled/disabled. An error is
+ * reported if a referenced instance does not exist.
+ * Returns a combination of ERR_* flags, ERR_NONE on success.
+ */
+static int flt_enable_filters(struct proxy *proxy)
+{
+	struct filter_enabled *flt_en;
+	struct filter_class *cls;
+	int err_code = ERR_NONE;
+
+	list_for_each_entry(flt_en, &proxy->conf.filter_enabled, list) {
+		struct flt_enable_ctx ctx;
+
+		cls = filter_find_class(flt_en->cls_name);
+		if (!cls) {
+			ha_alert("config: %s '%s' : 'filter-%s' : unknown filter class '%s' (from %s:%d).\n",
+				 proxy_type_str(proxy), proxy->id,
+				 flt_en->enable ? "enable" : "disable", flt_en->cls_name,
+				 flt_en->file, flt_en->line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			continue;
+		}
+
+		ctx.cls = cls;
+		ctx.id = flt_en->id;
+		ctx.enable = flt_en->enable;
+		ctx.found = 0;
+		flt_foreach_instance_side(proxy, FLT_SIDE_REQ, flt_enable_cb, &ctx);
+		flt_foreach_instance_side(proxy, FLT_SIDE_RES, flt_enable_cb, &ctx);
+		if (!ctx.found) {
+			ha_alert("config: %s '%s' : 'filter-%s' : no instance of filter class '%s'%s%s%s (from %s:%d).\n",
+				 proxy_type_str(proxy), proxy->id,
+				 flt_en->enable ? "enable" : "disable", flt_en->cls_name,
+				 flt_en->id ? " with id '" : "",
+				 flt_en->id ? flt_en->id : "",
+				 flt_en->id ? "'" : "",
+				 flt_en->file, flt_en->line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+	return err_code;
+}
 
 
 /* Moves the instance <inst> from the class references tree to the flat
@@ -1943,6 +2141,7 @@ static void flt_flatten_inst_list(struct proxy *px, struct list *instances, unsi
 static void flt_flatten_instances(struct proxy *px)
 {
 	struct filter_class_ref *ref, *refback;
+	struct filter_enabled *flt_en, *enback;
 
 	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_req, list) {
 		flt_flatten_inst_list(px, &ref->reordered_before, FLT_SIDE_REQ);
@@ -1959,6 +2158,9 @@ static void flt_flatten_instances(struct proxy *px)
 		free(ref);
 	}
 
+	/* release the consumed filter-enable and filter-sequence entries */
+	list_for_each_entry_safe(flt_en, enback, &px->conf.filter_enabled, list)
+		flt_free_enabled(flt_en);
 }
 
 /* Post-parses the filter instances of the proxy <proxy>. For each
@@ -2084,6 +2286,12 @@ static int flt_precheck_instances_all()
 		err_code |= flt_precheck_instances(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to parse the filter instances of proxy '%s'.\n",
+				 px->id);
+			return err_code;
+		}
+		err_code |= flt_enable_filters(px);
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			ha_alert("Failed to apply the filter-enable/filter-disable directives of proxy '%s'.\n",
 				 px->id);
 			return err_code;
 		}
