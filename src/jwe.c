@@ -847,15 +847,12 @@ static int do_decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
 			int i;
 			unsigned char *p = (unsigned char *)b_orig(decrypted_cek);
 
-			/* fill 8 bytes at a time */
-			for (i = 0; i <= MAX_DECRYPTED_CEK_LEN - 8; i++) {
+			/* fill 8 bytes at a time in a 64 bytes buffer */
+			for (i = 0; i < MAX_DECRYPTED_CEK_LEN; i += 8) {
 				uint64_t r = ha_random64();
 				memcpy(p, &r, 8);
 				p += 8;
 			}
-			/* complete if not multiple of 8 (normally not the case) */
-			for (; i < MAX_DECRYPTED_CEK_LEN; i++)
-				*(p++) = ha_random64();
 
 			outl = MAX_DECRYPTED_CEK_LEN;
 		} else
