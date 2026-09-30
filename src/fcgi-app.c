@@ -627,48 +627,64 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 }
 
 /* Finishes the parsing of FCGI application of proxies and servers */
-static int cfg_fcgi_apps_postparser()
+/* Performs the FCGI checks on the proxy <px>, during the per-proxy
+ * post-check stage: the FCGI filter requires the HTTP mode, an FCGI server
+ * requires an FCGI app and an FCGI app requires an FCGI server. By default,
+ * for FCGI-ready backends, the HTTP request header names are restricted and
+ * the "delete" policy is set.
+ * Returns a combination of ERR_* flags, ERR_NONE on success.
+ */
+static int postcheck_fcgi_proxy(struct proxy *px)
 {
-	struct fcgi_app *curapp;
-	struct proxy *px;
+	struct fcgi_flt_conf *fcgi_conf = find_px_fcgi_conf(px);
 	struct server *srv;
-	int err_code = 0;
+	int nb_fcgi_srv = 0;
+	int err_code = ERR_NONE;
 
-	list_for_each_entry(px, &main_proxies, el) {
-		struct fcgi_flt_conf *fcgi_conf = find_px_fcgi_conf(px);
-		int nb_fcgi_srv = 0;
+	if (px->mode != PR_MODE_HTTP && fcgi_conf) {
+		ha_alert("proxy '%s': FCGI application cannot be used in non-HTTP mode.\n",
+			 px->id);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
 
-		if (px->mode != PR_MODE_HTTP && fcgi_conf) {
-			ha_alert("proxy '%s': FCGI application cannot be used in non-HTTP mode.\n",
-				 px->id);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto end;
-		}
+	/* By default, for FCGI-ready backend, HTTP request header names
+	 * are restricted and the "delete" policy is set
+	 */
+	if (fcgi_conf && !(px->options2 & PR_O2_RSTRICT_REQ_HDR_NAMES_MASK))
+		px->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_DEL;
 
-		/* By default, for FCGI-ready backend, HTTP request header names
-		 * are restricted and the "delete" policy is set
-		 */
-		if (fcgi_conf && !(px->options2 & PR_O2_RSTRICT_REQ_HDR_NAMES_MASK))
-			px->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_DEL;
-
-		list_for_each_entry(srv, &px->servers, el_px) {
-			if (srv->mux_proto && isteq(srv->mux_proto->mux_proto, ist("fcgi"))) {
-				nb_fcgi_srv++;
-				if (fcgi_conf)
-					continue;
-				ha_alert("proxy '%s': FCGI server '%s' has no FCGI app configured.\n",
-					 px->id, srv->id);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-		}
-		if (fcgi_conf && !nb_fcgi_srv) {
-			ha_alert("proxy '%s': FCGI app configured but no FCGI server found.\n",
-				 px->id);
+	list_for_each_entry(srv, &px->servers, el_px) {
+		if (srv->mux_proto && isteq(srv->mux_proto->mux_proto, ist("fcgi"))) {
+			nb_fcgi_srv++;
+			if (fcgi_conf)
+				continue;
+			ha_alert("proxy '%s': FCGI server '%s' has no FCGI app configured.\n",
+				 px->id, srv->id);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
 	}
+	if (fcgi_conf && !nb_fcgi_srv) {
+		ha_alert("proxy '%s': FCGI app configured but no FCGI server found.\n",
+			 px->id);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+  end:
+	return err_code;
+}
+
+/* Performs the FCGI checks on the FCGI applications and finishes their
+ * configuration, during the post-check stage. This is more init than a
+ * validity check.
+ * Returns a combination of ERR_* flags, ERR_NONE on success.
+ */
+static int post_check_fcgi_app()
+{
+	struct fcgi_app *curapp;
+	int err_code = ERR_NONE;
 
 	for (curapp = fcgi_apps; curapp != NULL; curapp = curapp->next) {
 		if (!istlen(curapp->docroot)) {
@@ -1110,7 +1126,8 @@ INITCALL1(STG_REGISTER, flt_register_keywords, &filter_kws);
 INITCALL1(STG_REGISTER, hap_register_post_deinit, fcgi_apps_deinit);
 
 REGISTER_CONFIG_SECTION("fcgi-app", cfg_parse_fcgi_app, NULL);
-REGISTER_CONFIG_POSTPARSER("fcgi-apps", cfg_fcgi_apps_postparser);
+REGISTER_POST_PROXY_CHECK(postcheck_fcgi_proxy);
+REGISTER_POST_CHECK(post_check_fcgi_app);
 
 /*
  * Local variables:
