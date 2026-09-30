@@ -13,6 +13,8 @@
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/cli.h>
+#include <haproxy/cli-t.h>
 #include <haproxy/compression.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
@@ -21,6 +23,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/proxy.h>
 #include <haproxy/stream.h>
@@ -2736,6 +2739,212 @@ static int flt_precheck_instances_all()
 	}
 	return 0;
 }
+
+/* Dumps the request classes. The classes inserted in the before/after lists are
+ * inserted around the class they are attached to.
+ */
+static void cli_dump_flt_req_classes(struct buffer *out, struct list *classes)
+{
+	struct filter_class *cls;
+	int first = 1;
+
+	list_for_each_entry(cls, classes, req.list) {
+		if (!first)
+			chunk_appendf(out, " > ");
+		if (!LIST_ISEMPTY(&cls->req.before)) {
+			cli_dump_flt_req_classes(out, &cls->req.before);
+			chunk_appendf(out, " > ");
+		}
+		chunk_appendf(out, cls->name);
+		if (!LIST_ISEMPTY(&cls->req.after)) {
+			chunk_appendf(out, " > ");
+			cli_dump_flt_req_classes(out, &cls->req.after);
+		}
+		first = 0;
+	}
+	chunk_appendf(&trash, "\n");
+}
+
+/* Dumps the response classes. The classes inserted in the before/after lists are
+ * inserted around the class they are attached to.
+ */
+static void cli_dump_flt_res_classes(struct buffer *out, struct list *classes)
+{
+	struct filter_class *cls;
+	int first = 1;
+
+	list_for_each_entry(cls, classes, res.list) {
+		if (!first)
+			chunk_appendf(out, " > ");
+		if (!LIST_ISEMPTY(&cls->res.before)) {
+			cli_dump_flt_res_classes(out, &cls->res.before);
+			chunk_appendf(out, " > ");
+		}
+		chunk_appendf(out, cls->name);
+		if (!LIST_ISEMPTY(&cls->res.after)) {
+			chunk_appendf(out, " > ");
+			cli_dump_flt_res_classes(out, &cls->res.after);
+		}
+		first = 0;
+	}
+	chunk_appendf(&trash, "\n");
+}
+
+/* Parses "show filter classes [request|response]" */
+static int cli_parse_show_flt_classes(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	chunk_reset(&trash);
+
+	if (!*args[3] || strcmp(args[3], "request") == 0) {
+		chunk_appendf(&trash, "request: ");
+		cli_dump_flt_req_classes(&trash, &req_filter_classes);
+	}
+	if (!*args[3] || strcmp(args[3], "response") == 0) {
+		chunk_appendf(&trash, "response: ");
+		cli_dump_flt_res_classes(&trash, &res_filter_classes);
+	}
+	if (*args[3] && strcmp(args[3], "request") != 0 && strcmp(args[3], "response") != 0)
+		return cli_err(appctx, "'request' or 'response' expected\n");
+
+	return cli_msg(appctx, LOG_INFO, trash.area);
+}
+
+
+
+/* Dumps the filter instance <inst> as "<cls>[:<id>]", prefixed by " > "
+ * unless <first> is set.
+ */
+static void cli_dump_flat_flt_def(struct buffer *out, struct filter_instance *inst, int *first)
+{
+	chunk_appendf(out, "%s%s", *first ? "" : " > ", inst->class->name);
+	if (inst->id)
+		chunk_appendf(out, ":%s", inst->id);
+	*first = 0;
+}
+
+/* Parse "show filter instances <px> [request|response]". Displays the filter
+ * instances of the proxy <px>, one line per side (both sides if no side is
+ * selected).
+ */
+static int cli_parse_show_flt_instances(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *px;
+	struct filter_instance *inst;
+	int first = 1;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "a proxy name is expected\n");
+
+	px = proxy_find_by_name(args[3], 0, 0);
+	if (!px)
+		px = proxy_find_by_name(args[3], PR_CAP_DEF, 0);
+	if (!px)
+		return cli_err(appctx, "unknown proxy\n");
+
+	if (*args[4] && strcmp(args[4], "request") != 0 && strcmp(args[4], "response") != 0)
+		return cli_err(appctx, "'request' or 'response' expected\n");
+
+	chunk_reset(&trash);
+
+	if (!*args[4] || strcmp(args[4], "request") == 0) {
+		chunk_appendf(&trash, "request: ");
+		list_for_each_entry(inst, &px->filter_req_instances, req.list)
+			cli_dump_flat_flt_def(&trash, inst, &first);
+	}
+	if (!*args[4] || strcmp(args[4], "response") == 0) {
+		chunk_appendf(&trash, "response: ");
+		list_for_each_entry(inst, &px->filter_res_instances, res.list)
+			cli_dump_flat_flt_def(&trash, inst, &first);
+	}
+
+	if (first)
+		chunk_appendf(&trash, "<none>");
+	chunk_appendf(&trash, "\n");
+
+	return cli_msg(appctx, LOG_INFO, trash.area);
+}
+
+/* Parse "show filter instance <px> <class[/id]>". Displays all the
+ * information of a single filter instance of the proxy <px>.
+ */
+static int cli_parse_show_flt_instance(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct filter_instance *found = NULL;
+	struct filter_class *cls;
+	struct proxy *px;
+	char *id = NULL;
+	int count = 0;
+	int i;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	if (!*args[3] || !*args[4])
+		return cli_err(appctx, "a proxy name and a instance (class[/id]) are expected\n");
+
+	px = proxy_find_by_name(args[3], 0, 0);
+	if (!px)
+		px = proxy_find_by_name(args[3], PR_CAP_DEF, 0);
+	if (!px)
+		return cli_err(appctx, "unknown proxy\n");
+
+	/* split the class[/id] argument (args are strdup'ed, it can be
+	 * modified in place)
+	 */
+	id = strchr(args[4], '/');
+	if (id)
+		*id++ = '\0';
+
+	cls = filter_find_class(args[4]);
+	if (cls)
+		found = flt_find_instance_count(px, cls, id, &count);
+	else
+		return cli_err(appctx, "unknown filter class\n");
+
+	if (id && !found)
+		return cli_err(appctx, "unknown instance\n");
+	if (!id && count > 1)
+		return cli_err(appctx, "several instances of this class, an id is required\n");
+	if (!found)
+		return cli_err(appctx, "no instance of this class for this proxy\n");
+
+	chunk_reset(&trash);
+	chunk_appendf(&trash, "class:      %s\n", found->class->name);
+	chunk_appendf(&trash, "id:         %s\n", found->id ? found->id : "<none>");
+	chunk_appendf(&trash, "state:      %s%s%s\n",
+		      found->enabled ? "enabled" : "disabled",
+		      (found->flags & FLT_INST_F_IMPLICIT) ? ", implicit" : "",
+		      (found->flags & FLT_INST_F_INHERITED) ? ", inherited" : "");
+	chunk_appendf(&trash, "sides:     %s%s\n",
+		      LIST_INLIST(&found->class->req.list) ? " request" : "",
+		      LIST_INLIST(&found->class->res.list) ? " response" : "");
+	chunk_appendf(&trash, "defined at: %s:%d\n", found->conf.file, found->conf.line);
+	chunk_appendf(&trash, "args:      ");
+	if (found->conf.argc) {
+		for (i = 0; i < found->conf.argc; i++)
+			chunk_appendf(&trash, " %s", found->conf.argv[i]);
+	}
+	else
+		chunk_appendf(&trash, " <none>");
+	chunk_appendf(&trash, "\n");
+
+	return cli_msg(appctx, LOG_INFO, trash.area);
+}
+
+static struct cli_kw_list cli_kws = {ILH, {
+	{{ "show", "filter", "classes", NULL }, "show filter classes [request|response]     : display all filter classes", cli_parse_show_flt_classes, NULL, NULL, NULL },
+	{{ "show", "filter", "instance", NULL }, "show filter instance <px> <class[/id]> : display a filter instance of a proxy", cli_parse_show_flt_instance, NULL, NULL, NULL },
+	{{ "show", "filter", "instances", NULL }, "show filter instances <px> [side]     : display the filter instances of a proxy", cli_parse_show_flt_instances, NULL, NULL, NULL },
+	{{},}
+}};
+
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /* Checks that all registered filter classes are placed on at least one
  * side. The classes are placed with filter_place_class() (see
