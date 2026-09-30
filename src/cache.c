@@ -2320,6 +2320,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_rule *rule, char **err)
 {
+	struct filter_class *cls;
 	struct flt_conf *fconf;
 	struct cache_flt_conf *cconf = NULL;
 
@@ -2362,6 +2363,19 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 	fconf->id = cache_store_flt_id;
 	fconf->conf = cconf;
 	fconf->ops  = &cache_ops;
+
+	/* also create the corresponding implicit filter instance. The cache
+	 * name is used as the instance id, there is no argument.
+	 */
+	cls = filter_find_class(cache_store_filter_cls_name);
+	if (!cls || flt_add_implicit_instance(proxy, cls, name, NULL,
+						rule->conf.file ? rule->conf.file : proxy->conf.file,
+						rule->conf.file ? rule->conf.line : proxy->conf.line) < 0) {
+		memprintf(err, "out of memory\n");
+		free(fconf);
+		goto err;
+	}
+
 	LIST_APPEND(&proxy->filter_configs, &fconf->list);
 
 	rule->arg.act.p[0] = cconf;

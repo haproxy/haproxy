@@ -239,7 +239,9 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 		if (f->id == http_comp_req_flt_id || f->id == http_comp_res_flt_id ||
 		    f->id == cache_store_flt_id)
 			continue;
-		else if ((f->id == fconf->id) && f->conf != fcgi_conf) {
+		else if ((f->id == fconf->id) && f->conf != fcgi_conf &&
+			 strcmp(((struct fcgi_flt_conf *)f->conf)->name, fcgi_conf->name) != 0) {
+			/* another fcgi filter with a different app */
 			ha_alert("proxy '%s' : only one fcgi-app supported per backend.\n",
 				 px->id);
 			goto err;
@@ -614,6 +616,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 				    const struct proxy *defpx, const char *file, int line,
 				    char **err)
 {
+	struct filter_class *cls;
 	struct flt_conf *fconf = NULL;
 	struct fcgi_flt_conf *fcgi_conf = NULL;
 	int retval = 0;
@@ -661,6 +664,16 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 	fconf->id = fcgi_flt_id;
 	fconf->conf = fcgi_conf;
 	fconf->ops  = &fcgi_flt_ops;
+
+	/* also create the corresponding implicit filter instance. The
+	 * fcgi-app name is used as the instance id, there is no argument.
+	 */
+	cls = filter_find_class(fcgi_filter_cls_name);
+	if (!cls || flt_add_implicit_instance(curpx, cls, args[1], NULL, file, line) < 0) {
+		free(fconf);
+		goto err;
+	}
+
 	LIST_APPEND(&curpx->filter_configs, &fconf->list);
 
   end:

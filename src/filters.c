@@ -1713,7 +1713,7 @@ void flt_free_instances(struct proxy *px)
  * proxy <px>, so that proxies inherit the filter instances of their
  * defaults section. It must be called before any instance is added to <px>,
  * so that locally defined ones can replace the inherited ones.
- * Returns 0 on success, -1 on error (out of memory).
+ * Returns 0 on success, -1 on error.
  */
 static int flt_copy_instance(struct proxy *px, const struct filter_instance *inst)
 {
@@ -1826,6 +1826,70 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 
   error:
 	flt_free_instances(px);
+	return -1;
+}
+
+/* Adds an implicit filter instance for the class <cls> to the proxy <px>,
+ * with the id <id> (may be NULL) and the arguments <args> (terminated by an
+ * empty string). It is used when a filter is implicitly configured by
+ * another directive (e.g. with the cache-store action). The instance is
+ * marked with FLT_INST_F_IMPLICIT and is enabled, since the directive
+ * implies the filter usage.
+ *
+ * If a instance with the same class and id already exists, nothing is
+ * done: an explicit declaration always wins over an implicit one, and the
+ * first implicit declaration wins. Returns 0 on success, -1 on error (out
+ * of memory).
+ */
+int flt_add_implicit_instance(struct proxy *px, struct filter_class *cls, const char *id,
+				char **args, const char *file, int line)
+{
+	struct filter_instance *inst;
+	int argc = 0;
+	int i;
+
+	/* a instance already exists for this class and id: explicit or
+	 * implicit, it wins over a new implicit one.
+	 */
+	if (flt_find_instance(px, cls, id))
+		return 0;
+
+	inst = calloc(1, sizeof(*inst));
+	if (!inst)
+		return -1;
+
+	inst->class   = cls;
+	inst->enabled = 1; /* the directive implies the filter usage */
+	inst->flags   = FLT_INST_F_IMPLICIT;
+
+	if (id) {
+		inst->id = strdup(id);
+		if (!inst->id)
+			goto error;
+	}
+	inst->conf.file = strdup(file);
+	if (!inst->conf.file)
+		goto error;
+	inst->conf.line = line;
+
+	for (argc = 0; args && *args[argc]; argc++)
+		;
+	inst->conf.argc = argc;
+	inst->conf.argv = calloc(argc + 1, sizeof(*inst->conf.argv));
+	if (!inst->conf.argv)
+		goto error;
+	for (i = 0; i < argc; i++) {
+		inst->conf.argv[i] = strdup(args[i]);
+		if (!inst->conf.argv[i])
+			goto error;
+	}
+
+	if (flt_init_instance(inst, px) < 0)
+		goto error;
+	return 0;
+
+  error:
+	flt_free_instance(inst);
 	return -1;
 }
 
