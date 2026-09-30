@@ -3161,6 +3161,17 @@ int proxy_ref_defaults(struct proxy *px, struct proxy *defpx, char **errmsg)
 		defaults_px_ref(defpx, px);
 	}
 
+	/* The proxy inherits the filter instances of its defaults section. It
+	 * happens before its own directives are parsed, so that locally defined
+	 * ones can replace the inherited ones.
+	 */
+	if (flt_copy_instances(px, defpx) < 0) {
+		memprintf(errmsg, "out of memory while inheriting filter instances from defaults section (at %s:%d)",
+		          defpx->conf.file, defpx->conf.line);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
 	if (defpx->tcpcheck.rs && (defpx->tcpcheck.rs->flags & TCPCHK_RULES_PROTO_CHK) &&
 	    (px->cap & PR_CAP_LISTEN) == PR_CAP_BE) {
 		/* If the current default proxy defines tcpcheck rules, the

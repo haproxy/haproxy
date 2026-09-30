@@ -1376,6 +1376,23 @@ static int flt_foreach_instance_side(struct proxy *px, unsigned int side,
 	return 0;
 }
 
+/* Finds the class reference of the class <cls> in the proxy <px> for side
+ * <side>.
+ * Returns the class reference, or NULL if not found for the given side.
+ */
+static struct filter_class_ref *flt_get_class_ref(struct proxy *px, struct filter_class *cls,
+						  unsigned int side)
+{
+	struct list *refs = (side == FLT_SIDE_REQ ? &px->conf.filter_classes_req : &px->conf.filter_classes_res);
+	struct filter_class_ref *ref;
+
+	list_for_each_entry(ref, refs, list) {
+		if (ref->class == cls)
+			return ref;
+	}
+	return NULL;
+}
+
 /* Context for flt_match_instance_cb() */
 struct flt_match_instance_ctx {
 	struct filter_class *cls;   /* the class to match */
@@ -1450,6 +1467,41 @@ struct filter_instance *flt_find_instance(struct proxy *px, struct filter_class 
 }
 
 
+/* Initializes the lists of the filter instance <inst> and links it in the
+ * class references of the proxy <px>, on each side the class is placed on.
+ * Returns 0 on success, -1 if the class is placed on no side (the
+ * instance cannot be evaluated).
+ */
+static int flt_init_instance(struct filter_instance *inst, struct proxy *px)
+{
+	struct filter_class_ref *ref;
+	int linked = 0;
+
+	inst->px = px;
+	LIST_INIT(&inst->req.reordered_before);
+	LIST_INIT(&inst->req.reordered_after);
+	LIST_INIT(&inst->req.list);
+	LIST_INIT(&inst->res.reordered_before);
+	LIST_INIT(&inst->res.reordered_after);
+	LIST_INIT(&inst->res.list);
+
+	if (LIST_INLIST(&inst->class->req.list)) {
+		ref = flt_get_class_ref(px, inst->class, FLT_SIDE_REQ);
+		if (!ref)
+			return -1;
+		LIST_APPEND(&ref->instances, &inst->req.list);
+		linked = 1;
+	}
+	if (LIST_INLIST(&inst->class->res.list)) {
+		ref = flt_get_class_ref(px, inst->class, FLT_SIDE_RES);
+		if (!ref)
+			return -1;
+		LIST_APPEND(&ref->instances, &inst->res.list);
+		linked = 1;
+	}
+	return linked ? 0 : -1;
+}
+
 /* Frees all filter instances of the proxy <px>, its filter class
  * references, its filter-enable entries and its filter sequences.
  */
@@ -1474,6 +1526,86 @@ void flt_free_instances(struct proxy *px)
 		free(ref);
 	}
 
+}
+
+/* Deep-copies the filter instances of the defaults proxy <defpx> into the
+ * proxy <px>, so that proxies inherit the filter instances of their
+ * defaults section. It must be called before any instance is added to <px>,
+ * so that locally defined ones can replace the inherited ones.
+ * Returns 0 on success, -1 on error (out of memory).
+ */
+static int flt_copy_instance(struct proxy *px, const struct filter_instance *inst)
+{
+	struct filter_instance *new_inst;
+	int i;
+
+	new_inst = calloc(1, sizeof(*new_inst));
+	if (!new_inst)
+		return -1;
+
+	new_inst->class   = inst->class;
+	new_inst->enabled = inst->enabled;
+	new_inst->flags   = inst->flags | FLT_INST_F_INHERITED;
+
+	if (inst->id) {
+		new_inst->id = strdup(inst->id);
+		if (!new_inst->id)
+			goto error;
+	}
+	new_inst->conf.file = strdup(inst->conf.file);
+	if (!new_inst->conf.file)
+		goto error;
+	new_inst->conf.line = inst->conf.line;
+	new_inst->conf.argc = inst->conf.argc;
+	new_inst->conf.argv = calloc(inst->conf.argc + 1, sizeof(*new_inst->conf.argv));
+	if (!new_inst->conf.argv)
+		goto error;
+	for (i = 0; i < inst->conf.argc; i++) {
+		new_inst->conf.argv[i] = strdup(inst->conf.argv[i]);
+		if (!new_inst->conf.argv[i])
+			goto error;
+	}
+
+	if (flt_init_instance(new_inst, px) < 0)
+		goto error;
+	return 0;
+
+  error:
+	flt_free_instance(new_inst);
+	return -1;
+}
+
+/* Copy all filter deinitions of the defaults proxy <defpx> into the proxy <px>.
+ * Returns 0 on success, -1 on error (out of memory).
+ */
+int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
+{
+	struct filter_class_ref *ref;
+	struct filter_instance *inst;
+
+	/* iterate over all the instances of the defaults proxy: the request
+	 * side first, then the instances of the classes with no request side
+	 * from the response side
+	 */
+	list_for_each_entry(ref, &defpx->conf.filter_classes_req, list) {
+		list_for_each_entry(inst, &ref->instances, req.list)
+			if (flt_copy_instance(px, inst) < 0)
+				goto error;
+	}
+	list_for_each_entry(ref, &defpx->conf.filter_classes_res, list) {
+		list_for_each_entry(inst, &ref->instances, res.list) {
+			if (LIST_INLIST(&inst->req.list))
+				continue; /* already copied from the request side */
+			if (flt_copy_instance(px, inst) < 0)
+				goto error;
+		}
+	}
+
+	return 0;
+
+  error:
+	flt_free_instances(px);
+	return -1;
 }
 
 

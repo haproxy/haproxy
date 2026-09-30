@@ -129,6 +129,7 @@ extern struct filter_class flt_fcgi_cls;
 
 void flt_deinit(struct proxy *p);
 int  flt_check(struct proxy *p);
+int  flt_copy_instances(struct proxy *px, const struct proxy *defpx);
 void flt_free_instances(struct proxy *px);
 int  flt_init_class_refs(struct proxy *px);
 struct filter_instance *flt_find_instance(struct proxy *px, struct filter_class *cls, const char *id);
