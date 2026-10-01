@@ -15578,6 +15578,7 @@ deny                           -           -     -     -     -            X   X 
 dgram-drop                     X           -     -     -     -            -   -   -
 disable-l7-retry               -           -     -     -     -            X   -   -
 do-log                         X           X     X     X     X            X   X   X
+do-ocsp-request                -           -     -     X     -            X   -   -
 do-resolve                     -           -     -     X     -            X   -   -
 early-hint                     -           -     -     -     -            X   -   -
 expect-netscaler-cip           -           X     -     -     -            -   -   -
@@ -15968,6 +15969,88 @@ do-log [profile <log_profile>]
       # on content use proxy logformat, since no override was specified
       # in my-dft-prof
       tcp-request content do-log
+
+do-ocsp-request status-var <varname> [ reason-var <varname> ]
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          -  |   -  |   X  |   -  |          X |  - |  -
+
+  This action performs an OCSP check on the client certificate presented during
+  the TLS handshake. It contacts the OCSP responder whose URL is extracted from
+  the certificate's Authority Information Access extension, then verifies the
+  response against an issuer certificate that must be provided via the
+  'issuers-chain-path' option.
+  This action delays all other processing of the request until an OCSP status
+  is retrieved, an error occurs during the OCSP request/response process or a
+  timeout is reached.
+
+  If the client certificate has no OCSP URI, or no client certificate was
+  presented, the action continues without performing any check and sets the
+  'status-var' to "inapplicable".
+
+  This action never denies the request by itself, it only exposes the outcome
+  of the check through the "status-var" and "reason-var" variables. It is up
+  to the configuration to decide what to do with the result, which is why the
+  "status-var" argument is mandatory.
+
+  Arguments :
+
+    status-var <varname>
+              Mandatory. The name of a variable where the OCSP certificate
+              status will be stored as a string. The value will be one of
+              "good", "revoked", "unknown", or "inapplicable" (no client
+              certificate was presented, or it had no OCSP URI). The variable
+              scope must be specified as part of the name (e.g.
+              "txn.ocsp_status").
+
+    reason-var <varname>
+              Optional. The name of a variable where the OCSP check error
+              code will be stored as an integer. The value is 0 when no error
+              occurred (including an "inapplicable" status), and non-zero
+              on failure. The "ocsp_check_err_str" converter can be
+              used to obtain a human-readable description of this code. The
+              variable scope must be specified as part of the name (e.g.
+              "txn.ocsp_reason").
+
+  The following table lists all error codes stored in "reason-var" and the
+  corresponding messages returned by "ocsp_check_err_str".
+
+  +----+-----------------------------------------------------------------------+
+  | ID | message                                                               |
+  +----+-----------------------------------------------------------------------+
+  | 0  | ""                                                                    |
+  | 1  | "OCSP verification failed"                                            |
+  | 2  | "OCSP unknown cert"                                                   |
+  | 3  | "OCSP response(s) invalid"                                            |
+  | 4  | "OCSP response signature verification failure"                        |
+  | 5  | "OCSP response not yet valid (contains a date in the future)"         |
+  | 6  | "OCSP response has expired"                                           |
+  | 7  | "no OCSP response available for certificate or responder unreachable" |
+  | 8  | "unable to get issuer certificate"                                    |
+  | 9  | "CID mismatch"                                                        |
+  | 10 | "Memory allocation failed"                                            |
+  | 11 | "Timeout"                                                             |
+  +----+-----------------------------------------------------------------------+
+
+  This action requires HAProxy to be built with SSL support and is only
+  available when the OpenSSL library supports OCSP.
+
+  Example:
+    # Expose the OCSP result of the client certificate in variables
+    tcp-request inspect-delay 5s
+    tcp-request content do-ocsp-request status-var txn.ocsp_status \
+                                      reason-var txn.ocsp_reason
+
+    # Perform the OCSP check and let the config decide what to do with the
+    # result
+    http-request do-ocsp-request status-var txn.ocsp_status \
+                               reason-var txn.ocsp_reason
+    http-request deny if { var(txn.ocsp_status) -m str revoked }
+    # Also deny if no check could be performed (no client certificate, or
+    # the certificate had no OCSP URI)
+    http-request deny if { var(txn.ocsp_status) -m str inapplicable }
+
+  See also : "wait-for-handshake", "issuers-chain-path", "ocsp_check_err_str"
+
 
 do-resolve(<var>,<resolvers>[,ipv4|ipv6]) <expr>
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
@@ -21555,6 +21638,7 @@ mul(value)                                         integer      integer
 nbsrv                                              string       integer
 neg                                                integer      integer
 not                                                integer      boolean
+ocsp_check_err_str                                 integer      string
 odd                                                integer      boolean
 or(value)                                          integer      integer
 -- keyword -------------------------------------+- input type + output type -
@@ -23007,6 +23091,21 @@ not
   non-null, otherwise returns TRUE. Used in conjunction with and(), it can be
   used to report true/false for bit testing on input values (e.g. verify the
   absence of a flag).
+
+ocsp_check_err_str
+  Converts an integer OCSP check error code, stored by the "do-ocsp-request"
+  action in its "reason-var" variable, to a human-readable string (e.g. "OCSP
+  response has expired", "OCSP unknown cert"). Returns an empty string for code
+  0 (no error) or an unrecognized code. See "do-ocsp-request" for the full list
+  of error codes and their corresponding messages. This converter requires
+  HAProxy to be built with SSL support and is only available when the OpenSSL
+  library supports OCSP.
+
+  Example:
+    http-request do-ocsp-request status-var txn.ocsp_status \
+                               reason-var txn.ocsp_reason
+    http-after-response set-header X-OCSP-Reason \
+      %[var(txn.ocsp_reason),ocsp_check_err_str]
 
 odd
   Returns a boolean TRUE if the input value of type signed integer is odd
