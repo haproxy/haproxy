@@ -180,6 +180,44 @@ scope_sess:
 	return 1;
 }
 
+/*
+ * Parse the scope part of a variable name starting at <scope_name> and compare
+ * it to the "regular" scope names (see var_scope_names array). The scope part
+ * ends at the first '.' or at the end of the string. If provided, the <end>
+ * pointer is set past the scope, i.e. after the '.' if there is one, or on the
+ * terminating nul byte otherwise.
+ * Returns -1 in case of error, a vars_scope value otherwise.
+ */
+static int var_parse_scope_str(const char *scope_name, const char **end)
+{
+	const char *dot;
+	size_t len;
+
+	/* The scope ends at the first '.' or at the end of the string. */
+	for (dot = scope_name; *dot && *dot != '.'; dot++)
+		;
+
+	len = dot - scope_name;
+
+	if (end)
+		*end = *dot ? dot + 1 : dot;
+
+	if (len == 3 && strncmp(scope_name, "req", 3) == 0)
+		return SCOPE_REQ;
+	if (len == 3 && strncmp(scope_name, "res", 3) == 0)
+		return SCOPE_RES;
+	if (len == 3 && strncmp(scope_name, "txn", 3) == 0)
+		return SCOPE_TXN;
+	if (len == 4 && strncmp(scope_name, "proc", 4) == 0)
+		return SCOPE_PROC;
+	if (len == 4 && strncmp(scope_name, "sess", 4) == 0)
+		return SCOPE_SESS;
+	if (len == 5 && strncmp(scope_name, "check", 5) == 0)
+		return SCOPE_CHECK;
+
+	return -1;
+}
+
 /* This function removes a variable from the list and frees the memory it was
  * using. If the variable is marked "VF_PERMANENT", the sample_data is only
  * reset to SMP_T_ANY unless <force> is non nul. Returns the freed size.
@@ -250,6 +288,7 @@ void vars_init_head(struct vars *vars, enum vars_scope scope)
 static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char **err)
 {
 	const char *tmp;
+	const char *endptr = NULL;
 
 	/* Check name and length. */
 	if (name == NULL || len == 0) {
@@ -265,7 +304,15 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 	desc->flags = 0;
 
 	/* Check scope including those related to the parent stream (prefixed by ('p'). */
-	if (len > 6 && strncmp(name, "psess.", 6) == 0) {
+	if ((desc->scope = var_parse_scope_str(name, &endptr)) != -1) {
+		/* The scope must be followed by a '.' and a non-empty name */
+		if (!endptr || !*endptr)
+			goto err;
+		len -= (endptr-name);
+		name = endptr;
+		if (len <= 0)
+			goto err;
+	} else if (len > 6 && strncmp(name, "psess.", 6) == 0) {
 		name += 6;
 		len -= 6;
 		desc->scope = SCOPE_SESS;
@@ -288,42 +335,8 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 		len -= 5;
 		desc->scope = SCOPE_RES;
 		desc->flags |= VDF_PARENT_CTX;
-	}
-	else if (len > 5 && strncmp(name, "proc.", 5) == 0) {
-		name += 5;
-		len -= 5;
-		desc->scope = SCOPE_PROC;
-	}
-	else if (len > 5 && strncmp(name, "sess.", 5) == 0) {
-		name += 5;
-		len -= 5;
-		desc->scope = SCOPE_SESS;
-	}
-	else if (len > 4 && strncmp(name, "txn.", 4) == 0) {
-		name += 4;
-		len -= 4;
-		desc->scope = SCOPE_TXN;
-	}
-	else if (len > 4 && strncmp(name, "req.", 4) == 0) {
-		name += 4;
-		len -= 4;
-		desc->scope = SCOPE_REQ;
-	}
-	else if (len > 4 && strncmp(name, "res.", 4) == 0) {
-		name += 4;
-		len -= 4;
-		desc->scope = SCOPE_RES;
-	}
-	else if (len > 6 && strncmp(name, "check.", 6) == 0) {
-		name += 6;
-		len -= 6;
-		desc->scope = SCOPE_CHECK;
-	}
-	else {
-		memprintf(err, "invalid variable name '%.*s'. A variable name must start with its scope. "
-		               "The scope can be 'proc', '(p)sess', '(p)txn', '(p)req', '(p)res' or 'check'", len, name);
-		return 0;
-	}
+	} else
+		goto err;
 
 	/* Check variable name syntax. */
 	for (tmp = name; tmp < name + len; tmp++) {
@@ -337,6 +350,11 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 	desc->name = name;
 	desc->name_len = len;
 	return 1;
+
+err:
+	memprintf(err, "invalid variable name '%.*s'. A variable name must start with its scope. "
+		  "The scope can be 'proc', '(p)sess', '(p)txn', '(p)req', '(p)res' or 'check'", len, name);
+	return 0;
 }
 
 /* This function returns the variable from the given list that matches
