@@ -292,7 +292,7 @@ end:
  */
 int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
                                 struct certificate_ocsp *ocsp,
-                                OCSP_CERTID *cid, char **err)
+                                OCSP_CERTID *cid, int *status, char **err)
 {
 	OCSP_RESPONSE *resp;
 	OCSP_BASICRESP *bs = NULL;
@@ -308,6 +308,9 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 #else
 	long expire = 0;
 #endif
+
+	if (status)
+		*status = V_OCSP_CERTSTATUS_UNKNOWN;
 
 	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p,
 				 ocsp_response->data);
@@ -343,6 +346,8 @@ int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	id = (OCSP_CERTID*)OCSP_SINGLERESP_get0_id(sr);
 
 	rc = OCSP_single_get0_status(sr, &reason, &revtime, &thisupd, &nextupd);
+	if (status)
+		*status = rc;
 	if (rc != V_OCSP_CERTSTATUS_GOOD && rc != V_OCSP_CERTSTATUS_REVOKED) {
 		memprintf(err, "OCSP single response: certificate status is unknown");
 		goto out;
@@ -450,7 +455,7 @@ out:
  */
 int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err)
 {
-	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, err);
+	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, NULL, err);
 }
 
 
