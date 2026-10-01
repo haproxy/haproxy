@@ -1,6 +1,196 @@
 ChangeLog :
 ===========
 
+2026/10/01 : 3.5-dev8
+    - BUG/MEDIUM: task: Do not destroy a task that is not ours in task_destroy
+    - BUG/MEDIUM: http-client: Don't use the httpclient context if it was released
+    - MINOR: http-client: Add an option to not stop the reception of the response
+    - BUG/MEDIUM: ssl/ocsp: Set HTTPCLIENT_O_RES_ACCUM option on the http-client
+    - BUG/MEDIUM: acme: Set HTTPCLIENT_O_RES_ACCUM option on the http-client
+    - MINOR: http-client: Add a function to notify some data were consumed
+    - BUG/MEDIUM: http-client/cli: Notify the http-client when the response is consumed
+    - MINOR: ssl/ocsp: Remove the useless res_payload callback of the http-client
+    - BUG/MINOR: ssl/ocsp: Report an error when an empty OCSP response is received
+    - BUG/MEDIUM: htx: Fix the position returned by htx_defrag()
+    - BUG/MINOR: tools: Don't try to anonymize a NULL string
+    - BUG/MAJOR: htx: Check the header/trailer length limits when one is updated
+    - MINOR: htx: Add macros for the header/trailer name and value max lengths
+    - BUG/MINOR: mux-h2: Reject trailers received on a tunneled stream
+    - MEDIUM: htx: Skip UNUSED blocs when getting previous,next and first blocks
+    - MEDIUM: htx/tree-wide: Remove tests on HTX_BLK_UNUSED when possible
+    - MEDIUM: htx: Insert headers and trailers before corresponding end-of block
+    - MINOR: htx: Add support for flags on HTX blocks
+    - MAJOR: htx: Use htx_set_eom() instead of setting HTX_FL_EOM by hand
+    - MAJOR: htx: Rename HTX_FL_EOM into HTX_FL_HAS_EOM
+    - MEDIUM: htx: Add HTX_BLK_FL_EOM flag and set it on last block of the message
+    - MINOR: compression: Rely on HTX block flags to detect the end of message
+    - MINOR: fcgi-app: Stop on last HTX block when getting the payload size
+    - MINOR: mux-h2: Use flags of HTX blocks to detect end of message during sending
+    - MINOR: mux-h1: Use flags of HTX blocks to detect end of message during sending
+    - MINOR: mux-fcgi: Use flags of HTX blocks to detect end of message during sending
+    - MEDIUM: h3: Use flags of HTX blocks to detect end of message during sending
+    - MINOR: stats-html: Detect a complete request by testing flags on the tail bloc
+    - MINOR: hlua: Use flags of HTX blocks to detect EOM from an HTTP applet
+    - MINOR: htx: Add function to know if the tail block carry EOM flag
+    - MAJOR: tree-wide: No longer use HTX_FL_HAS_EOM to detect end of message
+    - MAJOR: htx: Remove HTX_FL_HAS_EOM flag
+    - MEDIUM: mux-h2: Don't mix HTTP and tunneled data in the same buffer
+    - MEDIUM: htx: Harden HTX API to avoid invalid uses when EOM was reached
+    - MEDIUM: htx: Remove usless htx_is_unique_blk() function
+    - DOC: internals: Update the HTX API documentation
+    - MINOR: htx: Rename htx_has_eom() into htx_msg_ended()
+    - MINOR: htx: Add HTX_BLK_RAW_DATA block type
+    - MINOR: htx: Add the block type as argument of the data insertion functions
+    - MINOR: htx: Handle RAW_DATA blocks like DATA blocks in the HTX API
+    - MEDIUM: htx: Allow tunneled data to be added in a message already ended
+    - MINOR: mux-h1: Handle RAW_DATA blocks when sending data
+    - MINOR: mux-h2: Handle RAW_DATA blocks when sending data
+    - MEDIUM: mux-h1: Use RAW_DATA blocks to store tunneled data
+    - MEDIUM: mux-h2: Use RAW_DATA blocks to store tunneled data
+    - Revert "MEDIUM: mux-h2: Don't mix HTTP and tunneled data in the same buffer"
+    - MINOR: http-htx: Really test the EOM flag presence in internal.htx.has_eom
+    - MINOR: http-htx: Report the payload of RAW_DATA blocks in internal.htx_blk.data
+    - MINOR: mux-h1: Only handle RAW_DATA blocks when emitting tunneled data
+    - DOC: internals: Update the HTX API documentation for tunneled data
+    - REGTESTS: http-messaging: Add a test for the CONNECT tunnels
+    - BUG/MINOR: hlua: release private Lua rule data on teardown
+    - BUG/MINOR: ssl: Fix possible null deref on the SSL context in ssl_sock_to_buf()
+    - MEDIUM: ssl: add ocsp-update.timeout global option
+    - BUG/MINOR: http-client: Convert server timeout ticks when setting it
+    - BUG/MEDIUM: h1-htx: Don't report EOM for H1 interim responses during parsing
+    - BUG/MINOR: mux-h2: Don't expect more HTX data on 1xx interim responses
+    - REG-TESTS: http-messaging: Add a script to test interim responses for H1/H2
+    - BUG/MEDIUM: log: reserve the trailing 0 in CBOR int and bool encoders
+    - BUG/MEDIUM: http-htx: don't build the new authority in a rotating trash chunk
+    - BUG/MEDIUM: http-act: ignore "capture len" rules evaluated from a backend
+    - BUG/MEDIUM: tcp-rules: ignore "capture len" rules evaluated from a backend
+    - BUG/MINOR: http-ana: count response body failures only once in http_fail_cnt
+    - BUG/MINOR: http-fetch: http_auth_bearer() must not match a missing header
+    - BUG/MINOR: http-fetch: fix the space check of http_auth_bearer(<hdr>)
+    - BUG/MINOR: mux-h1: only mark C-L and T-E as sent once the header is emitted
+    - BUG/MINOR: tcpcheck: refresh the start-line after updating the authority
+    - CLEANUP: mux-h2: replace a non-UTF-8 character in a comment
+    - BUG/MINOR: http-ana: restore the transaction status after early hints
+    - REG-TESTS: http-messaging: Send one request per h2 client in h2_trailers.vtc
+    - BUG/MEDIUM: h3: Set FIN when last DATA block is sent via zero-copy
+    - BUG/MAJOR: mux_quic: fix leak on RESET_STREAM reception
+    - BUG/MEDIUM: mux_quic: activate timeout on FE init
+    - BUG/MINOR: h2: reject :protocol pseudo-header in H2 responses
+    - MINOR: ssl: cleanse TLS ticket keys before freeing
+    - MINOR: init: also set the worker-id in file-less mode
+    - BUG/MINOR: acme: exact domain match in acme_challenge_ready()
+    - BUG/MINOR: ssl: copy curves, sigalgs and client_sigalgs in srv_ssl_settings_cpy()
+    - BUG/MINOR: ssl: free curves, sigalgs and client_sigalgs in ssl_sock_free_srv_ctx()
+    - BUG/MINOR: ssl: free curves, sigalgs and client_sigalgs in srv_parse_*()
+    - MINOR: log: pass the input end to the _lf_encode_bytes() byte encoders
+    - MINOR: log: add the +utf8 encoding option to let valid UTF-8 pass
+    - BUG/MAJOR: mux_quic: fix potential crash on RESET_STREAM receive
+    - BUG/MEDIUM: sink: reconnect attempt not working after session lasted more than ~25 days
+    - BUG/MEDIUM: server: skip log backend addr checks for internal proxies
+    - REGTESTS: log: check that a ring's internal server may target a UNIX socket
+    - Revert "CLEANUP: proxy: mention that px->conn_retries isn't relevant in some cases"
+    - BUILD: haring: fix compile issue due to nop warning.
+    - BUG/MINOR: chunk: Allow large chunks uses from large const buffers
+    - MINOR: htx: Remove htx_move_blk_before() function
+    - BUG/MAJOR: mux-h2: Preserve raw data on aborted frontend tunnels
+    - BUG/MEDIUM: mux-h1: Don't subscribe for sends while output is blocked
+    - BUG/MINOR: mux-h1: Discard pending raw data after a tunnel rejection
+    - MINOR: stick-table: provide a function to estimate on-wire data size
+    - MINOR: stick-table: calculate the on-wire size of each key
+    - BUG/MEDIUM: stick-table: restrict key sizes to what fits in a buffer
+    - REGTESTS: http-messaging: consume window update before txdata
+    - BUG/MEDIUM: pattern: don't dereference static_pattern's data when not filling it
+    - BUG/MINOR: jwe: Buffer overflow when filling fake cek in case of RSA1.5
+    - BUG/MINOR: jwe: Avoid buffer overflow in fake cek (RSA1.5)
+    - BUG/MINOR: startup: don't chroot by default when set-dumpable is set
+    - BUG/MINOR: http: do not consume the delimiter of a truncated q-factor
+    - BUG/MINOR: sample: apply the ms_/us_ time offsets in the input unit
+    - BUG/MINOR: sample: zero-pad the fractional part emitted by http_date()
+    - BUG/MINOR: sample: make quic_enabled() always succeed
+    - BUG/MINOR: http-ana: return a 502 when checkcache blocks a response
+    - BUG/MINOR: stick-table: do not count the lookup itself in table_trackers()
+    - BUG/MINOR: payload: always report a boolean from req.ssl_ec_ext
+    - BUG/MINOR: http-fetch: do not count Set-Cookie attributes as cookies
+    - BUG/MEDIUM: tcpcheck: do not run a regex on an unallocated buffer
+    - BUG/MINOR: sample: return the decoded JWT part when no path is given
+    - DOC: config: mention other responses not blocked by option checkcache
+    - DOC: config: fix doc for hex2i() converter on unparsable input
+    - DOC: config: mention that url_ip and url_port fail when passed a name
+    - REGTESTS: converter: add a test for the arithmetic and bitwise converters
+    - REGTESTS: converter: add a test for the string trimming and parsing converters
+    - REGTESTS: converter: add a test for the date formatting converters
+    - REGTESTS: converter: cover all the map match methods and output types
+    - REGTESTS: http-rules: test the run-time ACL and map update actions
+    - REGTESTS: http-rules: test the ACL and map management commands of the CLI
+    - REGTESTS: sample_fetches: add a test for the HTTP response fetches
+    - REGTESTS: sample_fetches: add a test for the HTTP request fetches
+    - REGTESTS: sample_fetches: add a test for the connection address fetches
+    - REGTESTS: sample_fetches: add a test for the proxy and server state fetches
+    - REGTESTS: stick-table: test the general purpose counters and tags
+    - REGTESTS: stick-table: test the traffic counters of the stick counters
+    - REGTESTS: http-rules: test the HTTP authentication action, fetches and ACL
+    - REGTESTS: log: test the transaction state fetches and the logging actions
+    - REGTESTS: http-rules: test the binary header manipulation actions
+    - REGTESTS: http-rules: test replace-uri and the header replacement actions
+    - REGTESTS: tcp-rules: test the set-src, set-dst and port rewriting actions
+    - REGTESTS: sample_fetches: add a test for the constant and process fetches
+    - REGTESTS: converter: add a test for the when() and debug() converters
+    - REGTESTS: http-errorfiles: test the errorloc directives
+    - REGTESTS: proxy: test the "option checkcache" response filter
+    - REGTESTS: proxy: test the connection retries, retry-on and redispatch
+    - REGTESTS: http-rules: test the tarpit, deny and silent-drop actions
+    - REGTESTS: log: test the log filtering options of a frontend
+    - REGTESTS: proxy: test monitor-uri and the monitor fail condition
+    - REGTESTS: cli: add a smoke test for the read-only CLI commands
+    - REGTESTS: cli: test the commands which change the run-time settings
+    - REGTESTS: http-rules: test the declared capture slots
+    - REGTESTS: tcp-rules: test the raw payload fetches
+    - REGTESTS: sample_fetches: pin one thread in the connection address test
+    - REGTESTS: sample_fetches: pin one thread in the proxy state test
+    - REGTESTS: server: test the server settings reported by the runtime
+    - REGTESTS: checks: test the health adjusting from observed traffic
+    - REGTESTS: cli: test the privilege levels of the CLI
+    - REGTESTS: connection: test the expect-proxy action
+    - REGTESTS: sample_fetches: test the raw TLS hello fetches
+    - REGTESTS: connection: do not race with the reset in the expect-proxy test
+    - REGTESTS: ssl: test the ssl_fc_* and ssl_bc_* connection fetches
+    - REGTESTS: protobuf: add a test for the ungrpc converter
+    - REGTESTS: http-messaging: test the options dropping the HTTP trailers
+    - REGTESTS: protobuf: cover all the field types of the ungrpc converter
+    - REGTESTS: sample_fetches: test req.ssl_ver on an SSLv2 CLIENT-HELLO
+    - REGTESTS: sample_fetches: test the req.ssl_alpn fetch
+    - REGTESTS: ssl: test ssl_c_used, ssl_c_san and ssl_c_ca_err_depth
+    - REGTESTS: stick-table: read the counters through sc1_ and sc2_ as well
+    - REGTESTS: stick-table: cover the remaining gpc and gpt spellings
+    - REGTESTS: http-rules: cover the rfc7239_nn and rfc7239_np converters
+    - REGTESTS: proxy: test the disable-l7-retry action
+    - REGTESTS: connection: test the NetScaler CIP protocol
+    - REGTESTS: tcp-rules: test the RDP cookie fetches
+    - REGTESTS: tcp-rules: read the payload through the deprecated spellings
+    - REGTESTS: sample_fetches: test the TCP_INFO counters
+    - REGTESTS: sample_fetches: check the rtt headers this test was filling
+    - REGTESTS: sample_fetches: test the req.cook() fetch itself
+    - REGTESTS: sample_fetches: test fe_tarpit_timeout
+    - REGTESTS: sample_fetches: test res.body, res.body_len and server_status
+    - REGTESTS: sample_fetches: test the request_date fetch
+    - REGTESTS: sample_fetches: test the stream state fetches over HTTP/2
+    - REGTESTS: ssl: test the wait-for-handshake action and fc.timer.handshake
+    - REGTESTS: http-messaging: test the option httpclose
+    - REGTESTS: http-messaging: test the option http-no-delay
+    - REGTESTS: http-messaging: check that a truncated response loses no byte
+    - REGTESTS: sample_fetches: do not race with the server close in proxy_state
+    - REGTESTS: sample_fetches: make the raw hello test parallel-safe
+    - REGTESTS: http-messaging: widen the abort window of the abortonclose test
+    - REGTESTS: log: serve the transaction state test on a single connection
+    - REGTESTS: http-messaging: give each frontend its own syslog server
+    - REGTESTS: converter: serve the two sha2 requests on one connection
+    - REGTESTS: http-messaging: make the /c5 abort land during the retries
+    - REGTESTS: http-rules: one connection per request in the replace-uri test
+    - MINOR: vars: Add a helper to parse a variable scope name
+    - MINOR: vars: Add 'var_name_is_valid' helper function
+    - MEDIUM: vars: Add the set-vars-from-map action
+    - REGTESTS: vars: Add a test for the set-vars-from-map action
+
 2026/09/18 : 3.5-dev7
     - BUG/MINOR: quic: leak of the NEW_TOKEN frame on token generation failure
     - MINOR: quic: implement the AEAD integrity limit
