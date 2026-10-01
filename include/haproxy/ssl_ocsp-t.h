@@ -84,6 +84,17 @@ struct ocsp_cbk_arg {
 	};
 };
 
+struct ocsp_clt_check_ctx {
+	struct task *task;
+	struct httpclient *hc;
+	SSL *ssl;
+	OCSP_CERTID *cid;
+	X509 *issuer;
+	int state;
+	unsigned int ocsp_error;
+	int ocsp_status;
+};
+
 extern struct eb_root cert_ocsp_tree;
 extern struct eb_root ocsp_update_tree;
 extern struct task *ocsp_update_task;

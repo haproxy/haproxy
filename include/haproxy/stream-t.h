@@ -357,6 +357,8 @@ struct stream {
 	} resolv_ctx;                           /* context information for DNS resolution */
 	struct be_counters_shared_tg *be_tgcounters; /* pointer to current thread group shared backend counters */
 	struct be_counters_shared_tg *sv_tgcounters; /* pointer to current thread group shared server counters */
+
+	struct ocsp_clt_check_ctx *ocsp_clt_check_ctx; /* used for client ssl certificate's ocsp check */
 };
 
 #endif /* _HAPROXY_STREAM_T_H */

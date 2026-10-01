@@ -61,6 +61,7 @@
 #include <haproxy/trace.h>
 #include <haproxy/twork.h>
 #include <haproxy/vars.h>
+#include <haproxy/ssl_ocsp.h>
 
 
 DECLARE_TYPED_POOL(pool_head_stream, "stream", struct stream);
@@ -557,6 +558,8 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	s->resolv_ctx.hostname_dn_len = 0;
 	s->resolv_ctx.parent = NULL;
 
+	s->ocsp_clt_check_ctx = NULL;
+
 	s->connect_timeout = TICK_ETERNITY;
 	s->queue_timeout = TICK_ETERNITY;
 	s->tarpit_timeout = TICK_ETERNITY;
@@ -715,6 +718,9 @@ void stream_free(struct stream *s)
 		pool_free(resolv_requester_pool, s->resolv_ctx.requester);
 		s->resolv_ctx.requester = NULL;
 	}
+
+	clear_ocsp_clt_check_ctx(&s->ocsp_clt_check_ctx);
+	ha_free(&s->ocsp_clt_check_ctx);
 
 	if (fe) {
 		if (s->req_cap) {
