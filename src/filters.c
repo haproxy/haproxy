@@ -406,14 +406,8 @@ int flt_has_explicit_config(const struct proxy *px)
 	if (!LIST_ISEMPTY(&px->conf.filter_enabled) || !LIST_ISEMPTY(&px->conf.filter_sequences))
 		return 1;
 
-	list_for_each_entry(ref, &px->conf.filter_req_refs, list) {
-		list_for_each_entry(inst, &ref->instances, req.list) {
-			if (!(inst->flags & FLT_INST_F_IMPLICIT))
-				return 1;
-		}
-	}
-	list_for_each_entry(ref, &px->conf.filter_res_refs, list) {
-		list_for_each_entry(inst, &ref->instances, res.list) {
+	list_for_each_entry(ref, &px->conf.filter_refs, list) {
+		list_for_each_entry(inst, &ref->instances, global.list) {
 			if (!(inst->flags & FLT_INST_F_IMPLICIT))
 				return 1;
 		}
@@ -551,16 +545,7 @@ flt_init(struct proxy *proxy)
 		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
 			return ERR_ALERT|ERR_FATAL;
 	}
-	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
-			return ERR_ALERT|ERR_FATAL;
-	}
-	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
-		if (LIST_INLIST(&inst->req.list))
-			continue; /* already handled from the request side */
+	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
 		fconf = inst->fconf;
 		if (!fconf)
 			continue;
@@ -591,16 +576,7 @@ flt_init_per_thread(struct proxy *proxy)
 		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
 			return ERR_ALERT|ERR_FATAL;
 	}
-	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
-			return ERR_ALERT|ERR_FATAL;
-	}
-	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
-		if (LIST_INLIST(&inst->req.list))
-			continue; /* already handled from the request side */
+	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
 		fconf = inst->fconf;
 		if (!fconf)
 			continue;
@@ -689,16 +665,7 @@ static int flt_check_instances(struct proxy *px)
 	struct flt_conf *fconf;
 	int err = 0;
 
-	list_for_each_entry(inst, &px->filter_req_instances, req.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->check)
-			err += fconf->ops->check(px, fconf);
-	}
-	list_for_each_entry(inst, &px->filter_res_instances, res.list) {
-		if (LIST_INLIST(&inst->req.list))
-			continue; /* already handled from the request side */
+	list_for_each_entry(inst, &px->filter_instances, global.list) {
 		fconf = inst->fconf;
 		if (!fconf)
 			continue;
@@ -732,16 +699,7 @@ flt_deinit(struct proxy *proxy)
 		LIST_DELETE(&fconf->list);
 		free(fconf);
 	}
-	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->deinit)
-			fconf->ops->deinit(proxy, fconf);
-	}
-	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
-		if (LIST_INLIST(&inst->req.list))
-			continue; /* already handled from the request side */
+	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
 		fconf = inst->fconf;
 		if (fconf && fconf->ops && fconf->ops->deinit)
 			fconf->ops->deinit(proxy, fconf);
@@ -755,7 +713,7 @@ flt_deinit(struct proxy *proxy)
  *
  * The callback is called for the legacy filters (px->filter_configs) and
  * for the finalized filter instances (inst->fconf), iterating the flat
- * per-side lists of the proxy.
+ * global list of the proxy.
  */
 void
 flt_deinit_per_thread(struct proxy *proxy)
@@ -767,16 +725,7 @@ flt_deinit_per_thread(struct proxy *proxy)
 		if (fconf->ops->deinit_per_thread)
 			fconf->ops->deinit_per_thread(proxy, fconf);
 	}
-	list_for_each_entry(inst, &proxy->filter_req_instances, req.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->deinit_per_thread)
-			fconf->ops->deinit_per_thread(proxy, fconf);
-	}
-	list_for_each_entry(inst, &proxy->filter_res_instances, res.list) {
-		if (LIST_INLIST(&inst->req.list))
-			continue; /* already handled from the request side */
+	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
 		fconf = inst->fconf;
 		if (!fconf)
 			continue;
@@ -1672,7 +1621,6 @@ static struct filter_class_ref *flt_get_class_ref(struct proxy *px, struct filte
 struct flt_match_instance_ctx {
 	struct filter_class *cls;   /* the class to match */
 	const char *id;             /* the id to match, NULL for any id */
-	unsigned int side;          /* the side being iterated (FLT_SIDE_REQ or FLT_SIDE_RES) */
 	struct filter_instance *found; /* the first matching instance, if any */
 	int count;                  /* the number of matching instances */
 };
@@ -1689,8 +1637,6 @@ static int flt_match_instance_cb(struct filter_instance *inst, void *data)
 
 	if (inst->class != ctx->cls)
 		return 0;
-	if (ctx->side == FLT_SIDE_RES && LIST_INLIST(&inst->req.list))
-		return 0; /* already matched from the request side */
 	if (ctx->id && (!inst->id || strcmp(inst->id, ctx->id) != 0))
 		return 0;
 	if (!ctx->found)
@@ -1731,22 +1677,12 @@ static struct filter_instance *flt_find_instance_count(struct proxy *px, struct 
 {
 	struct flt_match_instance_ctx ctx = { .cls = cls, .id = id, .found = NULL, .count = 0 };
 
-	/* instances are in the flat per-side lists of the proxy, or in the
-	 * class references if the configuration was not flattened yet (or
-	 * for the defaults sections): the request side first, then the
-	 * response side
+	/* The global order contains every instance exactly once, whether it
+	 * is still in class references (including defaults) or already flat.
 	 */
-	ctx.side = FLT_SIDE_REQ;
-	if (flt_foreach_instance(&px->filter_req_instances, FLT_SIDE_REQ, flt_match_instance_cb, &ctx) && ctx.found)
+	if (flt_foreach_instance(&px->filter_instances, FLT_SIDE_GLOBAL, flt_match_instance_cb, &ctx) && ctx.found)
 		goto end;
-	ctx.side = FLT_SIDE_RES;
-	if (flt_foreach_instance(&px->filter_res_instances, FLT_SIDE_RES, flt_match_instance_cb, &ctx) && ctx.found)
-		goto end;
-	ctx.side = FLT_SIDE_REQ;
-	if (flt_foreach_instance_side(px, FLT_SIDE_REQ, flt_match_instance_cb, &ctx) && ctx.found)
-		goto end;
-	ctx.side = FLT_SIDE_RES;
-	flt_foreach_instance_side(px, FLT_SIDE_RES, flt_match_instance_cb, &ctx);
+	flt_foreach_instance_side(px, FLT_SIDE_GLOBAL, flt_match_instance_cb, &ctx);
 
   end:
 	if (count)
@@ -1884,7 +1820,7 @@ static int flt_copy_instance(struct proxy *px, const struct filter_instance *ins
 	return -1;
 }
 
-/* Copy all filter deinitions of the defaults proxy <defpx> into the proxy <px>.
+/* Copy all filter instances of the defaults proxy <defpx> into the proxy <px>.
  * Returns 0 on success, -1 on error (out of memory).
  */
 int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
@@ -1894,22 +1830,13 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 	struct filter_enabled *flt_en, *new_en;
 	struct filter_sequence *seq, *new_seq;
 
-	/* iterate over all the instances of the defaults proxy: the request
-	 * side first, then the instances of the classes with no request side
-	 * from the response side
+	/* Defaults keep their class references until destruction. Copy every
+	 * instance once, in the global class order.
 	 */
-	list_for_each_entry(ref, &defpx->conf.filter_req_refs, list) {
-		list_for_each_entry(inst, &ref->instances, req.list)
+	list_for_each_entry(ref, &defpx->conf.filter_refs, list) {
+		list_for_each_entry(inst, &ref->instances, global.list)
 			if (flt_copy_instance(px, inst) < 0)
 				goto error;
-	}
-	list_for_each_entry(ref, &defpx->conf.filter_res_refs, list) {
-		list_for_each_entry(inst, &ref->instances, res.list) {
-			if (LIST_INLIST(&inst->req.list))
-				continue; /* already copied from the request side */
-			if (flt_copy_instance(px, inst) < 0)
-				goto error;
-		}
 	}
 
 	/* inherit the filter-enable entries too */
@@ -2482,8 +2409,7 @@ static int flt_enable_filters(struct proxy *proxy)
 		ctx.id = flt_en->id;
 		ctx.enable = flt_en->enable;
 		ctx.found = 0;
-		flt_foreach_instance_side(proxy, FLT_SIDE_REQ, flt_enable_cb, &ctx);
-		flt_foreach_instance_side(proxy, FLT_SIDE_RES, flt_enable_cb, &ctx);
+		flt_foreach_instance_side(proxy, FLT_SIDE_GLOBAL, flt_enable_cb, &ctx);
 		if (!ctx.found) {
 			ha_alert("config: %s '%s' : 'filter-%s' : no instance of filter class '%s'%s%s%s (from %s:%d).\n",
 				 proxy_type_str(proxy), proxy->id,
@@ -2733,47 +2659,26 @@ static int flt_precheck_instance(struct proxy *proxy, struct filter_instance *in
  * instance is allowed for classes without FLT_CLS_FL_MULTI. Returns a
  * combination of ERR_* flags, ERR_NONE on success.
  */
-static int flt_precheck_class_instances(struct proxy *proxy, struct filter_class_ref *ref, unsigned int side)
+static int flt_precheck_class_instances(struct proxy *proxy, struct filter_class_ref *ref)
 {
 	struct filter_instance *inst;
 	int err_code = ERR_NONE;
 	int count = 0;
 
-	if (side == FLT_SIDE_REQ) {
-		list_for_each_entry(inst, &ref->instances, req.list)
-			count++;
-	}
-	else {
-		list_for_each_entry(inst, &ref->instances, res.list)
-			count++;
-	}
+	list_for_each_entry(inst, &ref->instances, global.list)
+		count++;
 
 	if (count > 1 && !(ref->class->flags & FLT_CLS_FL_MULTI)) {
-		if (side == FLT_SIDE_REQ) {
-			list_for_each_entry(inst, &ref->instances, req.list) {
-				ha_alert("config: %s '%s' : several instances of filter class '%s', but only one is allowed (see %s:%d).\n",
-					 proxy_type_str(proxy), proxy->id, ref->class->name,
-					 inst->conf.file, inst->conf.line);
-			}
-		}
-		else {
-			list_for_each_entry(inst, &ref->instances, res.list) {
-				ha_alert("config: %s '%s' : several instances of filter class '%s', but only one is allowed (see %s:%d).\n",
-					 proxy_type_str(proxy), proxy->id, ref->class->name,
-					 inst->conf.file, inst->conf.line);
-			}
+		list_for_each_entry(inst, &ref->instances, global.list) {
+			ha_alert("config: %s '%s' : several instances of filter class '%s', but only one is allowed (see %s:%d).\n",
+				 proxy_type_str(proxy), proxy->id, ref->class->name,
+				 inst->conf.file, inst->conf.line);
 		}
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (side == FLT_SIDE_REQ) {
-		list_for_each_entry(inst, &ref->instances, req.list)
-			err_code |= flt_precheck_instance(proxy, inst);
-	}
-	else {
-		list_for_each_entry(inst, &ref->instances, res.list)
-			err_code |= flt_precheck_instance(proxy, inst);
-	}
+	list_for_each_entry(inst, &ref->instances, global.list)
+		err_code |= flt_precheck_instance(proxy, inst);
 	return err_code;
 }
 
@@ -2782,17 +2687,9 @@ static int flt_precheck_instances(struct proxy *proxy)
 	struct filter_class_ref *ref;
 	int err_code = ERR_NONE;
 
-	/* iterate over all the class references of the proxy: the request side
-	 * first, then the references of the classes with no request side from
-	 * the response side
-	 */
-	list_for_each_entry(ref, &proxy->conf.filter_req_refs, list)
-		err_code |= flt_precheck_class_instances(proxy, ref, FLT_SIDE_REQ);
-	list_for_each_entry(ref, &proxy->conf.filter_res_refs, list) {
-		if (LIST_INLIST(&ref->class->req.list))
-			continue; /* already handled from the request side */
-		err_code |= flt_precheck_class_instances(proxy, ref, FLT_SIDE_RES);
-	}
+	/* Finalize every instance once, following the global class order. */
+	list_for_each_entry(ref, &proxy->conf.filter_refs, list)
+		err_code |= flt_precheck_class_instances(proxy, ref);
 	return err_code;
 }
 
