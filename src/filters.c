@@ -2739,100 +2739,87 @@ static int flt_precheck_instances_all()
 	return 0;
 }
 
-/* Dumps the request classes. The classes inserted in the before/after lists are
- * inserted around the class they are attached to.
- */
-static void cli_dump_flt_req_classes(struct buffer *out, struct list *classes)
+/* Dump classes in global registration order or in a channel's placement tree. */
+static void cli_dump_flt_classes(struct buffer *out, struct list *classes, unsigned int side, int *first)
 {
 	struct filter_class *cls;
-	int first = 1;
+	struct list *entry;
 
-	list_for_each_entry(cls, classes, req.list) {
-		if (!first)
-			chunk_appendf(out, " > ");
-		if (!LIST_ISEMPTY(&cls->req.before)) {
-			cli_dump_flt_req_classes(out, &cls->req.before);
-			chunk_appendf(out, " > ");
-		}
-		chunk_appendf(out, cls->name);
-		if (!LIST_ISEMPTY(&cls->req.after)) {
-			chunk_appendf(out, " > ");
-			cli_dump_flt_req_classes(out, &cls->req.after);
-		}
-		first = 0;
+	for (entry = classes->n; entry != classes; entry = entry->n) {
+		cls = flt_class_from_list(entry, side);
+		if (side == FLT_SIDE_REQ)
+			cli_dump_flt_classes(out, &cls->req.before, side, first);
+		else if (side == FLT_SIDE_RES)
+			cli_dump_flt_classes(out, &cls->res.before, side, first);
+		chunk_appendf(out, "%s%s", *first ? "" : " > ", cls->name);
+		*first = 0;
+		if (side == FLT_SIDE_REQ)
+			cli_dump_flt_classes(out, &cls->req.after, side, first);
+		else if (side == FLT_SIDE_RES)
+			cli_dump_flt_classes(out, &cls->res.after, side, first);
 	}
-	chunk_appendf(&trash, "\n");
 }
 
-/* Dumps the response classes. The classes inserted in the before/after lists are
- * inserted around the class they are attached to.
- */
-static void cli_dump_flt_res_classes(struct buffer *out, struct list *classes)
-{
-	struct filter_class *cls;
-	int first = 1;
-
-	list_for_each_entry(cls, classes, res.list) {
-		if (!first)
-			chunk_appendf(out, " > ");
-		if (!LIST_ISEMPTY(&cls->res.before)) {
-			cli_dump_flt_res_classes(out, &cls->res.before);
-			chunk_appendf(out, " > ");
-		}
-		chunk_appendf(out, cls->name);
-		if (!LIST_ISEMPTY(&cls->res.after)) {
-			chunk_appendf(out, " > ");
-			cli_dump_flt_res_classes(out, &cls->res.after);
-		}
-		first = 0;
-	}
-	chunk_appendf(&trash, "\n");
-}
-
-/* Parses "show filter classes [request|response]" */
+/* Parses "show filter classes [global|request|response]". No side means all three. */
 static int cli_parse_show_flt_classes(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	const unsigned int sides[] = { FLT_SIDE_GLOBAL, FLT_SIDE_REQ, FLT_SIDE_RES };
+	struct list *classes;
+	unsigned int selected;
+	int i, first;
+
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
+	selected = flt_parse_side(args[3]);
+	if (*args[3] && !selected)
+		return cli_err(appctx, "'global', 'request' or 'response' expected\n");
 
 	chunk_reset(&trash);
-
-	if (!*args[3] || strcmp(args[3], "request") == 0) {
-		chunk_appendf(&trash, "request: ");
-		cli_dump_flt_req_classes(&trash, &req_filter_classes);
+	for (i = 0; i < sizeof(sides) / sizeof(sides[0]); i++) {
+		if (selected && selected != sides[i])
+			continue;
+		classes = (sides[i] == FLT_SIDE_REQ ? &req_filter_classes :
+			   sides[i] == FLT_SIDE_RES ? &res_filter_classes : &filter_classes);
+		first = 1;
+		chunk_appendf(&trash, "%s: ", flt_side_name(sides[i]));
+		cli_dump_flt_classes(&trash, classes, sides[i], &first);
+		if (first)
+			chunk_appendf(&trash, "<none>");
+		chunk_appendf(&trash, "\n");
 	}
-	if (!*args[3] || strcmp(args[3], "response") == 0) {
-		chunk_appendf(&trash, "response: ");
-		cli_dump_flt_res_classes(&trash, &res_filter_classes);
-	}
-	if (*args[3] && strcmp(args[3], "request") != 0 && strcmp(args[3], "response") != 0)
-		return cli_err(appctx, "'request' or 'response' expected\n");
-
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
 
 
-/* Dumps the filter instance <inst> as "<cls>[:<id>]", prefixed by " > "
- * unless <first> is set.
- */
-static void cli_dump_flat_flt_def(struct buffer *out, struct filter_instance *inst, int *first)
+struct cli_flt_instances_ctx {
+	struct buffer *out;
+	int first;
+};
+
+/* Dump a instance from either a flat order or unflattened class references. */
+static int cli_dump_flt_instance_cb(struct filter_instance *inst, void *data)
 {
-	chunk_appendf(out, "%s%s", *first ? "" : " > ", inst->class->name);
+	struct cli_flt_instances_ctx *ctx = data;
+
+	chunk_appendf(ctx->out, "%s%s", ctx->first ? "" : " > ", inst->class->name);
 	if (inst->id)
-		chunk_appendf(out, ":%s", inst->id);
-	*first = 0;
+		chunk_appendf(ctx->out, "/%s", inst->id);
+	ctx->first = 0;
+	return 0;
 }
 
-/* Parse "show filter instances <px> [request|response]". Displays the filter
- * instances of the proxy <px>, one line per side (both sides if no side is
- * selected).
+/* Parse "show filter instances <px> [global|request|response]". Display one
+ * line per order, including defaults' unflattened instances. No side means
+ * all three orders.
  */
 static int cli_parse_show_flt_instances(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	const unsigned int sides[] = { FLT_SIDE_GLOBAL, FLT_SIDE_REQ, FLT_SIDE_RES };
+	struct cli_flt_instances_ctx ctx = { .out = &trash };
 	struct proxy *px;
-	struct filter_instance *inst;
-	int first = 1;
+	unsigned int selected;
+	int i;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
 		return 1;
@@ -2846,26 +2833,22 @@ static int cli_parse_show_flt_instances(char **args, char *payload, struct appct
 	if (!px)
 		return cli_err(appctx, "unknown proxy\n");
 
-	if (*args[4] && strcmp(args[4], "request") != 0 && strcmp(args[4], "response") != 0)
-		return cli_err(appctx, "'request' or 'response' expected\n");
+	selected = flt_parse_side(args[4]);
+	if (*args[4] && !selected)
+		return cli_err(appctx, "'global', 'request' or 'response' expected\n");
 
 	chunk_reset(&trash);
-
-	if (!*args[4] || strcmp(args[4], "request") == 0) {
-		chunk_appendf(&trash, "request: ");
-		list_for_each_entry(inst, &px->filter_req_instances, req.list)
-			cli_dump_flat_flt_def(&trash, inst, &first);
+	for (i = 0; i < sizeof(sides) / sizeof(sides[0]); i++) {
+		if (selected && selected != sides[i])
+			continue;
+		ctx.first = 1;
+		chunk_appendf(&trash, "%s: ", flt_side_name(sides[i]));
+		flt_foreach_instance(flt_instances(px, sides[i]), sides[i], cli_dump_flt_instance_cb, &ctx);
+		flt_foreach_instance_side(px, sides[i], cli_dump_flt_instance_cb, &ctx);
+		if (ctx.first)
+			chunk_appendf(&trash, "<none>");
+		chunk_appendf(&trash, "\n");
 	}
-	if (!*args[4] || strcmp(args[4], "response") == 0) {
-		chunk_appendf(&trash, "response: ");
-		list_for_each_entry(inst, &px->filter_res_instances, res.list)
-			cli_dump_flat_flt_def(&trash, inst, &first);
-	}
-
-	if (first)
-		chunk_appendf(&trash, "<none>");
-	chunk_appendf(&trash, "\n");
-
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
@@ -2920,7 +2903,7 @@ static int cli_parse_show_flt_instance(char **args, char *payload, struct appctx
 		      found->enabled ? "enabled" : "disabled",
 		      (found->flags & FLT_INST_F_IMPLICIT) ? ", implicit" : "",
 		      (found->flags & FLT_INST_F_INHERITED) ? ", inherited" : "");
-	chunk_appendf(&trash, "sides:     %s%s\n",
+	chunk_appendf(&trash, "sides:      global%s%s\n",
 		      LIST_INLIST(&found->class->req.list) ? " request" : "",
 		      LIST_INLIST(&found->class->res.list) ? " response" : "");
 	chunk_appendf(&trash, "defined at: %s:%d\n", found->conf.file, found->conf.line);
@@ -2937,9 +2920,9 @@ static int cli_parse_show_flt_instance(char **args, char *payload, struct appctx
 }
 
 static struct cli_kw_list cli_kws = {ILH, {
-	{{ "show", "filter", "classes", NULL }, "show filter classes [request|response]     : display all filter classes", cli_parse_show_flt_classes, NULL, NULL, NULL },
+	{{ "show", "filter", "classes", NULL }, "show filter classes [global|request|response] : display all filter classes", cli_parse_show_flt_classes, NULL, NULL, NULL },
 	{{ "show", "filter", "instance", NULL }, "show filter instance <px> <class[/id]> : display a filter instance of a proxy", cli_parse_show_flt_instance, NULL, NULL, NULL },
-	{{ "show", "filter", "instances", NULL }, "show filter instances <px> [side]     : display the filter instances of a proxy", cli_parse_show_flt_instances, NULL, NULL, NULL },
+	{{ "show", "filter", "instances", NULL }, "show filter instances <px> [global|request|response] : display the filter instances of a proxy", cli_parse_show_flt_instances, NULL, NULL, NULL },
 	{{},}
 }};
 

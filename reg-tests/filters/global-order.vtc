@@ -1,12 +1,14 @@
 varnishtest "Global filter instance order is independent of request/response orders"
 
 feature ignore_unknown_macro
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 
 haproxy h1 -conf {
     global
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
     cache store
         total-max-size 1
@@ -56,6 +58,55 @@ haproxy h1 -conf {
         http-request return status 200
 } -start
 
+haproxy h1 -cli {
+    send "show filter classes global"
+    expect ~ "^global: trace > cache-store > decomp-req > decomp-res > spoe > lua > http-comp-req > http-comp-res > bwlim-in > bwlim-out > fcgi\n"
+
+    send "show filter classes request"
+    expect ~ "^request: trace > decomp-req > lua > spoe > http-comp-res > decomp-res > http-comp-req > bwlim-in > fcgi\n"
+
+    send "show filter classes response"
+    expect ~ "^response: fcgi > trace > decomp-res > cache-store > spoe > lua > http-comp-res > decomp-req > bwlim-out\n"
+
+    send "show filter instances baseline"
+    expect ~ "^global: trace/b > trace/a > cache-store/store > bwlim-in/upload > bwlim-out/download\nrequest: trace/b > trace/a > bwlim-in/upload\nresponse: trace/b > trace/a > cache-store/store > bwlim-out/download\n"
+
+    send "show filter instances reordered global"
+    expect ~ "^global: bwlim-out/download > cache-store/store > bwlim-in/upload > trace/a > trace/b\n"
+
+    send "show filter instances reordered request"
+    expect ~ "^request: trace/b > trace/a > bwlim-in/upload\n"
+
+    send "show filter instances reordered response"
+    expect ~ "^response: trace/b > cache-store/store > trace/a > bwlim-out/download\n"
+
+    # Defaults retain class references instead of flat lists.
+    send "show filter instances filters global"
+    expect ~ "^global: trace/b > trace/a > cache-store/store > bwlim-in/upload > bwlim-out/download\n"
+
+    send "show filter instance reordered trace/a"
+    expect ~ "state:      enabled, inherited\nsides:      global request response\n"
+
+    send "show filter instance reordered trace/b"
+    expect ~ "state:      disabled, inherited\nsides:      global request response\n"
+
+    # A bidirectional instance must not be counted twice during lookup.
+    send "show filter instance single trace"
+    expect ~ "id:         only\n"
+
+    send "show filter instance reordered bwlim-in"
+    expect ~ "id:         upload\n"
+
+    send "show filter instances empty"
+    expect ~ "^global: <none>\nrequest: <none>\nresponse: <none>\n"
+
+    send "show filter instances baseline invalid"
+    expect ~ "'global', 'request' or 'response' expected"
+
+    send "show filter classes invalid"
+    expect ~ "'global', 'request' or 'response' expected"
+}
+
 # Inherited global sequences are applied to the child's instances, including
 # local overrides, without changing either channel's parsing/class order.
 haproxy h2 -conf {
@@ -63,6 +114,7 @@ haproxy h2 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        chroot /
 
     defaults ordered
         mode http
@@ -83,6 +135,20 @@ haproxy h2 -conf {
         bind "fd@${single}"
         http-request return status 200
 } -start
+
+haproxy h2 -cli {
+    send "show filter instances fe"
+    expect ~ "^global: trace/b > trace/a > trace/c\nrequest: trace/a > trace/b > trace/c\nresponse: trace/a > trace/b > trace/c\n"
+
+    send "show filter instance fe trace/b"
+    expect ~ "state:      enabled\nsides:      global request response\n"
+
+    send "show filter instances single global"
+    expect ~ "^global: trace/b > trace/a\n"
+
+    send "show filter instance single trace"
+    expect ~ "several instances of this class, an id is required"
+}
 
 # Reject self-references in each order.
 haproxy h4 -conf-BAD {a loop is detected} {
