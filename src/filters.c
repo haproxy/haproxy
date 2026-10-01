@@ -67,11 +67,89 @@ DECLARE_STATIC_TYPED_POOL(pool_head_filter, "filter", struct filter);
 
 static int handle_analyzer_result(struct stream *s, struct channel *chn, unsigned int an_bit, int ret);
 
+/* Helpers selecting one of the independent global/request/response orders. */
+static const char *flt_side_name(unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return "request";
+	if (side == FLT_SIDE_RES)
+		return "response";
+	return "global";
+}
+
+static struct list *flt_class_refs(struct proxy *px, unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return &px->conf.filter_req_refs;
+	if (side == FLT_SIDE_RES)
+		return &px->conf.filter_res_refs;
+	return &px->conf.filter_refs;
+}
+
+static struct list *flt_instances(struct proxy *px, unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return &px->filter_req_instances;
+	if (side == FLT_SIDE_RES)
+		return &px->filter_res_instances;
+	return &px->filter_instances;
+}
+
+static struct filter_inst_side *flt_inst_side(struct filter_instance *inst, unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return &inst->req;
+	if (side == FLT_SIDE_RES)
+		return &inst->res;
+	return &inst->global;
+}
+
+static struct filter_instance *flt_inst_from_list(struct list *entry, unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return LIST_ELEM(entry, struct filter_instance *, req.list);
+	if (side == FLT_SIDE_RES)
+		return LIST_ELEM(entry, struct filter_instance *, res.list);
+	return LIST_ELEM(entry, struct filter_instance *, global.list);
+}
+
+static struct filter_class *flt_class_from_list(struct list *entry, unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return LIST_ELEM(entry, struct filter_class *, req.list);
+	if (side == FLT_SIDE_RES)
+		return LIST_ELEM(entry, struct filter_class *, res.list);
+	return LIST_ELEM(entry, struct filter_class *, list);
+}
+
+/* Initialize all links before any fallible operation, so error cleanup can
+ * unlink a partially built instance from any of its three orders.
+ */
+static struct filter_instance *flt_alloc_instance(void)
+{
+	struct filter_instance *inst;
+	struct filter_inst_side *ds;
+	unsigned int side;
+
+	inst = calloc(1, sizeof(*inst));
+	if (!inst)
+		return NULL;
+	for (side = FLT_SIDE_REQ; side <= FLT_SIDE_GLOBAL; side <<= 1) {
+		ds = flt_inst_side(inst, side);
+		LIST_INIT(&ds->reordered_before);
+		LIST_INIT(&ds->reordered_after);
+		LIST_INIT(&ds->list);
+	}
+	return inst;
+}
+
 /* Frees a filter instance and all its content */
 static void flt_free_instance(struct filter_instance *inst)
 {
 	if (!inst)
 		return;
+	if (LIST_INLIST(&inst->global.list))
+		LIST_DELETE(&inst->global.list);
 	if (LIST_INLIST(&inst->req.list))
 		LIST_DELETE(&inst->req.list);
 	if (LIST_INLIST(&inst->res.list))
@@ -117,24 +195,22 @@ static void flt_free_sequence(struct filter_sequence *flt_seq)
 	free(flt_seq);
 }
 
-/* Frees the instances of the list <instances> for side <side>, recursively */
+/* Unlink one side recursively. Only the global list owns the instances:
+ * both sides must be detached before releasing any instance.
+ */
 static void flt_free_inst_list(struct list *instances, unsigned int side)
 {
-	struct filter_instance *inst, *back;
+	struct filter_instance *inst;
+	struct filter_inst_side *ds;
 
-	if (side == FLT_SIDE_REQ) {
-		list_for_each_entry_safe(inst, back, instances, req.list) {
-			flt_free_inst_list(&inst->req.reordered_before, side);
-			flt_free_inst_list(&inst->req.reordered_after, side);
+	while (!LIST_ISEMPTY(instances)) {
+		inst = flt_inst_from_list(instances->n, side);
+		ds = flt_inst_side(inst, side);
+		flt_free_inst_list(&ds->reordered_before, side);
+		flt_free_inst_list(&ds->reordered_after, side);
+		LIST_DEL_INIT(&ds->list);
+		if (side == FLT_SIDE_GLOBAL)
 			flt_free_instance(inst);
-		}
-	}
-	else {
-		list_for_each_entry_safe(inst, back, instances, res.list) {
-			flt_free_inst_list(&inst->res.reordered_before, side);
-			flt_free_inst_list(&inst->res.reordered_after, side);
-			flt_free_instance(inst);
-		}
 	}
 }
 
@@ -330,13 +406,13 @@ int flt_has_explicit_config(const struct proxy *px)
 	if (!LIST_ISEMPTY(&px->conf.filter_enabled) || !LIST_ISEMPTY(&px->conf.filter_sequences))
 		return 1;
 
-	list_for_each_entry(ref, &px->conf.filter_classes_req, list) {
+	list_for_each_entry(ref, &px->conf.filter_req_refs, list) {
 		list_for_each_entry(inst, &ref->instances, req.list) {
 			if (!(inst->flags & FLT_INST_F_IMPLICIT))
 				return 1;
 		}
 	}
-	list_for_each_entry(ref, &px->conf.filter_classes_res, list) {
+	list_for_each_entry(ref, &px->conf.filter_res_refs, list) {
 		list_for_each_entry(inst, &ref->instances, res.list) {
 			if (!(inst->flags & FLT_INST_F_IMPLICIT))
 				return 1;
@@ -1521,44 +1597,32 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 }
 
 /* Iterates over the instances of the list <instances> for side <side>,
- * recursively. <fct> is called for each instance and must return 0 to
- * continue, any other value to stop immediately; that value is then returned.
+ * recursively in evaluation order. <fct> must return 0 to continue, any other
+ * value to stop immediately; that value is then returned.
  *
- * Note: it must only be used on loop-free structures (the sequence loop
- * detection runs after the sequences are applied, and aborts the startup
- * on a loop).
+ * Note: it must only be used on loop-free structures. Sequence application
+ * checks each move and rolls it back before reporting a loop.
  */
 static int flt_foreach_instance(struct list *instances, unsigned int side,
 			   int (*fct)(struct filter_instance *inst, void *data), void *data)
 {
 	struct filter_instance *inst;
+	struct filter_inst_side *ds;
+	struct list *entry;
 	int ret;
 
-	if (side == FLT_SIDE_REQ) {
-		list_for_each_entry(inst, instances, req.list) {
-			ret = fct(inst, data);
-			if (ret)
-				return ret;
-			ret = flt_foreach_instance(&inst->req.reordered_before, side, fct, data);
-			if (ret)
-				return ret;
-			ret = flt_foreach_instance(&inst->req.reordered_after, side, fct, data);
-			if (ret)
-				return ret;
-		}
-	}
-	else {
-		list_for_each_entry(inst, instances, res.list) {
-			ret = fct(inst, data);
-			if (ret)
-				return ret;
-			ret = flt_foreach_instance(&inst->res.reordered_before, side, fct, data);
-			if (ret)
-				return ret;
-			ret = flt_foreach_instance(&inst->res.reordered_after, side, fct, data);
-			if (ret)
-				return ret;
-		}
+	for (entry = instances->n; entry != instances; entry = entry->n) {
+		inst = flt_inst_from_list(entry, side);
+		ds = flt_inst_side(inst, side);
+		ret = flt_foreach_instance(&ds->reordered_before, side, fct, data);
+		if (ret)
+			return ret;
+		ret = fct(inst, data);
+		if (ret)
+			return ret;
+		ret = flt_foreach_instance(&ds->reordered_after, side, fct, data);
+		if (ret)
+			return ret;
 	}
 	return 0;
 }
@@ -1569,15 +1633,15 @@ static int flt_foreach_instance(struct list *instances, unsigned int side,
 static int flt_foreach_instance_side(struct proxy *px, unsigned int side,
 				int (*fct)(struct filter_instance *inst, void *data), void *data)
 {
-	struct list *refs = (side == FLT_SIDE_REQ ? &px->conf.filter_classes_req : &px->conf.filter_classes_res);
+	struct list *refs = flt_class_refs(px, side);
 	struct filter_class_ref *ref;
 	int ret;
 
 	list_for_each_entry(ref, refs, list) {
-		ret = flt_foreach_instance(&ref->instances, side, fct, data);
+		ret = flt_foreach_instance(&ref->reordered_before, side, fct, data);
 		if (ret)
 			return ret;
-		ret = flt_foreach_instance(&ref->reordered_before, side, fct, data);
+		ret = flt_foreach_instance(&ref->instances, side, fct, data);
 		if (ret)
 			return ret;
 		ret = flt_foreach_instance(&ref->reordered_after, side, fct, data);
@@ -1594,7 +1658,7 @@ static int flt_foreach_instance_side(struct proxy *px, unsigned int side,
 static struct filter_class_ref *flt_get_class_ref(struct proxy *px, struct filter_class *cls,
 						  unsigned int side)
 {
-	struct list *refs = (side == FLT_SIDE_REQ ? &px->conf.filter_classes_req : &px->conf.filter_classes_res);
+	struct list *refs = flt_class_refs(px, side);
 	struct filter_class_ref *ref;
 
 	list_for_each_entry(ref, refs, list) {
@@ -1700,10 +1764,10 @@ struct filter_instance *flt_find_instance(struct proxy *px, struct filter_class 
 }
 
 
-/* Initializes the lists of the filter instance <inst> and links it in the
- * class references of the proxy <px>, on each side the class is placed on.
- * Returns 0 on success, -1 if the class is placed on no side (the
- * instance cannot be evaluated).
+/* Links <inst> in the global class references of <px> and on each side its
+ * class is placed on. All links were initialized on allocation.
+ * Returns 0 on success, -1 if a required class reference is missing or the
+ * class is not placed on any side.
  */
 static int flt_init_instance(struct filter_instance *inst, struct proxy *px)
 {
@@ -1711,12 +1775,10 @@ static int flt_init_instance(struct filter_instance *inst, struct proxy *px)
 	int linked = 0;
 
 	inst->px = px;
-	LIST_INIT(&inst->req.reordered_before);
-	LIST_INIT(&inst->req.reordered_after);
-	LIST_INIT(&inst->req.list);
-	LIST_INIT(&inst->res.reordered_before);
-	LIST_INIT(&inst->res.reordered_after);
-	LIST_INIT(&inst->res.list);
+	ref = flt_get_class_ref(px, inst->class, FLT_SIDE_GLOBAL);
+	if (!ref)
+		return -1;
+	LIST_APPEND(&ref->instances, &inst->global.list);
 
 	if (LIST_INLIST(&inst->class->req.list)) {
 		ref = flt_get_class_ref(px, inst->class, FLT_SIDE_REQ);
@@ -1746,17 +1808,25 @@ void flt_free_instances(struct proxy *px)
 
 	flt_free_inst_list(&px->filter_req_instances, FLT_SIDE_REQ);
 	flt_free_inst_list(&px->filter_res_instances, FLT_SIDE_RES);
-	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_req, list) {
+	list_for_each_entry_safe(ref, refback, &px->conf.filter_req_refs, list) {
 		flt_free_inst_list(&ref->instances, FLT_SIDE_REQ);
 		flt_free_inst_list(&ref->reordered_before, FLT_SIDE_REQ);
 		flt_free_inst_list(&ref->reordered_after, FLT_SIDE_REQ);
 		LIST_DELETE(&ref->list);
 		free(ref);
 	}
-	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_res, list) {
+	list_for_each_entry_safe(ref, refback, &px->conf.filter_res_refs, list) {
 		flt_free_inst_list(&ref->instances, FLT_SIDE_RES);
 		flt_free_inst_list(&ref->reordered_before, FLT_SIDE_RES);
 		flt_free_inst_list(&ref->reordered_after, FLT_SIDE_RES);
+		LIST_DELETE(&ref->list);
+		free(ref);
+	}
+	flt_free_inst_list(&px->filter_instances, FLT_SIDE_GLOBAL);
+	list_for_each_entry_safe(ref, refback, &px->conf.filter_refs, list) {
+		flt_free_inst_list(&ref->instances, FLT_SIDE_GLOBAL);
+		flt_free_inst_list(&ref->reordered_before, FLT_SIDE_GLOBAL);
+		flt_free_inst_list(&ref->reordered_after, FLT_SIDE_GLOBAL);
 		LIST_DELETE(&ref->list);
 		free(ref);
 	}
@@ -1778,7 +1848,7 @@ static int flt_copy_instance(struct proxy *px, const struct filter_instance *ins
 	struct filter_instance *new_inst;
 	int i;
 
-	new_inst = calloc(1, sizeof(*new_inst));
+	new_inst = flt_alloc_instance();
 	if (!new_inst)
 		return -1;
 
@@ -1828,12 +1898,12 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 	 * side first, then the instances of the classes with no request side
 	 * from the response side
 	 */
-	list_for_each_entry(ref, &defpx->conf.filter_classes_req, list) {
+	list_for_each_entry(ref, &defpx->conf.filter_req_refs, list) {
 		list_for_each_entry(inst, &ref->instances, req.list)
 			if (flt_copy_instance(px, inst) < 0)
 				goto error;
 	}
-	list_for_each_entry(ref, &defpx->conf.filter_classes_res, list) {
+	list_for_each_entry(ref, &defpx->conf.filter_res_refs, list) {
 		list_for_each_entry(inst, &ref->instances, res.list) {
 			if (LIST_INLIST(&inst->req.list))
 				continue; /* already copied from the request side */
@@ -1847,6 +1917,7 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 		new_en = calloc(1, sizeof(*new_en));
 		if (!new_en)
 			goto error;
+		LIST_INIT(&new_en->list);
 		new_en->cls_name = strdup(flt_en->cls_name);
 		new_en->id = flt_en->id ? strdup(flt_en->id) : NULL;
 		new_en->enable = flt_en->enable;
@@ -1864,6 +1935,7 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 		new_seq = calloc(1, sizeof(*new_seq));
 		if (!new_seq)
 			goto error;
+		LIST_INIT(&new_seq->list);
 		new_seq->cls_name = strdup(seq->cls_name);
 		new_seq->id = seq->id ? strdup(seq->id) : NULL;
 		new_seq->cls_ref_name = strdup(seq->cls_ref_name);
@@ -1912,7 +1984,7 @@ int flt_add_implicit_instance(struct proxy *px, struct filter_class *cls, const 
 	if (flt_find_instance(px, cls, id))
 		return 0;
 
-	inst = calloc(1, sizeof(*inst));
+	inst = flt_alloc_instance();
 	if (!inst)
 		return -1;
 
@@ -2033,7 +2105,7 @@ static int parse_filter_config(char **args, int section_type, struct proxy *curp
 		goto error;
 	}
 
-	inst = calloc(1, sizeof(*inst));
+	inst = flt_alloc_instance();
 	if (!inst)
 		goto oom;
 
@@ -2131,6 +2203,7 @@ static int parse_filter_enable_entry(const char *entry, unsigned int enable, str
 		return -1;
 	}
 
+	LIST_INIT(&flt_en->list);
 	flt_en->cls_name = my_strndup(entry, len);
 	flt_en->id = sep ? strdup(sep + 1) : NULL;
 	flt_en->enable = enable;
@@ -2435,41 +2508,26 @@ static int flt_enable_filters(struct proxy *proxy)
  */
 static int flt_check_instance_loop(struct filter_instance *inst, unsigned int side)
 {
-	struct filter_instance *d;
-	int ret;
+	struct filter_inst_side *ds = flt_inst_side(inst, side);
+	struct list *entry;
+	int ret = -1;
 
 	if (inst->flags & FLT_INST_F_SEXPLORE)
-		goto error; /* loop */
+		return -1;
 	inst->flags |= FLT_INST_F_SEXPLORE;
-	if (side == FLT_SIDE_REQ) {
-		list_for_each_entry(d, &inst->req.reordered_before, req.list) {
-			if (flt_check_instance_loop(d, side) < 0)
-				goto error;
-		}
-		list_for_each_entry(d, &inst->req.reordered_after, req.list) {
-			if (flt_check_instance_loop(d, side) < 0)
-				goto error;
-		}
+	for (entry = ds->reordered_before.n; entry != &ds->reordered_before; entry = entry->n) {
+		if (flt_check_instance_loop(flt_inst_from_list(entry, side), side) < 0)
+			goto out;
 	}
-	else {
-		list_for_each_entry(d, &inst->res.reordered_before, res.list) {
-			if (flt_check_instance_loop(d, side) < 0)
-				goto error;
-		}
-		list_for_each_entry(d, &inst->res.reordered_after, res.list) {
-			if (flt_check_instance_loop(d, side) < 0)
-				goto error;
-		}
+	for (entry = ds->reordered_after.n; entry != &ds->reordered_after; entry = entry->n) {
+		if (flt_check_instance_loop(flt_inst_from_list(entry, side), side) < 0)
+			goto out;
 	}
 	ret = 0;
 
   out:
 	inst->flags &= ~FLT_INST_F_SEXPLORE;
 	return ret;
-
-  error:
-	ret = -1;
-	goto out;
 }
 
 /* Applies the filter sequences of the proxy <proxy>, in configuration
@@ -2485,6 +2543,8 @@ static int flt_apply_sequences(struct proxy *proxy)
 {
 	struct filter_class_ref *ref;
 	struct filter_instance *inst, *ref_inst;
+	struct filter_inst_side *ds, *ref_ds;
+	struct list *target, *prev;
 	struct filter_sequence *seq;
 	struct filter_class *cls, *ref_cls;
 	int err_code = ERR_NONE;
@@ -2529,7 +2589,7 @@ static int flt_apply_sequences(struct proxy *proxy)
 		if (!ref) {
 			ha_alert("config: %s '%s' : 'filter-sequence' : filter class '%s' has no %s side (from %s:%d).\n",
 				 proxy_type_str(proxy), proxy->id, seq->cls_ref_name,
-				 (seq->side == FLT_SIDE_REQ) ? "request" : "response",
+				 flt_side_name(seq->side),
 				 seq->file, seq->line);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			continue;
@@ -2546,41 +2606,17 @@ static int flt_apply_sequences(struct proxy *proxy)
 			}
 		}
 
-		/* unlink the instance from its current side list, if any,
-		 * and append it in the right reordered list
-		 */
-		if (seq->side == FLT_SIDE_REQ) {
-			if (LIST_INLIST(&inst->req.list))
-				LIST_DEL_INIT(&inst->req.list);
-			if (seq->pos == FLT_POS_BEFORE) {
-				if (ref_inst)
-					LIST_APPEND(&ref_inst->req.reordered_before, &inst->req.list);
-				else
-					LIST_APPEND(&ref->reordered_before, &inst->req.list);
-			}
-			else {
-				if (ref_inst)
-					LIST_APPEND(&ref_inst->req.reordered_after, &inst->req.list);
-				else
-					LIST_APPEND(&ref->reordered_after, &inst->req.list);
-			}
+		/* Move only the selected order. The other two orders are independent. */
+		ds = flt_inst_side(inst, seq->side);
+		if (ref_inst) {
+			ref_ds = flt_inst_side(ref_inst, seq->side);
+			target = (seq->pos == FLT_POS_BEFORE ? &ref_ds->reordered_before : &ref_ds->reordered_after);
 		}
-		else {
-			if (LIST_INLIST(&inst->res.list))
-				LIST_DEL_INIT(&inst->res.list);
-			if (seq->pos == FLT_POS_BEFORE) {
-				if (ref_inst)
-					LIST_APPEND(&ref_inst->res.reordered_before, &inst->res.list);
-				else
-					LIST_APPEND(&ref->reordered_before, &inst->res.list);
-			}
-			else {
-				if (ref_inst)
-					LIST_APPEND(&ref_inst->res.reordered_after, &inst->res.list);
-				else
-					LIST_APPEND(&ref->reordered_after, &inst->res.list);
-			}
-		}
+		else
+			target = (seq->pos == FLT_POS_BEFORE ? &ref->reordered_before : &ref->reordered_after);
+		prev = ds->list.p;
+		LIST_DEL_INIT(&ds->list);
+		LIST_APPEND(target, &ds->list);
 
 		/* a loop must not be created by the sequences: check from the
 		 * moved instance after each sequence. It is enough: before
@@ -2589,6 +2625,11 @@ static int flt_apply_sequences(struct proxy *proxy)
 		 * instance.
 		 */
 		if (flt_check_instance_loop(inst, seq->side) < 0) {
+			/* Keep the global ownership tree and all side trees reachable
+			 * and loop-free for subsequent lookups and error cleanup.
+			 */
+			LIST_DEL_INIT(&ds->list);
+			LIST_INSERT(prev, &ds->list);
 			ha_alert("config: %s '%s' : 'filter-sequence' : a loop is detected around instance '%s%s%s' (from %s:%d).\n",
 				 proxy_type_str(proxy), proxy->id, inst->class->name,
 				 inst->id ? "/" : "", inst->id ? inst->id : "",
@@ -2599,53 +2640,27 @@ static int flt_apply_sequences(struct proxy *proxy)
 	return err_code;
 }
 
-/* Moves the instance <inst> from the class references tree to the flat
- * per-side list of the proxy <px>, recursively: the instances reordered
- * to be executed before <inst> are moved first, then <inst> itself and
- * finally the instances reordered to be executed after it.
- */
-static void flt_flatten_instance(struct proxy *px, struct filter_instance *inst, unsigned int side)
-{
-	struct filter_instance *d, *back;
-
-	if (side == FLT_SIDE_REQ) {
-		list_for_each_entry_safe(d, back, &inst->req.reordered_before, req.list)
-			flt_flatten_instance(px, d, side);
-		LIST_DEL_INIT(&inst->req.list);
-		LIST_APPEND(&px->filter_req_instances, &inst->req.list);
-		list_for_each_entry_safe(d, back, &inst->req.reordered_after, req.list)
-			flt_flatten_instance(px, d, side);
-	}
-	else {
-		list_for_each_entry_safe(d, back, &inst->res.reordered_before, res.list)
-			flt_flatten_instance(px, d, side);
-		LIST_DEL_INIT(&inst->res.list);
-		LIST_APPEND(&px->filter_res_instances, &inst->res.list);
-		list_for_each_entry_safe(d, back, &inst->res.reordered_after, res.list)
-			flt_flatten_instance(px, d, side);
-	}
-}
-
-/* Moves the instances of the list <instances> to the flat per-side list of the
- * proxy <px>, in evaluation order (see flt_flatten_instance()).
+/* Move a instance tree into its flat global/request/response list. Emit
+ * reordered-before instances, the instance, then reordered-after ones.
  */
 static void flt_flatten_inst_list(struct proxy *px, struct list *instances, unsigned int side)
 {
-	struct filter_instance *inst, *back;
+	struct filter_instance *inst;
+	struct filter_inst_side *ds;
 
-	if (side == FLT_SIDE_REQ) {
-		list_for_each_entry_safe(inst, back, instances, req.list)
-			flt_flatten_instance(px, inst, side);
-	}
-	else {
-		list_for_each_entry_safe(inst, back, instances, res.list)
-			flt_flatten_instance(px, inst, side);
+	while (!LIST_ISEMPTY(instances)) {
+		inst = flt_inst_from_list(instances->n, side);
+		ds = flt_inst_side(inst, side);
+		flt_flatten_inst_list(px, &ds->reordered_before, side);
+		LIST_DEL_INIT(&ds->list);
+		LIST_APPEND(flt_instances(px, side), &ds->list);
+		flt_flatten_inst_list(px, &ds->reordered_after, side);
 	}
 }
 
-/* Flattens the filter instances of the proxy <px>: the class references
- * tree is consumed to produce the flat per-side lists of the proxy, in
- * evaluation order. The class references and the consumed filter-enable and
+/* Flattens the filter instances of the proxy <px>: the class-reference
+ * trees are consumed to produce the flat global, request and response lists
+ * of the proxy, in their respective evaluation orders. The class references and the consumed filter-enable and
  * filter-sequence entries are released.
  */
 static void flt_flatten_instances(struct proxy *px)
@@ -2653,20 +2668,16 @@ static void flt_flatten_instances(struct proxy *px)
 	struct filter_class_ref *ref, *refback;
 	struct filter_enabled *flt_en, *enback;
 	struct filter_sequence *seq, *seqback;
+	unsigned int side;
 
-	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_req, list) {
-		flt_flatten_inst_list(px, &ref->reordered_before, FLT_SIDE_REQ);
-		flt_flatten_inst_list(px, &ref->instances, FLT_SIDE_REQ);
-		flt_flatten_inst_list(px, &ref->reordered_after, FLT_SIDE_REQ);
-		LIST_DELETE(&ref->list);
-		free(ref);
-	}
-	list_for_each_entry_safe(ref, refback, &px->conf.filter_classes_res, list) {
-		flt_flatten_inst_list(px, &ref->reordered_before, FLT_SIDE_RES);
-		flt_flatten_inst_list(px, &ref->instances, FLT_SIDE_RES);
-		flt_flatten_inst_list(px, &ref->reordered_after, FLT_SIDE_RES);
-		LIST_DELETE(&ref->list);
-		free(ref);
+	for (side = FLT_SIDE_REQ; side <= FLT_SIDE_GLOBAL; side <<= 1) {
+		list_for_each_entry_safe(ref, refback, flt_class_refs(px, side), list) {
+			flt_flatten_inst_list(px, &ref->reordered_before, side);
+			flt_flatten_inst_list(px, &ref->instances, side);
+			flt_flatten_inst_list(px, &ref->reordered_after, side);
+			LIST_DELETE(&ref->list);
+			free(ref);
+		}
 	}
 
 	/* release the consumed filter-enable and filter-sequence entries */
@@ -2775,9 +2786,9 @@ static int flt_precheck_instances(struct proxy *proxy)
 	 * first, then the references of the classes with no request side from
 	 * the response side
 	 */
-	list_for_each_entry(ref, &proxy->conf.filter_classes_req, list)
+	list_for_each_entry(ref, &proxy->conf.filter_req_refs, list)
 		err_code |= flt_precheck_class_instances(proxy, ref, FLT_SIDE_REQ);
-	list_for_each_entry(ref, &proxy->conf.filter_classes_res, list) {
+	list_for_each_entry(ref, &proxy->conf.filter_res_refs, list) {
 		if (LIST_INLIST(&ref->class->req.list))
 			continue; /* already handled from the request side */
 		err_code |= flt_precheck_class_instances(proxy, ref, FLT_SIDE_RES);
@@ -2814,8 +2825,8 @@ static int flt_precheck_instances_all()
 				 px->id);
 			return err_code;
 		}
-		/* produce the flat per-side lists of the proxy and release the
-		 * configuration structures
+		/* Produce all three flat orders and release the configuration
+		 * structures
 		 */
 		flt_flatten_instances(px);
 	}
@@ -3083,78 +3094,58 @@ struct filter_class *filter_find_class(const char *name)
 	return NULL;
 }
 
-/* Creates the filter class references for the request side.  Returns 0 on
- * success, -1 on error.
+/* Create class references in global registration order, or following a
+ * side's class placement tree. Returns 0 on success, -1 on error.
  */
-static int flt_init_req_class_refs(struct proxy *px, struct list *classes)
+static int flt_init_class_refs_side(struct proxy *px, struct list *classes, unsigned int side)
 {
 	struct filter_class *cls;
 	struct filter_class_ref *ref;
+	struct list *entry, *before, *after;
 
-	list_for_each_entry(cls, classes, req.list) {
-		if (flt_init_req_class_refs(px, &cls->req.before) == -1)
-			goto error;
+	for (entry = classes->n; entry != classes; entry = entry->n) {
+		cls = flt_class_from_list(entry, side);
+		before = after = NULL;
+		if (side == FLT_SIDE_REQ) {
+			before = &cls->req.before;
+			after = &cls->req.after;
+		}
+		else if (side == FLT_SIDE_RES) {
+			before = &cls->res.before;
+			after = &cls->res.after;
+		}
+		if (before && flt_init_class_refs_side(px, before, side) < 0)
+			return -1;
 
 		ref = calloc(1, sizeof(*ref));
 		if (!ref)
-			goto error;
+			return -1;
 		ref->class = cls;
 		LIST_INIT(&ref->instances);
 		LIST_INIT(&ref->reordered_before);
 		LIST_INIT(&ref->reordered_after);
-		LIST_APPEND(&px->conf.filter_classes_req, &ref->list);
+		LIST_APPEND(flt_class_refs(px, side), &ref->list);
 
-		if (flt_init_req_class_refs(px, &cls->req.after) == -1)
-			goto error;
+		if (after && flt_init_class_refs_side(px, after, side) < 0)
+			return -1;
 	}
-
 	return 0;
-  error:
-	return -1;
 }
 
-/* Creates the filter class references for the response side.  Returns 0 on
- * success, -1 on error.
- */
-static int flt_init_res_class_refs(struct proxy *px, struct list *classes)
-{
-	struct filter_class *cls;
-	struct filter_class_ref *ref;
-
-	list_for_each_entry(cls, classes, res.list) {
-		if (flt_init_res_class_refs(px, &cls->res.before) == -1)
-			goto error;
-
-		ref = calloc(1, sizeof(*ref));
-		if (!ref)
-			goto error;
-		ref->class = cls;
-		LIST_INIT(&ref->instances);
-		LIST_INIT(&ref->reordered_before);
-		LIST_INIT(&ref->reordered_after);
-		LIST_APPEND(&px->conf.filter_classes_res, &ref->list);
-
-		if (flt_init_res_class_refs(px, &cls->res.after) == -1)
-			goto error;
-	}
-
-	return 0;
-  error:
-	return -1;
-}
-
-/* Creates the filter class references of the proxy <px>: one reference per
- * registered filter class, linked in the per-side lists of the proxy following
- * the global class order of each side.
+/* Creates the filter class references of the proxy <px>: one global reference
+ * per registered class, plus references on each side it is placed on.
+ * The global order follows filter_classes, independently of the side placement.
  * It is called during the proxy initialization, so all filter classes must be
  * registered first.
  * Returns 0 on success, -1 on error.
  */
 int flt_init_class_refs(struct proxy *px)
 {
-	if (flt_init_req_class_refs(px, &req_filter_classes) == -1)
+	if (flt_init_class_refs_side(px, &filter_classes, FLT_SIDE_GLOBAL) < 0)
 		goto error;
-	if (flt_init_res_class_refs(px, &res_filter_classes) == -1)
+	if (flt_init_class_refs_side(px, &req_filter_classes, FLT_SIDE_REQ) < 0)
+		goto error;
+	if (flt_init_class_refs_side(px, &res_filter_classes, FLT_SIDE_RES) < 0)
 		goto error;
 	return 0;
 
@@ -3251,6 +3242,10 @@ int filter_place_class(struct filter_class *cls, unsigned int side,
 
 	if (!filter_classes_initialized) {
 		ha_alert("filters: class '%s' placed before internal classes were initialized\n", cls->name);
+		goto out;
+	}
+	if (side != FLT_SIDE_REQ && side != FLT_SIDE_RES) {
+		ha_alert("filters: class '%s' placement requires a request or response side\n", cls->name);
 		goto out;
 	}
 	ref = filter_find_class(ref_name);

@@ -264,8 +264,9 @@ struct chn_flt {
 
 /**************************************************************/
 
-#define FLT_SIDE_REQ  0x01
-#define FLT_SIDE_RES  0x02
+#define FLT_SIDE_REQ     0x01
+#define FLT_SIDE_RES     0x02
+#define FLT_SIDE_GLOBAL  0x04  /* Common order when no request/response side is selected */
 
 enum flt_pos {
 	FLT_POS_BEFORE,
@@ -297,12 +298,10 @@ struct filter_class {
 	struct list list; /* Link in global list of filter classes */
 };
 
-/* Per-proxy and per-side reference to a filter class. It anchors the
- * instances of the class evaluated on this side for one proxy. The
- * reference is inserted in the per-side list of the proxy, following the
- * global class order of the side, so that the instances of a proxy are,
- * by default, evaluated in the global class order and not in the parsing
- * order.
+/* Per-proxy reference to a filter class, in the global, request or response
+ * order. It anchors the instances of this class in that order. References
+ * follow the corresponding class order, while instances of the same class
+ * keep their parsing order until filter-sequence directives are applied.
  */
 struct filter_class_ref {
 	struct filter_class *class;   /* The referenced filter class */
@@ -317,6 +316,13 @@ struct filter_class_ref {
 #define FLT_INST_F_INHERITED 0x02   /* The instance was inherited from a defaults section */
 #define FLT_INST_F_SEXPLORE  0x04   /* The instance is on the current path of the sequence loop detection */
 
+/* Independent ordering links for one instance in one of the three orders. */
+struct filter_inst_side {
+	struct list reordered_before; /* instances moved before this instance */
+	struct list reordered_after;  /* instances moved after this instance */
+	struct list list;             /* link in the list holding this instance */
+};
+
 struct filter_instance {
 	const char *id;               /* The filter instance id, uniq for a class and a proxy */
 	unsigned int enabled;         /* != 0 if enabled */
@@ -330,16 +336,9 @@ struct filter_instance {
 		int argc;
 		char **argv;
 	} conf;                       /* The raw configuration used during parsing */
-	struct {
-		struct list reordered_before; /* instances moved before this instance on request */
-		struct list reordered_after;  /* instances moved after this instance on request */
-		struct list list;             /* Link in the request side list holding this instance */
-	} req;
-	struct {
-		struct list reordered_before; /* instances moved before this instance on response */
-		struct list reordered_after;  /* instances moved after this instance on response */
-		struct list list;             /* Link in the response side list holding this instance */
-	} res;
+	struct filter_inst_side global; /* all instances, in global order */
+	struct filter_inst_side req;    /* instances on the request side */
+	struct filter_inst_side res;    /* instances on the response side */
 };
 
 struct filter_sequence {
@@ -347,7 +346,7 @@ struct filter_sequence {
 	const char *id;           /* The id of the instance to move, NULL for the single instance of the class */
 	const char *cls_ref_name; /* The class of the reference entity (a class or a instance) */
 	const char *ref_id;       /* The id of the reference instance, NULL for the whole class */
-	unsigned int side;        /* FLT_SIDE_REQ or FLT_SIDE_RES */
+	unsigned int side;        /* FLT_SIDE_GLOBAL, FLT_SIDE_REQ or FLT_SIDE_RES */
 	enum flt_pos pos;         /* FLT_POS_BEFORE or FLT_POS_AFTER */
 	char *file;               /* The configuration file where the directive was found */
 	int line;                 /* The line in the configuration file */

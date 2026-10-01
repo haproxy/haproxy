@@ -1635,10 +1635,12 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->conf.args.list);
 	LIST_INIT(&p->conf.lf_checks);
 	LIST_INIT(&p->filter_configs);
+	LIST_INIT(&p->filter_instances);
 	LIST_INIT(&p->filter_req_instances);
 	LIST_INIT(&p->filter_res_instances);
-	LIST_INIT(&p->conf.filter_classes_req);
-	LIST_INIT(&p->conf.filter_classes_res);
+	LIST_INIT(&p->conf.filter_refs);
+	LIST_INIT(&p->conf.filter_req_refs);
+	LIST_INIT(&p->conf.filter_res_refs);
 	LIST_INIT(&p->conf.filter_enabled);
 	LIST_INIT(&p->conf.filter_sequences);
 	LIST_INIT(&p->tcpcheck.preset_vars);
