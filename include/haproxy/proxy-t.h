@@ -490,8 +490,9 @@ struct proxy {
 		const char *file_prev;          /* file of the previous instance found with the same name, or NULL */
 		int line_prev;                  /* line of the previous instance found with the same name, or 0 */
 		unsigned int def_ref;           /* default proxy only refcount */
-		struct list filter_classes_req; /* list of the filter class refs with a request side */
-		struct list filter_classes_res; /* list of the filter class refs with a response side */
+		struct list filter_refs;        /* filter class refs in global order */
+		struct list filter_req_refs;    /* filter class refs in request order */
+		struct list filter_res_refs;    /* filter class refs in response order */
 		struct list filter_enabled;     /* list of the filters to enable on this proxy */
 		struct list filter_sequences;   /* list of the filter sequences of this proxy */
 	} conf;					/* config information */
@@ -521,6 +522,7 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
+	struct list filter_instances;		/* flat list of all filter instances, in global order */
 	struct list filter_req_instances;	/* flat list of the filter instances evaluated on the request side */
 	struct list filter_res_instances;	/* flat list of the filter instances evaluated on the response side */
 
