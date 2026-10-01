@@ -9,7 +9,9 @@
 #include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/intops.h>
 #include <haproxy/list.h>
+#include <haproxy/pattern.h>
 #include <haproxy/log.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
@@ -37,6 +39,7 @@ static unsigned int var_txn_limit = 0;
 static unsigned int var_reqres_limit = 0;
 static unsigned int var_check_limit = 0;
 static uint64_t var_name_hash_seed = 0;
+static unsigned int svfm_max = 100; /* Max number of entries processed in set-vars-from-map */
 
 /* Structure and array matching set-var conditions to their respective flag
  * value.
@@ -1131,6 +1134,169 @@ static void release_store_rule(struct act_rule *rule)
 		ha_free((char **)&rule->arg.vars.desc.name);
 }
 
+/*
+ * Cast a string sample to an integer, but unlike c_str2int() reject any
+ * trailing garbage after the number.
+ */
+static int c_str2int_strict(struct sample *smp)
+{
+	const char *str;
+	const char *end;
+
+	if (smp->data.u.str.data == 0)
+		return 0;
+
+	str = smp->data.u.str.area;
+	end = smp->data.u.str.area + smp->data.u.str.data;
+
+	smp->data.u.sint = read_int64(&str, end);
+	if (str != end)
+		return 0;
+	smp->data.type = SMP_T_SINT;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+/*
+ * Cast a string sample to a boolean. The textual "true"/"false" spellings
+ * are accepted in any case, as are the strict integers 0 and 1. Anything else
+ * is rejected.
+ */
+static int c_str2bool(struct sample *smp)
+{
+	if (strcasecmp(smp->data.u.str.area, "true") == 0) {
+		smp->data.type = SMP_T_BOOL;
+		smp->data.u.sint = 1;
+		smp->flags &= ~SMP_F_CONST;
+		return 1;
+	}
+	if (strcasecmp(smp->data.u.str.area, "false") == 0) {
+		smp->data.type = SMP_T_BOOL;
+		smp->data.u.sint = 0;
+		smp->flags &= ~SMP_F_CONST;
+		return 1;
+	}
+
+	if (!c_str2int_strict(smp))
+		return 0;
+
+	if (smp->data.u.sint != 0 && smp->data.u.sint != 1)
+		return 0;
+
+	smp->data.type = SMP_T_BOOL;
+	return 1;
+}
+
+/*
+ * Conversion array used by set-vars-from-map(). Map values are always parsed as
+ * strings. Unlike the global sample_casts matrix, string-to-number conversion
+ * uses the strict variants above.
+ */
+static sample_cast_fct svfm_sample_casts[SMP_TYPES] = {
+	[SMP_T_STR]  = c_none,
+	[SMP_T_BOOL] = c_str2bool,
+	[SMP_T_SINT] = c_str2int_strict,
+};
+
+/*
+ * Same as sample_convert() but based on the local svfm_sample_casts array
+ * above.
+ */
+static int svfm_convert(struct sample *sample, int req_type)
+{
+	if (!svfm_sample_casts[req_type])
+		return 0;
+	if (svfm_sample_casts[req_type] == c_none)
+		return 1;
+	return svfm_sample_casts[req_type](sample);
+}
+
+/*
+ * Parses the map-entry value string <str> into sample <smp> according to the
+ * requested sample data type <type>.
+ * Returns 0 on success, 1 on failure. For strings the sample references <str>
+ * directly (flagged const), so <str> must outlive the sample; here it always
+ * does since it points into the map entry, which lives as long as the process.
+ */
+static int svfm_parse_value(const char *str, int type, struct sample *smp)
+{
+	smp->data.type = SMP_T_STR;
+	smp->flags |= SMP_F_CONST;
+	smp->data.u.str.area = (char *)str;
+	smp->data.u.str.data = strlen(str);
+	smp->data.u.str.size = 0; /* const, not writable */
+
+	if (!svfm_convert(smp, type))
+		return 1;
+
+	return 0;
+}
+
+/*
+ * Runtime handler for the "set-vars-from-map" action. It walks the current
+ * generation of the map entries and, for each one, sets a variable named
+ * "<scope>.<key>" to the value parsed from the entry according to the
+ * configured type. It always returns ACT_RET_CONT, ignoring per-entry errors
+ * so that a single malformed line does not abort the whole batch.
+ */
+static enum act_return action_set_vars_from_map(struct act_rule *rule, struct proxy *px,
+                                                struct session *sess, struct stream *s, int flags)
+{
+	struct pat_ref *ref = rule->arg.act.p[0];
+	enum vars_scope scope = (enum vars_scope)(uintptr_t)rule->arg.act.p[1];
+	int type = (int)(uintptr_t)rule->arg.act.p[2];
+	unsigned int count = 0;
+
+	struct pat_ref_gen *gen;
+	struct pat_ref_elt *elt;
+
+	HA_RWLOCK_RDLOCK(PATREF_LOCK, &ref->lock);
+
+	gen = pat_ref_gen_get(ref, ref->curr_gen);
+	if (!gen)
+		goto done;
+
+	list_for_each_entry(elt, &gen->head, list) {
+		struct var_desc desc;
+		struct sample smp;
+		const char *value = elt->sample ? elt->sample : "";
+		size_t name_len = strlen(elt->pattern);
+
+		/* Too many entries processed, stop */
+		if (++count > svfm_max)
+			break;
+
+		/* Silently ignore entries whose name would not be a valid
+		 * variable name, as well as empty names.
+		 */
+		if (!var_name_is_valid(elt->pattern, name_len, NULL))
+			continue;
+
+		/* The scope was already resolved at parse time, so the
+		 * descriptor can be filled directly from the map key without
+		 * going through vars_fill_desc() again.
+		 */
+		desc.scope = scope;
+		desc.flags = 0;
+		desc.name = elt->pattern;
+		desc.name_len = name_len;
+		desc.name_hash = XXH3(elt->pattern, name_len, var_name_hash_seed);
+
+		memset(&smp, 0, sizeof(smp));
+		smp_set_owner(&smp, px, sess, s, SMP_OPT_FINAL);
+
+		if (svfm_parse_value(value, type, &smp))
+			/* Value parsing failed, skipping */
+			continue;
+
+		var_set(&desc, &smp, 0);
+	}
+
+done:
+	HA_RWLOCK_RDUNLOCK(PATREF_LOCK, &ref->lock);
+	return ACT_RET_CONT;
+}
+
 /* This two function checks the variable name and replace the
  * configuration string name by the global string name. its
  * the same string, but the global pointer can be easy to
@@ -1219,6 +1385,132 @@ static int conv_check_var(struct arg *args, struct sample_conv *conv,
 		retval = vars_parse_cond_param(&args[cond_idx++].data.str, &conditions, err_msg);
 
 	return retval;
+}
+
+/*
+ * Parses the "set-vars-from-map(<scope>,<map-file>[,<type>])" action.
+ *
+ * <scope> is one of sess/txn/req/res/check. <map-file> is a two-column map file
+ * whose first column holds unqualified variable names and whose second column
+ * holds their values. <type> is an optional value type among "str" (default),
+ * "int" and "bool"; it tells how to parse the values, which matters in
+ * particular for arithmetic on numeric variables.
+ *
+ * Returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR with <err> set on error.
+ */
+static enum act_parse_ret parse_set_vars_from_map(const char **args, int *arg, struct proxy *px,
+                                                  struct act_rule *rule, char **err)
+{
+	const char *kw = args[*arg - 1];
+	const char *p;
+	int len;
+	struct ist params, scope_ist, map_ist, type_ist;
+	char *map_name = NULL;
+	char scope_buf[6];
+	int scope;
+	int type = SMP_T_STR;
+	struct pat_ref *ref;
+	const char *endptr = NULL;
+
+	/* the whole "set-vars-from-map(...)" token is a single argument */
+	p = strchr(kw, '(');
+	if (!p) {
+		memprintf(err, "invalid or incomplete action '%s'. Expects 'set-vars-from-map(<scope>,<map-file>[,<type>])'", kw);
+		return ACT_RET_PRS_ERR;
+	}
+	p++; /* jump the '(' */
+	len = strlen(p);
+	if (len == 0 || p[len - 1] != ')') {
+		memprintf(err, "incomplete argument after action '%s'. Expects 'set-vars-from-map(<scope>,<map-file>[,<type>])'", kw);
+		return ACT_RET_PRS_ERR;
+	}
+	len--; /* drop the ')' */
+
+	/* split "<scope>,<map-file>[,<type>]" */
+	params = ist2(p, len);
+	scope_ist = istsplit(&params, ',');
+	map_ist   = istsplit(&params, ',');
+	type_ist  = istsplit(&params, ',');
+
+	if (!istlen(scope_ist) || !istlen(map_ist)) {
+		memprintf(err, "action '%s' expects at least a scope and a map file name", kw);
+		return ACT_RET_PRS_ERR;
+	}
+
+	/* Resolve the scope name. It is a slice of the whole action argument so
+	 * it is copied into a local buffer to be nul-terminated before being
+	 * parsed.
+	 */
+	if (istlen(scope_ist) >= sizeof(scope_buf)) {
+		memprintf(err, "invalid scope '%.*s' in action '%s'. Expects one of 'sess', 'txn', 'req', 'res' or 'check'",
+		          (int)istlen(scope_ist), istptr(scope_ist), kw);
+		return ACT_RET_PRS_ERR;
+	}
+	memcpy(scope_buf, istptr(scope_ist), istlen(scope_ist));
+	scope_buf[istlen(scope_ist)] = '\0';
+
+	scope = var_parse_scope_str(scope_buf, &endptr);
+	if (scope == -1 || scope == SCOPE_PROC || (endptr && *endptr)) {
+		memprintf(err, "invalid scope '%.*s' in action '%s'. Expects one of 'sess', 'txn', 'req', 'res' or 'check'",
+		          (int)istlen(scope_ist), istptr(scope_ist), kw);
+		return ACT_RET_PRS_ERR;
+	}
+
+	/* resolve the optional value type */
+	if (istlen(type_ist)) {
+		if (isteq(type_ist, ist("str")))
+			type = SMP_T_STR;
+		else if (isteq(type_ist, ist("int")))
+			type = SMP_T_SINT;
+		else if (isteq(type_ist, ist("bool")))
+			type = SMP_T_BOOL;
+		else {
+			memprintf(err, "invalid type '%.*s' in action '%s'. Expects 'str', 'int' or 'bool'",
+			          (int)istlen(type_ist), istptr(type_ist), kw);
+			return ACT_RET_PRS_ERR;
+		}
+	}
+
+	map_name = my_strndup(istptr(map_ist), istlen(map_ist));
+	if (!map_name)
+		goto err;
+
+	/* Load the map file as a two-column pattern reference, or reuse it if it
+	 * was already loaded (e.g. by a map() converter or another such action).
+	 */
+	ref = pat_ref_lookup(map_name);
+	if (!ref) {
+		chunk_printf(&trash, "map file '%s' loaded by set-vars-from-map at %s:%d",
+		             map_name, px->conf.args.file, px->conf.args.line);
+		ref = pat_ref_new(map_name, trash.area, PAT_REF_MAP | PAT_REF_SMP);
+		if (!ref) {
+			memprintf(err, "out of memory while loading map file '%s'", map_name);
+			goto err;
+		} else if (!(ref->flags & PAT_REF_FILE)) {
+			memprintf(err, "set-vars-from-map only accepts file-based maps ('%s')", map_name);
+			goto err;
+		}
+
+		if (!pat_ref_read_from_file_smp(ref, err))
+			goto err;
+	} else if (!(ref->flags & PAT_REF_SMP)) {
+		memprintf(err, "the file '%s' is used as a one-column file elsewhere and cannot be used "
+		               "by 'set-vars-from-map' which requires a two-column (key/value) file", map_name);
+		goto err;
+	}
+
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = action_set_vars_from_map;
+	rule->arg.act.p[0] = ref;
+	rule->arg.act.p[1] = (void *)(uintptr_t)scope;
+	rule->arg.act.p[2] = (void *)(uintptr_t)type;
+
+	free(map_name);
+	return ACT_RET_PRS_OK;
+
+err:
+	free(map_name);
+	return ACT_RET_PRS_ERR;
 }
 
 /* This function is a common parser for using variables. It understands
@@ -1690,6 +1982,13 @@ static int vars_max_size_check(char **args, int section_type, struct proxy *curp
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_check_limit);
 }
 
+static int vars_from_map_max(char **args, int section_type, struct proxy *curpx,
+                             const struct proxy *defpx, const char *file, int line,
+                             char **err)
+{
+	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &svfm_max);
+}
+
 /* early boot initialization */
 static void vars_init()
 {
@@ -1721,6 +2020,7 @@ static struct action_kw_list tcp_req_conn_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1730,6 +2030,7 @@ static struct action_kw_list tcp_req_sess_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1739,6 +2040,7 @@ static struct action_kw_list tcp_req_cont_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1748,6 +2050,7 @@ static struct action_kw_list tcp_res_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1757,6 +2060,7 @@ static struct action_kw_list tcp_check_kws = {ILH, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1766,6 +2070,7 @@ static struct action_kw_list http_req_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1775,6 +2080,7 @@ static struct action_kw_list http_res_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1784,6 +2090,7 @@ static struct action_kw_list http_after_res_kws = { { }, {
 	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
+	{ "set-vars-from-map", parse_set_vars_from_map, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -1798,6 +2105,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.vars.txn-max-size",    vars_max_size_txn    },
 	{ CFG_GLOBAL, "tune.vars.reqres-max-size", vars_max_size_reqres },
 	{ CFG_GLOBAL, "tune.vars.check-max-size",  vars_max_size_check  },
+	{ CFG_GLOBAL, "tune.vars.from-map.max",    vars_from_map_max    },
 	{ /* END */ }
 }};
 

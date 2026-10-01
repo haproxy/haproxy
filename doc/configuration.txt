@@ -2032,6 +2032,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.ocsp-update.maxdelay (deprecated)
    - tune.ssl.ocsp-update.mindelay (deprecated)
    - tune.takeover-other-tg-connections
+   - tune.vars.from-map.max
    - tune.vars.global-max-size
    - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
@@ -5830,6 +5831,13 @@ tune.vars.txn-max-size <size>
   Notice that exceeding the limits at runtime will not result in an error
   message, but values might be cut off or corrupted. So make sure to accurately
   plan for the amount of space needed to store all your variables.
+
+tune.vars.from-map.max <number>
+  Sets the maximum number of map entries that the "set-vars-from-map" action
+  processes in a single rule evaluation. Once this number of entries has been
+  handled, the remaining entries of the map are silently ignored. This bounds
+  the amount of work performed by the action and prevents a large map from
+  stalling the processing of a stream. The default value is 100.
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each stream. It
@@ -15602,6 +15610,7 @@ set-tos (deprecated)           -           X     X     X     X            X   X 
 set-uri                        -           -     -     -     -            X   -   -
 set-var                        -           X     X     X     X            X   X   X
 set-var-fmt                    -           X     X     X     X            X   X   X
+set-vars-from-map              -           X     X     X     X            X   X   X
 silent-drop                    -           X     X     X     X            X   X   -
 strict-mode                    -           -     -     -     -            X   X   X
 switch-mode                    -           -     -     X     -            -   -   -
@@ -17077,6 +17086,50 @@ set-var-fmt(<var-name>[,<cond>...]) <fmt>
   Example:
     http-request set-var(req.my_var) req.fhdr(user-agent),lower
     http-request set-var-fmt(txn.from) %[src]:%[src_port]
+
+
+set-vars-from-map(<scope>,<map-file>[,<type>])
+  Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
+                    - |          X  |   X  |   X  |   X  |          X |  X |  X
+
+  This action loads the two-column map file <map-file> and sets one variable
+  per entry. The first column of each entry holds the unqualified variable
+  name and the second column holds the value. For every entry, a variable named
+  "<scope>.<name>" is set, so all entries share the same <scope>, which must be
+  one of "sess", "txn", "req", "res" or "check".
+  The number of entries processed will never exceed "tune.vars.from-map.max"
+  (defaults to 100).
+
+  The optional <type> argument states how the values must be parsed. It
+  defaults to "str" and accepts:
+    - "str":  values are kept as strings, including any embedded space;
+    - "int":  values are parsed as strict integers, meaning that an
+              entry with trailing garbage is rejected instead of being silently
+              truncated. This is what makes the resulting variables usable by
+              arithmetic converters such as add() or sub();
+    - "bool": values are parsed as booleans. The "true" and "false" spellings
+              are accepted in any case, as are the integers 0 and 1.
+
+  An entry whose name is not a valid variable name, i.e. an empty name or a
+  name containing characters other than 'a-z', 'A-Z', '0-9', '_' and '.', is
+  silently ignored. Likewise, an entry whose value cannot be parsed with the
+  requested <type> is silently skipped. In both cases the processing of the
+  remaining entries continues normally.
+
+  The map file is loaded at configuration parsing time using the same mechanism
+  as the "map()" converter, so it may also be shared with map lookups. Reusing
+  a file already loaded elsewhere is allowed as long as it was loaded as a
+  two-column file too; a one-column file cannot be used. Because the current
+  generation of entries is evaluated on every rule execution, the variables
+  follow runtime updates performed through the stats socket.
+
+  Example:
+    # content of vars.map:
+    #   str1 this is a string
+    #   int1 12
+    #   bool1 true
+    http-request set-vars-from-map(txn,/etc/haproxy/vars.map)
+    http-request set-vars-from-map(req,/etc/haproxy/limits.map,int)
 
 
 silent-drop [ rst-ttl <ttl> ]
