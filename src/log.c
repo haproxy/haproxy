@@ -1714,6 +1714,87 @@ static int parse_log_target(char *raw, struct log_target *target, char **err)
 }
 
 /*
+ * Parse list (comma separated) of loggers sections names and update
+ * <loggers> list accordingly.
+ *
+ * The function returns 1 in success case, otherwise, it returns 0 and err is
+ * filled.
+ */
+int parse_loggers_list(char *names, struct list *loggers, const char *file, int linenum, char **err)
+{
+	size_t cur_sep;
+
+	if (names == NULL) {
+		memprintf(err, "invalid arguments, a list of loggers names "
+		               "separated by commas.");
+		return 0;
+	}
+
+	/* iterate over comma separated list of loggers name */
+
+	while (names[0]) {
+		struct logger *logger;
+		struct log_loggers *current;
+		struct log_loggers *match = NULL;
+
+		cur_sep = strcspn(names, ",");
+
+
+		list_for_each_entry(current, &log_loggers_list, list) {
+			if (strncmp(current->id, names, cur_sep) == 0 &&
+			    cur_sep == strlen(current->id)) {
+				match = current;
+				break;
+			}
+		}
+
+		if (!match) {
+			memprintf(err, "no valid loggers section with '%.*s' name found.\n", (int)cur_sep, names);
+			return 0;
+		}
+
+		list_for_each_entry(logger, &match->loggers, list) {
+			struct logger *node;
+
+			list_for_each_entry(node, loggers, list) {
+				if (node->ref == logger)
+					goto skip_logger;
+			}
+
+			/* duplicate logger from ref_loggers list to store in loggers */
+			node = dup_logger(logger);
+			if (!node) {
+				memprintf(err, "out of memory error");
+				goto error;
+			}
+
+			/* manually override some values */
+			ha_free(&node->conf.file);
+			node->conf.file = strdup(file);
+			node->conf.line = linenum;
+
+			/* add to list */
+			LIST_APPEND(loggers, &node->list);
+
+		  skip_logger:
+			continue;
+		}
+
+
+ next:
+		if (names[cur_sep])
+			names += cur_sep + 1;
+		else
+			names += cur_sep;
+	}
+
+	return 1;
+
+ error:
+	return 0;
+}
+
+/*
  * Parse "log" keyword and update <loggers> list accordingly.
  *
  * When <do_del> is set, it means the "no log" line was parsed, so all log
@@ -1748,6 +1829,20 @@ int parse_logger(char **args, struct list *loggers, int do_del, const char *file
 			LIST_DEL_INIT(&logger->list);
 			free_logger(logger);
 		}
+		return 1;
+	}
+
+	/* "log to 'loggers list': inherit from one or multiple ('loggers list' is
+	 * comma separated list of 'loggers' section names) "loggers" sections.
+	 */
+	if (*(args[1]) && *(args[2]) && strcmp(args[1], "to") == 0) {
+		if (*args[3]) {
+			memprintf(err, "invalid arguments, a list of loggers names "
+			               "separated by commas.");
+			goto error;
+		}
+		if (!parse_loggers_list(args[2], loggers, file, linenum, err))
+			goto error;
 		return 1;
 	}
 
@@ -1973,7 +2068,6 @@ int parse_logger(char **args, struct list *loggers, int do_del, const char *file
 	free_logger(logger);
 	return 0;
 }
-
 
 /*
  * returns log format, LOG_FORMAT_UNSPEC is return if not found.
