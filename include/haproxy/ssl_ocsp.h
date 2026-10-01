@@ -40,7 +40,8 @@ void ssl_sock_free_ocsp_instance(struct certificate_ocsp *ocsp);
 
 int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
                                 struct certificate_ocsp *ocsp,
-                                OCSP_CERTID *cid, int *status, char **err);
+                                OCSP_CERTID *cid, int *status,
+                                unsigned int  *errcode, char **err);
 int ssl_sock_update_ocsp_response(struct buffer *ocsp_response, char **err);
 void ssl_sock_ocsp_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp);
 
@@ -48,7 +49,7 @@ int ssl_ocsp_get_uri_from_cert(X509 *cert, struct buffer *out, char **err);
 int ssl_ocsp_create_request_details(const OCSP_CERTID *certid, struct buffer *req_url,
                                     struct buffer *req_body, char **err);
 int ssl_ocsp_check_response(STACK_OF(X509) *chain, X509 *issuer,
-                            struct buffer *respbuf, char **err);
+                            struct buffer *respbuf, unsigned int *errcode, char **err);
 
 int ssl_create_ocsp_update_task(char **err);
 void ssl_destroy_ocsp_update_task(void);
