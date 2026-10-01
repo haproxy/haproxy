@@ -1,0 +1,123 @@
+varnishtest "Test the set-vars-from-map() action"
+
+# This config tests the set-vars-from-map() action. It loads three map files
+# (string, integer and boolean values) and populates session, transaction and
+# request variables from them. The resulting scopes are observed through the
+# dump_all_vars() sample fetch so that the variables don't have to be listed
+# one by one. It checks that:
+#  - string values keep their spaces (they are quoted by dump_all_vars),
+#  - integer values are stored unquoted as integers, so that arithmetic
+#    converters can work on them,
+#  - an unparsable integer entry is silently skipped and never appears,
+#  - an entry whose name is not a valid variable name is silently ignored,
+#  - boolean values are rendered as unquoted true/false, accepting both the
+#    0/1 and the false/true spellings,
+#  - entries added through the CLI ("add map") are picked up by subsequent
+#    sessions, since the action always evaluates the current map generation.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev6)'"
+feature ignore_unknown_macro
+
+shell {
+    cat << EOF > ${tmpdir}/set_vars_from_map.map
+# Variable names are unqualified, the scope comes from the action itself.
+str1 this is a string
+str2 another one
+# This name contains an invalid character and must be silently ignored
+bad-name ignored
+EOF
+
+    cat << EOF > ${tmpdir}/set_vars_from_map_int.map
+int1 12
+int2 30
+# This one cannot be parsed as an integer, it must be silently ignored
+notanint hello
+extra_var1 1
+extra_var2 1
+EOF
+
+    cat << EOF > ${tmpdir}/set_vars_from_map_bool.map
+bool1 true
+bool2 0
+EOF
+}
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+    tune.vars.from-map.max 4
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+
+        # default type is "str"
+        tcp-request session set-vars-from-map(sess,${tmpdir}/set_vars_from_map.map)
+
+        # "int" values are real integers, arithmetic converters must work on
+        # them. The "notanint" entry cannot be parsed and must be skipped
+        # without affecting the other entries.
+        http-request set-vars-from-map(txn,${tmpdir}/set_vars_from_map_int.map,int)
+
+        # "bool" accepts 0/1 and false/true
+        http-request set-vars-from-map(req,${tmpdir}/set_vars_from_map_bool.map,bool)
+
+        # Dump the whole scopes rather than fetching each variable. Note that
+        # dump_all_vars() outputs the variables in hash order, so the test
+        # below only checks the presence of each expected entry.
+        http-request return status 200 hdr x-sess "%[dump_all_vars(sess)]" hdr x-txn "%[dump_all_vars(txn)]" hdr x-req "%[dump_all_vars(req)]"
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -url /
+    rxresp
+    expect resp.status == 200
+    # string values keep their spaces and are quoted by dump_all_vars, which
+    # proves they are stored as strings
+    expect resp.http.x-sess ~ "sess.str1=\"this is a string\""
+    expect resp.http.x-sess ~ "sess.str2=\"another one\""
+    # integer values are unquoted, proving they are stored as integers. The
+    # unparsable "notanint" entry was skipped and must not appear.
+    expect resp.http.x-txn ~ "txn.int1=12"
+    expect resp.http.x-txn ~ "txn.int2=30"
+    expect resp.http.x-txn !~ "notanint"
+    # the maximum number of entries is set to 4 so the fifth one should not be present
+    expect resp.http.x-txn !~ "extra_var2"
+    # boolean values are rendered as unquoted true/false
+    expect resp.http.x-req ~ "req.bool1=true"
+    expect resp.http.x-req ~ "req.bool2=false"
+    # no "str3" entry exists in the map yet
+    expect resp.http.x-sess !~ "str3"
+    # the "bad-name" entry has an invalid name and is silently ignored
+    expect resp.http.x-sess !~ "bad-name"
+} -run
+
+# The action always evaluates the current generation of the map, so an entry
+# added through the CLI must be reflected by the variables of new sessions.
+haproxy h1 -cli {
+    send "add map ${tmpdir}/set_vars_from_map.map str3 updated-from-cli"
+    expect ~ "^\\n"
+
+    send "show map ${tmpdir}/set_vars_from_map.map"
+    expect ~ ".*str3 updated-from-cli.*"
+}
+
+client c2 -connect ${h1_fe1_sock} {
+    txreq -url /
+    rxresp
+    expect resp.status == 200
+    # the entry added through the CLI is now visible in the session scope
+    expect resp.http.x-sess ~ "sess.str3=\"updated-from-cli\""
+    # pre-existing entries are still present
+    expect resp.http.x-sess ~ "sess.str1=\"this is a string\""
+    expect resp.http.x-sess ~ "sess.str2=\"another one\""
+} -run
+
+haproxy h1 -wait
