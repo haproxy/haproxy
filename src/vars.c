@@ -280,6 +280,29 @@ void vars_init_head(struct vars *vars, enum vars_scope scope)
 	HA_RWLOCK_INIT(&vars->rwlock);
 }
 
+/* Returns non-zero if <name>, of length <len>, is a valid variable name part,
+ * i.e. the part following the "<scope>." prefix. A valid part must not be
+ * empty and may only contain alphanumerics, '_' and '.'. When <off> is not
+ * NULL, it is set to the offset of the first invalid character, or to <len>
+ * when the whole name is valid, so that callers may report it.
+ */
+static int var_name_is_valid(const char *name, size_t len, size_t *off)
+{
+	size_t i;
+
+	for (i = 0; i < len; i++) {
+		if (!isalnum((unsigned char)name[i]) && name[i] != '_' && name[i] != '.') {
+			if (off)
+				*off = i;
+			return 0;
+		}
+	}
+
+	if (off)
+		*off = len;
+	return len != 0;
+}
+
 /* This function returns the description (a var_desc structure) of a variable
  * name of a specified length. It makes sure that the scope is valid. It fills
  * <desc> passed as parameter and returns non-zero on success, 0 on
@@ -287,8 +310,8 @@ void vars_init_head(struct vars *vars, enum vars_scope scope)
  */
 static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char **err)
 {
-	const char *tmp;
 	const char *endptr = NULL;
+	size_t off;
 
 	/* Check name and length. */
 	if (name == NULL || len == 0) {
@@ -339,11 +362,11 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 		goto err;
 
 	/* Check variable name syntax. */
-	for (tmp = name; tmp < name + len; tmp++) {
-		if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
-			memprintf(err, "invalid syntax at char '%c'", *tmp);
-			return 0;
-		}
+	if (!var_name_is_valid(name, len, &off)) {
+		if (off < (size_t)len)
+			memprintf(err, "Invalid character '%c' in variable name %.*s", name[off],
+				  len, name);
+		goto err;
 	}
 
 	desc->name_hash = XXH3(name, len, var_name_hash_seed);
@@ -352,8 +375,9 @@ static int vars_fill_desc(const char *name, int len, struct var_desc *desc, char
 	return 1;
 
 err:
-	memprintf(err, "invalid variable name '%.*s'. A variable name must start with its scope. "
-		  "The scope can be 'proc', '(p)sess', '(p)txn', '(p)req', '(p)res' or 'check'", len, name);
+	if (!err)
+		memprintf(err, "invalid variable name '%.*s'. A variable name must start with its scope. "
+			  "The scope can be 'proc', '(p)sess', '(p)txn', '(p)req', '(p)res' or 'check'", len, name);
 	return 0;
 }
 
