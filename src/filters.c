@@ -77,6 +77,18 @@ static const char *flt_side_name(unsigned int side)
 	return "global";
 }
 
+/* Return 0 for an invalid order name. */
+static unsigned int flt_parse_side(const char *name)
+{
+	if (strcmp(name, "global") == 0)
+		return FLT_SIDE_GLOBAL;
+	if (strcmp(name, "request") == 0)
+		return FLT_SIDE_REQ;
+	if (strcmp(name, "response") == 0)
+		return FLT_SIDE_RES;
+	return 0;
+}
+
 static struct list *flt_class_refs(struct proxy *px, unsigned int side)
 {
 	if (side == FLT_SIDE_REQ)
@@ -2248,7 +2260,7 @@ static int flt_parse_entity(const char *str, const char **cls_name, const char *
 /*
  * Parses the "filter-sequence" keyword. The syntax is:
  *
- *   filter-sequence {request|response} <inst>:<pos>(<entity>) [<inst>:<pos>(<entity>) ...]
+ *   filter-sequence {global|request|response} <inst>:<pos>(<entity>) [<inst>:<pos>(<entity>) ...]
  *
  * where <pos> is 'before' or 'after': "A:before(B)" means the instance A
  * is evaluated before the entity B (a class or a instance), "A:after(B)"
@@ -2283,16 +2295,13 @@ static int parse_filter_sequence(char **args, int section_type, struct proxy *cu
 		memprintf(err, "missing argument for '%s' in %s '%s'.", args[0], proxy_type_str(curpx), curpx->id);
 		goto error;
 	}
-	if (strcmp(args[1], "request") == 0)
-		side = FLT_SIDE_REQ;
-	else if (strcmp(args[1], "response") == 0)
-		side = FLT_SIDE_RES;
-	else {
-		memprintf(err, "'request' or 'response' expected.");
+	side = flt_parse_side(args[1]);
+	if (!side) {
+		memprintf(err, "'global', 'request' or 'response' expected.");
 		goto error;
 	}
 	if (!*args[2]) {
-		memprintf(err, "missing sequence. The syntax is: filter-sequence {request|response} <inst>:<pos>(<entity>) [<inst>:<pos>(<entity>) ...], with <pos> being 'before' or 'after'.");
+		memprintf(err, "missing sequence. The syntax is: filter-sequence {global|request|response} <inst>:<pos>(<entity>) [<inst>:<pos>(<entity>) ...], with <pos> being 'before' or 'after'.");
 		goto error;
 	}
 
