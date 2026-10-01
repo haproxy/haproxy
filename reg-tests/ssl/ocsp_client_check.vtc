@@ -1,0 +1,30 @@
+#REGTEST_TYPE=slow
+
+# This reg-test focuses on the 'do-ocsp-request' action which performs an OCSP
+# check on the certificate presented by the client during the TLS handshake.
+#
+# The PKI used by this test is built by
+# reg-tests/ssl/certs/ocsp_client_check/gen_certs.sh. It contains a root CA
+# that has a SubjectKeyIdentifier extension, which is required for it to be
+# usable through the 'issuers-chain-path' option (the issuer of the client
+# certificate is looked up in the issuer tree via its AuthorityKeyIdentifier).
+# Three client certificates are signed by this CA, two of them having an
+# Authority Information Access extension that points to the OCSP responder
+# started by this test (on the hardcoded 127.0.0.1:12346 address), the third
+# one having no OCSP URI at all.
+#
+# The OCSP responder is an 'openssl ocsp' instance that relies on the
+# certificate database in ocsp_client_check/index.txt, in which the
+# "revoked.ocsp-client-check.com" certificate is revoked.
+#
+# If this test does not work anymore:
+# - Check that you have openssl
+# - Check that the 12346 port is free
+
+varnishtest "Test the 'do-ocsp-request' action"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(BoringSSL) && !ssllib_name_startswith(LibreSSL) && openssl_version_atleast(1.1.1)'"
+feature cmd "command -v openssl"
+
+setenv VTC_SOCK_TYPE stream
+include ${testdir}/ocsp_client_check.vtci

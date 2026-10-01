@@ -1,0 +1,153 @@
+feature ignore_unknown_macro
+
+# The OCSP responder has to serve 3 requests:
+#  - one for the "good" client certificate through the http frontend
+#  - one for the "revoked" client certificate through the http frontend
+#  - one for the "good" client certificate through the tcp-request frontend
+# The clients that have no OCSP URI in their certificate (or no certificate at
+# all) do not generate any OCSP request.
+process p1 "openssl ocsp -index ${testdir}/certs/ocsp_client_check/index.txt -rsigner ${testdir}/certs/ocsp_client_check/ca/ocsp_client_check_ca.crt -rkey ${testdir}/certs/ocsp_client_check/ca.key -CA ${testdir}/certs/ocsp_client_check/ca/ocsp_client_check_ca.crt -nrequest 3 -ndays 1 -port 12346 -timeout 5" -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+        stats socket "${tmpdir}/h1/stats" level admin
+        # The issuer of the client certificates must be known in order to be
+        # able to build the OCSP request and to check the OCSP response's
+        # signature.
+        issuers-chain-path "${testdir}/certs/ocsp_client_check/ca/"
+        crt-base "${testdir}/certs/ocsp_client_check"
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        # The 'do-ocsp-request' action uses the http-request timeout as a limit
+        # for the whole OCSP request/response process.
+        timeout http-request "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # Clear listeners used to build TLS connections that present the various
+    # client certificates to the SSL frontends.
+    listen clear-good-lst
+        bind "fd@${clear_good}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none crt client_good.pem
+
+    listen clear-revoked-lst
+        bind "fd@${clear_revoked}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none crt client_revoked.pem
+
+    listen clear-noocsp-lst
+        bind "fd@${clear_noocsp}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none crt client_no_ocsp.pem
+
+    listen clear-nocert-lst
+        bind "fd@${clear_nocert}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_sock}" ssl verify none
+
+    listen clear-good-tcp-lst
+        bind "fd@${clear_good_tcp}"
+        server s1 "${VTC_SOCK_TYPE}+${h1_ssl_tcp_sock}" ssl verify none crt client_good.pem
+
+    # The action never denies the request by itself, the OCSP status and error
+    # reason are only exposed through variables. It is up to the configuration
+    # to decide what to do with them.
+    frontend ssl-fe
+        bind "${VTC_SOCK_TYPE}+fd@${ssl}" ssl crt server.pem ca-file "${testdir}/certs/ocsp_client_check/ca/ocsp_client_check_ca.crt" verify optional
+
+        http-request do-ocsp-request status-var txn.ocsp_status reason-var txn.ocsp_reason
+        http-request return status 200
+
+        # "http-after-response" is used instead of "http-request return"
+        # header directives because the latter does not emit headers that
+        # have an empty value, while the converted OCSP reason is expected
+        # to be an empty string when the error code is 0.
+        http-after-response set-header x-ocsp-status "%[var(txn.ocsp_status)]"
+        http-after-response set-header x-ocsp-error "%[var(txn.ocsp_reason)]"
+        http-after-response set-header x-ocsp-reason "%[var(txn.ocsp_reason),ocsp_check_err_str]"
+
+    # Same check, performed by a "tcp-request content" rule instead.
+    frontend ssl-tcp-fe
+        bind "${VTC_SOCK_TYPE}+fd@${ssl_tcp}" ssl crt server.pem ca-file "${testdir}/certs/ocsp_client_check/ca/ocsp_client_check_ca.crt" verify optional
+
+        tcp-request inspect-delay 5s
+        tcp-request content do-ocsp-request status-var txn.ocsp_status reason-var txn.ocsp_reason
+
+        http-request return status 200
+
+        # "http-after-response" is used instead of "http-request return"
+        # header directives because the latter does not emit headers that
+        # have an empty value, while the converted OCSP reason is expected
+        # to be an empty string when the error code is 0.
+        http-after-response set-header x-ocsp-status "%[var(txn.ocsp_status)]"
+        http-after-response set-header x-ocsp-error "%[var(txn.ocsp_reason)]"
+        http-after-response set-header x-ocsp-reason "%[var(txn.ocsp_reason),ocsp_check_err_str]"
+} -start
+
+
+# Valid client certificate, the OCSP responder answers "good".
+client c1 -connect ${h1_clear_good_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ocsp-status == "good"
+    expect resp.http.x-ocsp-error == "0"
+} -run
+
+# Revoked client certificate. The action does not reject the request, the
+# status is only reported in the variable.
+client c1 -connect ${h1_clear_revoked_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ocsp-status == "revoked"
+} -run
+
+# The client certificate has no OCSP URI, no check can be performed.
+client c1 -connect ${h1_clear_noocsp_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ocsp-status == "inapplicable"
+    expect resp.http.x-ocsp-error == "0"
+} -run
+
+# No client certificate at all, no check can be performed either.
+client c1 -connect ${h1_clear_nocert_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ocsp-status == "inapplicable"
+    expect resp.http.x-ocsp-error == "0"
+} -run
+
+# Same check performed through a "tcp-request content" rule.
+client c1 -connect ${h1_clear_good_tcp_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ocsp-status == "good"
+    expect resp.http.x-ocsp-error == "0"
+} -run
+
+# The responder should have answered all the expected requests by now.
+process p1 -wait -expect-exit 0
+
+# The OCSP responder is not running anymore, the check cannot be performed. The
+# request is still not denied but the status is not "good", the error code is
+# non-zero and the converted reason is filled.
+client c1 -connect ${h1_clear_good_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ocsp-status == "unknown"
+    expect resp.http.x-ocsp-error ~ "^[1-9][0-9]*$"
+    expect resp.http.x-ocsp-reason != ""
+} -run
+
+haproxy h1 -wait
