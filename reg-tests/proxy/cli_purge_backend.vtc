@@ -1,0 +1,111 @@
+# Test "purge backend" runtime API
+
+varnishtest "Purge backend via CLI"
+
+feature cmd "command -v socat"
+feature ignore_unknown_macro
+
+barrier b1 cond 2
+
+server s1 {
+	rxreq
+	barrier b1 sync
+	txresp
+} -start
+
+haproxy h1 -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+	stats socket "${tmpdir}/h1/stats" level admin
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+		use_backend %[req.hdr(x-be)]
+
+	backend be1
+		balance first
+		server srv1 ${s1_addr}:${s1_port}
+		server srv2 ${s1_addr}:${s1_port}
+
+	backend be2
+		balance first
+		server srv1 ${s1_addr}:${s1_port}
+		server srv2 ${s1_addr}:${s1_port}
+
+	frontend fe_int
+		bind "fd@${fint}"
+		http-request return status 200
+} -start
+
+# wait for haproxy startup
+client c0 -connect ${h1_fint_sock} {
+	txreq
+	rxresp
+} -run
+
+shell {
+	echo "unpublish backend be1" | socat - "${tmpdir}/h1/stats"
+
+	out=$(echo "purge backend be1" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "At least one server not flagged for purge." ] || \
+	  { echo "expect failure: backend cannot be purged if servers not flagged: ${out}"; exit 1; }
+
+	out=$(echo "purge all servers be1" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Servers backend iteration performed: 2 removed, 0 scheduled, 0 skipped." ] || \
+	  { echo "expect failure: servers not immediately removed: ${out}"; exit 1; }
+
+	# Wait should immediately reject if backend not yet flagged
+	out=$(echo "wait 10ms be-unknown be1" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	[ "$out" = "Failed. Backend not scheduled for purge." ] || \
+	  { echo "expect failure: wait be-unknown not rejected: ${out}"; exit 1; }
+
+	out=$(echo "purge backend be1" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Backend deleted." ] || \
+	  { echo "expect failure: backend not immediately deleted: ${out}"; exit 1; }
+
+	out=$(echo "wait 10ms be-unknown be1" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	[ "$out" = "Done." ] || \
+	  { echo "expect failure: wait be-unknown not validated: ${out}"; exit 1; }
+}
+
+# Start a long request to temporarily block server deletion
+client c1 -connect ${h1_fe_sock} {
+	txreq -hdr "x-be: be2"
+	rxresp
+	expect resp.status == "200"
+} -start
+
+shell {
+	echo "unpublish backend be2" | socat - "${tmpdir}/h1/stats"
+
+	out=$(echo "purge all servers be2" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Servers backend iteration performed: 1 removed, 1 scheduled, 0 skipped." ] || \
+	  { echo "expect failure: server with active conn should be scheduled: ${out}"; exit 1; }
+
+	out=$(echo "purge backend be2" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Backend scheduled for purge." ] || \
+	  { echo "expect failure: backend not scheduled for purge: ${out}"; exit 1; }
+
+	# Wait should now timeout as backend if flagged for purge but not yet removed
+	out=$(echo "wait 10ms be-unknown be2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	[ "$out" = "Wait delay expired. (null)" ] || \
+	  { echo "expect failure: wait be-unknown not on timeout: ${out}"; exit 1; }
+}
+
+barrier b1 sync
+client c1 -wait
+
+shell {
+	# Backend should now be removed and wait should success
+	out=$(echo "wait 1s be-unknown be2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	[ "$out" = "Done." ] || \
+	  { echo "expect failure: wait be-unknown not successful: ${out}"; exit 1; }
+}
