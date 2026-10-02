@@ -1280,33 +1280,50 @@ static void spoe_deinit(struct proxy *px, struct flt_conf *fconf)
 	fconf->conf = NULL;
 }
 
+/* Context for spoe_check_one() */
+struct spoe_check_ctx {
+	struct proxy *px;
+	struct flt_conf *fconf;
+	struct spoe_config *conf;
+};
+
+/* Checks the SPOE filter conf <f> against the SPOE filter being checked. The
+ * SPOE engine ids must be uniq per proxy.
+ * Returns -1 on error, 0 otherwise.
+ */
+static int spoe_check_one(struct flt_conf *f, void *data)
+{
+	struct spoe_check_ctx *ctx = data;
+	struct spoe_config *c = f->conf;
+
+	/* This is not an SPOE filter */
+	if (f->id != spoe_filter_id)
+		return 0;
+	/* This is the current SPOE filter */
+	if (f == ctx->fconf)
+		return 0;
+
+	/* Check engine Id. It should be uniq */
+	if (strcmp(ctx->conf->id, c->id) == 0) {
+		ha_alert("Proxy %s : duplicated name for SPOE engine '%s'.\n",
+			 ctx->px->id, ctx->conf->id);
+		return -1;
+	}
+	return 0;
+}
+
 /* Check configuration of a SPOE filter for a specified proxy.
  * Return 1 on error, else 0. */
 static int spoe_check(struct proxy *px, struct flt_conf *fconf)
 {
-	struct flt_conf    *f;
 	struct spoe_config *conf = fconf->conf;
 	struct proxy       *target;
+	struct spoe_check_ctx ctx = { .px = px, .fconf = fconf, .conf = conf };
 
 	/* Check all SPOE filters for proxy <px> to be sure all SPOE agent names
 	 * are uniq */
-	list_for_each_entry(f, &px->filter_configs, list) {
-		struct spoe_config *c = f->conf;
-
-		/* This is not an SPOE filter */
-		if (f->id != spoe_filter_id)
-			continue;
-		/* This is the current SPOE filter */
-		if (f == fconf)
-			continue;
-
-		/* Check engine Id. It should be uniq */
-		if (strcmp(conf->id, c->id) == 0) {
-			ha_alert("Proxy %s : duplicated name for SPOE engine '%s'.\n",
-				 px->id, conf->id);
-			return 1;
-		}
-	}
+	if (flt_foreach_conf(px, FLT_SIDE_GLOBAL, spoe_check_one, &ctx))
+		return 1;
 
 	target = proxy_be_by_name(conf->agent->b.name);
 	if (target == NULL) {
@@ -2748,6 +2765,17 @@ static enum act_return spoe_send_group(struct act_rule *rule, struct proxy *px,
 		return ACT_RET_CONT;
 }
 
+/* Match callback for flt_find_conf() in check_send_spoe_group(). It matches the
+ * SPOE filter configurations with the engine id <data>.
+ */
+static int spoe_find_engine_flt(struct flt_conf *fconf, void *data)
+{
+	struct spoe_config *conf = fconf->conf;
+	const char *engine_id = data;
+
+	return (conf && strcmp(conf->id, engine_id) == 0);
+}
+
 /* Check an "send-spoe-group" action. Here, we'll try to find the real SPOE
  * group associated to <rule>. The format of an rule using 'send-spoe-group'
  * action should be:
@@ -2788,18 +2816,10 @@ static int check_send_spoe_group(struct act_rule *rule, struct proxy *px, char *
 
 	/* Try to find the SPOE engine by checking all SPOE filters for proxy
 	 * <px> */
-	list_for_each_entry(fconf, &px->filter_configs, list) {
+	fconf = flt_find_conf(px, spoe_filter_id, FLT_SIDE_GLOBAL, spoe_find_engine_flt, engine_id);
+	if (fconf) {
 		conf = fconf->conf;
-
-		/* This is not an SPOE filter */
-		if (fconf->id != spoe_filter_id)
-			continue;
-
-		/* This is the good engine */
-		if (strcmp(conf->id, engine_id) == 0) {
-			agent = conf->agent;
-			break;
-		}
+		agent = conf->agent;
 	}
 	if (agent == NULL) {
 		memprintf(err, "unable to find SPOE engine '%s' used by the send-spoe-group '%s'",
