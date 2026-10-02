@@ -719,8 +719,10 @@ void stream_free(struct stream *s)
 		s->resolv_ctx.requester = NULL;
 	}
 
+#ifdef HAVE_SSL_OCSP
 	clear_ocsp_clt_check_ctx(&s->ocsp_clt_check_ctx);
 	ha_free(&s->ocsp_clt_check_ctx);
+#endif
 
 	if (fe) {
 		if (s->req_cap) {
