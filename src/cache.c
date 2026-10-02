@@ -659,13 +659,74 @@ cache_store_deinit(struct proxy *px, struct flt_conf *fconf)
 	free(cconf);
 }
 
+/* Context for cache_store_check_order() */
+struct cache_store_check_ctx {
+	struct proxy *px;
+	struct flt_conf *fconf;
+	struct cache_flt_conf *cconf;
+	struct cache *cache;
+	int comp_seen;
+	int cache_seen;
+};
+
+/* Checks the filter <f> against the cache filter being checked: the
+ * compression must be evaluated after the cache, and an implicit cache
+ * declaration is only allowed with the compression and fcgi filters.
+ * Returns non-zero to stop the iteration on error, 0 otherwise.
+ */
+static int cache_store_check_order(struct flt_conf *f, void *data)
+{
+	struct cache_store_check_ctx *ctx = data;
+
+	if (f == ctx->fconf) {
+		/* The compression filter must be evaluated after the cache. */
+		if (ctx->comp_seen) {
+			ha_alert("config: %s '%s': unable to enable the compression filter before "
+				 "the cache '%s'.\n", proxy_type_str(ctx->px), ctx->px->id, ctx->cache->id);
+			return 1;
+		}
+		ctx->cache_seen = 1;
+		return 0;
+	}
+	if (f->id == http_comp_req_flt_id)
+		return 0;
+	if (f->id == http_comp_res_flt_id) {
+		ctx->comp_seen = 1;
+		return 0;
+	}
+	if (f->id == decomp_req_flt_id)
+		return 0;
+	else if (f->id == decomp_res_flt_id) {
+		/* The decomp-res filter must be evaluated after the cache. */
+		if (ctx->cache_seen) {
+			ha_alert("config: %s '%s': unable to enable the decomp-res filter after "
+				 "the cache '%s'.\n", proxy_type_str(ctx->px), ctx->px->id, ctx->cache->id);
+			return 1;
+		}
+		return 0;
+	}
+#if defined(USE_FCGI)
+	else if (f->id == fcgi_flt_id)
+		return 0;
+#endif
+	else if ((f->id != ctx->fconf->id) && ctx->cconf->flags & CACHE_FLT_F_IMPLICIT_DECL) {
+		/* Implicit declaration is only allowed with the compression,
+		 * decompression, fcgi and other cache filter. For other
+		 * filters, an implicit declaration is required. */
+		ha_alert("config: %s '%s': require an explicit filter declaration "
+			 "to use the cache '%s'.\n", proxy_type_str(ctx->px), ctx->px->id, ctx->cache->id);
+		return 1;
+	}
+	return 0;
+}
+
 static int
 cache_store_check(struct proxy *px, struct flt_conf *fconf)
 {
 	struct cache_flt_conf *cconf = fconf->conf;
-	struct flt_conf *f;
 	struct cache *cache;
-	int comp = 0;
+	struct cache_store_check_ctx ctx = { .px = px, .fconf = fconf, .cconf = cconf, .cache = NULL,
+					     .comp_seen = 0, .cache_seen = 0};
 
 	/* Find the cache corresponding to the name in the filter config.  The
 	*  cache will not be referenced now in the filter config because it is
@@ -682,39 +743,19 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	return 1;
 
   found:
+	/* Legacy filters not used for this proxy, we can return */
+	if (!flt_use_legacy_filter(px))
+		return 0;
+
 	/* Here <cache> points on the cache the filter must use and <cconf>
 	 * points on the cache filter configuration. */
+	ctx.cache = cache;
 
 	/* Check all filters for proxy <px> to know if the compression is
 	 * enabled and if it is after the cache. When the compression is before
 	 * the cache, an error is returned. Also check if the cache filter must
 	 * be explicitly declaired or not. */
-	list_for_each_entry(f, &px->filter_configs, list) {
-		if (f == fconf) {
-			/* The compression filter must be evaluated after the cache. */
-			if (comp) {
-				ha_alert("config: %s '%s': unable to enable the compression filter before "
-					 "the cache '%s'.\n", proxy_type_str(px), px->id, cache->id);
-				return 1;
-			}
-		}
-		else if (f->id == http_comp_req_flt_id || f->id == http_comp_res_flt_id)
-			comp = 1;
-#if defined(USE_FCGI)
-		else if (f->id == fcgi_flt_id)
-			continue;
-#endif
-		else if ((f->id != fconf->id) && (cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
-			/* Implicit declaration is only allowed with the
-			 * compression and fcgi. For other filters, an implicit
-			 * declaration is required. */
-			ha_alert("config: %s '%s': require an explicit filter declaration "
-				 "to use the cache '%s'.\n", proxy_type_str(px), px->id, cache->id);
-			return 1;
-		}
-
-	}
-	return 0;
+	return flt_foreach_conf(px, FLT_SIDE_RES, cache_store_check_order, &ctx);
 }
 
 static int
@@ -3138,6 +3179,26 @@ out:
 
 }
 
+/* References the cache <ctx->cache> in the matching cache filter
+ * configuration.
+ * Returns non-zero to stop the iteration on a match, 0 otherwise.
+ */
+static int cache_postcheck_flt(struct flt_conf *fconf, void *data)
+{
+	struct cache *cache = data;
+	struct cache_flt_conf *cconf;
+
+	if (fconf->id != cache_store_flt_id)
+		return 0;
+	cconf = fconf->conf;
+	if (strcmp(cache->id, cconf->c.name) != 0)
+		return 0;
+	free(cconf->c.name);
+	cconf->flags |= CACHE_FLT_INIT;
+	cconf->c.cache = cache;
+	return 1;
+}
+
 int post_check_cache()
 {
 	struct proxy *px;
@@ -3187,23 +3248,8 @@ int post_check_cache()
 		/* Find all references for this cache in the existing filters
 		 * (over all proxies) and reference it in matching filters.
 		 */
-		list_for_each_entry(px, &main_proxies, el) {
-			struct flt_conf *fconf;
-			struct cache_flt_conf *cconf;
-
-			list_for_each_entry(fconf, &px->filter_configs, list) {
-				if (fconf->id != cache_store_flt_id)
-					continue;
-
-				cconf = fconf->conf;
-				if (strcmp(cache->id, cconf->c.name) == 0) {
-					free(cconf->c.name);
-					cconf->flags |= CACHE_FLT_INIT;
-					cconf->c.cache = cache;
-					break;
-				}
-			}
-		}
+		list_for_each_entry(px, &main_proxies, el)
+			flt_foreach_conf(px, FLT_SIDE_RES, cache_postcheck_flt, cache);
 	}
 
 out:
