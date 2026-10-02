@@ -9552,6 +9552,7 @@ load-server-state-from-file { global | local | none }
 
 
 log global
+log to <loggers_list>
 log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     [profile <prof>] <facility> [<level> [<minlevel>]]
 no log
@@ -9573,6 +9574,10 @@ no log
                replaces all log arguments with those of the log entries found
                in the "global" section. Only one "log global" statement may be
                used per instance, and this form takes no other parameter.
+
+    to         should be used to specify a list of comma separated loggers section
+               names <loggers_list>. The loggers defined in the targeted loggers
+               section will be inherited on the proxy.
 
     <target>   indicates where to send the logs. It takes the same format as
                for the "global" section's logs, and can be one of :
@@ -15930,7 +15935,7 @@ disable-l7-retry
   reason than a connection failure. This can be useful for example to make
   sure POST requests aren't retried on failure.
 
-do-log [profile <log_profile>]
+do-log [profile <log_profile>] [to <loggers_list>]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     X |          X  |   X  |   X  |   X  |          X |  X |  X
 
@@ -15969,6 +15974,11 @@ do-log [profile <log_profile>]
       # on content use proxy logformat, since no override was specified
       # in my-dft-prof
       tcp-request content do-log
+
+  Optional "to <loggers_list>" may be used to specify a comma separated list
+  of loggers sections named that should be used exclusively as log
+  destination for the do-log action instead of the default loggers (the ones
+  inherited from the proxy).
 
 do-ocsp-request status-var <varname> [ reason-var <varname> ]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
@@ -30333,6 +30343,22 @@ on <step> [drop] [format <fmt>] [sd <sd_fmt>]
       #
       # error:
       # <134>1 2024-06-12T10:09:51.566524+02:00 - custom-tag 224482 - - 127.0.0.1: error
+
+8.3.5. Loggers
+-------------------
+
+Individual loggers (log endpoint) can be declared at the proxy level (including global
+and default sections) directly using "log" directive. But they can also be grouped
+under the same section using "loggers" specific section, and later be referenced
+in the config file.
+
+loggers <name>
+  Creates a new loggers group identified as <name>
+
+log <target> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
+    <facility> [<level> [<minlevel>]]
+  Declare an individual log endpoint, refer to "log" directive under proxy
+  section for directive usage.
 
 
 8.4. Timing events
