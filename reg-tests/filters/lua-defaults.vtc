@@ -1,0 +1,147 @@
+varnishtest "Lua filter defaults, overrides and state directives remain proxy-local"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.http.x-probe-order == "F1.local-a;F.base-b;F1.local-c;BA.local-d;BA.local-c;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "ping"
+    txresp -body "pong"
+} -start
+
+server s2 {
+    rxreq
+    expect req.http.x-probe-order == "F.base-a;B.base-c;B.base-b;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "sibling"
+} -start
+
+server s3 {
+    rxreq
+    expect req.http.x-probe-order == <undef>
+    expect req.http.x-probe-instances == <undef>
+    txresp -body "no filters"
+} -start
+
+haproxy h1 -conf {
+    global
+        chroot /
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-probe.lua"
+
+    defaults base
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    defaults frontend_filters from base
+        filter-config lua id probe-a F base-a
+        filter-config lua id probe-b enabled F base-b
+        filter-config lua id probe-c F base-c
+        filter-config lua id probe-d enabled F base-d
+        filter-disable lua
+        filter-enable lua/probe-b lua/probe-d
+        filter-sequence request lua/probe-d:before(lua/probe-b)
+        filter-sequence response lua/probe-b:after(lua/probe-d)
+
+    frontend first from frontend_filters
+        bind "fd@${first}"
+        # State directives are applied after parsing instances, including
+        # replacements declared below. The last matching directive wins.
+        filter-enable lua
+        filter-disable lua/probe-d
+        filter-config lua id probe-a enabled F1 local-a
+        filter-config lua id probe-c F1 local-c
+        filter-sequence global lua/probe-c:before(lua/probe-b)
+        filter-sequence request lua/probe-a:before(lua/probe-b)
+        filter-sequence response lua/probe-c:before(lua/probe-a)
+        default_backend first_be
+
+    frontend sibling from frontend_filters
+        bind "fd@${sibling}"
+        filter-disable lua
+        filter-enable lua/probe-a
+        filter-config lua id probe-b F2 local-b
+        filter-config lua id probe-d enabled F2 local-d
+        default_backend sibling_be
+
+    frontend all_off from frontend_filters
+        bind "fd@${all_off}"
+        filter-disable lua
+        default_backend all_off_be
+
+    defaults backend_filters from base
+        filter-config lua id probe-a enabled B base-a
+        filter-config lua id probe-b B base-b
+        filter-config lua id probe-c enabled B base-c
+        filter-config lua id probe-d B base-d
+        filter-enable lua/probe-b
+        filter-disable lua/probe-a
+        filter-sequence request lua/probe-c:before(lua/probe-b)
+        filter-sequence response lua/probe-b:before(lua/probe-c)
+
+    backend first_be from backend_filters
+        filter-config lua id probe-c BA local-c
+        filter-config lua id probe-d enabled BA local-d
+        filter-enable lua/probe-c
+        filter-disable lua/probe-b
+        filter-sequence global lua/probe-c:after(lua/probe-d)
+        filter-sequence request lua/probe-d:before(lua/probe-c)
+        filter-sequence response lua/probe-d:after(lua/probe-c)
+        server s1 ${s1_addr}:${s1_port}
+
+    backend sibling_be from backend_filters
+        filter-enable lua
+        filter-disable lua/probe-a lua/probe-d
+        server s2 ${s2_addr}:${s2_port}
+
+    backend all_off_be from backend_filters
+        filter-disable lua
+        server s3 ${s3_addr}:${s3_port}
+} -start
+
+client c1 -connect ${h1_first_sock} {
+    txreq -req POST -body "ping"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.base-b;F1.local-c;F1.local-a;BA.local-c;BA.local-d;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "pong"
+} -run
+
+# Overriding arguments, state and sequencing on the first pair must not modify
+# the defaults or the instances copied into a sibling proxy.
+client c2 -connect ${h1_sibling_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.base-a;B.base-b;B.base-c;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "sibling"
+} -run
+
+client c3 -connect ${h1_all_off_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == <undef>
+    expect resp.http.x-probe-instances == <undef>
+    expect resp.body == "no filters"
+} -run
+
+haproxy h1 -cli {
+    send "show filter instance first lua/probe-c"
+    expect ~ "state:      enabled\n"
+    send "show filter instance sibling lua/probe-a"
+    expect ~ "state:      enabled, inherited\n"
+    send "show filter instance first_be lua/probe-b"
+    expect ~ "state:      disabled, inherited\n"
+    send "show filter instance all_off lua/probe-d"
+    expect ~ "state:      disabled, inherited\n"
+    send "show filter instance frontend_filters lua/probe-a"
+    expect ~ "args:       F base-a\n"
+}
