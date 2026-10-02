@@ -1,0 +1,184 @@
+varnishtest "Select legacy or instance filter instance lists per proxy"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+# Ordinals are assigned by the attach callback, so these headers check global
+# construction order as well as the independent request/response list order.
+server s1 {
+    rxreq
+    expect req.http.x-filter-order == "Fb:3;Fa:2;Fc:1;Bc:3;Ba:2;Bb:1;"
+    expect req.http.x-filter-start == <undef>
+    expect req.body == "ping"
+    txresp -body "pong"
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.lua.bool-sample-conversion normal
+        nbthread 1
+        lua-load "${testdir}/stream-order.lua"
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        filter-config lua id a enabled F
+        filter-config lua id b enabled F
+        filter-config lua id c enabled F
+        filter-config lua id disabled F
+        filter-config lua id skip enabled F
+        filter-config lua id tcp-only enabled F
+        # Exercise unused channel links when a single-side instance is freed.
+        filter-config bwlim-in id upload enabled default-limit 1m default-period 1s
+        filter-config bwlim-out id download enabled default-limit 1m default-period 1s
+        filter-sequence global lua/c:before(lua/a)
+        filter-sequence request lua/b:before(lua/a)
+        filter-sequence response lua/a:after(lua/c)
+        default_backend be
+
+    backend be
+        filter-config lua id a enabled B
+        filter-config lua id b enabled B
+        filter-config lua id c enabled B
+        filter-config lua id disabled B
+        filter-config lua id skip enabled B
+        filter-config lua id tcp-only enabled B
+        filter-sequence global lua/b:before(lua/a)
+        filter-sequence request lua/c:before(lua/a)
+        filter-sequence response lua/c:after(lua/b)
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -req POST -body "ping"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-filter-order == "Fb:3;Fc:1;Fa:2;Ba:2;Bb:1;Bc:3;"
+    expect resp.http.x-filter-start == <undef>
+    expect resp.body == "pong"
+} -run
+
+# The choice is per proxy: a legacy frontend can use a instance-mode backend.
+server s2 {
+    rxreq
+    expect req.http.x-filter-order == "Fa:1;Fb:2;Bb:2;Ba:1;"
+    expect req.http.x-filter-start == <undef>
+    txresp
+} -start
+
+haproxy h2 -conf {
+    global
+        tune.lua.bool-sample-conversion normal
+        nbthread 1
+        lua-load "${testdir}/stream-order.lua"
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        filter lua.a F
+        filter lua.b F
+        default_backend be
+
+    backend be
+        filter-config lua id a enabled B
+        filter-config lua id b enabled B
+        filter-sequence request lua/b:before(lua/a)
+        server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c2 -connect ${h2_fe_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-filter-order == "Fa:1;Fb:2;Ba:1;Bb:2;"
+    expect resp.http.x-filter-start == <undef>
+} -run
+
+# And a instance-mode frontend can use a legacy backend.
+server s3 {
+    rxreq
+    expect req.http.x-filter-order == "Fb:1;Fa:2;Ba:1;Bb:2;"
+    expect req.http.x-filter-start == <undef>
+    txresp
+} -start
+
+haproxy h3 -conf {
+    global
+        tune.lua.bool-sample-conversion normal
+        nbthread 1
+        lua-load "${testdir}/stream-order.lua"
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        filter-config lua id a enabled F
+        filter-config lua id b enabled F
+        filter-sequence global lua/b:before(lua/a)
+        filter-sequence request lua/b:before(lua/a)
+        default_backend be
+
+    backend be
+        filter lua.a B
+        filter lua.b B
+        server s3 ${s3_addr}:${s3_port}
+} -start
+
+client c3 -connect ${h3_fe_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-filter-order == "Fa:2;Fb:1;Ba:1;Bb:2;"
+    expect resp.http.x-filter-start == <undef>
+} -run
+
+# A listen proxy must not instantiate the same instances again as a backend.
+server s4 {
+    rxreq
+    expect req.http.x-filter-order == "La:2;Lb:1;"
+    expect req.http.x-filter-start == <undef>
+    txresp
+} -start
+
+haproxy h4 -conf {
+    global
+        tune.lua.bool-sample-conversion normal
+        nbthread 1
+        lua-load "${testdir}/stream-order.lua"
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li
+        bind "fd@${li}"
+        filter-config lua id a enabled L
+        filter-config lua id b enabled L
+        filter-sequence global lua/b:before(lua/a)
+        filter-sequence response lua/b:before(lua/a)
+        server s4 ${s4_addr}:${s4_port}
+} -start
+
+client c4 -connect ${h4_li_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-filter-order == "Lb:1;La:2;"
+    expect resp.http.x-filter-start == <undef>
+} -run
