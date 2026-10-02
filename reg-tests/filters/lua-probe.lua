@@ -62,6 +62,7 @@ local function register(name)
         self.headers_seen[side] = true
         append(msg, "x-probe-order", tag)
         append(msg, "x-probe-instances", tag .. ":" .. self.serial)
+        append(msg, "x-probe-threads", tag .. ":" .. core.thread)
         local encoding = msg:get_headers()["content-encoding"]
         append(msg, "x-probe-encodings", tag .. ":" .. (encoding and encoding[0] or "identity"))
         if side == 2 and (self.mode == "data" or self.limit > 0) then
