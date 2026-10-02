@@ -1705,6 +1705,97 @@ struct filter_instance *flt_find_instance(struct proxy *px, struct filter_class 
 	return flt_find_instance_count(px, cls, id, NULL);
 }
 
+/* Calls <fct> for each filter configuration of the proxy <px> in the evaluation
+ * order of side <side> (FLT_SIDE_GLOBAL, FLT_SIDE_REQ or FLT_SIDE_RES). if the
+ * proxy is in legacy mode (PR_FL_FILTER_LEGACY) the filter_configs list is used.
+ * <fct> must return 0 to continue, any other value to stop immediately; that
+ * value is then returned.
+ */
+int flt_foreach_conf(struct proxy *px, unsigned int side,
+		     int (*fct)(struct flt_conf *fconf, void *data), void *data)
+{
+	struct filter_instance *inst;
+	struct flt_conf *fconf;
+	int ret = 0;
+
+	if (flt_use_legacy_filter(px)) {
+		list_for_each_entry(fconf, &px->filter_configs, list) {
+			ret = fct(fconf, data);
+			if (ret)
+				break;
+		}
+		return ret;
+	}
+
+	if (side == FLT_SIDE_GLOBAL) {
+		list_for_each_entry(inst, &px->filter_instances, global.list) {
+			if (!inst->fconf)
+				continue;
+			ret = fct(inst->fconf, data);
+			if (ret)
+				break;
+		}
+	}
+	else if (side == FLT_SIDE_REQ) {
+		list_for_each_entry(inst, &px->filter_req_instances, req.list) {
+			if (!inst->fconf)
+				continue;
+			ret = fct(inst->fconf, data);
+			if (ret)
+				break;
+		}
+	}
+	else {
+		list_for_each_entry(inst, &px->filter_res_instances, res.list) {
+			if (!inst->fconf)
+				continue;
+			ret = fct(inst->fconf, data);
+			if (ret)
+				break;
+		}
+	}
+	return ret;
+}
+
+/* Context for flt_find_conf_cb() */
+struct flt_find_conf_ctx {
+	const char *flt_id;                          /* the filter id to match, NULL for any id */
+	int (*match)(struct flt_conf *fconf, void *data); /* optional extra match */
+	void *data;                                  /* data for the match callback */
+	struct flt_conf *found;                      /* the first matching configuration */
+};
+
+/* Callback matching the filter configurations with the id ctx->flt_id (any
+ * id if NULL) and the ctx->match callback if set. The first match is
+ * recorded in ctx->found and the iteration stops.
+ */
+static int flt_find_conf_cb(struct flt_conf *fconf, void *data)
+{
+	struct flt_find_conf_ctx *ctx = data;
+
+	if (ctx->flt_id && fconf->id != ctx->flt_id)
+		return 0;
+	if (ctx->match && !ctx->match(fconf, ctx->data))
+		return 0;
+	ctx->found = fconf;
+	return 1;
+}
+
+/* Finds a filter configuration of the proxy <px> with the id <flt_id> (any
+ * id if NULL), from the filter instances by default or from the legacy
+ * filters if the proxy is in legacy mode (see flt_foreach_conf()). If
+ * <match> is not NULL, it is called with each candidate and <data> and must
+ * return non-zero to accept it. Returns the first match, or NULL if none.
+ */
+struct flt_conf *flt_find_conf(struct proxy *px, const char *flt_id, unsigned int side,
+			       int (*match)(struct flt_conf *fconf, void *data), void *data)
+{
+	struct flt_find_conf_ctx ctx = { .flt_id = flt_id, .match = match, .data = data, .found = NULL };
+
+	flt_foreach_conf(px, side, flt_find_conf_cb, &ctx);
+	return ctx.found;
+}
+
 
 /* Links <inst> in the global class references of <px> and on each side its
  * class is placed on. All links were initialized on allocation.

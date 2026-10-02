@@ -158,6 +158,11 @@ int  flt_add_implicit_instance(struct proxy *px, struct filter_class *cls, const
 				 char **args, const char *file, int line);
 struct filter_instance *flt_find_instance(struct proxy *px, struct filter_class *cls, const char *id);
 
+int flt_foreach_conf(struct proxy *px, unsigned int side,
+		     int (*fct)(struct flt_conf *fconf, void *data), void *data);
+struct flt_conf *flt_find_conf(struct proxy *px, const char *flt_id, unsigned int side,
+			       int (*match)(struct flt_conf *fconf, void *data), void *data);
+
 int  flt_stream_start(struct stream *s);
 void flt_stream_stop(struct stream *s);
 int  flt_set_stream_backend(struct stream *s, struct proxy *be);
