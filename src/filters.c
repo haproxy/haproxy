@@ -543,11 +543,9 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
  * the configuration parsing. Filters can finish to fill their config. Returns
  * (ERR_ALERT|ERR_FATAL) if an error occurs, 0 otherwise.
  *
- * The callback is called for the legacy filters (px->filter_configs) and
- * for the finalized filter instances (inst->fconf). Nothing is shared
- * between the legacy filters and the instances. When the instances are
- * attached to the evaluation path, the legacy mode or the instances mode
- * will be chosen and only the corresponding list will be iterated here.
+ * Legacy configurations may still be referenced by rules in instance mode,
+ * so both configuration lists are initialized. Stream attachment selects one
+ * model using PR_FL_FILTER_LEGACY.
  */
 static int
 flt_init(struct proxy *proxy)
@@ -555,16 +553,20 @@ flt_init(struct proxy *proxy)
 	struct filter_instance *inst;
 	struct flt_conf *fconf;
 
-	list_for_each_entry(fconf, &proxy->filter_configs, list) {
-		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
-			return ERR_ALERT|ERR_FATAL;
+	if (flt_use_legacy_filter(proxy)) {
+		list_for_each_entry(fconf, &proxy->filter_configs, list) {
+			if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
+				return ERR_ALERT|ERR_FATAL;
+		}
 	}
-	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
-			return ERR_ALERT|ERR_FATAL;
+	else {
+		list_for_each_entry(inst, &proxy->filter_instances, global.list) {
+			fconf = inst->fconf;
+			if (!fconf)
+				continue;
+			if (fconf->ops->init && fconf->ops->init(proxy, fconf) < 0)
+				return ERR_ALERT|ERR_FATAL;
+		}
 	}
 	return 0;
 }
@@ -574,11 +576,8 @@ flt_init(struct proxy *proxy)
  * threads. This happens after the thread creation. Filters can finish to fill
  * their config. Returns (ERR_ALERT|ERR_FATAL) if an error occurs, 0 otherwise.
  *
- * The callback is called for the legacy filters (px->filter_configs) and
- * for the finalized filter instances (inst->fconf). Nothing is shared
- * between the legacy filters and the instances. When the instances are
- * attached to the evaluation path, the legacy mode or the instances mode
- * will be chosen and only the corresponding list will be iterated here.
+ * As with flt_init(), both configuration lists are initialized while rules
+ * can still reference legacy configurations in instance mode.
  */
 static int
 flt_init_per_thread(struct proxy *proxy)
@@ -586,16 +585,20 @@ flt_init_per_thread(struct proxy *proxy)
 	struct filter_instance *inst;
 	struct flt_conf *fconf;
 
-	list_for_each_entry(fconf, &proxy->filter_configs, list) {
-		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
-			return ERR_ALERT|ERR_FATAL;
+	if (flt_use_legacy_filter(proxy)) {
+		list_for_each_entry(fconf, &proxy->filter_configs, list) {
+			if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
+				return ERR_ALERT|ERR_FATAL;
+		}
 	}
-	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
-			return ERR_ALERT|ERR_FATAL;
+	else {
+		list_for_each_entry(inst, &proxy->filter_instances, global.list) {
+			fconf = inst->fconf;
+			if (!fconf)
+				continue;
+			if (fconf->ops->init_per_thread && fconf->ops->init_per_thread(proxy, fconf) < 0)
+				return ERR_ALERT|ERR_FATAL;
+		}
 	}
 	return 0;
 }
@@ -648,16 +651,14 @@ flt_init_all_per_thread()
  * after the configuration parsing but before filters initialization. Returns
  * the number of encountered errors.
  */
-/* Note: for now, only the legacy filters (px->filter_configs) are handled
- * here. When the filter instances are attached to the evaluation path, we
- * will have to choose between the legacy mode and the instances mode, and
- * iterate the right list here. Do not forget!
- */
 int
 flt_check(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
 	int err = 0;
+
+	if (!flt_use_legacy_filter(proxy))
+		goto end;
 
 	err += check_implicit_decomp_flt(proxy);
 	err += check_implicit_http_comp_flt(proxy);
@@ -665,6 +666,7 @@ flt_check(struct proxy *proxy)
 		if (fconf->ops->check)
 			err += fconf->ops->check(proxy, fconf);
 	}
+  end:
 	return err;
 }
 
@@ -679,6 +681,9 @@ static int flt_check_instances(struct proxy *px)
 	struct flt_conf *fconf;
 	int err = 0;
 
+	if (flt_use_legacy_filter(px))
+		goto end;
+
 	list_for_each_entry(inst, &px->filter_instances, global.list) {
 		fconf = inst->fconf;
 		if (!fconf)
@@ -688,6 +693,7 @@ static int flt_check_instances(struct proxy *px)
 	}
 	if (err)
 		err = ERR_ALERT | ERR_FATAL;
+  end:
 	return err;
 }
 
@@ -695,11 +701,8 @@ static int flt_check_instances(struct proxy *px)
  * Calls 'deinit' callback for all filters attached to a proxy. This happens
  * when HAProxy is stopped.
  *
- * The callback is called for the legacy filters (px->filter_configs) and
- * for the finalized filter instances (inst->fconf). Nothing is shared
- * between the legacy filters and the instances. When the instances are
- * attached to the evaluation path, the legacy mode or the instances mode
- * will be chosen and only the corresponding list will be iterated here.
+ * Both configuration lists must be released, independently of the model
+ * selected for stream attachment.
  */
 void
 flt_deinit(struct proxy *proxy)
@@ -725,9 +728,8 @@ flt_deinit(struct proxy *proxy)
  * Calls 'deinit_per_thread' callback for all filters attached to a proxy for
  * each threads. This happens before exiting a thread.
  *
- * The callback is called for the legacy filters (px->filter_configs) and
- * for the finalized filter instances (inst->fconf), iterating the flat
- * global list of the proxy.
+ * The callback uses the same configuration model as flt_init_per_thread():
+ * legacy configurations or finalized instances in global order.
  */
 void
 flt_deinit_per_thread(struct proxy *proxy)
@@ -735,16 +737,20 @@ flt_deinit_per_thread(struct proxy *proxy)
 	struct filter_instance *inst;
 	struct flt_conf *fconf, *back;
 
-	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
-		if (fconf->ops->deinit_per_thread)
-			fconf->ops->deinit_per_thread(proxy, fconf);
+	if (flt_use_legacy_filter(proxy)) {
+		list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
+			if (fconf->ops->deinit_per_thread)
+				fconf->ops->deinit_per_thread(proxy, fconf);
+		}
 	}
-	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
-		fconf = inst->fconf;
-		if (!fconf)
-			continue;
-		if (fconf->ops->deinit_per_thread)
-			fconf->ops->deinit_per_thread(proxy, fconf);
+	else {
+		list_for_each_entry(inst, &proxy->filter_instances, global.list) {
+			fconf = inst->fconf;
+			if (!fconf)
+				continue;
+			if (fconf->ops->deinit_per_thread)
+				fconf->ops->deinit_per_thread(proxy, fconf);
+		}
 	}
 }
 
