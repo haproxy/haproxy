@@ -84,22 +84,10 @@ struct fcgi_app *fcgi_app_find_by_name(const char *name)
 
 struct fcgi_flt_conf *find_px_fcgi_conf(struct proxy *px)
 {
-	struct filter_instance *inst;
 	struct flt_conf *fconf;
 
-	list_for_each_entry(fconf, &px->filter_configs, list) {
-		if (fconf->id == fcgi_flt_id)
-			return fconf->conf;
-	}
-
-	/* no legacy filter found, look for a finalized fcgi filter instance
-	 * (instances are not finalized during the configuration parsing, in
-	 * that case they are skipped)
-	 */
-	inst = flt_find_instance(px, filter_find_class(fcgi_filter_cls_name), NULL);
-	if (inst && inst->fconf)
-		return inst->fconf->conf;
-	return NULL;
+	fconf = flt_find_conf(px, fcgi_flt_id, FLT_SIDE_REQ, NULL, NULL);
+	return fconf ? fconf->conf : NULL;
 }
 
 struct fcgi_flt_ctx *find_strm_fcgi_ctx(struct stream *s)
@@ -220,13 +208,60 @@ static void fcgi_flt_deinit(struct proxy *px, struct flt_conf *fconf)
 	free(fcgi_conf);
 }
 
+/* Context for fcgi_flt_check_one() */
+struct fcgi_flt_check_ctx {
+	struct proxy *px;
+	struct flt_conf *fconf;
+	struct fcgi_flt_conf *fcgi_conf;
+};
+
+/* Checks the fcgi filter <f> against the fcgi filter being checked. There must
+ * be only one fcgi-app per backend, and in legacy mode, an implicit fcgi
+ * declaration is only allowed with the compression and cache filters.
+ * Returns -1 on error, 0 otherwise.
+ */
+static int fcgi_flt_check_one(struct flt_conf *f, void *data)
+{
+	struct fcgi_flt_check_ctx *ctx = data;
+
+	/* This is the current FCGI filter */
+	if (f == ctx->fconf)
+		return 0;
+
+	/* Having several fcgi filters on the same proxy is not supported*/
+	if (f->id == ctx->fconf->id) {
+		ha_alert("proxy '%s' : only one fcgi-app supported per backend.\n",
+			 ctx->px->id);
+		return -1;
+	}
+
+	/* Legacy filters not used for this proxy, we can continue */
+	if (!flt_use_legacy_filter(ctx->px))
+		return 0;
+
+	/* In legacy mode, implicit declaration is only allowed with the
+	 * compression, decompression and cache. For other filters, an explicit
+	 * declaration is required. */
+	if (f->id == http_comp_req_flt_id  || f->id == http_comp_res_flt_id ||
+	    f->id == decomp_req_flt_id  || f->id == decomp_res_flt_id ||
+	    f->id == cache_store_flt_id)
+		return 0;
+	if (ctx->fcgi_conf->flags & FCGI_FLT_F_IMPLICIT_DECL) {
+		ha_alert("proxy '%s': require an explicit filter declaration "
+			 "to use the fcgi-app '%s'.\n", ctx->px->id, ctx->fcgi_conf->name);
+		return -1;
+	}
+
+	return 0;
+}
+
 static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 {
 	struct fcgi_flt_conf  *fcgi_conf = fconf->conf;
 	struct fcgi_rule_conf *crule, *back;
 	struct fcgi_rule *rule = NULL;
-	struct flt_conf *f;
 	char *errmsg = NULL;
+	struct fcgi_flt_check_ctx ctx = { .px = px, .fconf = fconf, .fcgi_conf = fcgi_conf };
 
 	fcgi_conf->app = fcgi_app_find_by_name(fcgi_conf->name);
 	if (!fcgi_conf->app) {
@@ -235,26 +270,8 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 		goto err;
 	}
 
-	list_for_each_entry(f, &px->filter_configs, list) {
-		if (f->id == http_comp_req_flt_id || f->id == http_comp_res_flt_id ||
-		    f->id == cache_store_flt_id)
-			continue;
-		else if ((f->id == fconf->id) && f->conf != fcgi_conf &&
-			 strcmp(((struct fcgi_flt_conf *)f->conf)->name, fcgi_conf->name) != 0) {
-			/* another fcgi filter with a different app */
-			ha_alert("proxy '%s' : only one fcgi-app supported per backend.\n",
-				 px->id);
-			goto err;
-		}
-		else if ((f->id != fconf->id) && (fcgi_conf->flags & FCGI_FLT_F_IMPLICIT_DECL)) {
-			/* Implicit declaration is only allowed with the
-			 * compression and cache. For other filters, an explicit
-			 * declaration is required. */
-			ha_alert("config: proxy '%s': require an explicit filter declaration "
-				 "to use the fcgi-app '%s'.\n", px->id, fcgi_conf->name);
-			goto err;
-		}
-	}
+	if (flt_foreach_conf(px, FLT_SIDE_REQ, fcgi_flt_check_one, &ctx) < 0)
+		goto err;
 
 	list_for_each_entry_safe(crule, back, &fcgi_conf->app->conf.rules, list) {
 		rule = calloc(1, sizeof(*rule));
