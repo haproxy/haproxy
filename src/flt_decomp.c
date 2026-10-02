@@ -1344,7 +1344,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* Declare the filter parser for "compression" keyword */
-static struct flt_kw_list filter_kws = { "COMP", { }, {
+static struct flt_kw_list filter_kws = { "DECOMP", { }, {
 		{ "decomp-req", parse_decomp_req_flt, NULL },
 		{ "decomp-res", parse_decomp_res_flt, NULL },
 		{ NULL, NULL, NULL },
