@@ -2318,27 +2318,30 @@ static void http_cache_io_handler(struct appctx *appctx)
 }
 
 
-static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_rule *rule, char **err)
+/* Match callback for flt_find_conf() in parse_cache_rule(): matches the
+ * cache-store filter configurations with the name <data>.
+ */
+static int cache_store_find_flt(struct flt_conf *fconf, void *data)
 {
-	struct filter_class *cls;
+	struct cache_flt_conf *conf = fconf->conf;
+	const char *name = data;
+
+	return (conf && strcmp(name, (char *)conf->c.name) == 0);
+}
+
+static int check_cache_rule(struct act_rule *rule, struct proxy *proxy, char **err)
+{
 	struct flt_conf *fconf;
 	struct cache_flt_conf *cconf = NULL;
-
-	if (!*name || strcmp(name, "if") == 0 || strcmp(name, "unless") == 0) {
-		memprintf(err, "expects a cache name");
-		goto err;
-	}
+	char *name = rule->arg.act.p[0];
 
 	/* check if a cache filter was already registered with this cache
 	 * name, if that's the case, must use it. */
-	list_for_each_entry(fconf, &proxy->filter_configs, list) {
-		if (fconf->id == cache_store_flt_id) {
-			cconf = fconf->conf;
-			if (cconf && strcmp((char *)cconf->c.name, name) == 0) {
-				rule->arg.act.p[0] = cconf;
-				return 1;
-			}
-		}
+	fconf = flt_find_conf(proxy, cache_store_flt_id, FLT_SIDE_RES, cache_store_find_flt, (char *)name);
+	if (fconf) {
+		free(name);
+		rule->arg.act.p[0] = fconf->conf;
+		return 1;
 	}
 
 	/* Create the filter cache config  */
@@ -2348,11 +2351,7 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 		goto err;
 	}
 	cconf->flags = CACHE_FLT_F_IMPLICIT_DECL;
-	cconf->c.name = strdup(name);
-	if (!cconf->c.name) {
-		memprintf(err, "out of memory\n");
-		goto err;
-	}
+	cconf->c.name = name;
 
 	/* register a filter to fill the cache buffer */
 	fconf = calloc(1, sizeof(*fconf));
@@ -2363,18 +2362,6 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 	fconf->id = cache_store_flt_id;
 	fconf->conf = cconf;
 	fconf->ops  = &cache_ops;
-
-	/* also create the corresponding implicit filter instance. The cache
-	 * name is used as the instance id, there is no argument.
-	 */
-	cls = filter_find_class(cache_store_filter_cls_name);
-	if (!cls || flt_add_implicit_instance(proxy, cls, name, NULL,
-						rule->conf.file ? rule->conf.file : proxy->conf.file,
-						rule->conf.file ? rule->conf.line : proxy->conf.line) < 0) {
-		memprintf(err, "out of memory\n");
-		free(fconf);
-		goto err;
-	}
 
 	LIST_APPEND(&proxy->filter_configs, &fconf->list);
 
@@ -2389,11 +2376,45 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 	return 0;
 }
 
+static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_rule *rule, char **err)
+{
+	struct filter_class *cls;
+
+	if (!*name || strcmp(name, "if") == 0 || strcmp(name, "unless") == 0) {
+		memprintf(err, "expects a cache name");
+		goto err;
+	}
+
+	rule->arg.act.p[0] = strdup(name);
+	if (!rule->arg.act.p[0]) {
+		memprintf(err, "out of memory\n");
+		goto err;
+	}
+
+	/* create the implicit filter instance now to get the corresponding
+	 * fconf during check stage.
+	 * The cache name is used as the instance id, there is no argument.
+	 */
+	cls = filter_find_class(cache_store_filter_cls_name);
+	if (!cls || flt_add_implicit_instance(proxy, cls, name, NULL,
+						rule->conf.file ? rule->conf.file : proxy->conf.file,
+						rule->conf.file ? rule->conf.line : proxy->conf.line) < 0) {
+		memprintf(err, "out of memory\n");
+		goto err;
+	}
+
+	return 1;
+
+  err:
+	return 0;
+}
+
 enum act_parse_ret parse_cache_store(const char **args, int *orig_arg, struct proxy *proxy,
                                           struct act_rule *rule, char **err)
 {
 	rule->action       = ACT_CUSTOM;
 	rule->action_ptr   = http_action_store_cache;
+	rule->check_ptr    = check_cache_rule;
 
 	if (!parse_cache_rule(proxy, args[*orig_arg], rule, err))
 		return ACT_RET_PRS_ERR;
@@ -2852,6 +2873,7 @@ enum act_parse_ret parse_cache_use(const char **args, int *orig_arg, struct prox
 {
 	rule->action       = ACT_CUSTOM;
 	rule->action_ptr   = http_action_req_cache_use;
+	rule->check_ptr    = check_cache_rule;
 
 	if (!parse_cache_rule(proxy, args[*orig_arg], rule, err))
 		return ACT_RET_PRS_ERR;
