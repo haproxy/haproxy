@@ -5564,7 +5564,7 @@ out:
 
 }
 
-static void do_log_ctx(struct process_send_log_ctx *ctx)
+static void do_log_ctx(struct process_send_log_ctx *ctx, struct list *loggers)
 {
 	struct stream *s = ctx->stream;
 	struct session *sess = ctx->sess;
@@ -5573,7 +5573,10 @@ static void do_log_ctx(struct process_send_log_ctx *ctx)
 	size_t sd_size = 0;
 	int level = -1;
 
-	if (LIST_ISEMPTY(&sess->fe->loggers))
+	if (loggers == NULL)
+		loggers = &sess->fe->loggers;
+
+	if (LIST_ISEMPTY(loggers))
 		return;
 
 	if (s) {
@@ -5600,7 +5603,7 @@ static void do_log_ctx(struct process_send_log_ctx *ctx)
 
 	size = sess_build_logline_orig(sess, s, logline, global.max_syslog_len, &sess->fe->logformat, origin);
 
-	__send_log(ctx, &sess->fe->loggers, &sess->fe->log_tag, level,
+	__send_log(ctx, loggers, &sess->fe->log_tag, level,
 		   logline, size, logline_rfc5424, sd_size);
 }
 
@@ -5620,7 +5623,7 @@ void do_log(struct session *sess, struct stream *s, struct log_orig origin)
 	ctx.sess = sess;
 	ctx.stream = s;
 	ctx.profile = NULL;
-	do_log_ctx(&ctx);
+	do_log_ctx(&ctx, NULL);
 }
 
 /*
@@ -7419,7 +7422,7 @@ static enum act_return do_log_action(struct act_rule *rule, struct proxy *px,
 	ctx.stream = s;
 	ctx.profile = rule->arg.do_log.profile;
 
-	do_log_ctx(&ctx);
+	do_log_ctx(&ctx, NULL);
 	return ACT_RET_CONT;
 }
 
