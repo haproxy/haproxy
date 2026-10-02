@@ -1068,7 +1068,8 @@ IGNORE_OPTS=help install install-man install-doc install-bin \
 	uninstall clean tags cscope tar git-tar version update-version \
 	opts reg-tests reg-tests-help unit-tests admin/halog/halog dev/flags/flags \
 	dev/haring/haring dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop \
-	dev/term_events/term_events dev/gdb/pm-from-core dev/gdb/libs-from-core
+	dev/term_events/term_events dev/gdb/pm-from-core dev/gdb/libs-from-core \
+	dev/sse-latency/sse-latency
 
 ifneq ($(TARGET),)
 ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
@@ -1163,6 +1164,9 @@ dev/qpack/decode: dev/qpack/decode.o
 dev/tcploop/tcploop:
 	$(cmd_MAKE) -C dev/tcploop tcploop CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
 
+dev/sse-latency/sse-latency:
+	$(cmd_MAKE) -C dev/sse-latency sse-latency CC='$(CC)' OPTIMIZE='$(COPTS)' V='$(V)'
+
 dev/udp/udp-perturb: dev/udp/udp-perturb.o
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
@@ -1170,7 +1174,8 @@ dev/term_events/term_events: dev/term_events/term_events.o
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 # rebuild it every time
-.PHONY: src/version.c dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop
+.PHONY: src/version.c dev/ncpu/ncpu dev/poll/poll dev/tcploop/tcploop \
+        dev/sse-latency/sse-latency
 
 src/calltrace.o: src/calltrace.c $(DEP)
 	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<
@@ -1245,6 +1250,7 @@ distclean: clean
 	$(Q)rm -f dev/haring/haring dev/ncpu/ncpu{,.so} dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 	$(Q)rm -f dev/qpack/decode dev/gdb/pm-from-core dev/gdb/libs-from-core
+	$(Q)rm -f dev/sse-latency/sse-latency
 
 tags:
 	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
