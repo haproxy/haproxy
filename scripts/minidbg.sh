@@ -103,14 +103,15 @@ off=$(( (elflen + PAGE - 1) / PAGE * PAGE ))
 vaddr=$(( (maxva + PAGE - 1) / PAGE * PAGE ))
 
 # writes <size> bytes of <value> at <offset>, in the file's byte order
+# Use escapes in the format: BSD printf's %b truncates at NUL bytes.
 wr() {
 	_o=$1; _s=$2; _v=$3; _i=0; _e=''
 	while [ $_i -lt $_s ]; do
-		_b=$(printf '\\0%03o' $(( (_v >> (8 * _i)) & 255 )))
+		_b=$(printf '\\%03o' $(( (_v >> (8 * _i)) & 255 )))
 		if [ "$be" = 1 ]; then _e="$_b$_e"; else _e="$_e$_b"; fi
 		_i=$(( _i + 1 ))
 	done
-	printf '%b' "$_e" | dd of="$elf" bs=1 seek=$_o conv=notrunc 2>/dev/null ||
+	printf "$_e" | dd of="$elf" bs=1 seek=$_o conv=notrunc 2>/dev/null ||
 		die "cannot patch $elf"
 }
 
