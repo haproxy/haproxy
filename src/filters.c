@@ -432,18 +432,12 @@ int flt_has_explicit_config(const struct proxy *px)
  */
 static int flt_check_config_mode(struct proxy *px, int legacy, char **err)
 {
-	struct flt_conf *fconf;
-
 	if (legacy) {
 		if (flt_has_explicit_config(px))
 			goto error;
 	}
-	else {
-		list_for_each_entry(fconf, &px->filter_configs, list) {
-			if (fconf->flags & FLT_CFG_FL_LEGACY)
-				goto error;
-		}
-	}
+	else if (flt_use_legacy_filter(px))
+		goto error;
 	return 0;
 
   error:
@@ -524,7 +518,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			goto error;
 		}
 
-		fconf->flags |= FLT_CFG_FL_LEGACY;
+		curpx->flags |= PR_FL_FILTER_LEGACY;
 		LIST_APPEND(&curpx->filter_configs, &fconf->list);
 	}
 	return 0;
