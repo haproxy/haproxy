@@ -406,6 +406,14 @@ list_filters(FILE *out)
 	free(filters);
 }
 
+/* Returns 1 if the proxy <px> has at least one active filter, legacy or
+ * not. Must be called after the class references are flattened.
+ */
+int flt_has_filter(const struct proxy *px)
+{
+	return (!LIST_ISEMPTY(&px->filter_configs) || !LIST_ISEMPTY(&px->filter_instances));
+}
+
 /* Checks for explicit filter instances or enable/sequence directives during
  * configuration parsing, before the class references are flattened. Inherited
  * directives count too, but implicit instances do not select a config mode.
