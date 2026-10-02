@@ -203,6 +203,8 @@ struct act_rule {
 			enum log_orig_id orig;
 			char *profile_name;
 			struct log_profile *profile;
+			char *loggers_names;
+			struct list *loggers;
 		} do_log; /* 'do-log' action */
 		struct {
 			int value;

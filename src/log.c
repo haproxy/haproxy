@@ -7422,7 +7422,8 @@ static enum act_return do_log_action(struct act_rule *rule, struct proxy *px,
 	ctx.stream = s;
 	ctx.profile = rule->arg.do_log.profile;
 
-	do_log_ctx(&ctx, NULL);
+	do_log_ctx(&ctx, rule->arg.do_log.loggers);
+
 	return ACT_RET_CONT;
 }
 
@@ -7446,12 +7447,45 @@ static int do_log_action_check(struct act_rule *rule, struct proxy *px, char **e
 		}
 		rule->arg.do_log.profile = prof;
 	}
+	if (rule->arg.do_log.loggers_names) {
+		rule->arg.do_log.loggers = calloc(1, sizeof(*rule->arg.do_log.loggers));
+
+		if (rule->arg.do_log.loggers == NULL) {
+			memprintf(err, "memory error while parsing loggers for do-log action on %s %s",
+			          proxy_type_str(px), px->id);
+			ha_free(&rule->arg.do_log.loggers_names);
+			return 0;
+		}
+
+		LIST_INIT(rule->arg.do_log.loggers);
+
+		if (!parse_loggers_list(rule->arg.do_log.loggers_names, rule->arg.do_log.loggers, rule->conf.file, rule->conf.line, err)) {
+			memprintf(err, "error while parsing loggers for do-log action on %s %s : %s",
+			          proxy_type_str(px), px->id, *err);
+			ha_free(&rule->arg.do_log.loggers_names);
+			return 0;
+		}
+
+		ha_free(&rule->arg.do_log.loggers_names);
+	}
+
 	return 1; // success
 }
 
 static void do_log_action_release(struct act_rule *rule)
 {
+	struct logger *logger, *back;
+
 	ha_free(&rule->arg.do_log.profile_name);
+	ha_free(&rule->arg.do_log.loggers_names);
+
+	if (rule->arg.do_log.loggers) {
+		list_for_each_entry_safe(logger, back, rule->arg.do_log.loggers, list) {
+			LIST_DEL_INIT(&logger->list);
+			free_logger(logger);
+		}
+		ha_free(&rule->arg.do_log.loggers);
+	}
 }
 
 
@@ -7484,6 +7518,22 @@ enum act_parse_ret do_log_parse_act(enum log_orig_id id,
 			if (!rule->arg.do_log.profile_name) {
 				memprintf(err,
 					  "action '%s': memory error when setting 'profile'",
+				           args[cur_arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
+			*orig_arg += 2;
+		}
+		else if (strcmp(args[*orig_arg], "to") == 0) {
+			if (!*args[*orig_arg + 1]) {
+				memprintf(err,
+					  "action '%s': 'to' expects comma separated list of loggers section names.",
+					  args[cur_arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
+			rule->arg.do_log.loggers_names = strdup(args[*orig_arg + 1]);
+			if (!rule->arg.do_log.loggers_names) {
+				memprintf(err,
+					  "action '%s': memory error when setting 'to'",
 				           args[cur_arg-1]);
 				return ACT_RET_PRS_ERR;
 			}
