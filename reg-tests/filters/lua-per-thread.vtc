@@ -1,0 +1,111 @@
+varnishtest "Per-thread Lua filter state is isolated across inherited instances"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA) && feature(THREAD)'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.http.x-probe-threads == "F.a:1;F.b:1;B.a:1;B.c:1;"
+    expect req.http.x-probe-instances == "F.a:2;F.b:1;B.a:1;B.c:2;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "thread one"
+    close
+    accept
+
+    rxreq
+    expect req.http.x-probe-threads == "F.a:2;F.b:2;B.a:2;B.c:2;"
+    expect req.http.x-probe-instances == "F.a:2;F.b:1;B.a:1;B.c:2;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "thread two"
+    close
+    accept
+
+    rxreq
+    expect req.http.x-probe-threads == "F.a:1;F.b:1;B.a:1;B.c:1;"
+    expect req.http.x-probe-instances == "F.a:4;F.b:3;B.a:3;B.c:4;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "thread one again"
+    close
+    accept
+
+    rxreq
+    expect req.http.x-probe-threads == "F.a:2;F.b:2;B.a:2;B.c:2;"
+    expect req.http.x-probe-instances == "F.a:4;F.b:3;B.a:3;B.c:4;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "thread two again"
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 2
+        thread-groups 1
+        tune.lua.bool-sample-conversion normal
+        lua-load-per-thread "${testdir}/lua-probe.lua"
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    defaults frontend_filters from plain
+        filter-config lua id probe-a enabled F a
+        filter-config lua id probe-b enabled F b
+        filter-config lua id probe-d F disabled
+        filter-sequence global lua/probe-b:before(lua/probe-a)
+        filter-sequence response lua/probe-b:before(lua/probe-a)
+
+    frontend one from frontend_filters
+        bind "fd@${one}" thread 1
+        default_backend be
+    frontend two from frontend_filters
+        bind "fd@${two}" thread 2
+        default_backend be
+
+    backend be from plain
+        filter-config lua id probe-a enabled B a
+        filter-config lua id probe-c enabled B c
+        filter-sequence response lua/probe-c:before(lua/probe-a)
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_one_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.b;F.a;B.c;B.a;"
+    expect resp.http.x-probe-threads == "F.b:1;F.a:1;B.c:1;B.a:1;"
+    expect resp.http.x-probe-instances == "F.b:1;F.a:2;B.c:2;B.a:1;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "thread one"
+} -run
+
+client c2 -connect ${h1_two_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.b;F.a;B.c;B.a;"
+    expect resp.http.x-probe-threads == "F.b:2;F.a:2;B.c:2;B.a:2;"
+    expect resp.http.x-probe-instances == "F.b:1;F.a:2;B.c:2;B.a:1;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "thread two"
+} -run
+
+client c3 -connect ${h1_one_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-threads == "F.b:1;F.a:1;B.c:1;B.a:1;"
+    expect resp.http.x-probe-instances == "F.b:3;F.a:4;B.c:4;B.a:3;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "thread one again"
+} -run
+
+client c4 -connect ${h1_two_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-threads == "F.b:2;F.a:2;B.c:2;B.a:2;"
+    expect resp.http.x-probe-instances == "F.b:3;F.a:4;B.c:4;B.a:3;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "thread two again"
+} -run
