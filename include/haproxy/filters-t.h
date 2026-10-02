@@ -238,7 +238,7 @@ struct filter {
 	unsigned int    pre_analyzers;     /* bit field indicating analyzers to pre-process */
 	unsigned int    post_analyzers;    /* bit field indicating analyzers to post-process */
 	struct list     list;              /* Filter list for the stream */
-	/* req_list and res_list are exactly equivalent, except the order may differ */
+	/* Independent channel links; either may be unused for a instance. */
 	struct list     req_list;          /* Filter list for request channel */
 	struct list     res_list;          /* Filter list for response channel */
 };

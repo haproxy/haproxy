@@ -765,9 +765,12 @@ flt_deinit_all_per_thread()
 		flt_deinit_per_thread(px);
 }
 
-/* Attaches a filter to a stream. Returns -1 if an error occurs, 0 otherwise. */
+/* Attach a filter in global stream order. In legacy mode, also append both
+ * channel links immediately. Instance mode fills them in independent passes.
+ * Returns -1 on error, 0 on success (including filters declining attachment).
+ */
 static int
-flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int flags)
+flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int flags, int legacy)
 {
 	struct filter *f;
 
@@ -779,6 +782,9 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 		return -1;
 	f->config = fconf;
 	f->flags |= flags;
+	LIST_INIT(&f->list);
+	LIST_INIT(&f->req_list);
+	LIST_INIT(&f->res_list);
 
 	if (FLT_OPS(f)->attach) {
 		struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, f->config);
@@ -791,14 +797,63 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 
 	LIST_APPEND(&strm_flt(s)->filters, &f->list);
 
-	/* for now f->req_list == f->res_list to preserve
-	 * historical behavior, but the ordering will change
-	 * in the future
-	 */
-	LIST_APPEND(&s->req.flt.filters, &f->req_list);
-	LIST_APPEND(&s->res.flt.filters, &f->res_list);
+	if (legacy) {
+		LIST_APPEND(&s->req.flt.filters, &f->req_list);
+		LIST_APPEND(&s->res.flt.filters, &f->res_list);
+	}
 
 	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
+	return 0;
+}
+
+/* Attach one proxy's filters, preserving the frontend prefix when adding a
+ * backend. Each enabled filter instance is instantiated once in global order.
+ * Find the successfully attached stream filter instances by their unique
+ * configuration pointers to build the channel lists; disabled, incompatible
+ * or declined filters have no stream filter instance to link. Never store
+ * per-stream pointers in shared filter instances.
+ */
+static int flt_stream_add_proxy_filters(struct stream *s, struct proxy *px, unsigned int flags)
+{
+	struct filter_instance *inst;
+	struct flt_conf *fconf;
+	struct filter *filter;
+
+	if (flt_use_legacy_filter(px)) {
+		list_for_each_entry(fconf, &px->filter_configs, list) {
+			if (flt_stream_add_filter(s, fconf, flags, 1) < 0)
+				return -1;
+		}
+		return 0;
+	}
+
+	list_for_each_entry(inst, &px->filter_instances, global.list) {
+		if (!inst->enabled || !inst->fconf)
+			continue;
+		if (flt_stream_add_filter(s, inst->fconf, flags, 0) < 0)
+			return -1;
+	}
+
+	list_for_each_entry(inst, &px->filter_req_instances, req.list) {
+		if (!inst->enabled || !inst->fconf)
+			continue;
+		list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+			if (filter->config == inst->fconf) {
+				LIST_APPEND(&s->req.flt.filters, &filter->req_list);
+				break;
+			}
+		}
+	}
+	list_for_each_entry(inst, &px->filter_res_instances, res.list) {
+		if (!inst->enabled || !inst->fconf)
+			continue;
+		list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+			if (filter->config == inst->fconf) {
+				LIST_APPEND(&s->res.flt.filters, &filter->res_list);
+				break;
+			}
+		}
+	}
 	return 0;
 }
 
@@ -809,19 +864,13 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 int
 flt_stream_init(struct stream *s)
 {
-	struct flt_conf *fconf;
-
 	memset(strm_flt(s), 0, sizeof(*strm_flt(s)));
 	LIST_INIT(&strm_flt(s)->filters);
 	memset(&s->req.flt, 0, sizeof(s->req.flt));
 	LIST_INIT(&s->req.flt.filters);
 	memset(&s->res.flt, 0, sizeof(s->res.flt));
 	LIST_INIT(&s->res.flt.filters);
-	list_for_each_entry(fconf, &strm_fe(s)->filter_configs, list) {
-		if (flt_stream_add_filter(s, fconf, 0) < 0)
-			return -1;
-	}
-	return 0;
+	return flt_stream_add_proxy_filters(s, strm_fe(s), 0);
 }
 
 /*
@@ -927,16 +976,13 @@ flt_stream_check_timeouts(struct stream *s)
 int
 flt_set_stream_backend(struct stream *s, struct proxy *be)
 {
-	struct flt_conf *fconf;
-	struct filter   *filter;
+	struct filter *filter;
 
 	if (strm_fe(s) == be)
 		goto end;
 
-	list_for_each_entry(fconf, &be->filter_configs, list) {
-		if (flt_stream_add_filter(s, fconf, FLT_FL_IS_BACKEND_FILTER) < 0)
-			return -1;
-	}
+	if (flt_stream_add_proxy_filters(s, be, FLT_FL_IS_BACKEND_FILTER) < 0)
+		return -1;
 
   end:
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
