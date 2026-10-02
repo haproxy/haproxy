@@ -5052,7 +5052,7 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		goto err;
 	}
 
-	px = alloc_new_proxy(be_name, PR_CAP_BE, &msg);
+	px = alloc_new_proxy(be_name, PR_CAP_BE|PR_CAP_LB, &msg);
 	if (!px)
 		goto err;
 
