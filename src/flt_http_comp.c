@@ -1230,44 +1230,70 @@ int http_comp_res_flt_parse_instance(char **args, struct proxy *px, struct filte
 	return 0;
 }
 
+/* Context for http_comp_check_order() */
+struct http_comp_check_ctx {
+	struct proxy *px;
+	int comp_req_seen;
+	int comp_res_seen;
+	int explicit;
+};
+
+/* Checks the filter <f> against the compression filter being checked: ...
+ * Returns non-zero to stop the iteration on error, 0 otherwise.
+ */
+static int http_comp_check_order(struct flt_conf *f, void *data)
+{
+	struct http_comp_check_ctx *ctx = data;
+
+	if (f->id == http_comp_req_flt_id) {
+		ctx->comp_req_seen = 1;
+		return 0;
+	}
+	if (f->id == http_comp_res_flt_id) {
+		ctx->comp_res_seen = 1;
+		return 0;
+	}
+	/* Legacy filters not used for this proxy, we can return */
+	if (!flt_use_legacy_filter(ctx->px))
+		return 0;
+
+	if (f->id == cache_store_flt_id) {
+		if (ctx->comp_res_seen) {
+			ha_alert("config: %s '%s': unable to enable the compression filter on response "
+				 "before any cache filter.\n",
+				 proxy_type_str(ctx->px), ctx->px->id);
+			return 1;
+		}
+		return 0;
+	}
+	if (f->id == decomp_req_flt_id || f->id == decomp_res_flt_id)
+		return 0;
+#if defined(USE_FCGI)
+	if (f->id == fcgi_flt_id)
+		return 0;
+#endif
+	ctx->explicit = 1;
+	return 0;
+
+}
+
 int
 check_implicit_http_comp_flt(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
-	struct flt_conf *fconf_req = NULL;
-	struct flt_conf *fconf_res = NULL;
-	int explicit = 0;
+	struct http_comp_check_ctx ctx = { .px = proxy, .comp_req_seen = 0, .comp_res_seen = 0, .explicit = 0};
 	int err = 0;
 
 	if (proxy->comp == NULL)
 		goto end;
-	if (!LIST_ISEMPTY(&proxy->filter_configs)) {
-		list_for_each_entry(fconf, &proxy->filter_configs, list) {
-			if (fconf->id == http_comp_req_flt_id)
-				fconf_req = fconf;
-			else if (fconf->id == http_comp_res_flt_id)
-				fconf_res = fconf;
-			else if (fconf->id == cache_store_flt_id) {
-				if (fconf_res) {
-					ha_alert("config: %s '%s': unable to enable the compression filter on response "
-						 "before any cache filter.\n",
-						 proxy_type_str(proxy), proxy->id);
-					err++;
-					goto end;
-				}
-			}
-			else if (fconf->id == decomp_req_flt_id || fconf->id == decomp_res_flt_id)
-				continue;
-#if defined(USE_FCGI)
-			else if (fconf->id == fcgi_flt_id)
-				continue;
-#endif
-			else
-				explicit = 1;
-		}
+
+	if (flt_foreach_conf(proxy, FLT_SIDE_GLOBAL, http_comp_check_order, &ctx)) {
+		err++;
+		goto end;
 	}
-	if ((proxy->comp->flags & COMP_FL_DIR_REQ) && !fconf_req) {
-		if (explicit) {
+
+	if ((proxy->comp->flags & COMP_FL_DIR_REQ) && !ctx.comp_req_seen) {
+		if (ctx.explicit) {
 			ha_alert("config: %s '%s': require an explicit filter declaration to use "
 				 "HTTP request compression\n", proxy_type_str(proxy), proxy->id);
 			err++;
@@ -1275,16 +1301,16 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 		}
 		/* Implicit declaration of the request compression filter is always the last
 		 * one */
-		fconf_req = calloc(1, sizeof(*fconf));
-		if (!fconf_req)
+		fconf = calloc(1, sizeof(*fconf));
+		if (!fconf)
 			goto out_of_memory;
-		fconf_req->id   = http_comp_req_flt_id;
-		fconf_req->conf = proxy->comp;
-		fconf_req->ops  = &comp_req_ops;
-		LIST_APPEND(&proxy->filter_configs, &fconf_req->list);
+		fconf->id   = http_comp_req_flt_id;
+		fconf->conf = proxy->comp;
+		fconf->ops  = &comp_req_ops;
+		LIST_APPEND(&proxy->filter_configs, &fconf->list);
 	}
-	if ((proxy->comp->flags & COMP_FL_DIR_RES) && !fconf_res) {
-		if (explicit) {
+	if ((proxy->comp->flags & COMP_FL_DIR_RES) && !ctx.comp_res_seen) {
+		if (ctx.explicit) {
 			ha_alert("config: %s '%s': require an explicit filter declaration to use "
 				 "HTTP response compression\n", proxy_type_str(proxy), proxy->id);
 			err++;
@@ -1292,13 +1318,13 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 		}
 		/* Implicit declaration of the response compression filter is always the last
 		 * one */
-		fconf_res = calloc(1, sizeof(*fconf));
-		if (!fconf_res)
+		fconf = calloc(1, sizeof(*fconf));
+		if (!fconf)
 			goto out_of_memory;
-		fconf_res->id   = http_comp_res_flt_id;
-		fconf_res->conf = proxy->comp;
-		fconf_res->ops  = &comp_res_ops;
-		LIST_APPEND(&proxy->filter_configs, &fconf_res->list);
+		fconf->id   = http_comp_res_flt_id;
+		fconf->conf = proxy->comp;
+		fconf->ops  = &comp_res_ops;
+		LIST_APPEND(&proxy->filter_configs, &fconf->list);
 	}
  end:
 	return err;
