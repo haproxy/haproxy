@@ -1,0 +1,74 @@
+varnishtest "HTTP retries reuse Lua filter instances and do not duplicate callbacks"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+barrier b_retry cond 2
+barrier b_drained cond 2
+
+server s1 {
+    rxreq
+    expect req.http.x-probe-order == "F.a;F.b;B.c;B.a;"
+    expect req.http.x-probe-instances == "F.a:2;F.b:1;B.c:1;B.a:2;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -status 503 -hdr "X-Probe-Order: failed-response;" -body "retry me"
+    # Hold the first connection open until redispatch has completed too.
+    barrier b_retry sync
+} -start
+
+server s2 {
+    rxreq
+    expect req.http.x-probe-order == "F.a;F.b;B.c;B.a;"
+    expect req.http.x-probe-instances == "F.a:2;F.b:1;B.c:1;B.a:2;"
+    expect req.http.x-probe-errors == <undef>
+    barrier b_retry sync
+    txresp -body "successful retry"
+    # Do not mix retry assertions with the separate WAIT/backend-EOF race.
+    barrier b_drained sync
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-probe.lua"
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+    frontend fe
+        bind "fd@${fe}"
+        filter-config lua id probe-a enabled F a
+        filter-config lua id probe-b enabled F b wait
+        filter-sequence global lua/probe-b:before(lua/probe-a)
+        filter-sequence response lua/probe-b:before(lua/probe-a)
+        http-after-response set-header x-retries "%[txn.conn_retries]"
+        http-after-response set-header x-redispatched "%[txn.redispatched]"
+        default_backend be
+    backend be
+        balance first
+        retries 1
+        retry-on 503
+        option redispatch
+        filter-config lua id probe-a enabled B a
+        filter-config lua id probe-c enabled B c
+        filter-sequence global lua/probe-c:before(lua/probe-a)
+        filter-sequence request lua/probe-c:before(lua/probe-a)
+        filter-sequence response lua/probe-a:before(lua/probe-c)
+        server bad ${s1_addr}:${s1_port}
+        server good ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-retries == "1"
+    expect resp.http.x-redispatched == "1"
+    expect resp.http.x-probe-order == "F.b;F.a;B.a;B.c;"
+    expect resp.http.x-probe-instances == "F.b:1;F.a:2;B.a:2;B.c:1;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "successful retry"
+    barrier b_drained sync
+} -run
