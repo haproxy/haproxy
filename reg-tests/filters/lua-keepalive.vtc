@@ -1,0 +1,145 @@
+varnishtest "Lua instances remain isolated across keep-alive requests and backend modes"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.url == "/instances"
+    expect req.http.x-probe-order == "F.a;F.b;D.a;D.c;"
+    expect req.http.x-probe-instances == "F.a:2;F.b:1;D.a:2;D.c:1;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "first"
+    txresp -body "first response"
+
+    rxreq
+    expect req.url == "/instances"
+    expect req.http.x-probe-order == "F.a;F.b;D.a;D.c;"
+    expect req.http.x-probe-instances == "F.a:8;F.b:7;D.a:4;D.c:3;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "fourth"
+    txresp -body "fourth response"
+
+    rxreq
+    expect req.http.x-probe-instances == "F.a:10;F.b:9;D.a:6;D.c:5;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "new"
+    txresp -body "new connection"
+} -start
+
+server s2 {
+    rxreq
+    expect req.url == "/legacy"
+    expect req.http.x-probe-order == "F.a;F.b;L.a;L.c;"
+    expect req.http.x-probe-instances == "F.a:4;F.b:3;L.a:1;L.c:2;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "second"
+    txresp -body "legacy response"
+} -start
+
+server s3 {
+    rxreq
+    expect req.url == "/off"
+    expect req.http.x-probe-order == "F.a;F.b;"
+    expect req.http.x-probe-instances == "F.a:6;F.b:5;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "third"
+    txresp -body "disabled backend"
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-probe.lua"
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        filter-config lua id probe-a enabled F a data 3
+        filter-config lua id probe-b enabled F b
+        filter-config lua id probe-d F disabled
+        filter-sequence global lua/probe-b:before(lua/probe-a)
+        filter-sequence response lua/probe-b:before(lua/probe-a)
+        use_backend legacy if { path /legacy }
+        use_backend off if { path /off }
+        default_backend instances
+
+    backend instances
+        http-reuse always
+        filter-config lua id probe-a enabled D a
+        filter-config lua id probe-b D disabled
+        filter-config lua id probe-c enabled D c data 2
+        filter-config lua id probe-d enabled D declined decline
+        filter-sequence global lua/probe-c:before(lua/probe-a)
+        filter-sequence response lua/probe-c:before(lua/probe-a)
+        server s1 ${s1_addr}:${s1_port}
+
+    backend legacy
+        filter lua.probe-a L a data 3
+        filter lua.probe-c L c
+        server s2 ${s2_addr}:${s2_port}
+
+    backend off
+        filter-config lua id probe-a enabled O a
+        filter-config lua id probe-b enabled O b
+        filter-disable lua
+        server s3 ${s3_addr}:${s3_port}
+} -start
+
+# Each HTTP transaction gets fresh stream instances even on the same client
+# connection. Switching backends must not leave old backend links or state.
+client c1 -connect ${h1_fe_sock} {
+    txreq -req POST -url /instances -body "first"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.b;F.a;D.c;D.a;"
+    expect resp.http.x-probe-instances == "F.b:1;F.a:2;D.c:1;D.a:2;"
+    expect resp.http.x-probe-request-bytes == "F.a:5;D.c:5;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "first response"
+
+    txreq -req POST -url /legacy -body "second"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.b;F.a;L.a;L.c;"
+    expect resp.http.x-probe-instances == "F.b:3;F.a:4;L.a:1;L.c:2;"
+    expect resp.http.x-probe-request-bytes == "F.a:6;L.a:6;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "legacy response"
+
+    txreq -req POST -url /off -nolen -hdr "Transfer-Encoding: chunked"
+    chunked "th"
+    chunked "ird"
+    chunked ""
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.b;F.a;"
+    expect resp.http.x-probe-instances == "F.b:5;F.a:6;"
+    expect resp.http.x-probe-request-bytes == "F.a:5;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "disabled backend"
+
+    txreq -req POST -url /instances -body "fourth"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.b;F.a;D.c;D.a;"
+    expect resp.http.x-probe-instances == "F.b:7;F.a:8;D.c:3;D.a:4;"
+    expect resp.http.x-probe-request-bytes == "F.a:6;D.c:6;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "fourth response"
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+    txreq -req POST -url /instances -body "new"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-instances == "F.b:9;F.a:10;D.c:5;D.a:6;"
+    expect resp.http.x-probe-request-bytes == "F.a:3;D.c:3;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "new connection"
+} -run
