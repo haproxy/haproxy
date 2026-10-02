@@ -1,0 +1,85 @@
+varnishtest "Waiting Lua callbacks resume independent filter lists without duplicates"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+barrier b_drained cond 2
+
+server s1 {
+    rxreq
+    expect req.http.x-probe-order == "F.b;F.a;F.c;B.b;B.c;B.a;"
+    expect req.http.x-probe-instances == "F.b:3;F.a:1;F.c:2;B.b:3;B.c:1;B.a:2;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "abcdefgh"
+    txresp -body "response after waits"
+
+    rxreq
+    expect req.http.x-probe-order == "F.b;F.a;F.c;B.b;B.c;B.a;"
+    expect req.http.x-probe-instances == "F.b:6;F.a:4;F.c:5;B.b:6;B.c:4;B.a:5;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.body == "ijklmnop"
+    txresp -nolen -hdr "Transfer-Encoding: chunked"
+    chunked "another "
+    chunked "response"
+    chunked ""
+    # Keep the reused backend connection open until the waiting callbacks
+    # have drained the response. This test is about resumption, not EOF.
+    barrier b_drained sync
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-probe.lua"
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+    frontend fe
+        bind "fd@${fe}"
+        filter-config lua id probe-a enabled F a
+        filter-config lua id probe-b enabled F b wait 2
+        filter-config lua id probe-c enabled F c wait
+        filter-sequence global lua/probe-c:before(lua/probe-b)
+        filter-sequence request lua/probe-b:before(lua/probe-a)
+        filter-sequence response lua/probe-c:before(lua/probe-b) lua/probe-a:after(lua/probe-c)
+        default_backend be
+    backend be
+        http-reuse always
+        filter-config lua id probe-a enabled B a wait 3
+        filter-config lua id probe-b enabled B b
+        filter-config lua id probe-c enabled B c wait 2
+        filter-sequence global lua/probe-c:before(lua/probe-a)
+        filter-sequence request lua/probe-c:before(lua/probe-a) lua/probe-b:before(lua/probe-c)
+        filter-sequence response lua/probe-c:before(lua/probe-b) lua/probe-a:before(lua/probe-c)
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# The probes return WAIT once in each channel's start/header callback, then
+# continue. Earlier filters must not repeat their header processing when a
+# later filter resumes. Forward only small payload slices after the waits.
+client c1 -connect ${h1_fe_sock} {
+    txreq -req POST -body "abcdefgh"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.c;F.a;F.b;B.a;B.c;B.b;"
+    expect resp.http.x-probe-instances == "F.c:2;F.a:1;F.b:3;B.a:2;B.c:1;B.b:3;"
+    expect resp.http.x-probe-request-bytes == "F.b:8;B.a:8;B.c:8;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "response after waits"
+
+    txreq -req POST -nolen -hdr "Transfer-Encoding: chunked"
+    chunked "ijkl"
+    chunked "mnop"
+    chunked ""
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.c;F.a;F.b;B.a;B.c;B.b;"
+    expect resp.http.x-probe-instances == "F.c:5;F.a:4;F.b:6;B.a:5;B.c:4;B.b:6;"
+    expect resp.http.x-probe-request-bytes == "F.b:8;B.a:8;B.c:8;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "another response"
+    barrier b_drained sync
+} -run
