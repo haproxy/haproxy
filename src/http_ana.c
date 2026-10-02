@@ -1666,6 +1666,17 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		txn->flags |= TX_CON_WANT_TUN;
 	}
 
+	/* check if we need to switch to no-delay for SSE */
+	if (!(s->scf->flags & SC_FL_SND_NEVERWAIT)) {
+		struct http_hdr_ctx ctx = { .blk = NULL };
+
+		if (http_find_header(htx, ist("content-type"), &ctx, 0) &&
+		    isteqi(ctx.value, ist("text/event-stream"))) {
+			s->scf->flags |= SC_FL_SND_NEVERWAIT;
+			s->scb->flags |= SC_FL_SND_NEVERWAIT;
+		}
+	}
+
 	/* Check for NTML authentication headers in 401 (WWW-Authenticate) and
 	 * 407 (Proxy-Authenticate) responses and set the connection to
 	 * private.
