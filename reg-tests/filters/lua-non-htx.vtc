@@ -1,0 +1,61 @@
+varnishtest "Non-HTX Lua filters are skipped without disabling compatible filters"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.body == "aaaabb"
+    txresp -body "aabbcc"
+    close
+    accept
+    rxreq
+    expect req.body == "aaaabb"
+    txresp -body "aabbcc"
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-tcp-rewrite.lua"
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen instances
+        bind "fd@${instances}"
+        filter-config lua id rewrite-a enabled
+        filter-config lua id rewrite-b enabled
+        filter-config trace id trace enabled quiet
+        filter-config bwlim-in id upload enabled default-limit 1m default-period 1s
+        http-request set-bandwidth-limit upload
+        server s1 ${s1_addr}:${s1_port}
+
+    listen legacy
+        bind "fd@${legacy}"
+        filter lua.rewrite-a
+        filter lua.rewrite-b
+        filter trace quiet
+        filter bwlim-in upload default-limit 1m default-period 1s
+        http-request set-bandwidth-limit upload
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# The instances are enabled, but the registered Lua classes have no HTX
+# flag. Neither channel may be rewritten in HTTP mode, in either model.
+client c1 -connect ${h1_instances_sock} {
+    txreq -req POST -body "aaaabb"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "aabbcc"
+} -run
+
+client c2 -connect ${h1_legacy_sock} {
+    txreq -req POST -body "aaaabb"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "aabbcc"
+} -run
