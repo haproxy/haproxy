@@ -1284,7 +1284,7 @@ int decomp_req_flt_parse_instance(char **args, struct proxy *px, struct filter_i
 {
 	struct decomp *decomp;
 
-	if (!(px->cap & PR_CAP_FE)) {
+	if (!(px->cap & PR_CAP_FE) && !(inst->flags & FLT_INST_F_INHERITED)) {
 		memprintf(err, "'decomp-req' filter not allowed because %s '%s' has no frontend capability\n",
 		          proxy_type_str(px), px->id);
 		return -1;
@@ -1300,10 +1300,11 @@ int decomp_req_flt_parse_instance(char **args, struct proxy *px, struct filter_i
 		memprintf(err, "out of memory");
 		return -1;
 	}
-	decomp->flags |= DECOMP_FL_DIR_REQ;
+	if (px->cap & PR_CAP_FE)
+		decomp->flags |= DECOMP_FL_DIR_REQ;
 
 	inst->fconf->id   = decomp_req_flt_id;
-	inst->fconf->conf = &decomp->req;
+	inst->fconf->conf = (px->cap & PR_CAP_FE) ? &decomp->req : NULL;
 	inst->fconf->ops  = &decomp_req_ops;
 	return 0;
 }
@@ -1316,7 +1317,7 @@ int decomp_res_flt_parse_instance(char **args, struct proxy *px, struct filter_i
 {
 	struct decomp *decomp;
 
-	if (!(px->cap & PR_CAP_BE)) {
+	if (!(px->cap & PR_CAP_BE) && !(inst->flags & FLT_INST_F_INHERITED)) {
 		memprintf(err, "'decomp-res' filter not allowed because %s '%s' has no backend capability\n",
 		          proxy_type_str(px), px->id);
 		return -1;
@@ -1332,54 +1333,81 @@ int decomp_res_flt_parse_instance(char **args, struct proxy *px, struct filter_i
 		memprintf(err, "out of memory");
 		return -1;
 	}
-	decomp->flags |= DECOMP_FL_DIR_RES;
+	if (px->cap & PR_CAP_BE)
+		decomp->flags |= DECOMP_FL_DIR_RES;
 
 	inst->fconf->id   = decomp_res_flt_id;
-	inst->fconf->conf = &decomp->res;
+	inst->fconf->conf = (px->cap & PR_CAP_BE) ? &decomp->res : NULL;
 	inst->fconf->ops  = &decomp_res_ops;
 	return 0;
+}
+
+/* Context for decomp_check_order() */
+struct decomp_check_ctx {
+	struct proxy *px;
+	int decomp_req_seen;
+	int decomp_res_seen;
+	int cache_seen;
+	int explicit;
+};
+
+/* Checks the filter <f> against the decomp filter being checked: ...
+ * Returns non-zero to stop the iteration on error, 0 otherwise.
+ */
+static int decomp_check_order(struct flt_conf *f, void *data)
+{
+	struct decomp_check_ctx *ctx = data;
+
+	if ((ctx->px->cap & PR_CAP_FE) && f->id == decomp_req_flt_id) {
+		ctx->decomp_req_seen = 1;
+		return 0;
+	}
+	if ((ctx->px->cap & PR_CAP_BE) && f->id == decomp_res_flt_id) {
+		if (ctx->cache_seen) {
+			ha_alert("config: %s '%s': cache filter declared before a decompression filter on the response is invalid.\n",
+				 proxy_type_str(ctx->px), ctx->px->id);
+			return 1;
+		}
+		ctx->decomp_res_seen = 1;
+		return 0;
+	}
+	/* Legacy filters not used for this proxy, we can return */
+	if (!flt_use_legacy_filter(ctx->px))
+		return 0;
+
+	if (f->id == cache_store_flt_id) {
+		ctx->cache_seen = 1;
+		return 0;
+	}
+	if (f->id == http_comp_req_flt_id || f->id == http_comp_res_flt_id)
+		return 0;
+#if defined(USE_FCGI)
+	if (f->id == fcgi_flt_id)
+		return 0;
+#endif
+	ctx->explicit = 1;
+	return 0;
+
 }
 
 int
 check_implicit_decomp_flt(struct proxy *proxy)
 {
-	struct filter_class *cls;
 	struct flt_conf *fconf;
-	struct flt_conf *fconf_req = NULL;
-	struct flt_conf *fconf_res = NULL;
-	int explicit = 0;
+	struct decomp_check_ctx ctx = { .px = proxy, .decomp_req_seen = 0, .decomp_res_seen = 0,
+					.cache_seen = 0, .explicit = 0};
 	int err = 0;
 
 	if (proxy->decomp == NULL)
 		goto end;
 
-	if (!LIST_ISEMPTY(&proxy->filter_configs)) {
-		list_for_each_entry(fconf, &proxy->filter_configs, list) {
-			if ((proxy->cap & PR_CAP_FE) && fconf->id == decomp_req_flt_id)
-				fconf_req = fconf;
-			else if ((proxy->cap & PR_CAP_BE) && fconf->id == decomp_res_flt_id)
-				fconf_res = fconf;
-			else if (fconf->id == cache_store_flt_id) {
-				if (((proxy->cap & PR_CAP_FE) && !fconf_req) || ((proxy->cap & PR_CAP_BE) && !fconf_res)) {
-					ha_alert("config: %s '%s': cache filter declared before a decompression filter is invalid.\n",
-						 proxy_type_str(proxy), proxy->id);
-					err++;
-					goto end;
-				}
-			}
-			else if (fconf->id == http_comp_req_flt_id || fconf->id == http_comp_res_flt_id)
-				continue;
-#if defined(USE_FCGI)
-			else if (fconf->id == fcgi_flt_id)
-				continue;
-#endif
-			else
-				explicit = 1;
-		}
+	if (flt_foreach_conf(proxy, FLT_SIDE_GLOBAL, decomp_check_order, &ctx)) {
+		err++;
+		goto end;
 	}
 
-	if ((proxy->cap & PR_CAP_FE) && proxy->decomp->req.algos && !fconf_req) {
-		if (explicit) {
+	if ((proxy->cap & PR_CAP_FE) && proxy->decomp->req.algos && !ctx.decomp_req_seen) {
+		if (ctx.explicit) {
 			ha_alert("config: %s '%s': require an explicit 'filter decomp-req' declaration to use "
 				 "decompression.\n", proxy_type_str(proxy), proxy->id);
 			err++;
@@ -1388,16 +1416,16 @@ check_implicit_decomp_flt(struct proxy *proxy)
 		/* Implicit declaration of the decomp-req filter should be at
 		 * the beginning of the filter list.
 		 */
-		fconf_req = calloc(1, sizeof(*fconf));
-		if (!fconf_req)
+		fconf = calloc(1, sizeof(*fconf));
+		if (!fconf)
 			goto out_of_memory;
-		fconf_req->id   = decomp_req_flt_id;
-		fconf_req->conf = &proxy->decomp->req;
-		fconf_req->ops  = &decomp_req_ops;
-		LIST_INSERT(&proxy->filter_configs, &fconf_req->list);
+		fconf->id   = decomp_req_flt_id;
+		fconf->conf = &proxy->decomp->req;
+		fconf->ops  = &decomp_req_ops;
+		LIST_INSERT(&proxy->filter_configs, &fconf->list);
 	}
-	if ((proxy->cap & PR_CAP_BE) && proxy->decomp->res.algos && !fconf_res) {
-		if (explicit) {
+	if ((proxy->cap & PR_CAP_BE) && proxy->decomp->res.algos && !ctx.decomp_res_seen) {
+		if (ctx.explicit) {
 			ha_alert("config: %s '%s': require an explicit 'filter decomp-res' declaration to use "
 				 "decompression.\n", proxy_type_str(proxy), proxy->id);
 			err++;
@@ -1406,13 +1434,13 @@ check_implicit_decomp_flt(struct proxy *proxy)
 		/* Implicit declaration of the decomp-res filter should be at
 		 * the beginning of the filter list.
 		 */
-		fconf_res = calloc(1, sizeof(*fconf));
-		if (!fconf_res)
+		fconf = calloc(1, sizeof(*fconf));
+		if (!fconf)
 			goto out_of_memory;
-		fconf_res->id   = decomp_res_flt_id;
-		fconf_res->conf = &proxy->decomp->res;
-		fconf_res->ops  = &decomp_res_ops;
-		LIST_INSERT(&proxy->filter_configs, &fconf_res->list);
+		fconf->id   = decomp_res_flt_id;
+		fconf->conf = &proxy->decomp->res;
+		fconf->ops  = &decomp_res_ops;
+		LIST_INSERT(&proxy->filter_configs, &fconf->list);
 	}
  end:
 	return err;
