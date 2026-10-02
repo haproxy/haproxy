@@ -449,6 +449,20 @@ static enum act_return bwlim_set_limit(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_CONT;
 }
 
+/* Match callback for flt_find_conf() in check_bwlim_action(): matches the
+ * bwlim filter configurations with the name <data>.
+ */
+static int bwlim_find_flt(struct flt_conf *fconf, void *data)
+{
+	struct bwlim_config *conf;
+	const char *name = data;
+
+	if (fconf->id != bwlim_in_flt_id && fconf->id != bwlim_out_flt_id)
+		return 0;
+	conf = fconf->conf;
+	return (conf && strcmp(name, conf->name) == 0);
+}
+
 /* Check function for "set-bandwidth-limit" action. It returns 1 on
  * success. Otherwise, it returns 0 and <err> is filled.
  */
@@ -458,19 +472,13 @@ int check_bwlim_action(struct act_rule *rule, struct proxy *px, char **err)
 	struct bwlim_config *conf = NULL;
 	unsigned int where;
 
-	list_for_each_entry(fconf, &px->filter_configs, list) {
-		conf = NULL;
-		if (fconf->id == bwlim_in_flt_id || fconf->id == bwlim_out_flt_id) {
-			conf = fconf->conf;
-			if (strcmp(rule->arg.act.p[0], conf->name) == 0)
-				break;
-		}
-	}
-	if (!conf) {
+	fconf = flt_find_conf(px, NULL, FLT_SIDE_GLOBAL, bwlim_find_flt, rule->arg.act.p[0]);
+	if (!fconf) {
 		memprintf(err, "unable to find bwlim filter '%s' referenced by set-bandwidth-limit rule",
 			  (char *)rule->arg.act.p[0]);
 		return 0;
 	}
+	conf = fconf->conf;
 
 	if ((conf->flags & BWLIM_FL_SHARED) && rule->arg.act.p[1]) {
 		memprintf(err, "set-bandwidth-limit rule cannot define a limit for a shared bwlim filter");
