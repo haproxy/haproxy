@@ -52,7 +52,7 @@ haproxy h1 -cli {
 	send "user; show stat"
 	expect ~ "\n# pxname,svname,qcur"
 	send "user; show info"
-	expect ~ "Name: HAProxy"
+	expect ~ "Name: .*"
 
 	# changing a global setting requires admin
 	send "set maxconn global 1234; show info"

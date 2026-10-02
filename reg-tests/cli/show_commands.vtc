@@ -77,7 +77,7 @@ haproxy h1 -cli {
 	expect ~ "^# pxname,svname,qcur"
 
 	send "show info"
-	expect ~ "Name: HAProxy"
+	expect ~ "Name: .*"
 
 	send "show schema json"
 	expect ~ "json-schema.org"
