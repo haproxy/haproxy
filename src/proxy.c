@@ -2826,7 +2826,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		px->fe_req_ana |= AN_REQ_SWITCHING_RULES;
 
 		/* Add filters analyzers if needed */
-		if (!LIST_ISEMPTY(&px->filter_configs)) {
+		if (flt_has_filter(px)) {
 			px->fe_req_ana |= AN_REQ_FLT_START_FE | AN_REQ_FLT_XFER_DATA | AN_REQ_FLT_END;
 			px->fe_rsp_ana |= AN_RES_FLT_START_FE | AN_RES_FLT_XFER_DATA | AN_RES_FLT_END;
 		}
@@ -2853,7 +2853,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 			px->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
 
 		/* Add filters analyzers if needed */
-		if (!LIST_ISEMPTY(&px->filter_configs)) {
+		if (flt_has_filter(px)) {
 			px->be_req_ana |= AN_REQ_FLT_START_BE | AN_REQ_FLT_XFER_DATA | AN_REQ_FLT_END;
 			px->be_rsp_ana |= AN_RES_FLT_START_BE | AN_RES_FLT_XFER_DATA | AN_RES_FLT_END;
 		}

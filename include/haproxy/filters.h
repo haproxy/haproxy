@@ -189,6 +189,8 @@ struct flt_kw *flt_find_kw(const char *kw);
 void           flt_dump_kws(char **out);
 void           list_filters(FILE *out);
 
+int flt_has_filter(const struct proxy *px);
+
 /* Returns != 0 if the proxy <px> is in legacy filter mode, so when an explicit
  * legacy "filter" directive was used (PR_FL_FILTER_LEGACY). In legacy mode, the
  * filter configurations are in px->filter_configs; otherwise they come from the
