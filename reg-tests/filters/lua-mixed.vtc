@@ -1,0 +1,141 @@
+varnishtest "Lua probes compose with caching, compression, trace and bandwidth filters"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA) && (feature(SLZ) || feature(ZLIB))'"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.method == "POST"
+    expect req.http.x-probe-order == "M.pre;M.post;"
+    expect req.http.x-probe-encodings == "M.pre:identity;M.post:gzip;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.http.content-encoding == "gzip"
+    gunzip
+    expect req.body == "request body"
+    txresp -hdr "Content-Type: text/plain" -body "compressed response"
+
+    rxreq
+    expect req.url == "/cached"
+    expect req.http.x-probe-order == "M.pre;M.post;"
+    expect req.http.x-probe-encodings == "M.pre:identity;M.post:identity;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -hdr "Content-Type: text/plain" -hdr "Cache-Control: max-age=60" -body "cached response"
+} -start
+
+server s2 {
+    rxreq
+    expect req.http.x-probe-order == "M.pre;M.post;"
+    expect req.http.x-probe-encodings == "M.pre:identity;M.post:identity;"
+    expect req.http.x-probe-errors == <undef>
+    expect req.http.content-encoding == <undef>
+    expect req.body == "request body"
+    txresp -hdr "Content-Type: text/plain" -body "disabled response"
+} -start
+
+haproxy h1 -conf {
+    global
+        chroot /
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-probe.lua"
+    cache c
+        total-max-size 1
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe from plain
+        bind "fd@${fe}"
+        use_backend uncompressed if { path /disabled }
+        default_backend compressed
+
+    defaults mixed from plain
+        compression algo-req gzip
+        compression algo-res gzip
+        compression type-req text/plain
+        compression type-res text/plain
+        filter-config trace id observer enabled quiet
+        filter-config cache-store id c enabled
+        filter-config lua id probe-a enabled M pre data
+        filter-config lua id probe-b enabled M post
+        filter-config lua id probe-c M disabled
+        filter-config bwlim-in id upload enabled default-limit 1m default-period 1s
+        filter-config bwlim-out id download enabled default-limit 1m default-period 1s
+        # Move only the second probe after compression, on each channel.
+        filter-sequence request lua/probe-b:after(http-comp-req)
+        filter-sequence response lua/probe-b:after(http-comp-res)
+
+    backend compressed from mixed
+        http-request cache-use c
+        http-response cache-store c
+        http-request set-bandwidth-limit upload
+        http-response set-bandwidth-limit download
+        server s1 ${s1_addr}:${s1_port}
+
+    backend uncompressed from mixed
+        filter-disable http-comp-req http-comp-res bwlim-out/download
+        http-request set-bandwidth-limit upload
+        server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -req POST -url /post -hdr "Host: example.org" -hdr "Content-Type: text/plain" -hdr "Accept-Encoding: gzip" -body "request body"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "M.pre;M.post;"
+    expect resp.http.x-probe-encodings == "M.pre:identity;M.post:gzip;"
+    expect resp.http.x-probe-request-bytes == "M.pre:12;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.http.content-encoding == "gzip"
+    gunzip
+    expect resp.body == "compressed response"
+
+    txreq -url /cached -hdr "Host: example.org" -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "M.pre;M.post;"
+    expect resp.http.x-probe-encodings == "M.pre:identity;M.post:gzip;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.http.content-encoding == "gzip"
+    gunzip
+    expect resp.body == "cached response"
+
+    # This response must come from the cache: no third server response exists.
+    # The cached body is plain and the response probes still run on a hit.
+    txreq -url /cached -hdr "Host: example.org"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.age >= 0
+    expect resp.http.x-probe-order == "M.pre;M.post;"
+    expect resp.http.x-probe-encodings == "M.pre:identity;M.post:identity;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.http.content-encoding == <undef>
+    expect resp.body == "cached response"
+
+    # The sibling keeps the Lua and request bandwidth filters, but must not
+    # compress either direction or change the enabled sibling's instances.
+    txreq -req POST -url /disabled -hdr "Content-Type: text/plain" -hdr "Accept-Encoding: gzip" -body "request body"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "M.pre;M.post;"
+    expect resp.http.x-probe-encodings == "M.pre:identity;M.post:identity;"
+    expect resp.http.x-probe-request-bytes == "M.pre:12;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.http.content-encoding == <undef>
+    expect resp.body == "disabled response"
+} -run
+
+haproxy h1 -cli {
+    send "show filter instance compressed http-comp-res"
+    expect ~ "state:      enabled, implicit, inherited\n"
+    send "show filter instance uncompressed http-comp-res"
+    expect ~ "state:      disabled, implicit, inherited\n"
+    send "show filter instance compressed bwlim-out/download"
+    expect ~ "state:      enabled, inherited\n"
+    send "show filter instance uncompressed bwlim-out/download"
+    expect ~ "state:      disabled, inherited\n"
+    send "show filter instance compressed lua/probe-c"
+    expect ~ "state:      disabled, inherited\n"
+}
