@@ -1,0 +1,127 @@
+varnishtest "TCP Lua payload chains honor inherited per-side sequences and state"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+# HTTP framing is only a convenient way to check complete bodies over TCP.
+# The proxies do not parse HTTP and the Lua filters have no HTX flag.
+server s1 {
+    rxreq
+    expect req.body == "cccccc"
+    txresp -body "aabbcc"
+} -start
+
+server s2 {
+    rxreq
+    expect req.body == "bbbbcc"
+    txresp -body "aabbcc"
+} -start
+
+server s3 {
+    rxreq
+    expect req.body == "aaaabb"
+    txresp -body "aabbcc"
+} -start
+
+server s4 {
+    rxreq
+    expect req.body == "bbbbcc"
+    txresp -body "aabbcc"
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-tcp-rewrite.lua"
+    defaults plain
+        mode tcp
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend ordered from plain
+        bind "fd@${ordered}"
+        default_backend ordered_be
+    frontend reversed from plain
+        bind "fd@${reversed}"
+        default_backend reversed_be
+    frontend off from plain
+        bind "fd@${off}"
+        default_backend off_be
+    frontend legacy from plain
+        bind "fd@${legacy}"
+        default_backend legacy_be
+
+    defaults rewrites from plain
+        filter-config trace id trace enabled quiet
+        filter-config lua id rewrite-a enabled
+        filter-config lua id rewrite-b enabled
+        filter-config lua id rewrite-c enabled
+        filter-disable lua/rewrite-c
+        filter-config bwlim-in id upload enabled default-limit 1m default-period 1s
+        filter-config bwlim-out id download enabled default-limit 1m default-period 1s
+        filter-sequence global lua/rewrite-b:before(lua/rewrite-a)
+        filter-sequence request lua/rewrite-a:before(lua/rewrite-b)
+        filter-sequence response lua/rewrite-b:before(lua/rewrite-a)
+
+    backend ordered_be from rewrites
+        tcp-request content set-bandwidth-limit upload
+        tcp-response content set-bandwidth-limit download
+        server s1 ${s1_addr}:${s1_port}
+
+    backend reversed_be from rewrites
+        filter-disable lua
+        filter-enable lua/rewrite-a lua/rewrite-b
+        # Detach the inherited child to the class anchor before reversing
+        # the relation. Moving its parent under it directly creates a cycle.
+        filter-sequence request lua/rewrite-a:before(lua) lua/rewrite-b:before(lua/rewrite-a)
+        filter-sequence response lua/rewrite-b:before(lua) lua/rewrite-a:before(lua/rewrite-b)
+        tcp-request content set-bandwidth-limit upload
+        tcp-response content set-bandwidth-limit download
+        server s2 ${s2_addr}:${s2_port}
+
+    backend off_be from rewrites
+        filter-disable lua
+        tcp-request content set-bandwidth-limit upload
+        tcp-response content set-bandwidth-limit download
+        server s3 ${s3_addr}:${s3_port}
+
+    backend legacy_be from plain
+        filter trace quiet
+        filter lua.rewrite-b
+        filter lua.rewrite-a
+        filter bwlim-in upload default-limit 1m default-period 1s
+        filter bwlim-out download default-limit 1m default-period 1s
+        tcp-request content set-bandwidth-limit upload
+        tcp-response content set-bandwidth-limit download
+        server s4 ${s4_addr}:${s4_port}
+} -start
+
+client c1 -connect ${h1_ordered_sock} {
+    txreq -req POST -body "aaaabb"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "bbcccc"
+} -run
+
+client c2 -connect ${h1_reversed_sock} {
+    txreq -req POST -body "aaaabb"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "cccccc"
+} -run
+
+client c3 -connect ${h1_off_sock} {
+    txreq -req POST -body "aaaabb"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "aabbcc"
+} -run
+
+client c4 -connect ${h1_legacy_sock} {
+    txreq -req POST -body "aaaabb"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "bbcccc"
+} -run
