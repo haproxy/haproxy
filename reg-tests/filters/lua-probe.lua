@@ -1,6 +1,6 @@
 -- Reusable HTTP probes. Arguments: scope, tag, mode (headers/data/wait/decline),
--- optional maximum bytes forwarded per payload callback. Only new() mutates
--- the construction counters; all callback state belongs to the stream instance.
+-- optional maximum bytes forwarded per payload callback and wait delay in ms.
+-- Only new() mutates counters; callback state belongs to the stream instance.
 local counters = {}
 
 local function append(msg, header, value)
@@ -33,7 +33,7 @@ local function register(name)
         local side = chn:is_resp() and 2 or 1
         if self.mode == "wait" and not self.start_waited[side] then
             self.start_waited[side] = true
-            filter.wake_time(1)
+            filter.wake_time(self.wait_ms)
             return filter.WAIT
         end
         self.started[side] = true
@@ -49,7 +49,7 @@ local function register(name)
         local side = msg:is_resp() and 2 or 1
         if self.mode == "wait" and not self.headers_waited[side] then
             self.headers_waited[side] = true
-            filter.wake_time(1)
+            filter.wake_time(self.wait_ms)
             return filter.WAIT
         end
         local tag = self.scope .. "." .. self.tag
@@ -91,7 +91,9 @@ local function register(name)
         conf.tag = args[2]
         conf.mode = args[3] or "headers"
         conf.limit = tonumber(args[4]) or 0
+        conf.wait_ms = tonumber(args[5]) or 1
         assert(conf.limit >= 0, "probe payload limit must not be negative")
+        assert(conf.wait_ms > 0, "probe wait delay must be positive")
         return conf
     end)
 end

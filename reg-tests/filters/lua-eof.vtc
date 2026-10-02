@@ -1,0 +1,104 @@
+varnishtest "Waiting Lua filters drain a complete response followed by backend EOF"
+
+#REGTEST_TYPE=broken
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
+feature ignore_unknown_macro
+
+# A backend closing after a complete chunked response can make the stream
+# close before waiting Lua callbacks resume. This also occurs with legacy
+# filters before the instance refactoring. Keep the reproducer separate
+# from the passing resumption test, which holds the backend open with a barrier.
+server s1 {
+    rxreq
+    txresp -body "first response"
+    rxreq
+    txresp -nolen -hdr "Transfer-Encoding: chunked"
+    chunked "complete response"
+    chunked ""
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-probe.lua"
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+    frontend fe
+        bind "fd@${fe}"
+        filter lua.probe-a F a wait 2 20
+        filter lua.probe-b F b wait 0 20
+        default_backend be
+    backend be
+        http-reuse always
+        filter lua.probe-a B a wait 3 20
+        filter lua.probe-b B b wait 2 20
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -req POST -body "request body"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "first response"
+    txreq -req POST -nolen -hdr "Transfer-Encoding: chunked"
+    chunked "request "
+    chunked "body"
+    chunked ""
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.a;F.b;B.a;B.b;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "complete response"
+} -run
+
+server s2 {
+    rxreq
+    txresp -body "first response"
+    rxreq
+    txresp -nolen -hdr "Transfer-Encoding: chunked"
+    chunked "complete response"
+    chunked ""
+} -start
+
+haproxy h2 -conf {
+    global
+        nbthread 1
+        tune.lua.bool-sample-conversion normal
+        lua-load "${testdir}/lua-probe.lua"
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+    frontend fe
+        bind "fd@${fe}"
+        filter-config lua id probe-a enabled F a wait 2 20
+        filter-config lua id probe-b enabled F b wait 0 20
+        default_backend be
+    backend be
+        http-reuse always
+        filter-config lua id probe-a enabled B a wait 3 20
+        filter-config lua id probe-b enabled B b wait 2 20
+        server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c2 -connect ${h2_fe_sock} {
+    txreq -req POST -body "request body"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "first response"
+    txreq -req POST -nolen -hdr "Transfer-Encoding: chunked"
+    chunked "request "
+    chunked "body"
+    chunked ""
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "F.a;F.b;B.a;B.b;"
+    expect resp.http.x-probe-errors == <undef>
+    expect resp.body == "complete response"
+} -run
