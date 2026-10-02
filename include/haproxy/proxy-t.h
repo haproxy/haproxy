@@ -252,6 +252,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_FL_BE_UNPUBLISHED     0x00000080  /* The proxy cannot be targeted by content switching rules */
 #define PR_FL_DELETED            0x00000100  /* Proxy has been deleted and must be manipulated with care */
 #define PR_FL_NON_PURGEABLE      0x00000200  /* Proxy referenced by config elements which prevent its runtime removal. */
+#define PR_FL_FILTER_LEGACY      0x00000400  /* An explicit legacy "filter" directive was used */
 
 struct stream;
 
