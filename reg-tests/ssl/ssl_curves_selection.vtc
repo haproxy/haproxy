@@ -10,7 +10,7 @@
 
 varnishtest "Tests for ssl-default-{bind,server}-curves global option and curves option for backends/frontends"
 
-feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(3.0.0) || feature(OPENSSL) && ssllib_name_startswith(AWS-LC) && awslc_api_atleast(35)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(3.0.0) || feature(OPENSSL) && ssllib_name_startswith(AWS-LC) && awslc_api_atleast(30)'"
 
 setenv VTC_SOCK_TYPE stream
 include ${testdir}/ssl_curves_selection.vtci

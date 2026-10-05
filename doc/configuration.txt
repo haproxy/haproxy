@@ -26755,8 +26755,13 @@ ssl_bc_client_traffic_secret_0 : string
 
 ssl_bc_curve : string
   Returns the name of the curve used in the key agreement when the outgoing
-  connection was made over an SSL/TLS transport layer. This requires
-  OpenSSL >= 3.0.0 or AWS-LC >= 1.57.0.
+  connection was made over an SSL/TLS transport layer.
+
+  The output format depends on the HAProxy and SSL library versions. The name
+  may use NIST notation (e.g. "P-256"), OpenSSL notation (e.g. "prime256v1"),
+  or another library-specific format. Spelling and case may also vary.
+
+  Compatibility: OpenSSL >= 3.0.0, AWS-LC >= 3.0.0 (API >= 30).
 
 ssl_bc_early_exporter_secret : string
   Return the EARLY_EXPORTER_SECRET as an hexadecimal string for the
@@ -27237,8 +27242,13 @@ ssl_fc_crtname : string
 
 ssl_fc_curve : string
   Returns the name of the curve used in the key agreement when the incoming
-  connection was made over an SSL/TLS transport layer. This requires
-  OpenSSL >= 3.0.0.
+  connection was made over an SSL/TLS transport layer.
+
+  The output format depends on the HAProxy and SSL library versions. The name
+  may use NIST notation (e.g. "P-256"), OpenSSL notation (e.g. "prime256v1"),
+  or another library-specific format. Spelling and case may also vary.
+
+  Compatibility: OpenSSL >= 3.0.0, AWS-LC >= 3.0.0 (API >= 30).
 
 ssl_fc_early_rcvd : boolean
   Returns true if early data were seen over that connection, regardless of the

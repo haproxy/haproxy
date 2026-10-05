@@ -1726,10 +1726,10 @@ smp_fetch_ssl_fc_is_resumed(const struct arg *args, struct sample *smp, const ch
  * string, returns the EC curve used for key agreement on the
  * front and backend connection.
  *
- * The function to get the curve name (SSL_get_negotiated_group) is only available
- * in OpenSSLv3 onwards and not for previous versions, and in AWS-LC >= 1.57.0.
+ * SSL_get_negotiated_group is available in OpenSSL >= 3.0 and AWS-LC API >= 35.
+ * AWS-LC API 30-34 (including 3.0.0) provides SSL_get_group_id/name instead.
  */
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL) || (defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 35)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL) || (defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 30)
 static int
 smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1770,6 +1770,26 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 		for (i = 0; curve_name[i]; i++)
 			curve_name[i] = toupper((unsigned char)curve_name[i]);
 	}
+# elif defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION < 35
+	uint16_t group = SSL_get_group_id(ssl);
+
+	/* Match the NIST curve short names returned by the NID-based API in
+	 * newer AWS-LC versions. Other groups, including PQ/hybrid groups,
+	 * retain their native names. TLS group IDs are not OpenSSL NIDs.
+	 */
+	switch (group) {
+		case SSL_GROUP_SECP224R1: nid = NID_secp224r1;        break;
+		case SSL_GROUP_SECP256R1: nid = NID_X9_62_prime256v1; break;
+		case SSL_GROUP_SECP384R1: nid = NID_secp384r1;        break;
+		case SSL_GROUP_SECP521R1: nid = NID_secp521r1;        break;
+		default:                  nid = NID_undef;            break;
+	}
+	if (nid != NID_undef)
+		curve_name = (char *)OBJ_nid2sn(nid);
+	else
+		curve_name = (char *)SSL_get_group_name(group);
+	if (!curve_name)
+		return 0;
 # else
 	nid = SSL_get_negotiated_group(ssl);
 	if (!nid)
@@ -2808,7 +2828,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_alpn",            smp_fetch_ssl_fc_alpn,        0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 #endif
 	{ "ssl_bc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL) || (defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 35)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL) || (defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 30)
         { "ssl_bc_curve",           smp_fetch_ssl_fc_ec,          0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 #endif
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
@@ -2874,7 +2894,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc",                 smp_fetch_ssl_fc,             0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_fc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL) || (defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 35)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x3000000fL) || (defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION >= 30)
         { "ssl_fc_curve",           smp_fetch_ssl_fc_ec,          0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
 	{ "ssl_fc_early_rcvd",      smp_fetch_ssl_fc_early_rcvd,  0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
