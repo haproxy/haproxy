@@ -2663,17 +2663,23 @@ static int cli_io_handler_dump_cert(struct appctx *appctx)
 		if (BIO_reset(bio) == -1)
 			goto end_no_putchk;
 
-		if (!PEM_write_bio_PrivateKey(bio, ckchs->data->key, NULL, NULL, 0, 0, NULL))
-			goto end_no_putchk;
+		/* In some specific cases we miht end up with only a
+		 * certificate but no private key (for JWT token validation for
+		 * instance).
+		 */
+		if (ckchs->data->key) {
+			if (!PEM_write_bio_PrivateKey(bio, ckchs->data->key, NULL, NULL, 0, 0, NULL))
+				goto end_no_putchk;
 
-		write = BIO_read(bio, out->area, out->size-1);
-		if (write == 0)
-			goto end_no_putchk;
-		out->area[write] = '\0';
-		out->data = write;
+			write = BIO_read(bio, out->area, out->size-1);
+			if (write == 0)
+				goto end_no_putchk;
+			out->area[write] = '\0';
+			out->data = write;
 
-		if (applet_putchk(appctx, out) == -1)
-			goto end_no_putchk;
+			if (applet_putchk(appctx, out) == -1)
+				goto end_no_putchk;
+		}
 
 		index++;
 
