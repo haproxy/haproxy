@@ -1045,7 +1045,7 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 
 	fconf->id   = http_comp_req_flt_id;
 	fconf->name = "comp-req";
-	fconf->conf = NULL;
+	fconf->conf = px->comp;
 	fconf->ops  = &comp_req_ops;
 
 	/* FILTER API prepared a single filter_conf struct as it is meant to
@@ -1061,7 +1061,7 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 	fconf_res->id = http_comp_res_flt_id;
 	fconf_res->name = "comp-res";
-	fconf_res->conf = NULL;
+	fconf_res->conf = px->comp;
 	fconf_res->ops = &comp_res_ops;
 
 	/* manually add the fconf_res to the list because filter API doesn't
@@ -1097,7 +1097,7 @@ parse_http_comp_req_flt(char **args, int *cur_arg, struct proxy *px,
 	comp->flags |= COMP_FL_DIR_REQ;
 
 	fconf->id   = http_comp_req_flt_id;
-	fconf->conf = NULL;
+	fconf->conf = px->comp;
 	fconf->ops  = &comp_req_ops;
 	(*cur_arg)++;
 
@@ -1126,7 +1126,7 @@ parse_http_comp_res_flt(char **args, int *cur_arg, struct proxy *px,
 	comp->flags |= COMP_FL_DIR_RES;
 
 	fconf->id   = http_comp_res_flt_id;
-	fconf->conf = NULL;
+	fconf->conf = px->comp;
 	fconf->ops  = &comp_res_ops;
 	(*cur_arg)++;
 
@@ -1190,12 +1190,12 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 		goto end;
 	}
 	fconf_req->id   = http_comp_req_flt_id;
-	fconf_req->conf = NULL;
+	fconf_req->conf = proxy->comp;
 	fconf_req->ops  = &comp_req_ops;
 	LIST_APPEND(&proxy->filter_configs, &fconf_req->list);
 
 	fconf_res->id   = http_comp_res_flt_id;
-	fconf_res->conf = NULL;
+	fconf_res->conf = proxy->comp;
 	fconf_res->ops  = &comp_res_ops;
 	LIST_APPEND(&proxy->filter_configs, &fconf_res->list);
  end:
