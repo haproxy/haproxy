@@ -1736,6 +1736,7 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 	struct connection *conn;
 	SSL *ssl;
 	int __maybe_unused nid;
+	uint16_t __maybe_unused group;
 	char *curve_name;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
@@ -1771,7 +1772,7 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 			curve_name[i] = toupper((unsigned char)curve_name[i]);
 	}
 # elif defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION < 35
-	uint16_t group = SSL_get_group_id(ssl);
+	group = SSL_get_group_id(ssl);
 
 	/* Match the NIST curve short names returned by the NID-based API in
 	 * newer AWS-LC versions. Other groups, including PQ/hybrid groups,
