@@ -504,6 +504,19 @@ static void qcs_close_remote(struct qcs *qcs)
 	/* This operation cannot be used multiple times. */
 	BUG_ON_HOT(qcs->st == QC_SS_HREM || qcs->st == QC_SS_CLO);
 
+	/* Ignore remote closure if QCS is already completed and thus already
+	 * scheduled for purging. This is possible as a detached QCS may be
+	 * considered as terminated even if only locally closed. This is
+	 * mandatory to avoid a double insert in purge list. This approach also
+	 * preserves QCS state on completion for better diagnostics.
+	 */
+	if (qcs_is_completed(qcs)) {
+		TRACE_STATE("ignore close remote on completed stream", QMUX_EV_QCS_RECV, qcs->qcc->conn, qcs);
+		COUNT_IF(!(qcs->flags & QC_SF_DETACH), "QCS reported as completed prior remote closure but not detached.");
+		COUNT_IF(!LIST_INLIST(&qcs->el_send),  "QCS reported as completed not in purge list");
+		return;
+	}
+
 	if (quic_stream_is_bidi(qcs->id)) {
 		qcs->st = (qcs->st == QC_SS_HLOC) ? QC_SS_CLO : QC_SS_HREM;
 	}
