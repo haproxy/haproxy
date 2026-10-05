@@ -2690,6 +2690,12 @@ static int flt_precheck_instances(struct proxy *proxy)
 	struct filter_class_ref *ref;
 	int err_code = ERR_NONE;
 
+	/* Mirrored implicit instances in legacy mode are only metadata. Their
+	 * parsers must not modify the proxy options or allocate unused configs.
+	 */
+	if (flt_use_legacy_filter(proxy))
+		return ERR_NONE;
+
 	/* Finalize every instance once, following the global class order. */
 	list_for_each_entry(ref, &proxy->conf.filter_refs, list)
 		err_code |= flt_precheck_class_instances(proxy, ref);
