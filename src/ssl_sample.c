@@ -1779,6 +1779,7 @@ smp_fetch_ssl_fc_ec(const struct arg *args, struct sample *smp, const char *kw, 
 	if (!curve_name)
 		return 0;
 # else
+	/* for OpenSSL < 3.2 and AWS-LC API >= 35 */
 	nid = SSL_get_negotiated_group(ssl);
 	if (!nid)
 		return 0;
