@@ -68,7 +68,15 @@ comp_flt_init(struct proxy *px, struct flt_conf *fconf)
 static int
 comp_strm_init(struct stream *s, struct filter *filter)
 {
+	struct comp *comp = FLT_CONF(filter);
 	struct comp_state *st;
+
+	if (filter->config->id == http_comp_req_flt_id &&
+	    (!comp || !comp->algo_req || !(comp->flags & COMP_FL_DIR_REQ)))
+		return 0;
+	else if (filter->config->id == http_comp_res_flt_id &&
+		 (!comp || !comp->algos_res || !(comp->flags & COMP_FL_DIR_RES)))
+		return 0;
 
 	st = pool_alloc(pool_head_comp_state);
 	if (st == NULL)
