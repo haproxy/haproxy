@@ -50,8 +50,8 @@ client c1 -connect ${h1_clearlst_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-ssl-fc-curve-name == "X25519"
-    expect resp.http.x-ssl-bc-curve-name == "X25519"
+    expect resp.http.x-ssl-fc-curve-name ~ "^[Xx]25519$"
+    expect resp.http.x-ssl-bc-curve-name ~ "^[Xx]25519$"
 
 } -run
 

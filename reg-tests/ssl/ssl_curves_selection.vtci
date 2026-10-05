@@ -89,24 +89,25 @@ haproxy h1 -conf {
 } -start
 
 
+# P-256 names differ between the native group-name and NID-based APIs.
 client c1 -connect ${h1_clearlst_sock} {
     txreq -url "/X25519"
     rxresp
-    expect resp.http.x-curve == X25519
+    expect resp.http.x-curve ~ "^[Xx]25519$"
     expect resp.status == 200
 } -run
 
 client c1 -connect ${h1_clearlst_sock} {
     txreq -url "/P-256"
     rxresp
-    expect resp.http.x-curve ~ (SECP256R1|prime256v1)
+    expect resp.http.x-curve ~ "^(secp256r1|prime256v1)$"
     expect resp.status == 200
 } -run
 
 client c1 -connect ${h1_clearlst_sock} {
     txreq -url "/P-384"
     rxresp
-    expect resp.http.x-curve ~ (SECP384R1|secp384r1)
+    expect resp.http.x-curve == secp384r1
     expect resp.status == 200
 } -run
 
@@ -122,7 +123,7 @@ client c2 -connect ${h1_clearlst_sock} -repeat 2 {
 client c3 -connect ${h1_clearlst_sock} {
     txreq -url "/wrong-be1"
     rxresp
-    expect resp.http.x-curve == X25519
+    expect resp.http.x-curve ~ "^[Xx]25519$"
     expect resp.status == 200
 } -run
 
@@ -137,7 +138,7 @@ client c2 -connect ${h1_clearlst_sock} -repeat 2 {
 client c3 -connect ${h1_clearlst_sock} {
     txreq -url "/wrong-be1"
     rxresp
-    expect resp.http.x-curve ~ (SECP384R1|secp384r1)
+    expect resp.http.x-curve == secp384r1
     expect resp.status == 200
 } -run
 
