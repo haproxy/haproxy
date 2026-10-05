@@ -65,9 +65,10 @@ decomp_strm_init(struct stream *s, struct filter *filter)
 	struct decomp_dir *decomp_dir = FLT_CONF(filter);
 	struct decomp_state *st;
 
-	BUG_ON(!decomp_dir);
-
-	if ((decomp_dir->flags & DECOMP_DIR_FL_MODE_NONE) || !decomp_dir->algos)
+	/* An implicit instance inherited by an incompatible proxy has no
+	 * applicable direction. Keep its metadata, but do not instantiate it.
+	 */
+	if (!decomp_dir || (decomp_dir->flags & DECOMP_DIR_FL_MODE_NONE) || !decomp_dir->algos)
 		return 0;
 
 	st = pool_alloc(pool_head_decomp_state);
