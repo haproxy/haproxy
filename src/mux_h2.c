@@ -2112,8 +2112,11 @@ static void h2s_destroy(struct h2s *h2s)
 
 	if (freed) {
 		offer_buffers(NULL, freed);
-		if (h2s->h2c->flags & H2_CF_DEM_RXBUF) {
-			/* just released resources the demux is waiting for */
+		if ((h2s->h2c->flags & H2_CF_DEM_RXBUF) ||
+		    ((h2s->h2c->flags & H2_CF_DEM_SFULL) && h2s->id == h2s->h2c->dsi)) {
+			/* just released resources the demux is waiting for,
+			 * either rxbuf slots or this stream's full rxbuf.
+			 */
 			h2s->h2c->flags &= ~(H2_CF_DEM_SFULL | H2_CF_DEM_RXBUF);
 			h2c_restart_reading(h2s->h2c, 1);
 		}
