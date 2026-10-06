@@ -566,6 +566,30 @@ enum pr_mode str_to_proxy_mode(const char *mode)
 	return PR_MODES;
 }
 
+/* proxy event publishing helper: publish in both global and
+ * proxy dedicated subscription list.
+ */
+#define _proxy_event_hdl_publish(e, d, px)                               \
+        ({                                                               \
+                /* publish in proxy dedicated sub list */                \
+                event_hdl_publish(&px->e_subs, e, EVENT_HDL_CB_DATA(&d));\
+                /* publish in global subscription list */                \
+                event_hdl_publish(NULL, e, EVENT_HDL_CB_DATA(&d)) ;      \
+        })
+
+/* fill common proxy event data members struct
+ * must be called with server lock or under thread isolate
+ */
+static inline void _proxy_event_hdl_prepare(struct event_hdl_cb_data_proxy *cb_data,
+                                            struct proxy *proxy)
+{
+	/* safe data assignments */
+	cb_data->safe.cap = proxy->cap;
+	cb_data->safe.uuid = proxy->uuid;
+	snprintf(cb_data->safe.name, sizeof(cb_data->safe.name), "%s", proxy->id);
+	snprintf(cb_data->safe.guid, sizeof(cb_data->safe.guid), "%s", proxy->guid.key);
+}
+
 /* try to find among known options the one that looks closest to <word> by
  * counting transitions between letters, digits and other characters. Will
  * return the best matching word if found, otherwise NULL. An optional array
@@ -5041,6 +5065,7 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 {
 	struct proxy *px, *defpx;
 	struct post_proxy_check_fct *ppcf;
+	struct event_hdl_cb_data_proxy e_cb_data;
 	const char *be_name, *def_name, *guid = NULL, *err;
 	char *msg = NULL;
 	enum pr_mode mode = 0;
@@ -5198,6 +5223,11 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	 * setup_new_proxy() via alloc_new_proxy().
 	 */
 	main_proxies_register(px);
+
+	/* backend creation cannot fail anymore, time to publish the PROXY_ADD event */
+	_proxy_event_hdl_prepare(&e_cb_data, px);
+	_proxy_event_hdl_publish(EVENT_HDL_SUB_PROXY_ADD, e_cb_data, px);
+
 	thread_release();
 
 	if (unlikely(!be_supports_dynamic_srv(px, &msg)))
@@ -5302,6 +5332,7 @@ int be_check_for_deletion(const char *bename, struct proxy **pb, const char **pm
 /* Handler for "delete backend". Runs under thread isolation. Always returns 1. */
 static int cli_parse_delete_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct event_hdl_cb_data_proxy e_cb_data;
 	struct watcher *px_watch;
 	struct proxy *px;
 	const char *msg;
@@ -5342,6 +5373,10 @@ static int cli_parse_delete_backend(char **args, char *payload, struct appctx *a
 	 * before the proxy is destroyed, while the threads are still isolated.
 	 */
 	flt_deinit_new_proxy(px);
+
+	/* backend deletion cannot fail anymore, time to publish the PROXY_DEL event */
+	_proxy_event_hdl_prepare(&e_cb_data, px);
+	_proxy_event_hdl_publish(EVENT_HDL_SUB_PROXY_DEL, e_cb_data, px);
 
 	thread_release();
 
@@ -5419,6 +5454,7 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 
 static int cli_parse_publish_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct event_hdl_cb_data_proxy e_cb_data;
 	struct proxy *px;
 
 	usermsgs_clr("CLI");
@@ -5435,6 +5471,11 @@ static int cli_parse_publish_backend(char **args, char *payload, struct appctx *
 
 	thread_isolate();
 	px->flags &= ~PR_FL_BE_UNPUBLISHED;
+
+	/* backend publish cannot fail anymore, time to publish the PROXY_PUB event */
+	_proxy_event_hdl_prepare(&e_cb_data, px);
+	_proxy_event_hdl_publish(EVENT_HDL_SUB_PROXY_PUB, e_cb_data, px);
+
 	thread_release();
 
 	ha_notice("Backend published.\n");
@@ -5443,6 +5484,7 @@ static int cli_parse_publish_backend(char **args, char *payload, struct appctx *
 
 static int cli_parse_unpublish_backend(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	struct event_hdl_cb_data_proxy e_cb_data;
 	struct proxy *px;
 
 	usermsgs_clr("CLI");
@@ -5459,6 +5501,11 @@ static int cli_parse_unpublish_backend(char **args, char *payload, struct appctx
 
 	thread_isolate();
 	px->flags |= PR_FL_BE_UNPUBLISHED;
+
+	/* backend unpublish cannot fail anymore, time to publish the PROXY_UNPUB event */
+	_proxy_event_hdl_prepare(&e_cb_data, px);
+	_proxy_event_hdl_publish(EVENT_HDL_SUB_PROXY_UNPUB, e_cb_data, px);
+
 	thread_release();
 
 	ha_notice("Backend unpublished.\n");

@@ -549,6 +549,35 @@ struct proxy {
 	int totpend;				/* total number of pending connections on this instance (for stats) */
 };
 
+/* data provided to EVENT_HDL_SUB_PROXY handlers through event_hdl facility */
+struct event_hdl_cb_data_proxy {
+	/* provided by:
+	 *   EVENT_HDL_SUB_PROXY_ADD
+	 *   EVENT_HDL_SUB_PROXY_DEL
+	 */
+	struct {
+		/* safe data can be safely used from both
+		 * sync and async handlers
+		 * data consistency is guaranteed
+		 */
+		char cap;                   /* supported capabilities (PR_CAP_*) */
+		int uuid;                   /* uuid of the proxy */
+		char name[64];              /* id of proxy */
+		char guid[GUID_MAX_LEN + 1];/* GUID global tree node */
+	} safe;
+	struct {
+		/* unsafe data may only be used from sync handlers:
+		 * in async mode, data consistency cannot be guaranteed
+		 * and unsafe data may already be stale, thus using
+		 * it is highly discouraged because it
+		 * could lead to undefined behavior (UAF, null dereference...)
+		 */
+
+		/* not use yet */
+	} unsafe;
+};
+
+
 struct switching_rule {
 	struct list list;			/* list linked to from the proxy */
 	struct acl_cond *cond;			/* acl condition to meet */
