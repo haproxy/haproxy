@@ -1186,14 +1186,25 @@ static int sample_conv_curve2name(const struct arg *args, struct sample *smp,
 	const char *format = args[0].data.str.area;
 	const char *name = NULL;
 
-	for (item = curves_list; item->curve_id; item++) {
-		if (curve_name_matches(&smp->data.u.str, item->ansi) ||
-		    curve_name_matches(&smp->data.u.str, item->iana) ||
-		    curve_name_matches(&smp->data.u.str, item->nist))
-			break;
+	if (smp->data.type == SMP_T_SINT) {
+		for (item = curves_list; item->curve_id; item++) {
+			if (item->curve_id == smp->data.u.sint)
+				break;
+		}
 	}
+	else if (smp->data.type == SMP_T_STR) {
+		for (item = curves_list; item->curve_id; item++) {
+			if (curve_name_matches(&smp->data.u.str, item->ansi) ||
+			    curve_name_matches(&smp->data.u.str, item->iana) ||
+			    curve_name_matches(&smp->data.u.str, item->nist))
+				break;
+		}
+	}
+	else
+		return 0;
+
 	if (!item->curve_id)
-		return 1;
+		return sample_convert(smp, SMP_T_STR);
 
 	/* Resolve compatibility aliases to the first entry for the group. */
 	for (canonical = curves_list; canonical->curve_id != item->curve_id; canonical++)
@@ -1207,8 +1218,9 @@ static int sample_conv_curve2name(const struct arg *args, struct sample *smp,
 		name = canonical->nist;
 
 	if (!name)
-		return 1;
+		return sample_convert(smp, SMP_T_STR);
 
+	smp->data.type = SMP_T_STR;
 	smp->data.u.str.area = (char *)name;
 	smp->data.u.str.data = strlen(name);
 	smp->data.u.str.size = 0;
@@ -1216,8 +1228,9 @@ static int sample_conv_curve2name(const struct arg *args, struct sample *smp,
 	return 1;
 }
 
+/* ANY preserves the input type; curve2name only accepts integers and strings. */
 static struct sample_conv_kw_list curve_conv_kws = { ILH, {
-	{ "curve2name", sample_conv_curve2name, ARG1(1,STR), check_curve2name, SMP_T_STR, SMP_T_STR },
+	{ "curve2name", sample_conv_curve2name, ARG1(1,STR), check_curve2name, SMP_T_ANY, SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

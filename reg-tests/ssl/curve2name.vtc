@@ -13,7 +13,7 @@ haproxy h1 -conf {
 
     frontend fe
         bind "fd@${fe}"
-        http-request return status 200 hdr x-iana %[req.hdr(curve),curve2name(IANA)] hdr x-ansi %[req.hdr(curve),curve2name(ANSI)] hdr x-nist %[req.hdr(curve),curve2name(NiSt)]
+        http-request return status 200 hdr x-iana %[req.hdr(curve),curve2name(IANA)] hdr x-ansi %[req.hdr(curve),curve2name(ANSI)] hdr x-nist %[req.hdr(curve),curve2name(NiSt)] hdr x-id-iana %[req.hdr(group),add(0),curve2name(IANA)] hdr x-id-ansi %[req.hdr(group),add(0),curve2name(ANSI)] hdr x-id-nist %[req.hdr(group),add(0),curve2name(NiSt)] hdr x-bin %[bin(0017),hex,hex2i,curve2name(iana)]
 } -start
 
 client c1 -connect ${h1_fe_sock} {
@@ -55,4 +55,31 @@ client c1 -connect ${h1_fe_sock} {
     expect resp.http.x-iana == "secp256r1-extra"
     expect resp.http.x-ansi == "secp256r1-extra"
     expect resp.http.x-nist == "secp256r1-extra"
+
+    txreq -hdr "group: 23"
+    rxresp
+    expect resp.http.x-id-iana == "secp256r1"
+    expect resp.http.x-id-ansi == "prime256v1"
+    expect resp.http.x-id-nist == "P-256"
+    expect resp.http.x-bin == "secp256r1"
+
+    txreq -hdr "group: 29"
+    rxresp
+    expect resp.http.x-id-iana == "x25519"
+    expect resp.http.x-id-ansi == "29"
+    expect resp.http.x-id-nist == "29"
+
+    txreq -hdr "group: 65535"
+    rxresp
+    expect resp.http.x-id-iana == "65535"
+    expect resp.http.x-id-ansi == "65535"
+    expect resp.http.x-id-nist == "65535"
+
+    txreq -hdr "group: -1"
+    rxresp
+    expect resp.http.x-id-iana == "-1"
+
+    txreq -hdr "group: 4294967319"
+    rxresp
+    expect resp.http.x-id-iana == "4294967319"
 } -run
