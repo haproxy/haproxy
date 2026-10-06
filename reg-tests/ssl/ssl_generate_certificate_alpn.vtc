@@ -1,0 +1,78 @@
+#REGTEST_TYPE=bug
+
+# Generated contexts must use the bind's ALPN settings, not those of the
+# default certificate whose key is used to generate the new certificate.
+varnishtest "ALPN with generated certificates"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.0.2) && !ssllib_name_startswith(wolfSSL)'"
+feature ignore_unknown_macro
+
+shell {
+    printf '%s [alpn http/1.1] server.ecdsa.com\n' "${testdir}/certs/generate_certificates/gen_cert_server.pem" > "${tmpdir}/crt-list"
+}
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+    .if !ssllib_name_startswith(AWS-LC)
+        tune.ssl.default-dh-param 2048
+    .endif
+        tune.ssl.ssl-ctx-cache-size 10
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear
+        bind "fd@${clear}"
+        # Force a fresh TLS handshake for each request, including cache hits.
+        option http-server-close
+        http-reuse never
+        http-request set-var(txn.sni) req.hdr(x-sni)
+        default-server ssl verify none no-ssl-reuse alpn h2,http/1.1 sni var(txn.sni)
+        use-server alpn unless { path /noalpn }
+        use-server noalpn if { path /noalpn }
+        server alpn "${h1_alpn_sock}"
+        server noalpn "${h1_noalpn_sock}"
+
+    frontend tls
+        bind "fd@${alpn}" ssl crt-list "${tmpdir}/crt-list" generate-certificates ca-sign-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem alpn h2,http/1.1
+        bind "fd@${noalpn}" ssl crt ${testdir}/certs/generate_certificates/gen_cert_server.pem generate-certificates ca-sign-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem no-alpn
+        http-request return status 200 hdr x-alpn _%[ssl_fc_alpn] hdr x-cn %[ssl_f_s_dn(CN)] hdr x-sni %[ssl_fc_sni]
+} -start
+
+# A static certificate retains its certificate-specific ALPN override.
+client c1 -connect ${h1_clear_sock} {
+    txreq -hdr "x-sni: server.ecdsa.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_http/1.1"
+    expect resp.http.x-cn == "server.ecdsa.com"
+} -run
+
+# First generate a certificate, then reuse its cached context on new connections.
+# The generated subject starts with the CA's CN instead of the static cert's CN.
+client c2 -repeat 3 -connect ${h1_clear_sock} {
+    txreq -hdr "x-sni: generated.example.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_h2"
+    expect resp.http.x-cn == "ECDSA CA"
+    expect resp.http.x-sni == "generated.example.com"
+} -run
+
+# A different bind must not advertise ALPN when it is disabled, even when the
+# same CA file and SNI are used to generate the certificate.
+client c3 -repeat 2 -connect ${h1_clear_sock} {
+    txreq -url /noalpn -hdr "x-sni: generated.example.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "_"
+    expect resp.http.x-cn == "ECDSA CA"
+    expect resp.http.x-sni == "generated.example.com"
+} -run

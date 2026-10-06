@@ -1,0 +1,52 @@
+#REGTEST_TYPE=bug
+
+varnishtest "QUIC ALPN with generated certificates"
+# QUIC backends are not supported with USE_QUIC_OPENSSL_COMPAT.
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        expose-experimental-directives
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        tune.ssl.ssl-ctx-cache-size 10
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear
+        bind "fd@${clear}"
+        option http-server-close
+        http-reuse never
+        http-request set-var(txn.sni) req.hdr(x-sni)
+        server s1 "quic+${h1_quic_sock}" ssl verify none no-ssl-reuse alpn h3 sni var(txn.sni)
+
+    frontend quic
+        bind "quic+fd@${quic}" ssl crt ${testdir}/certs/generate_certificates/gen_cert_server.pem generate-certificates ca-sign-file ${testdir}/certs/generate_certificates/gen_cert_ca.pem alpn h3
+        http-request return status 200 hdr x-alpn %[ssl_fc_alpn] hdr x-cn %[ssl_f_s_dn(CN)] hdr x-sni %[ssl_fc_sni]
+} -start
+
+client c1 -connect ${h1_clear_sock} {
+    txreq -hdr "x-sni: server.ecdsa.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "h3"
+    expect resp.http.x-cn == "server.ecdsa.com"
+} -run
+
+# Test both a newly generated context and cache hits on new connections.
+client c2 -repeat 3 -connect ${h1_clear_sock} {
+    txreq -hdr "x-sni: generated.example.com"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-alpn == "h3"
+    expect resp.http.x-cn == "ECDSA CA"
+    expect resp.http.x-sni == "generated.example.com"
+} -run
