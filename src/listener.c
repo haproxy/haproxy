@@ -757,7 +757,8 @@ void dequeue_all_listeners()
 {
 	struct listener *listener;
 
-	while ((listener = MT_LIST_POP(&global_listener_queue, struct listener *, wait_queue))) {
+	while (_HA_ATOMIC_LOAD(&actconn) < global.maxconn &&
+	       (listener = MT_LIST_POP(&global_listener_queue, struct listener *, wait_queue))) {
 		/* This cannot fail because the listeners are by definition in
 		 * the LI_LIMITED state.
 		 */
@@ -774,7 +775,8 @@ void dequeue_proxy_listeners(struct proxy *px, int lpx)
 {
 	struct listener *listener;
 
-	while ((listener = MT_LIST_POP(&px->listener_queue, struct listener *, wait_queue))) {
+	while (_HA_ATOMIC_LOAD(&px->feconn) < px->maxconn &&
+	       (listener = MT_LIST_POP(&px->listener_queue, struct listener *, wait_queue))) {
 		/* This cannot fail because the listeners are by definition in
 		 * the LI_LIMITED state.
 		 */
