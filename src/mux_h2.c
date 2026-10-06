@@ -6076,11 +6076,11 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 		h2_remove_from_list(h2s);
 
 		if (!h2s_sc(h2s)) {
+			/* note: this frees the tasklet as well */
 			h2s_destroy(h2s);
-			if (h2c_is_dead(h2c)) {
+			t = NULL;
+			if (h2c_is_dead(h2c))
 				h2_release(h2c);
-				t = NULL;
-			}
 		}
 	}
  end:
