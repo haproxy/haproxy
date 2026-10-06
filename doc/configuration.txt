@@ -21599,6 +21599,7 @@ concat([start[,var[,end]]])                        string       string
 cpl                                                integer      integer
 crc32([avalanche])                                 binary       integer
 crc32c([avalanche])                                binary       integer
+curve2name(format)                                 string       string
 cut_crlf                                           string       string
 da-csv-conv(prop[,prop*])                          string       string
 date                                               string       integer
@@ -22038,6 +22039,28 @@ crc32c([<avalanche>])
   computed on some input keys. It is slower than the other algorithms and it must
   not be used for security purposes as a 32-bit hash is trivial to break. See
   also "djb2", "sdbm", "wt6", "crc32" and the "hash-type" directive.
+
+curve2name(<format>)
+  Converts a curve name to the naming convention selected by <format>. The
+  following formats are supported:
+
+    - iana: registered TLS group name, such as "secp256r1" or "x25519".
+      Names are listed in the IANA TLS Supported Groups registry:
+      https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
+    - ansi: ANSI X9.62 curve name, such as "prime256v1".
+    - nist: NIST curve name, such as "P-256".
+
+  The format is mandatory and case-insensitive. Input names are matched
+  case-insensitively against the known names and compatibility aliases. This
+  converter requires SSL support.
+
+  The original input is returned unchanged if it is unknown or the curve has
+  no name in the requested convention. For example,
+  "prime256v1,curve2name(iana)" produces "secp256r1", and
+  "secp256r1,curve2name(nist)" produces "P-256".
+
+  Example:
+    http-response set-header X-Curve %[ssl_fc_curve,curve2name(iana)]
 
 cut_crlf
   Cuts the string representation of the input sample on the first carriage

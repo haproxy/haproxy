@@ -1,0 +1,58 @@
+#REGTEST_TYPE=devel
+
+varnishtest "Convert curve names between naming conventions"
+feature ignore_unknown_macro
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 5s
+        timeout client 5s
+        timeout server 5s
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request return status 200 hdr x-iana %[req.hdr(curve),curve2name(IANA)] hdr x-ansi %[req.hdr(curve),curve2name(ANSI)] hdr x-nist %[req.hdr(curve),curve2name(NiSt)]
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -hdr "curve: prime256v1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-iana == "secp256r1"
+    expect resp.http.x-ansi == "prime256v1"
+    expect resp.http.x-nist == "P-256"
+
+    txreq -hdr "curve: p-192"
+    rxresp
+    expect resp.http.x-iana == "secp192r1"
+    expect resp.http.x-ansi == "prime192v1"
+    expect resp.http.x-nist == "P-192"
+
+    txreq -hdr "curve: secp384r1"
+    rxresp
+    expect resp.http.x-iana == "secp384r1"
+    expect resp.http.x-ansi == "secp384r1"
+    expect resp.http.x-nist == "P-384"
+
+    txreq -hdr "curve: X25519"
+    rxresp
+    expect resp.http.x-iana == "x25519"
+    expect resp.http.x-ansi == "X25519"
+    expect resp.http.x-nist == "X25519"
+
+    txreq -hdr "curve: ecdh_x448"
+    rxresp
+    expect resp.http.x-iana == "x448"
+
+    txreq -hdr "curve: MLKEM768"
+    rxresp
+    expect resp.http.x-iana == "MLKEM768"
+
+    txreq -hdr "curve: secp256r1-extra"
+    rxresp
+    expect resp.http.x-iana == "secp256r1-extra"
+    expect resp.http.x-ansi == "secp256r1-extra"
+    expect resp.http.x-nist == "secp256r1-extra"
+} -run

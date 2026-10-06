@@ -13,9 +13,12 @@
 
 
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/sample.h>
+#include <haproxy/tools.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 
@@ -1154,3 +1157,68 @@ int curves2nid(const char *curve)
 	return -1;
 }
 
+
+/* Validate the requested curve naming convention. */
+static int check_curve2name(struct arg *args, struct sample_conv *conv,
+                            const char *file, int line, char **err)
+{
+	const char *format = args[0].data.str.area;
+
+	if (!strcasecmp(format, "iana") ||
+	    !strcasecmp(format, "ansi") || !strcasecmp(format, "nist"))
+		return 1;
+
+	memprintf(err, "expected 'iana', 'ansi' or 'nist'");
+	return 0;
+}
+
+/* Compare a sample string without requiring a terminating NUL. */
+static int curve_name_matches(const struct buffer *input, const char *name)
+{
+	return name && input->data == strlen(name) &&
+	       !strncasecmp(input->area, name, input->data);
+}
+
+static int sample_conv_curve2name(const struct arg *args, struct sample *smp,
+                                  void *private)
+{
+	struct curve *item, *canonical;
+	const char *format = args[0].data.str.area;
+	const char *name = NULL;
+
+	for (item = curves_list; item->curve_id; item++) {
+		if (curve_name_matches(&smp->data.u.str, item->ansi) ||
+		    curve_name_matches(&smp->data.u.str, item->iana) ||
+		    curve_name_matches(&smp->data.u.str, item->nist))
+			break;
+	}
+	if (!item->curve_id)
+		return 1;
+
+	/* Resolve compatibility aliases to the first entry for the group. */
+	for (canonical = curves_list; canonical->curve_id != item->curve_id; canonical++)
+		;
+
+	if (!strcasecmp(format, "iana"))
+		name = canonical->iana;
+	else if (!strcasecmp(format, "ansi"))
+		name = canonical->ansi;
+	else if (!strcasecmp(format, "nist"))
+		name = canonical->nist;
+
+	if (!name)
+		return 1;
+
+	smp->data.u.str.area = (char *)name;
+	smp->data.u.str.data = strlen(name);
+	smp->data.u.str.size = 0;
+	smp->flags |= SMP_F_CONST;
+	return 1;
+}
+
+static struct sample_conv_kw_list curve_conv_kws = { ILH, {
+	{ "curve2name", sample_conv_curve2name, ARG1(1,STR), check_curve2name, SMP_T_STR, SMP_T_STR },
+	{ NULL, NULL, 0, 0, 0 },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_convs, &curve_conv_kws);
