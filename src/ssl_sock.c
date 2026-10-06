@@ -4922,19 +4922,7 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 	struct proxy *curproxy = bind_conf->frontend;
 	int cfgerr = 0;
 	int verify = SSL_VERIFY_NONE;
-	struct ssl_bind_conf __maybe_unused *ssl_conf_cur;
-	const char *conf_ciphers;
-#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
-	const char *conf_ciphersuites;
-#endif
-	const char *conf_curves = NULL;
 	X509_STORE *store = SSL_CTX_get_cert_store(ctx);
-#if defined(SSL_CTX_set1_sigalgs_list)
-	const char *conf_sigalgs = NULL;
-#endif
-#if defined(SSL_CTX_set1_client_sigalgs_list)
-	const char *conf_client_sigalgs = NULL;
-#endif
 
 	if (ssl_conf) {
 		struct tls_version_filter *conf_ssl_methods = &ssl_conf->ssl_methods;
@@ -5041,6 +5029,33 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 #endif /* !USE_OPENSSL_WOLFSSL */
+
+	cfgerr |= ssl_sock_prepare_ctx_common(bind_conf, ssl_conf, ctx, err);
+	return cfgerr;
+}
+
+
+/* Apply bind TLS settings that do not depend on the CA/CRL store or
+ * certificate instance. Generated certificates use this part only.
+ */
+int ssl_sock_prepare_ctx_common(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+				SSL_CTX *ctx, char **err)
+{
+	struct proxy *curproxy = bind_conf->frontend;
+	int cfgerr = 0;
+	struct ssl_bind_conf __maybe_unused *ssl_conf_cur;
+	const char *conf_ciphers;
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
+	const char *conf_ciphersuites;
+#endif
+	const char *conf_curves = NULL;
+#if defined(SSL_CTX_set1_sigalgs_list)
+	const char *conf_sigalgs = NULL;
+#endif
+#if defined(SSL_CTX_set1_client_sigalgs_list)
+	const char *conf_client_sigalgs = NULL;
+#endif
+
 	conf_ciphers = (ssl_conf && ssl_conf->ciphers) ? ssl_conf->ciphers : bind_conf->ssl_conf.ciphers;
 	if (conf_ciphers &&
 	    !SSL_CTX_set_cipher_list(ctx, conf_ciphers)) {
