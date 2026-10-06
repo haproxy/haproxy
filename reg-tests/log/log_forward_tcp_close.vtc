@@ -1,0 +1,60 @@
+varnishtest "log-forward: a TCP syslog session ends when the client closes"
+
+# A TCP syslog session of a log-forward section must end once the client
+# closes its connection. Since 5da704b55 ("MEDIUM: log: Update the log applet
+# to use its own buffers"), the shutdown was ignored when it was received
+# alone, on an empty input buffer. The session then stayed until "timeout
+# client", and forever without one, as in the section below.
+#
+# The section accepts a single connection at a time ("maxconn 1"). The first
+# client sends a message and only closes once that message was forwarded, so
+# its shutdown is received alone. The message of the second client can only
+# be forwarded once the first session is gone. If that session never ends,
+# Slg2 never gets the second message and the test fails on its timeout.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.3-dev1)'"
+feature ignore_unknown_macro
+
+barrier b1 cond 2
+
+# Slg1 tells when the first message was forwarded, Slg2 gets both messages
+syslog Slg1 -level info {
+    recv
+    expect ~ "first message"
+} -start
+
+syslog Slg2 -level info {
+    recv
+    expect ~ "first message"
+    recv
+    expect ~ "second message"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    log-forward syslog-tcp
+        maxconn 1
+        bind "fd@${lf}"
+        log ${Slg1_addr}:${Slg1_port} local0
+        log ${Slg2_addr}:${Slg2_port} local0
+} -start
+
+client c1 -connect ${h1_lf_sock} {
+    send "<134>1 2026-10-06T00:00:00Z host app - - - first message\n"
+    # do not close before the message was forwarded
+    barrier b1 sync
+} -start
+
+syslog Slg1 -wait
+barrier b1 sync
+client c1 -wait
+
+client c2 -connect ${h1_lf_sock} {
+    send "<134>1 2026-10-06T00:00:01Z host app - - - second message\n"
+} -run
+
+syslog Slg2 -wait
