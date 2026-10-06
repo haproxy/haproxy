@@ -1283,6 +1283,8 @@ static int h2_buf_available(void *target)
 			h2c->flags &= ~H2_CF_DEM_MROOM;
 			h2c_restart_reading(h2c, 1);
 		}
+		/* streams blocked on the mbuf are resumed by h2_send() */
+		tasklet_wakeup(h2c->wait_event.tasklet);
 		return 1;
 	}
 
