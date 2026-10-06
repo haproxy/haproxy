@@ -302,6 +302,16 @@ struct event_hdl_sub {
 /* dns-01 challenge must be deployed externally */
 #define EVENT_HDL_SUB_ACME_DEPLOY                       EVENT_HDL_SUB_TYPE(3,2)
 
+/* PROXY FAMILY, provides event_hdl_cb_data_proxy struct
+ * (defined in haproxy/proxy-t.h)
+ */
+#define EVENT_HDL_SUB_PROXY                             EVENT_HDL_SUB_FAMILY(4)
+#define EVENT_HDL_SUB_PROXY_ADD                         EVENT_HDL_SUB_TYPE(4,1)
+#define EVENT_HDL_SUB_PROXY_DEL                         EVENT_HDL_SUB_TYPE(4,2)
+#define EVENT_HDL_SUB_PROXY_PUB                         EVENT_HDL_SUB_TYPE(4,3)
+#define EVENT_HDL_SUB_PROXY_UNPUB                       EVENT_HDL_SUB_TYPE(4,4)
+
+
 /*	---------------------------------------        */
 
 /* Please reflect changes above in event_hdl_sub_type_map defined

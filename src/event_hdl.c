@@ -52,6 +52,11 @@ static struct event_hdl_sub_type_map event_hdl_sub_type_map[] = {
 	{"ACME",                EVENT_HDL_SUB_ACME},
 	{"ACME_NEWCERT",        EVENT_HDL_SUB_ACME_NEWCERT},
 	{"ACME_DEPLOY",         EVENT_HDL_SUB_ACME_DEPLOY},
+	{"PROXY",               EVENT_HDL_SUB_PROXY},
+	{"PROXY_ADD",           EVENT_HDL_SUB_PROXY_ADD},
+	{"PROXY_DEL",           EVENT_HDL_SUB_PROXY_DEL},
+	{"PROXY_PUB",           EVENT_HDL_SUB_PROXY_PUB},
+	{"PROXY_UNPUB",         EVENT_HDL_SUB_PROXY_UNPUB},
 };
 
 /* internal types (only used in this file) */
