@@ -3274,6 +3274,38 @@ show fd [-!plcfbs]* [[<tgid>]/[<fd>] | <fd>]
   case the output line will be suffixed with an exclamation mark ('!'). This
   may help find a starting point when trying to diagnose an incident.
 
+show filter classes [global|request|response]
+  Dump the list of the registered filter classes in the requested evaluation
+  order. Without argument, the global, request and response orders are dumped,
+  one per line. The classes are separated by ">" characters and are dumped in
+  their evaluation order. The global order is used for the side-independent
+  filter operations (configuration checks, initialization and destruction),
+  while the request and response orders define the order in which the filters
+  are evaluated on the corresponding channel. See section 9 of the
+  configuration manual for details about the filter classes and their
+  declaration modes.
+
+show filter instance <px> <class>[/<id>]
+  Dump the configuration of the filter instance <class>[/<id>] attached to the
+  proxy <px>, which may be a regular proxy or a named defaults section. The
+  output reports the filter class, the instance id, its state (enabled or
+  disabled, implicit or inherited), the sides its class is placed on, the
+  location of its declaration and its raw arguments. An error is reported if
+  the instance does not exist, or if no id is given while several instances of
+  the class exist in the proxy. Only filter instances are reported; filters
+  declared with the legacy "filter" directive are not listed.
+
+show filter instances <px> [global|request|response]
+  Dump the filter instances attached to the proxy <px> in the requested
+  evaluation order. Without argument, one line is dumped for each of the
+  global, request and response orders. The instances are separated by ">"
+  characters and the "<none>" string is printed for an empty order. Only
+  filter instances are reported: in legacy mode, the filters declared with the
+  "filter" directive are not listed. Only filters implicitly declared by other
+  directives, which are mirrored as filter instances, may then appear. See
+  section 9 of the configuration manual for details about the filters
+  declaration modes.
+
 show info [typed|json] [desc] [float]
   Dump info about haproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
