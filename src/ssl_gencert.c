@@ -123,6 +123,8 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 	unsigned int  i;
 	int 	      key_type;
 	struct sni_ctx *sni_ctx;
+	char *err = NULL;
+	int cfgerr;
 
 	/* Reject SNI values containing characters that OpenSSL's nconf
 	 * parser would interpret as SAN entry separators (commas), type
@@ -273,6 +275,7 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 #endif
 
 	if (newcrt) X509_free(newcrt);
+	newcrt = NULL;
 
 #ifndef OPENSSL_NO_DH
 #if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
@@ -282,31 +285,11 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 #endif
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-#if defined(SSL_CTX_set1_curves_list)
-	{
-		const char *ecdhe = (bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe : ECDHE_DEFAULT_CURVE);
-		if (!SSL_CTX_set1_curves_list(ssl_ctx, ecdhe))
-			goto end;
-	}
-#endif
-#else
-#if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
-	{
-		const char *ecdhe = (bind_conf->ssl_conf.ecdhe ? bind_conf->ssl_conf.ecdhe : ECDHE_DEFAULT_CURVE);
-		EC_KEY     *ecc;
-		int         nid;
+	cfgerr = ssl_sock_prepare_ctx_common(bind_conf, NULL, ssl_ctx, &err);
+	free(err);
+	if (cfgerr)
+		goto mkcert_error;
 
-		if ((nid = OBJ_sn2nid(ecdhe)) == NID_undef)
-			goto end;
-		if (!(ecc = EC_KEY_new_by_curve_name(nid)))
-			goto end;
-		SSL_CTX_set_tmp_ecdh(ssl_ctx, ecc);
-		EC_KEY_free(ecc);
-	}
-#endif /* defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH) */
-#endif /* HA_OPENSSL_VERSION_NUMBER >= 0x10101000L */
- end:
 	if (ctmp) NCONF_free(ctmp);
 	if (tmp_ssl) SSL_free(tmp_ssl);
 	EVP_PKEY_free(pkey);
