@@ -1,6 +1,6 @@
                    -----------------------------------------
-                          Filters Guide - version 3.4
-                          ( Last update: 2021-02-24 )
+                          Filters Guide - version 3.5
+                          ( Last update: 2026-10-06 )
                    ------------------------------------------
                           Author : Christopher Faulet
               Contact : christopher dot faulet at capflam dot org
@@ -29,14 +29,19 @@ SUMMARY
 
   1.    Filters introduction
   2.    How to use filters
+  2.1.      Legacy declarations
+  2.2.      Filter instances
   3.    How to write a new filter
   3.1.      API Overview
-  3.2.      Defining the filter name and its configuration
+  3.2.      Defining the filter class and its configuration
+  3.2.1.        The filter class parse callback
+  3.2.2.        The legacy keyword parser
   3.3.      Managing the filter lifecycle
   3.3.1.        Dealing with threads
   3.4.      Handling the streams activity
   3.5.      Analyzing the channels activity
   3.6.      Filtering the data exchanged
+  3.7.      Referencing a filter configuration from other directives
   4.    FAQ
 
 
@@ -61,38 +66,69 @@ could be useful to handle events at the connection level.
 
 In HAProxy configuration file, a filter is declared in a proxy section, except
 default. So the configuration corresponding to a filter declaration is attached
-to a specific proxy, and will be shared by all its instances. it is opaque from
-the HAProxy point of view, this is the filter responsibility to manage it. For
-each filter declaration matches a uniq configuration. Several declarations of
-the same filter in the same proxy will be handle as different filters by
-HAProxy.
+to a specific proxy, and will be shared by all its stream filter instances. It
+is opaque from the HAProxy point of view, this is the filter responsibility to
+manage it.
 
-A filter instance is represented by a partially opaque context (or a state)
-attached to a stream and passed as arguments to callbacks. Through this context,
-filter instances are stateful. Depending the filter is declared in a frontend or
-a backend section, its instances will be created, respectively, when a stream is
-created or when a backend is selected. Their behaviors will also be
-different. Only instances of filters declared in a frontend section will be
-aware of the creation and the destruction of the stream, and will take part in
-the channels analyzing before the backend is defined.
+Since HAProxy 3.5, two declaration modes coexist. The historical one, called
+the legacy mode, is based on the "filter" directive and is kept for backward
+compatibility. The new mode is based on filter instances declared with
+"filter-config". In this mode, a filter is described by a filter class and each
+declaration is an instance, possibly with an id. A proxy uses one mode or the
+other, never both: as soon as a legacy "filter" directive is used, the proxy
+works in legacy mode, otherwise the new mode is used. Implicitly declared
+filters do not select a mode, so a proxy using only implicit filters works in
+the new mode. The "filter-api" global option changes this last rule: when it
+is set to "downgrade-to-legacy", a proxy using only implicitly declared filters
+works in the legacy mode. It is a fallback for the filters not supporting the
+new mode, and the explicit declarations always win.
+
+A filter class defines the filter name, its placement in the request and
+response evaluation orders, and how its instances are parsed. A filter instance
+is the configuration of a filter in a proxy, shared by all the stream filter
+instances using it. The same class may be instantiated several times in a
+proxy, with different ids, if the class allows it. This is described in
+section 3.2.
+
+This document uses "filter instance" for the configuration entity, which is
+user-visible, and "stream filter instance" for the per-stream entity, which is
+attached to a stream and represented by 'struct filter' in the code.
+
+In legacy mode, the filter configurations are attached to the proxy and the
+declaration order defines the evaluation order. In the new mode, the order is
+defined by the class placement and can be refined per proxy with
+"filter-sequence". This is described in section 2.
+
+A stream filter instance is the per-stream object attached to a stream and
+passed as argument to the callbacks. It carries a partially opaque context (or
+a state) owned by the filter, making the instance stateful. Depending the
+filter is declared in a frontend or a backend section, its stream filter
+instances will be created, respectively, when a stream is created or when a
+backend is selected. Their behaviors will also be different. Only stream filter
+instances of filters declared in a frontend section will be aware of the
+creation and the destruction of the stream, and will take part in the channels
+analyzing before the backend is defined.
 
 It is important to remember the configuration of a filter is shared by all its
-instances, while the context of an instance is owned by a uniq stream.
+stream filter instances, while the context of a stream filter instance is owned
+by a single stream.
 
 Filters are designed to be chained. It is possible to declare several filters in
-the same proxy section. The declaration order is important because filters will
-be called one after the other respecting this order. Frontend and backend
-filters are also chained, frontend ones called first. Even if the filters
-processing is serialized, each filter will bahave as it was alone (unless it was
-developed to be aware of other filters). For all that, some constraints are
-imposed to filters, especially when data exchanged between the client and the
-server are processed. We will discuss again these constraints when we will tackle
-the subject of writing a filter.
+the same proxy section. The evaluation order is the declaration order in legacy
+mode, and the class order - possibly refined with "filter-sequence" - in the
+new mode. Frontend and backend filters are also chained, frontend ones called
+first. Even if the filters processing is serialized, each filter will behave
+as it was alone (unless it was developed to be aware of other filters). For
+all that, some constraints are imposed to filters, especially when data
+exchanged between the client and the server are processed. We will discuss
+again these constraints when we will tackle the subject of writing a filter.
 
 
 
 2. HOW TO USE FILTERS
 ---------------------
+
+2.1. LEGACY DECLARATIONS
 
 To use a filter, the parameter 'filter' should be used, followed by the filter
 name and, optionally, its configuration in the desired listen, frontend or
@@ -104,11 +140,11 @@ backend section. For instance :
         ...
 
 
-See doc/configuration.txt for a formal definition of the parameter 'filter'.
 Note that additional parameters on the filter line must be parsed by the filter
-itself.
+itself. The "filter" directive is only supported by filters registering a
+keyword with flt_register_keywords() (see section 3.2.2).
 
-The list of available filters is reported by 'haproxy -vv' :
+The list of available filter keywords is reported by 'haproxy -vv' :
 
     $> haproxy -vv
     HAProxy version 1.7-dev2-3a1d4a-33 2016/03/21
@@ -125,13 +161,13 @@ Multiple filter lines can be used in a proxy section to chain filters. Filters
 will be called in the declaration order.
 
 Some filters can support implicit declarations in certain circumstances
-(without the filter line). This is not recommended for new features but are
+(without the filter line). This is not recommended for new features but is
 useful for existing ones moved in a filter, for backward compatibility
-reasons. Implicit declarations are supported when there is only one filter used
-on a proxy. When several filters are used, explicit declarations are mandatory.
-The HTTP compression filter is one of these filters. Alone, using 'compression'
-keywords is enough to use it. But when at least a second filter is used, a
-filter line must be added.
+reasons. In legacy mode, implicit declarations are supported when there is only
+one filter used on a proxy. When several filters are used, explicit
+declarations are mandatory. The HTTP compression filter is one of these
+filters. Alone, using 'compression' keywords is enough to use it. But when at
+least a second filter is used, a filter line must be added.
 
     # filter line is optional
     listen t1
@@ -148,6 +184,82 @@ filter line must be added.
         compression algo gzip
         compression offload
         server srv x.x.x.x:80
+
+
+2.2. FILTER INSTANCES
+
+The new mode is based on filter instances. Each instance belongs to a
+filter class and may have an id. It is declared with the "filter-config"
+directive :
+
+    listen test
+        ...
+        filter-config trace id TST enabled
+        ...
+
+The syntax is the following one :
+
+    filter-config <class> [ id <id> ] [ enabled ] [ <arguments> ... ]
+
+  * '<class>' is the filter class name, registered by the filter (see section
+    3.2).
+
+  * '<id>' is mandatory for classes allowing several instances in the same
+    proxy. It is used to refer to the instance in the other directives.
+
+  * 'enabled' activates the instance. Without it, the instance is created
+    but disabled. It may be activated later with "filter-enable".
+
+  * '<arguments>' are the arguments of the filter class. See the filter
+    documentation for details.
+
+Several filter instances of the same class may be declared in the same proxy,
+as long as the class supports it and each filter instance has an id. Note that
+in legacy mode, each "filter" line also creates an independent configuration,
+but the filter itself is responsible for rejecting duplicates: the class
+capability and the instance ids do not exist in this mode. Filter instances are
+also inherited from the defaults section: an instance declared locally with the
+same class and id replaces the inherited one, and an explicit instance replaces
+an implicitly declared one.
+
+The filter instances of a proxy may be enabled or disabled at any time with :
+
+    filter-enable  <class>[/<id>] [<class>[/<id>] ...]
+    filter-disable <class>[/<id>] [<class>[/<id>] ...]
+
+Without an id, all the instances of the class are updated.
+
+By default, filters are evaluated following the class order (see section 3.2).
+The order may be changed, per proxy and independently for the request and
+response channels, with the "filter-sequence" directive :
+
+    filter-sequence {global|request|response} <instance>:<pos>(<entity>) [<instance>:<pos>(<entity>) ...]
+
+where '<instance>' is the instance to move (class[/id]), '<pos>' is "before" or
+"after" and '<entity>' is a class or an instance (class[/id]) used as the
+reference. "A:before(B)" means the instance A is evaluated before the entity
+B, "A:after(B)" means A is evaluated after B. For instance, to evaluate the
+"cache-store" instance with the id "content" before the "spoe" class :
+
+    filter-sequence response cache-store/content:before(spoe)
+
+The "global" order only drives the side-independent operations (configuration
+checks, initialization and destruction). Moving an instance in this order does
+not change its request or response positions.
+
+The filter instances of a proxy and their evaluation orders may be inspected at
+runtime with the CLI :
+
+    show filter classes [global|request|response]
+    show filter instances <px> [global|request|response]
+    show filter instance <px> <class>[/<id>]
+
+A filter may also be implicitly declared by another directive, for instance by
+the options of the feature it implements. In the new mode, use
+flt_add_implicit_instance() from the directive parser (see section 3.2.1):
+it creates an enabled instance, with an optional id, that an explicit
+"filter-config" declaration may replace. Unlike the legacy mode, an implicit
+declaration may coexist with other filters in the same proxy.
 
 
 
@@ -174,7 +286,7 @@ To ease the filters integration, it is better to follow some conventions :
 The filter 'trace' can be used as a template to write new filter. It is a good
 start to see how filters really work.
 
-3.1 API OVERVIEW
+3.1. API OVERVIEW
 ----------------
 
 Writing a filter can be summarized to write functions and attach them to the
@@ -243,118 +355,204 @@ existing callbacks. Available callbacks are listed in the following structure :
 We will explain in following parts when these callbacks are called and what they
 should do.
 
-Filters are declared in proxy sections. So each proxy have an ordered list of
-filters, possibly empty if no filter is used. When the configuration of a proxy
-is parsed, each filter line represents an entry in this list. In the structure
-'proxy', the filters configurations are stored in the field 'filter_configs',
-each one of type 'struct flt_conf *' :
+Filters are declared in proxy sections. So each proxy has an ordered list of
+filters, possibly empty if no filter is used. In legacy mode, each "filter"
+line represents an entry in this list: the filter configurations are stored in
+the field 'filter_configs' of the 'proxy' structure, each one of type
+'struct flt_conf *'. In the new mode, the filter instances are stored
+separately and the core builds the evaluation orders from them, but a filter
+still only deals with 'struct flt_conf' once its filter instance is finalized.
 
     /*
      * Structure representing the filter configuration, attached to a proxy and
      * accessible from a filter when instantiated in a stream
      */
     struct flt_conf {
-        const char     *id;   /* The filter id */
-        struct flt_ops *ops;  /* The filter callbacks */
-        void           *conf; /* The filter configuration */
-        struct list     list; /* Next filter for the same proxy */
-        unsigned int    flags; /* FLT_CFG_FL_* */
+        const char     *name;   /* The filter name */
+        const char     *id;     /* The filter id */
+        struct flt_ops *ops;    /* The filter callbacks */
+        void           *conf;   /* The filter configuration */
+        unsigned int    flags;  /* FLT_CFG_FL_* */
+        struct list     list;   /* Next filter for the same proxy */
+        struct list     by_req; /* Internal link in the request order */
+        struct list     by_res; /* Internal link in the response order */
     };
 
-  * 'flt_conf.id' is an identifier, defined by the filter. It can be
-    NULL. HAProxy does not use this field. Filters can use it in log messages or
-    as a uniq identifier to check multiple declarations. It is the filter
-    responsibility to free it, if necessary.
+  * 'flt_conf.name' is the filter class name of the configuration. In legacy
+    mode, it may be set by the parsing function. It is not used by HAProxy.
+
+  * 'flt_conf.id' is an identifier, defined by the filter. It can be NULL. It
+    is used by the core to look a filter configuration up by its id, with
+    flt_find_conf() (see section 3.7), so in the new mode the class parse
+    callback must set it like the legacy parsing function does. Filters can
+    also use it in log messages or as a uniq identifier to check multiple
+    declarations. HAProxy never frees or duplicates it: it is the filter
+    responsibility to free it, if necessary, once the configuration is
+    released.
 
   * 'flt_conf.conf' is opaque. It is the internal configuration of a filter,
-    generally allocated and filled by its parsing function (See § 3.2). It is
-    the filter responsibility to free it.
+    generally allocated and filled by its parsing function (see sections 3.2.1
+    and 3.2.2). It is the filter responsibility to free it.
 
   * 'flt_conf.ops' references the callbacks implemented by the filter. This
-    field must be set during the parsing phase (See § 3.2) and can be refine
-    during the initialization phase (See § 3.3). If it is dynamically allocated,
-    it is the filter responsibility to free it.
+    field must be set during the parsing phase (see section 3.2) and can be
+    refined during the initialization phase (see section 3.3). If it is
+    dynamically allocated, it is the filter responsibility to free it. In the
+    new mode, it is mandatory: an instance whose class parse callback does not
+    set it is rejected at startup.
 
   * 'flt_conf.flags' is a bitfield to specify the filter capabilities. For now,
     only FLT_CFG_FL_HTX may be set when a filter is able to process HTX
     streams. If not set, the filter is excluded from the HTTP filtering.
 
+  * 'flt_conf.list', 'flt_conf.by_req' and 'flt_conf.by_res' are internal
+    links, managed by the core. Filters must not use them.
 
-The filter configuration is global and shared by all its instances. A filter
-instance is created in the context of a stream and attached to this stream. in
-the structure 'stream', the field 'strm_flt' is the state of all filter
-instances attached to a stream :
+
+The filter configuration is global and shared by all its stream filter
+instances. A stream filter instance is created in the context of a stream and
+attached to this stream. In the structure 'stream', the field 'strm_flt' is the
+state of all stream filter instances attached to a stream. The per-channel
+state is stored in the 'flt' field of each 'channel' (a 'struct chn_flt') :
 
     /*
      * Structure representing the "global" state of filters attached to a
      * stream.
      */
     struct strm_flt {
-        struct list    filters;             /* List of filters attached to a stream */
-        struct filter *current[2];          /* From which filter resume processing, for a specific channel.
-                                             * This is used for resumable callbacks only,
-                                             * If NULL, we start from the first filter.
-                                             * 0: request channel, 1: response channel */
-        unsigned short flags;               /* STRM_FL_* */
-        unsigned char  nb_req_data_filters; /* Number of data filters registered on the request channel */
-        unsigned char  nb_rsp_data_filters; /* Number of data filters registered on the response channel */
-        unsigned long long offset[2];       /* gloal offset of input data already filtered for a specific channel
-                                             * 0: request channel, 1: response channel */
+        struct list    filters;               /* List of filters attached to a stream */
+        unsigned short flags;                 /* STRM_FL_* */
+    };
+
+    /* structure holding filter state for some members that are channel oriented */
+    struct chn_flt {
+        struct list filters;                  /* List of filters attached to a channel */
+        struct filter *current;               /* From which filter resume processing, for a specific channel. */
+        unsigned char nb_data_filters;        /* Number of data filters registered on channel */
+        unsigned long long offset;
     };
 
 
-Filter instances attached to a stream are stored in the field
-'strm_flt.filters', each instance is of type 'struct filter *' :
+Stream filter instances attached to a stream are stored in the field
+'strm_flt.filters', each one is of type 'struct filter *'. The same stream
+filter instance is linked in the request and/or the response filter list of
+the channels, depending on the sides supported by its class or instance:
 
     /*
-     * Structure representing a filter instance attached to a stream
-     *
-     * 2D-Array fields are used to store info per channel. The first index
-     * stands for the request channel, and the second one for the response
-     * channel.  Especially, <next> and <fwd> are offsets representing amount of
-     * data that the filter are, respectively, parsed and forwarded on a
-     * channel. Filters can access these values using FLT_NXT and FLT_FWD
-     * macros.
+     * Structure representing a stream filter instance attached to a stream
      */
     struct filter {
-        struct flt_conf *config; /* the filter's configuration */
-        void           *ctx;     /* The filter context (opaque) */
-        unsigned short  flags;   /* FLT_FL_* */
-        unsigned long long offset[2];   /* Offset of input data already filtered for a specific channel
-                                         * 0: request channel, 1: response channel */
-        unsigned int    pre_analyzers;  /* bit field indicating analyzers to
-                                         * pre-process */
-        unsigned int    post_analyzers; /* bit field indicating analyzers to
-                                         * post-process */
-        struct list     list;    /* Next filter for the same proxy/stream */
+        struct flt_conf *config;           /* the filter's configuration */
+        void           *ctx;               /* The filter context (opaque) */
+        unsigned short  flags;             /* FLT_FL_* */
+        unsigned int    calls;             /* number of calls */
+        unsigned long long offset[2];      /* Offset of input data already filtered for a specific channel
+                                            * 0: request channel, 1: response channel */
+        unsigned int    pre_analyzers;     /* bit field indicating analyzers to pre-process */
+        unsigned int    post_analyzers;    /* bit field indicating analyzers to post-process */
+        struct list     list;              /* Filter list for the stream */
+        struct list     req_list;          /* Filter list for request channel */
+        struct list     res_list;          /* Filter list for response channel */
     };
 
-  * 'filter.config' is the filter configuration previously described. All
-    instances of a filter share it.
+  * 'filter.config' is the filter configuration previously described. All the
+    stream filter instances of a proxy share it. In the new mode, a filter
+    instance may be instantiated on the request channel, the response channel,
+    or both, following the class placement and the instance state.
 
   * 'filter.ctx' is an opaque context. It is managed by the filter, so it is its
     responsibility to free it.
 
-  * 'filter.pre_analyzers and 'filter.post_analyzers will be described later
-    (See § 3.5).
+  * 'filter.pre_analyzers' and 'filter.post_analyzers' will be described later
+    (see section 3.5).
 
-  * 'filter.offset' will be described later (See § 3.6).
+  * 'filter.offset' will be described later (see section 3.6).
 
 
-3.2. DEFINING THE FILTER NAME AND ITS CONFIGURATION
----------------------------------------------------
+3.2. DEFINING THE FILTER CLASS AND ITS CONFIGURATION
+-----------------------------------------------------
 
-During the filter development, the first thing to do is to add it in the
-supported filters. To do so, its name must be registered as a valid keyword on
-the filter line :
+To make a filter usable in the new mode, its class must be declared, registered
+and placed, and a parse callback must be provided. To keep the legacy mode
+working, a keyword parser must also be registered (see section 3.2.2).
 
-    /* Declare the filter parser for "my_filter" keyword */
-    static struct flt_kw_list flt_kws = { "MY_FILTER_SCOPE", { }, {
-            { "my_filter", parse_my_filter_cfg, NULL /* private data */ },
-            { NULL, NULL, NULL },
-        }
+The filter class is described by the following structure :
+
+    struct filter_class {
+        const char *name;           /* The filter class name, must be uniq */
+        unsigned int flags;         /* FLT_CLS_FL_* */
+
+        /* Callback to parse the arguments of a filter instance and produce
+         * the filter configuration (inst->fconf).
+         */
+        int (*parse)(char **args, struct proxy *px,
+                     struct filter_instance *inst, char **err);
+
+        struct {
+            struct list before; /* classes moved before current class for request */
+            struct list after;  /* classes moved after current class for request */
+            struct list list;   /* classes registered on request analysis */
+        } req;
+        struct {
+            struct list before; /* classes moved before current class on response */
+            struct list after;  /* classes moved after current class on response */
+            struct list list;   /* classes registered on response analysis */
+        } res;
+
+        struct list list; /* Link in global list of filter classes */
     };
-    INITCALL1(STG_REGISTER, flt_register_keywords, &flt_kws);
+
+  * 'filter_class.name' is the name used by the "filter-config" directive and
+    the other "filter-*" directives.
+
+  * 'filter_class.flags' is a bitfield to specify the class capabilities. For
+    now, only FLT_CLS_FL_MULTI may be set when several instances of the class
+    are allowed in the same proxy. In this case, an id is mandatory for each
+    instance. Otherwise a second instance of the class in the same proxy is
+    rejected, even with a different id.
+
+  * 'filter_class.parse' is the callback parsing a filter instance (see
+    section 3.2.1). It may be NULL, but in this case the class cannot be used
+    with "filter-config" at all.
+
+  * 'filter_class.req' and 'filter_class.res' anchor the class in the request
+    and response class orders (see below).
+
+  * 'filter_class.list' links the class in the global registry.
+
+The class is registered with filter_register_class(). It must then be placed,
+on each side it supports, relative to an already placed class, with
+filter_place_class() :
+
+    static struct filter_class flt_my_filter_cls;
+
+    static int my_filter_register_class(void)
+    {
+        if (filter_register_class(&flt_my_filter_cls, "my-filter", my_filter_parse_instance) < 0)
+            return -1;
+
+        /* Evaluate the filter before SPOE on the request path and after the Lua
+         * filters on the response path. */
+        if (filter_place_class(&flt_my_filter_cls, FLT_SIDE_REQ, "spoe", FLT_POS_BEFORE) < 0)
+            return -1;
+        if (filter_place_class(&flt_my_filter_cls, FLT_SIDE_RES, "lua", FLT_POS_AFTER) < 0)
+            return -1;
+        return 0;
+    }
+    INITCALL1(STG_INIT, my_filter_register_class);
+
+filter_register_class_full() is a helper for the common case where the class is
+placed on both sides at the same position relative to the same class.
+
+A class placed on neither side is rejected at startup because it would be
+useless. A class may be placed on both sides with different positions. The
+placement defines the default evaluation order of the instances of the class
+relative to the other classes. The global order follows the class registration
+order.
+
+WARNING : filter_register_class() must be called after the built-in classes
+          were initialized, so from an initcall of the STG_INIT stage or a later
+          one. Otherwise the class registration fails.
 
 
 Then the filter internal configuration must be defined. For instance :
@@ -378,7 +576,136 @@ variable is used :
      };
 
 
-Finally, the function to parse the filter configuration must be written, here
+3.2.1. THE FILTER CLASS PARSE CALLBACK
+
+The class parse callback is called once per filter instance, after the whole
+configuration was parsed, to produce the filter configuration attached to the
+filter instance ('inst->fconf'). 'inst->conf.argv' contains the arguments of
+the instance, i.e. the "filter-config" arguments following the class name and
+the optional "id <id>" and "enabled" tokens. They are NULL-terminated :
+
+    /* Return 0 on success, else -1 with <err> filled */
+    static int
+    my_filter_parse_instance(char **args, struct proxy *px,
+                             struct filter_instance *inst, char **err)
+    {
+        struct my_filter_config *my_conf;
+
+        /* All the arguments must be consumed by the callback */
+        if (*args) {
+            memprintf(err, "'%s' : unexpected argument '%s'",
+                      inst->class->name, args[0]);
+            return -1;
+        }
+
+        /* Allocate the internal configuration used by the filter */
+        my_conf = calloc(1, sizeof(*my_conf));
+        if (!my_conf) {
+            memprintf(err, "out of memory");
+            return -1;
+        }
+        my_conf->proxy = px;
+
+        /* ... */
+
+        /* Set the filter id and the callbacks. inst->fconf was allocated by
+         * HAProxy and is never NULL here. */
+        inst->fconf->id   = my_filter_flt_id;
+        inst->fconf->ops  = &my_filter_ops;
+
+        /* Last, save the internal configuration */
+        inst->fconf->conf = my_conf;
+
+        /* If the filter supports HTX streams */
+        inst->fconf->flags |= FLT_CFG_FL_HTX;
+        return 0;
+    }
+
+The filter instance is passed to the callback and is the only chance to read
+its attributes: its id ('inst->id'), its flags ('inst->flags') and the class it
+belongs to ('inst->class'). The following flags may be set :
+
+  * 'FLT_INST_F_IMPLICIT' : the instance was created implicitly by another
+    directive with flt_add_implicit_instance() (see below).
+
+  * 'FLT_INST_F_INHERITED' : the instance was inherited from the defaults
+    section of the proxy.
+
+The constraints below must be kept in mind while writing the callback :
+
+  * 'inst->fconf->ops' must be set, otherwise the configuration is rejected at
+    startup. All the arguments of the instance must be consumed.
+
+  * 'inst->fconf->conf' is owned by the filter. It is released by the filter,
+    generally in the 'flt_ops.deinit' callback (see section 3.3).
+
+  * The filter instance is a shared, read-only object once the startup is
+    completed: it is used to instantiate the filter for all the streams of the
+    proxy. Never store per-stream data in the filter instance or in its
+    configuration. Use 'filter.ctx' for that purpose.
+
+  * The callback is called after the configuration was fully parsed and after
+    the filter instances of the defaults section were inherited. It is not
+    called while the "filter-config" directive is read. As a consequence, other
+    directives must not keep pointers to filter instances during the parsing:
+    they must resolve the filter configuration at the check stage, using
+    flt_find_conf() and flt_foreach_conf() (see section 3.7).
+
+  * Side effects on the proxy options (for instance enabling a channel
+    direction) are allowed but must be idempotent, because the callback is also
+    called for inherited and implicit filter instances.
+
+  * For implicit filter instances (FLT_INST_F_IMPLICIT), the callback must not
+    re-enable an option that the directive did not enable, and must not add
+    side effects: it only finalizes the filter configuration. The filter is
+    already enabled by the directive and an explicit declaration wins over an
+    implicit one.
+
+  * For inherited filter instances (FLT_INST_F_INHERITED), the callback is
+    called again in the child proxy. Capability-dependent fields must be left
+    unset if the final proxy does not support them. In this case, the instance
+    is kept as metadata but the filter can simply decline its attachment to the
+    streams by returning 0 in 'flt_ops.attach'.
+
+  * A filter instance is instantiated on a stream only if it is enabled, in
+    which case a stream filter instance is created. It is enabled by the
+    "enabled" token, by the directive that created it implicitly or by
+    "filter-enable". Otherwise it is disabled by default.
+
+  * The id and the class name may only contain alphanumeric characters, '.',
+    '_' and '-'. In the configuration and the CLI, a filter instance is
+    referred to as <class>/<id>.
+
+Filters that are enabled by another directive (the compression options, the
+cache rules, ...) should create their filter instance with
+flt_add_implicit_instance(). It may be called during the configuration
+parsing, from the directive that enables the filter :
+
+    flt_add_implicit_instance(px, cls, "my-id", args, file, line);
+
+where 'cls' is the filter class, 'args' the arguments of the filter instance
+(or NULL), and 'file'/'line' the location of the directive. The instance is
+created enabled and marked FLT_INST_F_IMPLICIT.
+
+
+3.2.2. THE LEGACY KEYWORD PARSER
+
+To keep the support of the legacy "filter" directive, the filter must register
+its name as a valid keyword on the filter line. This is the historical way to
+declare a filter and it is optional: a filter supporting only the new mode
+cannot be used with the "filter" directive, and no other directive may
+transitively enable it in legacy mode either.
+
+    /* Declare the filter parser for "my_filter" keyword */
+    static struct flt_kw_list flt_kws = { "MY_FILTER_SCOPE", { }, {
+            { "my_filter", parse_my_filter_cfg, NULL /* private data */ },
+            { NULL, NULL, NULL },
+        }
+    };
+    INITCALL1(STG_REGISTER, flt_register_keywords, &flt_kws);
+
+
+The function to parse the filter configuration must be written, here
 'parse_my_filter_cfg'. This function must parse all remaining keywords on the
 filter line :
 
@@ -440,14 +767,38 @@ filter line :
 WARNING : In this parsing function, 'flt_conf->ops' must be initialized. All
           arguments of the filter line must also be parsed. This is mandatory.
 
-In the previous example, the filter lne should be read as follows :
+In the previous example, the filter line should be read as follows :
 
     filter my_filter name MY_NAME ...
 
+A filter supporting both modes should not duplicate the parsing code. The class
+parse callback may delegate the instance arguments to the legacy keyword
+parser with flt_parse_instance_legacy() :
 
-Optionally, by implementing the 'flt_ops.check' callback, an extra set is added
-to check the internal configuration of the filter after the parsing phase, when
-the HAProxy configuration is fully defined. For instance :
+    /* Return 0 on success, else -1 with <err> filled */
+    static int
+    my_filter_parse_instance(char **args, struct proxy *px,
+                             struct filter_instance *inst, char **err)
+    {
+        return flt_parse_instance_legacy(px, inst, err, "my_filter",
+                                         parse_my_filter_cfg, NULL);
+    }
+
+This helper rebuilds the argument vector expected by the legacy parser (the
+keyword followed by the arguments, terminated by an empty string) from
+'inst->conf.argv' and checks that all the arguments were consumed.
+
+WARNING : The legacy parser may rely on parsing-time globals, the most common
+          one being 'curproxy'. Such globals are not set when the class parse
+          callback is called (after the configuration parsing), so they must be
+          saved and restored around the call by the filter if needed.
+
+
+Optionally, by implementing the 'flt_ops.check' callback, an extra check is
+added for the internal configuration of the filter after the parsing phase,
+when the HAProxy configuration is fully defined. It is called once per proxy,
+for all the finalized filter instances in the new mode, or for all the legacy
+configurations otherwise. For instance :
 
     /* Check configuration of a trace filter for a specified proxy.
      * Return 1 on error, else 0. */
@@ -455,7 +806,7 @@ the HAProxy configuration is fully defined. For instance :
     my_filter_config_check(struct proxy *px, struct flt_conf *my_conf)
     {
         if (px->mode != PR_MODE_HTTP) {
-            Alert("The filter 'my_filter' cannot be used in non-HTTP mode.\n");
+            ha_alert("The filter 'my_filter' cannot be used in non-HTTP mode.\n");
             return 1;
         }
 
@@ -469,8 +820,8 @@ the HAProxy configuration is fully defined. For instance :
 3.3. MANAGING THE FILTER LIFECYCLE
 ----------------------------------
 
-Once the configuration parsed and checked, filters are ready to by used. There
-are two main callbacks to manage the filter lifecycle :
+Once the configuration is parsed and checked, filters are ready to be used.
+There are two main callbacks to manage the filter lifecycle :
 
   * 'flt_ops.init' : It initializes the filter for a proxy. This callback may be
                      defined to finish the filter configuration.
@@ -478,6 +829,12 @@ are two main callbacks to manage the filter lifecycle :
   * 'flt_ops.deinit' : It cleans up what the parsing function and the init
                        callback have done. This callback is useful to release
                        memory allocated for the filter configuration.
+
+In the new mode, these callbacks are called once per filter instance, in the
+global order, for all the filter instances of the proxy - including the
+disabled ones. The 'enabled' state only controls whether a filter instance is
+instantiated on streams. The filter configuration ('flt_conf') is owned by the
+filter instance and is released with it when the proxy is destroyed.
 
 Here is an example :
 
@@ -507,7 +864,7 @@ Here is an example :
     }
 
 
-3.3.1 DEALING WITH THREADS
+3.3.1. DEALING WITH THREADS
 --------------------------
 
 When HAProxy is compiled with the threads support and started with more that one
@@ -590,26 +947,26 @@ For instance :
 WARNING : Handling the streams creation and destruction is only possible for
           filters defined on proxies with the frontend capability.
 
-In addition, it is possible to handle creation and destruction of filter
+In addition, it is possible to handle creation and destruction of stream filter
 instances using following callbacks:
 
-  * 'flt_ops.attach' : It is called after a filter instance creation, when it is
-                       attached to a stream. This happens when the stream is
-                       started for filters defined on the stream's frontend and
-                       when the backend is set for filters declared on the
-                       stream's backend. It is possible to ignore the filter, if
-                       needed, by returning 0. This could be useful to have
-                       conditional filtering.
+  * 'flt_ops.attach' : It is called after a stream filter instance creation,
+                       when it is attached to a stream. This happens when the
+                       stream is started for filters defined on the stream's
+                       frontend and when the backend is set for filters
+                       declared on the stream's backend. It is possible to
+                       ignore the filter, if needed, by returning 0. This
+                       could be useful to have conditional filtering.
 
-  * 'flt_ops.detach' : It is called when a filter instance is detached from a
-                       stream, before its destruction. This happens when the
-                       stream is stopped for filters defined on the stream's
-                       frontend and when the analyze ends for filters defined on
-                       the stream's backend.
+  * 'flt_ops.detach' : It is called when a stream filter instance is detached
+                       from a stream, before its destruction. This happens when
+                       the stream is stopped for filters defined on the
+                       stream's frontend and when the analyze ends for filters
+                       defined on the stream's backend.
 
 For instance :
 
-    /* Called when a filter instance is created and attach to a stream */
+    /* Called when a stream filter instance is created and attached to a stream */
     static int
     my_filter_attach(struct stream *s, struct filter *filter)
     {
@@ -620,8 +977,8 @@ For instance :
         return 1;
     }
 
-    /* Called when a filter instance is detach from a stream, just before its
-     * destruction */
+    /* Called when a stream filter instance is detached from a stream, just
+     * before its destruction */
     static void
     my_filter_detach(struct stream *s, struct filter *filter)
     {
@@ -923,7 +1280,7 @@ By zooming on an analyzer box we have:
                      ...
 
 
- 3.6. FILTERING THE DATA EXCHANGED
+3.6. FILTERING THE DATA EXCHANGED
 -----------------------------------
 
 WARNING : To fully understand this part, it is important to be aware on how the
@@ -1000,7 +1357,7 @@ filtered stream and 'chn' is the considered channel. However, there is no reason
 for a filter to use these macros or take care of these offsets.
 
 
-3.6.1 FILTERING DATA ON TCP STREAMS
+3.6.1. FILTERING DATA ON TCP STREAMS
 -----------------------------------
 
 The TCP data filtering for TCP streams is the easy case, because HAProxy do not
@@ -1045,7 +1402,7 @@ set. At any time, the IS_HTX_STRM() macros may be used on the stream to know if
 it is an HTX stream or a TCP stream.
 
 
-3.6.2 FILTERING DATA ON HTTP STREAMS
+3.6.2. FILTERING DATA ON HTTP STREAMS
 ------------------------------------
 
 The HTTP data filtering is a bit more complex because HAProxy data are
@@ -1171,7 +1528,7 @@ Then, to finish, there are 2 informational callbacks :
     occurs.
 
 
-3.6.3 REWRITING DATA
+3.6.3. REWRITING DATA
 --------------------
 
 The last part, and the trickiest one about the data filtering, is about the data
@@ -1186,3 +1543,100 @@ update data itself, i.e. the buffer offsets, using following function :
     the size of incoming data leads to an undefined behavior.
 
 A good example of filter changing the data size is the HTTP compression filter.
+
+
+3.7. REFERENCING A FILTER CONFIGURATION FROM OTHER DIRECTIVES
+-------------------------------------------------------------
+
+A directive (a rule, an action, ...) may need to reference a filter, for
+instance to share its configuration. It must not store a pointer to the filter
+configuration during the parsing: in the new mode, the filter instances are
+finalized during the post-parsing stage, after the rule was parsed, and they
+may be inherited or replaced. References must be resolved later, from the check
+callback of the rule ('act_rule.check_ptr'), which is called once the filter
+instances were finalized.
+
+The following helpers work in both modes and must be used for that purpose :
+
+  * 'flt_has_filter(px)' returns true if the proxy uses at least one filter, in
+    either mode. It replaces tests of 'px->filter_configs'.
+
+  * 'flt_foreach_conf(px, side, fct, data)' iterates over the filter
+    configurations of the proxy, in the evaluation order of the given side
+    (FLT_SIDE_GLOBAL, FLT_SIDE_REQ or FLT_SIDE_RES). The '<fct>' callback is
+    called with each 'struct flt_conf *' and must return 0 to continue. In
+    legacy mode, the declaration order is used.
+
+  * 'flt_find_conf(px, flt_id, side, match, data)' returns the first filter
+    configuration matching the id '<flt_id>' (any id if NULL) and the optional
+    '<match>' callback. This is the recommended way to find the filter
+    configuration referenced by a rule.
+
+  * 'flt_find_instance(px, cls, id)' returns the first filter instance of the
+    class '<cls>' matching the id (any id if NULL), or NULL. It may be used
+    when the filter instance itself is needed, but not to keep a pointer to it.
+
+The match callback passed to flt_find_conf() typically compares the filter
+configuration ('fconf->conf') with the reference stored in the rule. Since the
+helpers select the right source according to the proxy mode, a filter
+supporting both modes must not scan 'px->filter_configs' directly.
+
+
+4. FAQ
+------
+
+4.1. Which mode should a new filter support?
+
+    A new filter may support only the new mode. The legacy "filter" directive
+    has to be supported only to remain compatible with existing configurations
+    relying on it. That said, if the filter results from the conversion of an
+    existing feature, supporting both modes is recommended. Both modes may
+    share the same parsing code through flt_parse_instance_legacy() (see section
+    3.2.2).
+
+    A filter is usable in the new mode as soon as it registers a filter class
+    (section 3.2); it is usable in the legacy mode as soon as it registers a
+    "filter" keyword (section 3.2.2). Nothing forces a filter to support both,
+    but a filter supporting only the new mode cannot be enabled by another
+    directive in legacy mode.
+
+4.2. Why is my filter instance ignored?
+
+    By default, a filter instance declared with "filter-config" is disabled.
+    The "enabled" token or a "filter-enable" directive is required to activate
+    it. The state of a filter instance is reported by "show filter instance"
+    (section 2.2).
+
+4.3. When is the configuration of my filter parsed?
+
+    In the new mode, the class parse callback is called after the whole
+    configuration was parsed, once per filter instance, and after the filter
+    instances of the defaults section were inherited. It is not called while
+    the "filter-config" line is read. Directives that reference the filter must
+    therefore resolve it at the check stage with flt_find_conf() (section 3.7).
+    On the contrary, in legacy mode the parsing function is called while the
+    "filter" line is read.
+
+4.4. How can I declare several filter instances of the same class in a proxy?
+
+    The class must set FLT_CLS_FL_MULTI, in which case each filter instance must
+    have an id. Otherwise a single filter instance per proxy is allowed, and a
+    second one - explicit, inherited or implicit - is rejected as a duplicate.
+
+4.5. How is the evaluation order determined?
+
+    In the new mode, by the class placement on the request and response sides
+    (section 3.2) and, possibly, by the "filter-sequence" directive on a per
+    proxy basis (section 2.2). The global order follows the class registration
+    order. A filter must not assume a fixed order relative to other filters
+    unless it owns the corresponding placements or sequences.
+
+    In legacy mode, the declaration order of the "filter" directives is used.
+
+4.6. Can a filter instance be shared between proxies?
+
+    No. The filter instances of a defaults section are copied into the
+    inheriting proxies, each one with its own filter configuration. A filter
+    configuration, and a fortiori a stream filter instance context, must never
+    be shared between proxies, streams or threads unless the filter explicitly
+    supports it.

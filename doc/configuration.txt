@@ -1811,6 +1811,7 @@ The following keywords are supported in the "global" section :
    - expose-deprecated-directives
    - expose-experimental-directives
    - external-check
+   - filter-api
    - fd-hard-limit
    - gid
    - grace
@@ -2643,6 +2644,25 @@ external-check [preserve-env]
   is strongly advised not to run a setuid nor as a privileged user, as this
   exposes the check program to potential attacks. See "option external-check",
   and "insecure-fork-wanted", and "insecure-setuid-wanted" for extra details.
+
+filter-api default | downgrade-to-legacy
+  Set the default filter API to use for a proxy when no filter directives are
+  used ("filter", "filter-config", "filter-enable", "filter-disable" or
+  "filter-sequence").
+
+  This option is unset by default. So proxies without explicit filter
+  directives rely on the filter instance api. By setting it to
+  "downgrade-to-legacy", it is possible to force proxies to use the legacy
+  filter API by default. It could be useful the time to convert outdated
+  filters still relying on the legacy API only. Indeed, such filters will be
+  silently ignored except if the "filter" directive is used to declare them.
+  This option can be set to "default" to restore the default behavior.
+
+  Note that it should be a temporary workaround. There is no warranty that all
+  filters will remain compatible with the legacy API. In that case, they will
+  be silently ignored if the filter API is downgraded.
+
+  See section 9.
 
 fd-hard-limit <number>
   Sets an upper bound to the maximum number of file descriptors that the
@@ -6251,6 +6271,10 @@ external-check path                       X          -         X         X
 force-persist                             -          -         X         X
 force-be-switch                           -          X         X         -
 filter                                    -          X         X         X
+filter-config                             X (!)      X         X         X
+filter-disable                            X (!)      X         X         X
+filter-enable                             X (!)      X         X         X
+filter-sequence                           X (!)      X         X         X
 fullconn                                  X          -         X         X
 guid                                      -          X         X         X
 hash-balance-factor                       X          -         X         X
@@ -8282,8 +8306,15 @@ filter <name> [param*]
   Multiple occurrences of the filter line can be used for the same proxy. The
   same filter can be referenced many times if needed.
 
+  Using this directive selects the legacy filter declaration mode for the
+  proxy. It must not be used together with "filter-config", "filter-enable",
+  "filter-disable" or "filter-sequence" in the same proxy, including when
+  these directives are inherited from a defaults section. Conversely, this
+  directive is rejected in a proxy inheriting filter instances from its
+  defaults section. See "filter-config" for the new declaration mode.
+
   Example:
-      listen
+      listen li
         bind *:80
 
         filter trace name BEFORE-HTTP-COMP
@@ -8295,7 +8326,203 @@ filter <name> [param*]
 
         server srv1 192.168.0.1:80
 
-  See also : section 9.
+  See also : "filter-config", "filter-enable", "filter-disable",
+             "filter-sequence" and section 9.
+
+
+filter-config <class> [id <id>] [enabled] [<parameters>]
+  Declare a filter instance of the class <class> attached to the proxy.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                yes(!) |    yes   |   yes  |   yes
+
+  Arguments :
+    <class>      is the filter class name. The supported classes are listed
+                 in section 9.
+
+    <id>        declares the instance identifier. It is mandatory for filter
+                 classes allowing several instances in the same proxy (the id
+                 must be unique for its class) and optional otherwise. Ids
+                 may only contain alphanumeric characters, '.', '_' and '-'.
+                 In the other "filter-*" directives and in the CLI, an
+                 instance is referred to as <class>/<id>.
+
+    enabled      activates the filter instance. Without it, the instance is
+                 declared but disabled and will not be instantiated on
+                 streams. It can be activated later with the "filter-enable"
+                 directive.
+
+    <parameters> are the parameters accepted by the filter class, as
+                 documented in section 9.
+
+  The optional "id <id>" and "enabled" tokens must come first, in this order,
+  before the filter parameters.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones.
+
+  A filter instance is the configuration of a filter in the proxy, shared by
+  all the streams on which it is instantiated. The directive may be used
+  several times for the same proxy, including to declare several instances of
+  the same class when the class allows it.
+
+  The instances declared in a defaults section are inherited by the proxies
+  using this section. A local instance with the same class and id replaces the
+  inherited one. Likewise, an explicit instance replaces an instance
+  implicitly declared by another directive, for instance by the "compression"
+  options or the "cache-store" rules. The evaluation order of the instances
+  may be inspected with the "show filter instances" CLI command and adjusted
+  with the "filter-sequence" directive.
+
+  Using this directive selects the new filter declaration mode for the proxy.
+  It must not be used together with the legacy "filter" directive in the same
+  proxy. A defaults section defining filter instances may not be inherited by
+  a "listen" section, nor by both frontends and backends.
+
+  Example:
+      listen li
+        bind *:80
+
+        filter-config trace id BEFORE-HTTP-COMP enabled
+        filter-config http-comp-req enabled
+        filter-config http-comp-res enabled
+        filter-config trace id AFTER-HTTP-COMP enabled
+        filter-sequence response trace/AFTER-HTTP-COMP:after(http-comp-res)
+
+        compression algo gzip
+        compression offload
+
+        server srv1 192.168.0.1:80
+
+  See also : "filter", "filter-enable", "filter-disable", "filter-sequence"
+             and section 9.
+
+
+filter-disable <class>[/<id>] [<class>[/<id>] ...]
+  Disable the filter instances matching the arguments.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                yes(!) |    yes   |   yes  |   yes
+
+  Arguments :
+    <class>[/<id>]  references a filter instance. Without an id, all the
+                    instances of the filter class are concerned.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones.
+
+  All the referenced instances must exist at the end of the configuration
+  parsing, otherwise an error is reported. An instance may be declared after
+  the directive enabling or disabling it. When several "filter-enable" and
+  "filter-disable" directives reference the same instance, the last one wins.
+
+  A disabled instance is not instantiated on streams. Its state is reported by
+  the "show filter instance" CLI command. See "filter-config" and section 9.
+
+  Example:
+      defaults def-fe
+        filter-config trace id TR1 enabled
+        filter-config trace id TR2 enabled
+
+      frontend fe from def-fe
+        bind *:80
+        filter-disable trace/TR2
+
+
+  See also : "filter-config", "filter-enable"
+
+
+filter-enable <class>[/<id>] [<class>[/<id>] ...]
+  Enable the filter instances matching the arguments.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                yes(!) |    yes   |   yes  |   yes
+
+  Arguments :
+    <class>[/<id>]  references a filter instance. Without an id, all the
+                    instances of the filter class are concerned.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones.
+
+  All the referenced instances must exist at the end of the configuration
+  parsing, otherwise an error is reported. An instance may be declared after
+  the directive enabling or disabling it. When several "filter-enable" and
+  "filter-disable" directives reference the same instance, the last one wins.
+
+  An enabled instance is instantiated on the streams of the proxy, unless the
+  filter itself declines it or it is not supported, for instance a filter
+  requiring HTX on a TCP stream. See "filter-config" and section 9.
+
+  Example :
+      defaults def-fe
+        filter-config trace id TR1
+        filter-config trace id TR2
+
+      frontend fe from def-fe
+        bind *:80
+        filter-enable trace
+
+  See also : "filter-config", "filter-disable"
+
+
+filter-sequence {global|request|response} <instance>:before(<entity>) [<instance>:after(<entity>) ...]
+  Change the evaluation order of the filter instances of the proxy.
+
+  May be used in the following contexts: tcp, http
+
+  May be used in sections :   defaults | frontend | listen | backend
+                                yes(!) |    yes   |   yes  |   yes
+
+  Arguments :
+    {global|request|response}  is the order to update. The request and
+                               response orders define the evaluation order of
+                               the filters on the corresponding channel and
+                               may be changed independently. The global order
+                               only drives the side-independent operations
+                               (configuration checks, initialization and
+                               destruction); changing it does not change the
+                               request or the response order.
+
+    <instance>                 is the filter instance to move, as
+                               <class>[/<id>]. An id must be given if the
+                               class of the instance allows several instances
+                               in the proxy.
+
+    before(<entity>)           moves the instance before the entity.
+    after(<entity>)            moves the instance after the entity.
+
+    <entity>                   is a filter class or a filter instance, as
+                               <class>[/<id>]. When a class is referenced, all
+                               its instances are concerned. The reference
+                               class must be placed on the selected side and
+                               the referenced instance, if any, must exist.
+
+  This directive is only available from named defaults sections, not anonymous
+  ones.
+
+  By default, the instances are evaluated following the order of their class
+  on the selected side (see section 9). This directive changes this order.
+  Several sequences may be given in the same directive and the directive may
+  be used several times; the sequences are applied in configuration order. A
+  sequence moving an instance that does not exist is ignored. Sequences
+  creating a loop are rejected.
+
+  Example :
+      listen
+        bind *:80
+        filter-config trace id T1 enabled
+        filter-config trace id T2 enabled
+        filter-sequence response trace/T2:before(trace/T1)
+        server srv1 192.168.0.1:80
+
+  See also : "filter-config", "filter-enable", "filter-disable" and section 9.
 
 
 fullconn <conns>
@@ -31250,20 +31477,66 @@ reading. Their sole purpose is to explain how to decipher them.
 
 Here are listed officially supported filters with the list of parameters they
 accept. Depending on compile options, some of these filters might be
-unavailable. The list of available filters is reported in haproxy -vv.
+unavailable. The list of available filter classes is reported in haproxy -vv.
 
-See also : "filter"
+A filter is declared on a proxy in one of two modes:
+
+  * The legacy mode relies on the "filter" directive. Each "filter" line
+    declares an independent filter configuration and the declaration order
+    defines the evaluation order. This mode is kept for backward
+    compatibility.
+
+  * The new mode relies on the "filter-config" directive. Each declaration is
+    a filter instance, attached to its filter class. The evaluation order is
+    defined by the class placement and can be adjusted per proxy with the
+    "filter-sequence" directive. The instances are disabled by default and
+    are activated with the "enabled" token or the "filter-enable" directive.
+
+The mode is selected by the configuration itself: as soon as a legacy "filter"
+directive is used in a proxy, the proxy works in legacy mode and the
+"filter-*" directives must not be used in the same proxy, including when they
+are inherited from a defaults section. Conversely, a legacy "filter" directive
+is rejected in a proxy inheriting filter instances from its defaults
+section. Filters implicitly declared by other directives (for instance by the
+"compression" options, the "cache-store" rules or "use-fcgi-app") do not
+select a mode: a proxy using only such filters works in the new mode.
+The "filter-api" global option changes this last rule: when it is set to
+"downgrade-to-legacy", the proxies using only implicitly declared filters work
+in the legacy mode, so the filters not supporting the new mode keep
+working. Explicit filter declarations always win, in both modes.
+
+All the filters documented below support the new mode. The <class> name to use
+with "filter-config" may differ from the legacy filter name; it is given in
+the documentation of each filter. The "filter-config" syntax is documented
+below the legacy one.
+
+The filter instances of a proxy may be inspected with the "show filter
+classes" and "show filter instances" CLI commands (see the management
+manual).
+
+See also : "filter", "filter-config", "filter-enable", "filter-disable" and
+           "filter-sequence".
 
 9.1. Trace
 ----------
 
-filter trace [name <name>] [random-forwarding] [max-fwd <max>] [hexdump]
+filter trace [name <name>] [quiet] [random-parsing] [random-forwarding]
+             [max-fwd <max>] [hexdump]
+filter-config trace id <name> [enabled] [quiet] [random-parsing]
+             [random-forwarding] [max-fwd <max>] [hexdump]
 
   Arguments:
     <name>               is an arbitrary name that will be reported in
                          messages. If no name is provided, "TRACE" is used.
+                         With "filter-config", the instance id is mandatory
+                         and is used as the name.
 
     <quiet>              inhibits trace messages.
+
+    <random-parsing>     enables the random parsing of data. By default, this
+                         filter parses all available data. With this
+                         parameter, it only parses a random amount of the
+                         available data.
 
     <random-forwarding>  enables the random forwarding of parsed data. By
                          default, this filter forwards all previously parsed
@@ -31277,14 +31550,17 @@ filter trace [name <name>] [random-forwarding] [max-fwd <max>] [hexdump]
 
     <hexdump>             dumps all forwarded data to the server and the client.
 
-This filter can be used as a base to develop new filters. It defines all
-callbacks and print a message on the standard error stream (stderr) with useful
-information for all of them. It may be useful to debug the activity of other
-filters or, quite simply, HAProxy's activity.
+  This filter can be used as a base to develop new filters. It defines all
+  callbacks and prints a message on the standard error stream (stderr) with
+  useful information for all of them. It may be useful to debug the activity
+  of other filters or, quite simply, HAProxy's activity.
 
-Using <random-parsing> and/or <random-forwarding> parameters is a good way to
-tests the behavior of a filter that parses data exchanged between a client and
-a server by adding some latencies in the processing.
+  Using <random-parsing> and/or <random-forwarding> parameters is a good way
+  to test the behavior of a filter that parses data exchanged between a
+  client and a server by adding some latencies in the processing.
+
+  With the new mode, the filter class is "trace". Several instances may be
+  declared in the same proxy, each one with its own id.
 
 
 9.2. HTTP compression
@@ -31316,6 +31592,21 @@ filter other than the cache or the fcgi-app is used for the same
 listener/frontend/backend. This is important to know the filters evaluation
 order.
 
+filter-config http-comp-req
+filter-config http-comp-res
+  Explicitly declare the request or the response compression filter with the
+  new mode. These classes do not accept an id. Like their legacy counterparts
+  "filter comp-req" and "filter comp-res", they are configured with the
+  "compression" directives. Declaring "filter-config http-comp-req"
+  implicitly sets "compression direction request" and declaring
+  "filter-config http-comp-res" implicitly sets "compression direction
+  response".
+
+  Note that the legacy mode rules above about implicit declarations do not
+  apply in the new mode. The evaluation order of these filters relative to the
+  other ones is defined by the class placement and can be adjusted with the
+  "filter-sequence" directive.
+
 See also : "compression", section 9.4 about the cache filter and section 9.5
            about the fcgi-app filter.
 
@@ -31336,6 +31627,17 @@ proxies with backend capability. It supports both TCP and HTTP compressed
 streams. The filter runs during the stream forwarding phase, thus it will not
 be possible to perform TCP/HTTP rules on the decompressed stream (ie: res.body
 won't work).
+
+filter-config decomp-req
+  Explicitly declare the request decompression filter with the new mode. This
+  class does not accept an id. Like its legacy counterparts "filter
+  decomp-req", it is configured with the "decompression" directives.
+
+filter-config decomp-res
+  Explicitly declare the response decompression filter with the new mode. This
+  class does not accept an id. Like its legacy counterparts "filter
+  decomp-res", it is configured with the "decompression" directives.
+
 
 9.3. Stream Processing Offload Engine (SPOE)
 --------------------------------------------
@@ -31367,6 +31669,13 @@ of this "SPOE" stream. It means it is possible to retrieve variables of the
 main stream from the "SPOE" stream. See section 2.8 about variables for
 details.
 
+filter-config spoe id <id> [enabled] [engine <name>] config <file>
+  Declare a SPOE filter with the new mode. The instance id is mandatory, as
+  the class allows several instances in the same proxy, but it is only used by
+  the "filter-enable", "filter-disable" and "filter-sequence" directives.
+  The "engine" and "config" parameters are the same as for the legacy
+  syntax.
+
 For all information about the SPOE configuration and the SPOP specification, see
 "doc/SPOE.txt".
 
@@ -31388,6 +31697,14 @@ is mandatory to explicitly use a filter line to use a cache when at least one
 filter other than the compression or the fcgi-app is used for the same
 listener/frontend/backend. This is important to know the filters evaluation
 order.
+
+filter-config cache-store id <name> [enabled]
+  Declare a cache filter with the new mode. The instance id is mandatory and
+  is the name of the cache section, like the <name> parameter of the legacy
+  syntax. The rules above about implicit declarations only apply to the legacy
+  mode. In the new mode, a cache filter instance is implicitly created by the
+  "cache-store" and "cache-use" rules when needed, and its evaluation order
+  can be adjusted with the "filter-sequence" directive.
 
 See also : section 9.2 about the compression filter, section 9.5 about the
            fcgi-app filter and section 6 about cache.
@@ -31412,6 +31729,14 @@ fcgi-app when at least one filter other than the compression or the cache is
 used for the same backend. This is important to know the filters evaluation
 order.
 
+filter-config fcgi id <name> [enabled]
+  Declare a fcgi-app filter with the new mode. The instance id is mandatory
+  and is the name of the fcgi-app section, like the <name> parameter of the
+  legacy syntax. The rules above about implicit declarations only apply to the
+  legacy mode. In the new mode, a filter instance is implicitly created by
+  "use-fcgi-app" when needed, and its evaluation order can be adjusted with
+  the "filter-sequence" directive.
+
 See also: "use-fcgi-app", section 9.2 about the compression filter, section 9.4
           about the cache filter and section 10 about FastCGI application.
 
@@ -31433,6 +31758,13 @@ filter bwlim-in  <name> default-limit <size> default-period <time> [min-size <sz
 filter bwlim-out <name> default-limit <size> default-period <time> [min-size <sz>]
 filter bwlim-in  <name> limit <size> key <pattern> [table <table>] [min-size <sz>]
 filter bwlim-out <name> limit <size> key <pattern> [table <table>] [min-size <sz>]
+filter-config bwlim-in  id <name> [enabled] default-limit <size> default-period <time> [min-size <sz>]
+filter-config bwlim-out id <name> [enabled] default-limit <size> default-period <time> [min-size <sz>]
+filter-config bwlim-in  id <name> [enabled] limit <size> key <pattern> [table <table>] [min-size <sz>]
+filter-config bwlim-out id <name> [enabled] limit <size> key <pattern> [table <table>] [min-size <sz>]
+  With the new mode, the instance id is mandatory and is the filter name used
+  by the "set-bandwidth-limit" actions, like the <name> parameter of the
+  legacy syntax. The other parameters are the same.
 
   Arguments :
 
