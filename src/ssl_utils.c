@@ -1062,18 +1062,38 @@ static struct curve {
 	V( 38,     NID_id_tc26_gost_3410_2012_512_paramSetA,      NULL,           "GC512A",                           NULL     ),
 	V( 39,     NID_id_tc26_gost_3410_2012_512_paramSetB,      NULL,           "GC512B",                           NULL     ),
 	V( 40,     NID_id_tc26_gost_3410_2012_512_paramSetC,      NULL,           "GC512C",                           NULL     ),
+	V( 41,     NID_sm2,                                       NULL,           "curveSM2",                         NULL     ),
 	V( 256,    NID_ffdhe2048,                                 NULL,           "ffdhe2048",                        NULL     ),
 	V( 257,    NID_ffdhe3072,                                 NULL,           "ffdhe3072",                        NULL     ),
 	V( 258,    NID_ffdhe4096,                                 NULL,           "ffdhe4096",                        NULL     ),
 	V( 259,    NID_ffdhe6144,                                 NULL,           "ffdhe6144",                        NULL     ),
 	V( 260,    NID_ffdhe8192,                                 NULL,           "ffdhe8192",                        NULL     ),
 
+	/* AWS-LC MLKEM */
+	V( 512,    NID_MLKEM512,                                  NULL,           "MLKEM512",                         NULL     ),
+	V( 513,    NID_MLKEM768,                                  NULL,           "MLKEM768",                         NULL     ),
+	V( 514,    NID_MLKEM1024,                                 NULL,           "MLKEM1024",                        NULL     ),
 
-	/* The following curves are defined in the IANA list as well as in an
-	 * OpenSSL internal array but they don't have any corresponding NID.
+	/* OpenSSL MLKEM */
+	V( 512,    NID_ML_KEM_512,                                NULL,           "MLKEM512",                         NULL     ),
+	V( 513,    NID_ML_KEM_768,                                NULL,           "MLKEM768",                         NULL     ),
+	V( 514,    NID_ML_KEM_1024,                               NULL,           "MLKEM1024",                        NULL     ),
+
+	/* AWS-LC defines object NIDs for these hybrid groups. When absent
+	 * (e.g. with OpenSSL), the stringified NID leaves the mapping at -1.
 	 */
-	V( 25497,  -1,                                            NULL,           "X25519Kyber768Draft00",            NULL     ),
-	V( 25498,  -1,                                            NULL,           "SecP256r1Kyber768Draft00",         NULL     ),
+	V( 4585,   -1,                                            NULL,           "SecP256r1MLKEM512",                NULL     ),
+	V( 4586,   -1,                                            NULL,           "MLKEM512X25519",                   NULL     ),
+	V( 4587,   NID_SecP256r1MLKEM768,                         NULL,           "SecP256r1MLKEM768",                NULL     ),
+	V( 4588,   NID_X25519MLKEM768,                            NULL,           "X25519MLKEM768",                   NULL     ),
+	V( 4589,   NID_SecP384r1MLKEM1024,                        NULL,           "SecP384r1MLKEM1024",               NULL     ),
+	V( 4590,   -1,                                            NULL,           "curveSM2MLKEM768",                 NULL     ),
+
+	/* AWS-LC Kyber draft groups */
+	V( 25497,  NID_X25519Kyber768Draft00,                     NULL,           "X25519Kyber768Draft00",            NULL     ),
+	V( 25498,  NID_SecP256r1Kyber768Draft00,                  NULL,           "SecP256r1Kyber768Draft00",         NULL     ),
+
+	/* Explicit-curve markers have no object NID. */
 	V( 0xFF01, -1,                                            NULL,           "arbitrary_explicit_prime_curves",  NULL     ),
 	V( 0xFF02, -1,                                            NULL,           "arbitrary_explicit_char2_curves",  NULL     ),
 	/* Keep the old OpenSSL trace labels as aliases for name-to-NID lookup.
