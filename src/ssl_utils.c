@@ -1005,84 +1005,84 @@ const char *sigalg2str(int sigalg)
 #undef _Q
 #define _Q(x) (#x)
 #undef V
-#define V(w, x, y, z) { .curve_id = w, .nid = -1, .nid_val_str = _Q(x), .name = y, .nist = z }
+#define V(w, x, a, i, n) { .curve_id = w, .nid = -1, .nid_val_str = _Q(x), .ansi = a, .iana = i, .nist = n }
 
 /*
  * Curve identifier to curve name mapping table. We use the actual identifiers
  * as defined in https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
  * as well as NIDs, special identifiers used in SSL libraries such as OpenSSL.
- * The names used are the standard SECG ones as well as the NIST ones.
+ * Names are stored separately in ANSI X9.62, IANA, and NIST notation.
+ * The IANA column also retains compatibility aliases.
  */
 static struct curve {
 	int curve_id;
 	int nid;
 	char *nid_val_str;
-	const char *name;
+	const char *ansi;
+	const char *iana;
 	const char *nist;
 } curves_list[] = {
-	V( 1,      NID_sect163k1,                            "sect163k1",             "K-163"    ),
-	V( 2,      NID_sect163r1,                            "sect163r1",             NULL       ),
-	V( 3,      NID_sect163r2,                            "sect163r2",             "B-163"    ),
-	V( 4,      NID_sect193r1,                            "sect193r1",             NULL       ),
-	V( 5,      NID_sect193r2,                            "sect193r2",             NULL       ),
-	V( 6,      NID_sect233k1,                            "sect233k1",             "K-233"    ),
-	V( 7,      NID_sect233r1,                            "sect233r1",             "B-233"    ),
-	V( 8,      NID_sect239k1,                            "sect239k1",             NULL       ),
-	V( 9,      NID_sect283k1,                            "sect283k1",             "K-283"    ),
-	V( 10,     NID_sect283r1,                            "sect283r1",             "B-283"    ),
-	V( 11,     NID_sect409k1,                            "sect409k1",             "K-409"    ),
-	V( 12,     NID_sect409r1,                            "sect409r1",             "B-409"    ),
-	V( 13,     NID_sect571k1,                            "sect571k1",             "K-571"    ),
-	V( 14,     NID_sect571r1,                            "sect571r1",             "B-571"    ),
-	V( 15,     NID_secp160k1,                            "secp160k1",             NULL       ),
-	V( 16,     NID_secp160r1,                            "secp160r1",             NULL       ),
-	V( 17,     NID_secp160r2,                            "secp160r2",             NULL       ),
-	V( 18,     NID_secp192k1,                            "secp192k1",             NULL       ),
-	V( 19,     NID_X9_62_prime192v1,                     "secp192r1",             "P-192"    ),
-	V( 19,     NID_X9_62_prime192v1,                     "prime192v1",            "P-192"    ),
-	V( 20,     NID_secp224k1,                            "secp224k1",             NULL       ),
-	V( 21,     NID_secp224r1,                            "secp224r1",             "P-224"    ),
-	V( 22,     NID_secp256k1,                            "secp256k1",             NULL       ),
-	V( 23,     NID_X9_62_prime256v1,                     "secp256r1",             "P-256"    ),
-	V( 23,     NID_X9_62_prime256v1,                     "prime256v1",            "P-256"    ),
-	V( 24,     NID_secp384r1,                            "secp384r1",             "P-384"    ),
-	V( 25,     NID_secp521r1,                            "secp521r1",             "P-521"    ),
-	V( 26,     NID_brainpoolP256r1,                      "brainpoolP256r1",       NULL       ),
-	V( 27,     NID_brainpoolP384r1,                      "brainpoolP384r1",       NULL       ),
-	V( 28,     NID_brainpoolP512r1,                      "brainpoolP512r1",       NULL       ),
-	V( 29,     NID_X25519,                               "x25519",                NULL       ),
-	V( 30,     NID_X448,                                 "x448",                  NULL       ),
-	V( 31,     NID_brainpoolP256r1tls13,                 "brainpoolP256r1tls13",  NULL       ),
-	V( 32,     NID_brainpoolP384r1tls13,                 "brainpoolP384r1tls13",  NULL       ),
-	V( 33,     NID_brainpoolP512r1tls13,                 "brainpoolP512r1tls13",  NULL       ),
-	V( 34,     NID_id_tc26_gost_3410_2012_256_paramSetA, "GC256A",                NULL       ),
-	V( 35,     NID_id_tc26_gost_3410_2012_256_paramSetB, "GC256B",                NULL       ),
-	V( 36,     NID_id_tc26_gost_3410_2012_256_paramSetC, "GC256C",                NULL       ),
-	V( 37,     NID_id_tc26_gost_3410_2012_256_paramSetD, "GC256D",                NULL       ),
-	V( 38,     NID_id_tc26_gost_3410_2012_512_paramSetA, "GC512A",                NULL       ),
-	V( 39,     NID_id_tc26_gost_3410_2012_512_paramSetB, "GC512B",                NULL       ),
-	V( 40,     NID_id_tc26_gost_3410_2012_512_paramSetC, "GC512C",                NULL       ),
-	V( 256,    NID_ffdhe2048,                            "ffdhe2048",             NULL       ),
-	V( 257,    NID_ffdhe3072,                            "ffdhe3072",             NULL       ),
-	V( 258,    NID_ffdhe4096,                            "ffdhe4096",             NULL       ),
-	V( 259,    NID_ffdhe6144,                            "ffdhe6144",             NULL       ),
-	V( 260,    NID_ffdhe8192,                            "ffdhe8192",             NULL       ),
+	V( 1,      NID_sect163k1,                                 NULL,           "sect163k1",                        "K-163"  ),
+	V( 2,      NID_sect163r1,                                 NULL,           "sect163r1",                        NULL     ),
+	V( 3,      NID_sect163r2,                                 NULL,           "sect163r2",                        "B-163"  ),
+	V( 4,      NID_sect193r1,                                 NULL,           "sect193r1",                        NULL     ),
+	V( 5,      NID_sect193r2,                                 NULL,           "sect193r2",                        NULL     ),
+	V( 6,      NID_sect233k1,                                 NULL,           "sect233k1",                        "K-233"  ),
+	V( 7,      NID_sect233r1,                                 NULL,           "sect233r1",                        "B-233"  ),
+	V( 8,      NID_sect239k1,                                 NULL,           "sect239k1",                        NULL     ),
+	V( 9,      NID_sect283k1,                                 NULL,           "sect283k1",                        "K-283"  ),
+	V( 10,     NID_sect283r1,                                 NULL,           "sect283r1",                        "B-283"  ),
+	V( 11,     NID_sect409k1,                                 NULL,           "sect409k1",                        "K-409"  ),
+	V( 12,     NID_sect409r1,                                 NULL,           "sect409r1",                        "B-409"  ),
+	V( 13,     NID_sect571k1,                                 NULL,           "sect571k1",                        "K-571"  ),
+	V( 14,     NID_sect571r1,                                 NULL,           "sect571r1",                        "B-571"  ),
+	V( 15,     NID_secp160k1,                                 NULL,           "secp160k1",                        NULL     ),
+	V( 16,     NID_secp160r1,                                 NULL,           "secp160r1",                        NULL     ),
+	V( 17,     NID_secp160r2,                                 NULL,           "secp160r2",                        NULL     ),
+	V( 18,     NID_secp192k1,                                 NULL,           "secp192k1",                        NULL     ),
+	V( 19,     NID_X9_62_prime192v1,                          "prime192v1",   "secp192r1",                        "P-192"  ),
+	V( 20,     NID_secp224k1,                                 NULL,           "secp224k1",                        NULL     ),
+	V( 21,     NID_secp224r1,                                 NULL,           "secp224r1",                        "P-224"  ),
+	V( 22,     NID_secp256k1,                                 NULL,           "secp256k1",                        NULL     ),
+	V( 23,     NID_X9_62_prime256v1,                          "prime256v1",   "secp256r1",                        "P-256"  ),
+	V( 24,     NID_secp384r1,                                 NULL,           "secp384r1",                        "P-384"  ),
+	V( 25,     NID_secp521r1,                                 NULL,           "secp521r1",                        "P-521"  ),
+	V( 26,     NID_brainpoolP256r1,                           NULL,           "brainpoolP256r1",                  NULL     ),
+	V( 27,     NID_brainpoolP384r1,                           NULL,           "brainpoolP384r1",                  NULL     ),
+	V( 28,     NID_brainpoolP512r1,                           NULL,           "brainpoolP512r1",                  NULL     ),
+	V( 29,     NID_X25519,                                    NULL,           "x25519",                           NULL     ),
+	V( 30,     NID_X448,                                      NULL,           "x448",                             NULL     ),
+	V( 31,     NID_brainpoolP256r1tls13,                      NULL,           "brainpoolP256r1tls13",             NULL     ),
+	V( 32,     NID_brainpoolP384r1tls13,                      NULL,           "brainpoolP384r1tls13",             NULL     ),
+	V( 33,     NID_brainpoolP512r1tls13,                      NULL,           "brainpoolP512r1tls13",             NULL     ),
+	V( 34,     NID_id_tc26_gost_3410_2012_256_paramSetA,      NULL,           "GC256A",                           NULL     ),
+	V( 35,     NID_id_tc26_gost_3410_2012_256_paramSetB,      NULL,           "GC256B",                           NULL     ),
+	V( 36,     NID_id_tc26_gost_3410_2012_256_paramSetC,      NULL,           "GC256C",                           NULL     ),
+	V( 37,     NID_id_tc26_gost_3410_2012_256_paramSetD,      NULL,           "GC256D",                           NULL     ),
+	V( 38,     NID_id_tc26_gost_3410_2012_512_paramSetA,      NULL,           "GC512A",                           NULL     ),
+	V( 39,     NID_id_tc26_gost_3410_2012_512_paramSetB,      NULL,           "GC512B",                           NULL     ),
+	V( 40,     NID_id_tc26_gost_3410_2012_512_paramSetC,      NULL,           "GC512C",                           NULL     ),
+	V( 256,    NID_ffdhe2048,                                 NULL,           "ffdhe2048",                        NULL     ),
+	V( 257,    NID_ffdhe3072,                                 NULL,           "ffdhe3072",                        NULL     ),
+	V( 258,    NID_ffdhe4096,                                 NULL,           "ffdhe4096",                        NULL     ),
+	V( 259,    NID_ffdhe6144,                                 NULL,           "ffdhe6144",                        NULL     ),
+	V( 260,    NID_ffdhe8192,                                 NULL,           "ffdhe8192",                        NULL     ),
 
 
 	/* The following curves are defined in the IANA list as well as in an
 	 * OpenSSL internal array but they don't have any corresponding NID.
 	 */
-	V( 25497,  -1,                                       "X25519Kyber768Draft00",           NULL ),
-	V( 25498,  -1,                                       "SecP256r1Kyber768Draft00",        NULL ),
-	V( 0xFF01, -1,                                       "arbitrary_explicit_prime_curves", NULL ),
-	V( 0xFF02, -1,                                       "arbitrary_explicit_char2_curves", NULL ),
+	V( 25497,  -1,                                            NULL,           "X25519Kyber768Draft00",            NULL     ),
+	V( 25498,  -1,                                            NULL,           "SecP256r1Kyber768Draft00",         NULL     ),
+	V( 0xFF01, -1,                                            NULL,           "arbitrary_explicit_prime_curves",  NULL     ),
+	V( 0xFF02, -1,                                            NULL,           "arbitrary_explicit_char2_curves",  NULL     ),
 	/* Keep the old OpenSSL trace labels as aliases for name-to-NID lookup.
 	 * These must follow the standard names above, since curveid2str()
 	 * returns the first entry matching the TLS group identifier.
 	 */
-	V( 29,     NID_X25519,                               "ecdh_x25519",           NULL       ),
-	V( 30,     NID_X448,                                 "ecdh_x448",             NULL       ),
-	{ 0, 0, NULL, NULL, NULL }
+	V( 29,     NID_X25519,                                    NULL,           "ecdh_x25519",                      NULL     ),
+	V( 30,     NID_X448,                                      NULL,           "ecdh_x448",                        NULL     ),
+	{ 0, 0, NULL, NULL, NULL, NULL }
 };
 
 void init_curves_tab(void)
@@ -1108,9 +1108,9 @@ const char *curveid2str(int curve_id)
 {
 	struct curve *item = curves_list;
 
-	while (item->name) {
+	while (item->curve_id) {
 		if (item->curve_id == curve_id)
-			return item->name;
+			return item->iana;
 
 		++item;
 	}
@@ -1124,7 +1124,8 @@ int curves2nid(const char *curve)
 	struct curve *curves = curves_list;
 
 	while (curves->curve_id) {
-		if ((curves->name && strcmp(curve, curves->name) == 0) ||
+		if ((curves->ansi && strcmp(curve, curves->ansi) == 0) ||
+		    (curves->iana && strcmp(curve, curves->iana) == 0) ||
 		    (curves->nist && strcmp(curve, curves->nist) == 0))
 			return curves->nid;
 		curves++;
