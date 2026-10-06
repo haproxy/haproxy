@@ -260,7 +260,6 @@ def main(ref_name):
             "OPENSSL_VERSION=3.5.1",
             "QUICTLS_VERSION=OpenSSL_1_1_1w-quic1",
             "WOLFSSL_VERSION=5.7.0",
-            "AWS_LC_VERSION=1.39.0",
             "AWS_LC_VERSION=branch-fips-2024-09-27",
             "AWS_LC_VERSION=branch-fips-2025-09-12-lts",
             # "BORINGSSL=yes",
@@ -270,6 +269,7 @@ def main(ref_name):
             ssl_versions = ssl_versions + [
                 "OPENSSL_VERSION=latest",
                 "LIBRESSL_VERSION=latest",
+                "AWS_LC_VERSION=latest",
             ]
 
         for ssl in ssl_versions:
@@ -285,6 +285,9 @@ def main(ref_name):
                 flags.append("SSL_INC=${HOME}/opt/include")
             if ssl.startswith("AWS_LC_VERSION=branch-"):
                 ssl, ssl_name = determine_aws_lc_branch(ssl)
+            if "AWS_LC" in ssl and "latest" in ssl:
+                ssl = determine_latest_aws_lc(ssl)
+                skipdup=1
             if "LIBRESSL" in ssl and "latest" in ssl:
                 ssl = determine_latest_libressl(ssl)
                 skipdup=1
