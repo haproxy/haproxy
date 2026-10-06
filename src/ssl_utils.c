@@ -1050,8 +1050,8 @@ static struct curve {
 	V( 26,     NID_brainpoolP256r1,                      "brainpoolP256r1",       NULL       ),
 	V( 27,     NID_brainpoolP384r1,                      "brainpoolP384r1",       NULL       ),
 	V( 28,     NID_brainpoolP512r1,                      "brainpoolP512r1",       NULL       ),
-	V( 29,     NID_X25519,                               "ecdh_x25519",           NULL       ),
-	V( 30,     NID_X448,                                 "ecdh_x448",             NULL       ),
+	V( 29,     NID_X25519,                               "x25519",                NULL       ),
+	V( 30,     NID_X448,                                 "x448",                  NULL       ),
 	V( 31,     NID_brainpoolP256r1tls13,                 "brainpoolP256r1tls13",  NULL       ),
 	V( 32,     NID_brainpoolP384r1tls13,                 "brainpoolP384r1tls13",  NULL       ),
 	V( 33,     NID_brainpoolP512r1tls13,                 "brainpoolP512r1tls13",  NULL       ),
@@ -1076,6 +1076,12 @@ static struct curve {
 	V( 25498,  -1,                                       "SecP256r1Kyber768Draft00",        NULL ),
 	V( 0xFF01, -1,                                       "arbitrary_explicit_prime_curves", NULL ),
 	V( 0xFF02, -1,                                       "arbitrary_explicit_char2_curves", NULL ),
+	/* Keep the old OpenSSL trace labels as aliases for name-to-NID lookup.
+	 * These must follow the standard names above, since curveid2str()
+	 * returns the first entry matching the TLS group identifier.
+	 */
+	V( 29,     NID_X25519,                               "ecdh_x25519",           NULL       ),
+	V( 30,     NID_X448,                                 "ecdh_x448",             NULL       ),
 	{ 0, 0, NULL, NULL, NULL }
 };
 
