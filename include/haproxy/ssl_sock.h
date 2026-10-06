@@ -159,6 +159,10 @@ DH *ssl_get_tmp_dh_cbk(SSL *ssl, int export, int keylen);
 #else
 void ssl_sock_set_tmp_dh_from_pkey(SSL_CTX *ctx, EVP_PKEY *pkey);
 #endif
+#ifndef OPENSSL_NO_DH
+int ssl_sock_load_dh_params(SSL_CTX *ctx, HASSL_DH *dh, EVP_PKEY *pkey,
+                            const char *path, char **err);
+#endif
 
 /* ssl shctx macro */
 

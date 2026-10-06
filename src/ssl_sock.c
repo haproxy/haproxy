@@ -3005,10 +3005,10 @@ struct eb_root ckchs_tree = EB_ROOT_UNIQUE;
 /* tree of crtlist (crt-list/directory) */
 struct eb_root crtlists_tree = EB_ROOT_UNIQUE;
 
-/* Loads Diffie-Hellman parameter from a ckchs to an SSL_CTX.
- *  If there is no DH parameter available in the ckchs, the global
+/* Loads Diffie-Hellman parameters into an SSL_CTX.
+ *  If there is no certificate-specific DH parameter, the global
  *  DH parameter is loaded into the SSL_CTX and if there is no
- *  DH parameter available in ckchs nor in global, the default
+ *  DH parameter available for the certificate or globally, the default
  *  DH parameters are applied on the SSL_CTX.
  * Returns a bitfield containing the flags:
  *     ERR_FATAL in any fatal error case
@@ -3018,14 +3018,12 @@ struct eb_root crtlists_tree = EB_ROOT_UNIQUE;
  * the operation succeed.
  */
 #ifndef OPENSSL_NO_DH
-static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct ckch_data *data,
-                                   const char *path, char **err)
+int ssl_sock_load_dh_params(SSL_CTX *ctx, HASSL_DH *dh, EVP_PKEY *pkey,
+                            const char *path, char **err)
 {
 	int ret = 0;
-	HASSL_DH *dh = NULL;
 
-	if (data && data->dh) {
-		dh = data->dh;
+	if (dh) {
 		if (!ssl_sock_set_tmp_dh(ctx, dh)) {
 			memprintf(err, "%sunable to load the DH parameter specified in '%s'",
 				  err && *err ? *err : "", path);
@@ -3085,7 +3083,7 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct ckch_data *data,
 #if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
 				SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh_cbk);
 #else
-				ssl_sock_set_tmp_dh_from_pkey(ctx, data ? data->key : NULL);
+				ssl_sock_set_tmp_dh_from_pkey(ctx, pkey);
 #endif
 #endif
 			}
@@ -3218,7 +3216,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store
 		SSL_CTX_set_ex_data(ctx, ssl_dh_ptr_index, NULL);
 	}
 
-	errcode |= ssl_sock_load_dh_params(ctx, data, path, err);
+	errcode |= ssl_sock_load_dh_params(ctx, data->dh, data->key, path, err);
 	if (errcode & ERR_CODE) {
 		memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
 		          err && *err ? *err : "", path);

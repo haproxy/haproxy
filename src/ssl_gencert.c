@@ -278,13 +278,11 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 	newcrt = NULL;
 
 #ifndef OPENSSL_NO_DH
-	if (global_ssl.default_dh_param) {
-#if (HA_OPENSSL_VERSION_NUMBER < 0x3000000fL)
-		SSL_CTX_set_tmp_dh_callback(ssl_ctx, ssl_get_tmp_dh_cbk);
-#else
-		ssl_sock_set_tmp_dh_from_pkey(ssl_ctx, pkey);
-#endif
-	}
+	cfgerr = ssl_sock_load_dh_params(ssl_ctx, NULL, pkey, servername, &err);
+	free(err);
+	err = NULL;
+	if (cfgerr & ERR_CODE)
+		goto mkcert_error;
 #endif
 
 	cfgerr = ssl_sock_prepare_ctx_common(bind_conf, NULL, ssl_ctx, &err);
