@@ -5425,6 +5425,7 @@ static int h2_wake(struct connection *conn)
 		if (unlikely(conn_reverse_in_preconnect(conn)) && h2c_is_dead(h2c)) {
 			TRACE_DEVEL("leaving and killing dead connection", H2_EV_STRM_END, h2c->conn);
 			h2_release(h2c);
+			ret = -1;
 		}
 	}
 
