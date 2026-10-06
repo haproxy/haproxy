@@ -817,7 +817,13 @@ int cli_process_cmdline(struct appctx *appctx)
 
 	orig = p = b_head(appctx->cli_ctx.cmdline);
 	end = p + strlen(p);
-	end_of_cmdline = (appctx->cli_ctx.payload_pat ? appctx->cli_ctx.payload_pat - strlen(PAYLOAD_PATTERN) : b_tail(appctx->cli_ctx.cmdline)-1);
+	/* The command line chunk is filled from its beginning and never wraps.
+	 * Don't use b_tail() to find its end, it wraps to the beginning of the
+	 * area when the command line fills the whole chunk.
+	 */
+	end_of_cmdline = (appctx->cli_ctx.payload_pat
+			  ? appctx->cli_ctx.payload_pat - strlen(PAYLOAD_PATTERN)
+			  : orig + b_data(appctx->cli_ctx.cmdline) - 1);
 	/*
 	 * Get pointers on words.
 	 * One extra slot is reserved to store a pointer on a null byte.
