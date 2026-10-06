@@ -21181,7 +21181,13 @@ Their evaluation only returns a match or a mismatch, which is comparable to
 booleans in many programming languages. Contrary to functions in programming
 languages, ACLs may be overloaded as many times as needed in order to define
 additional matching methods for the same name. In this case they will all be
-evaluated in their declaration order until one matches.
+evaluated in their declaration order until one matches. In other words,
+multiple declarations of the same ACL name are logically combined by OR.
+
+Each ACL declaration line must only contain a single ACL matching keyword,
+followed by one or multiple pattern values. It's not allowed to use multiple
+matching keywords and combine them by logical or/and operators in an ACL
+declaration line.
 
 The use of ACLs provides a flexible solution to perform content switching and
 generally to take decisions based on content extracted from the request, the
