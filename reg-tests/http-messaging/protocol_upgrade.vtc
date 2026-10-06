@@ -86,9 +86,9 @@ server srv_h2_no_ws {
 		expect settings.ack == true
 	} -run
 
-	stream 1 {
-		rxrst
-	} -run
+	# the request cannot be converted, and no frame (in particular no
+	# RST_STREAM) must be sent on stream 1 which is still idle
+	# (RFC9113#6.4).
 } -start
 
 # http2 server without support for RFC8441 : settings announced with value 0
@@ -105,9 +105,9 @@ server srv_h2_no_ws2 {
 		expect settings.ack == true
 	} -run
 
-	stream 1 {
-		rxrst
-	} -run
+	# the request cannot be converted, and no frame (in particular no
+	# RST_STREAM) must be sent on stream 1 which is still idle
+	# (RFC9113#6.4).
 } -start
 
 # http2 server with support for RFC8441 by H1 client is sending a request with payload
@@ -123,9 +123,9 @@ server srv_h2_no_post {
 		expect settings.ack == true
 	} -run
 
-	stream 1 {
-		rxrst
-	} -run
+	# the request cannot be converted, and no frame (in particular no
+	# RST_STREAM) must be sent on stream 1 which is still idle
+	# (RFC9113#6.4).
 } -start
 
 # http/1.1 server

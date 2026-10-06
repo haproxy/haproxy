@@ -2668,8 +2668,15 @@ static int h2s_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	 * RST_STREAM in response to a RST_STREAM frame.
 	 *
 	 * if h2s is not assigned yet (id == 0), don't send a RST_STREAM frame.
+	 * Similarly, on the backend side, an ID may already have been assigned
+	 * while the HEADERS frame was not sent (e.g. failed to be encoded or
+	 * blocked), in which case the stream is still idle for the server,
+	 * and RFC9113#6.4 says that an RST_STREAM on an idle stream is a
+	 * connection error, which would kill all other streams. The ID will
+	 * simply never be used (which implicitly closes it).
 	 */
-	if ((h2s->id == 0) || (h2c->dsi == h2s->id && h2c->dft == H2_FT_RST_STREAM)) {
+	if ((h2s->id == 0) || (h2c->dsi == h2s->id && h2c->dft == H2_FT_RST_STREAM) ||
+	    ((h2c->flags & H2_CF_IS_BACK) && !(h2s->flags & H2_SF_HEADERS_SENT))) {
 		ret = 1;
 		goto ignore;
 	}
