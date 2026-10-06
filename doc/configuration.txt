@@ -1093,6 +1093,18 @@ The variables in question are the following:
     migration if resources (such as maps or certificates) are in a path
     containing the branch number.
 
+The following variables may be read by haproxy to adjust its behavior:
+
+  * HAPROXY_FORCE_DUMPABLE: this allows to preset the equivalent of what the
+    global "set-dumpable" directive does, without having to touch the
+    configuration. This is essentially used with reg tests. The recognized
+    values are:
+       - libs: a copy of all dependencies is loaded into memory so as to be
+         preserved in core dumps
+       - off: does not enable dumpable (default)
+       - any other value (e.g. "on", "1", empty): enables set-dumpable, i.e.
+         will disable automatic chroot and try hard to enable core dumps.
+
 In addition, some pseudo-variables are internally resolved and may be used as
 regular variables. Pseudo-variables always start with a dot ('.'), and are the
 only ones where the dot is permitted. The current list of pseudo-variables is:
@@ -3272,7 +3284,12 @@ set-dumpable [ on | off | libs ]
   the issue. When trying to enable this option waiting for a rare issue to
   re-appear, it's often a good idea to first try to obtain such a dump by
   issuing, for example, "kill -11" to the "haproxy" process and verify that it
-  leaves a core where expected when dying.
+  leaves a core where expected when dying. Note that when debugging certain
+  setups, it is not necessarily convenient to modify the configuration nor the
+  command line to enable core dumps. This is for example the case with
+  generated configurations and regression testing. In this case, it is possible
+  to preset the set-dumpable argument in the HAPROXY_FORCE_DUMPABLE environment
+  variable, which accepts the same values.
 
 set-var <var-name> <expr>
   Sets the process-wide variable '<var-name>' to the result of the evaluation

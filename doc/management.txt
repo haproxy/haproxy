@@ -5275,6 +5275,14 @@ fast enough. This can happen during some attacks as well. Tx-Drp means that
 the output queues were full and packets had to be dropped. When using TCP it
 should be very rare, but will possibly indicate a saturated outgoing link.
 
+For more advanced debugging (e.g. crashes), core dumps might be needed. The
+global "set-dumpable" directive helps to re-enable them despite certain uid/gid
+and chroot changes. When editing the configuration is not an option, such as
+when dealing with generated configurations or regression tests, it is possible
+to set the HAPROXY_FORCE_DUMPABLE environment variable to one of the values
+accepted by "set-dumpable". Please consult the configuration manual for more
+information on this topic.
+
 
 13. Security considerations
 ---------------------------

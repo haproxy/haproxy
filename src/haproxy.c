@@ -1449,6 +1449,7 @@ static void do_check_condition()
  */
 static void init_early(int argc, char **argv)
 {
+	const char *dumpable;
 	char *tmp;
 	int len;
 
@@ -1510,6 +1511,15 @@ static void init_early(int argc, char **argv)
 	if (b_orig(&global.log_tag) == NULL) {
 		ha_alert("Cannot allocate memory for log_tag.\n");
 		exit(EXIT_FAILURE);
+	}
+
+	dumpable = getenv("HAPROXY_FORCE_DUMPABLE");
+	if (dumpable) {
+		/* "libs" only loads libs; "off" keeps disabled, other values enable */
+		if (strcmp(dumpable, "libs") == 0)
+			global.tune.options |= GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS;
+		else if (strcmp(dumpable, "off") != 0)
+			global.tune.options |= GTUNE_SET_DUMPABLE;
 	}
 }
 
