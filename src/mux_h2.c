@@ -1266,13 +1266,17 @@ static int h2_buf_available(void *target)
 	struct h2c *h2c = target;
 	struct h2s *h2s;
 
-	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc(&h2c->dbuf, DB_MUX_RX)) {
+	/* Note: we're still in the buffer wait queue when called, so we must
+	 * pass DB_F_NOQUEUE to b_alloc() otherwise our own presence in the
+	 * queue would make it refuse to allocate.
+	 */
+	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc(&h2c->dbuf, DB_MUX_RX | DB_F_NOQUEUE)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
 		h2c_restart_reading(h2c, 1);
 		return 1;
 	}
 
-	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc(br_tail(h2c->mbuf), DB_MUX_TX)) {
+	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc(br_tail(h2c->mbuf), DB_MUX_TX | DB_F_NOQUEUE)) {
 		h2c->flags &= ~H2_CF_MUX_MALLOC;
 
 		if (h2c->flags & H2_CF_DEM_MROOM) {
@@ -1286,7 +1290,7 @@ static int h2_buf_available(void *target)
 	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s_sc(h2s) &&
 	    (h2s_rxbuf_tail(h2s) || h2s_get_rxbuf(h2s))) {
 		h2c->flags &= ~(H2_CF_DEM_RXBUF | H2_CF_DEM_SFULL);
-		if (b_alloc(_h2s_rxbuf_tail(h2s), DB_SE_RX)) {
+		if (b_alloc(_h2s_rxbuf_tail(h2s), DB_SE_RX | DB_F_NOQUEUE)) {
 			h2c->flags &= ~H2_CF_DEM_SALLOC;
 			h2c_restart_reading(h2c, 1);
 			return 1;
