@@ -15,9 +15,6 @@ haproxy h1 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
-    .if !ssllib_name_startswith(AWS-LC)
-        tune.ssl.default-dh-param 2048
-    .endif
         tune.ssl.ssl-ctx-cache-size 10
 
     defaults
