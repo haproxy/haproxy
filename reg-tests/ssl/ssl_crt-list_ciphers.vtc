@@ -1,0 +1,75 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for per-certificate ciphers in a crt-list"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !feature(OPENSSL_WOLFSSL)'"
+# This test checks that the ciphers set on a crt-list line are enforced, even
+# when the bind line allows more of them. It uses TLSv1.2, so there is no QUIC
+# variant.
+# See GitHub issue #3500.
+feature ignore_unknown_macro
+
+server s1 -repeat 2 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        crt-base ${testdir}/certs
+
+    defaults
+        mode http
+        option httplog
+        retries 0
+        log stderr local0 debug err
+        option logasap
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        use_backend allowed  if { path /allowed }
+        use_backend excluded if { path /excluded }
+        use_backend open     if { path /open }
+
+    # cipher allowed by the crt-list line
+    backend allowed
+        server s1 ${h1_ssllst_sock} ssl verify none sni str(restricted.bug3500.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers ECDHE-RSA-AES128-GCM-SHA256
+
+    # cipher allowed by the bind line but excluded by the crt-list line
+    backend excluded
+        server s1 ${h1_ssllst_sock} ssl verify none sni str(restricted.bug3500.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers ECDHE-RSA-AES256-GCM-SHA384
+
+    # same excluded cipher, but for a certificate without restriction
+    backend open
+        server s1 ${h1_ssllst_sock} ssl verify none sni str(open.bug3500.domain.tld) ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers ECDHE-RSA-AES256-GCM-SHA384
+
+    listen ssl-lst
+        http-response add-header x-cipher %[ssl_fc_cipher]
+        bind "fd@${ssllst}" ssl strict-sni crt-list ${testdir}/certs/ciphers.crt-list ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/allowed"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-cipher == ECDHE-RSA-AES128-GCM-SHA256
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/excluded"
+    rxresp
+    expect resp.status == 503
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/open"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-cipher == ECDHE-RSA-AES256-GCM-SHA384
+} -run

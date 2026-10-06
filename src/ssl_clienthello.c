@@ -461,6 +461,22 @@ sni_lookup:
 			methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
 			if (conf->early_data)
 				allow_early = 1;
+#if defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION > 30
+			/* AWS-LC copies the cipher lists at SSL_new() time and does
+			 * not update them on SSL_set_SSL_CTX(). Reapply the crt-list
+			 * options. API version 30 (AWS-LC 3.x) uses the SSL_CTX
+			 * cipher lists directly and does not need this workaround.
+			 * These calls are inefficient as they parse the cipher
+			 * configuration strings for each connection.
+			 */
+			if ((conf->ciphers && !SSL_set_cipher_list(ssl, conf->ciphers)) ||
+			    (conf->ciphersuites && !SSL_set_ciphersuites(ssl, conf->ciphersuites))) {
+				HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+				TRACE_ERROR("Cannot set the crt-list ciphers on the SSL object",
+				            SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
+				goto abort;
+			}
+#endif
 		}
 		HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 		goto allow_early;

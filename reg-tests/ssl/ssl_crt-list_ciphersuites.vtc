@@ -1,0 +1,10 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for per-certificate ciphersuites in a crt-list"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.8)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && !ssllib_name_startswith(LibreSSL) && !ssllib_name_startswith(BoringSSL) && !feature(OPENSSL_WOLFSSL)'"
+# This test checks that the ciphersuites set on a crt-list line are enforced,
+# even when the bind line allows more of them.
+# See GitHub issue #3500.
+
+setenv VTC_SOCK_TYPE stream
+include ${testdir}/ssl_crt-list_ciphersuites.vtci

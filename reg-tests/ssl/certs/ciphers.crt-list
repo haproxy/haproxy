@@ -1,0 +1,2 @@
+common.pem [ciphers ECDHE-RSA-AES128-GCM-SHA256] restricted.bug3500.domain.tld
+common.pem open.bug3500.domain.tld
