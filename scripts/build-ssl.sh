@@ -197,7 +197,15 @@ build_aws_lc_fips () {
 }
 
 download_quictls () {
-    if [ ! -d "${BUILDSSL_TMPDIR}/quictls" ]; then
+    if [ -n "${QUICTLS_COMMIT:-}" ]; then
+        mkdir -p "${BUILDSSL_TMPDIR}/quictls"
+        (
+            cd "${BUILDSSL_TMPDIR}/quictls"
+            git init
+            git fetch --depth=1 "${QUICTLS_URL}" "${QUICTLS_COMMIT}"
+            git checkout --detach "${QUICTLS_COMMIT}"
+        )
+    elif [ ! -d "${BUILDSSL_TMPDIR}/quictls" ]; then
         git clone -b "${QUICTLS_VERSION}" --depth=1 ${QUICTLS_URL} ${BUILDSSL_TMPDIR}/quictls
     else
        (

@@ -100,6 +100,19 @@ def determine_aws_lc_branch(ssl):
     release = re.search(r'^#define AWSLC_VERSION_NUMBER_STRING "([^"]+)"', header, re.MULTILINE).group(1)
     return "AWS_LC_VERSION=git-{}".format(sha), "AWS_LC_VERSION={}+{}".format(release, sha[:8])
 
+@functools.lru_cache(5)
+def determine_quictls_commit(ssl):
+    ref = ssl.split("=", 1)[1]
+    headers = {}
+    if environ.get("GITHUB_TOKEN") is not None:
+        headers["Authorization"] = "token {}".format(environ.get("GITHUB_TOKEN"))
+    url = "https://api.github.com/repos/quictls/openssl/commits/{}".format(ref)
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request) as response:
+        commit = json.loads(response.read().decode("utf-8"))
+    sha = commit["sha"]
+    return "{} QUICTLS_COMMIT={}".format(ssl, sha), "{}+{}".format(ssl, sha[:8])
+
 def aws_lc_fips_version_string_to_num(version_string):
     return tuple(map(int, version_string[12:].split('.')))
 
@@ -283,6 +296,8 @@ def main(ref_name):
             if ssl != "stock":
                 flags.append("SSL_LIB=${HOME}/opt/lib")
                 flags.append("SSL_INC=${HOME}/opt/include")
+            if ssl.startswith("QUICTLS_VERSION="):
+                ssl, ssl_name = determine_quictls_commit(ssl)
             if ssl.startswith("AWS_LC_VERSION=branch-"):
                 ssl, ssl_name = determine_aws_lc_branch(ssl)
             if "AWS_LC" in ssl and "latest" in ssl:
