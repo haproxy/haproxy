@@ -136,14 +136,16 @@ build_boringssl () {
 
 download_aws_lc () {
     if [ ! -f "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" ]; then
-        if [ "${AWS_LC_VERSION#*FIPS}" != "${AWS_LC_VERSION}" ]; then
-            WGETFILE="${AWS_LC_VERSION}.tar.gz"
+        if [ "${AWS_LC_VERSION%%-*}" = "git" ]; then
+            WGETFILE="${AWS_LC_VERSION#git-}.tar.gz"
+        elif [ "${AWS_LC_VERSION#*FIPS}" != "${AWS_LC_VERSION}" ]; then
+            WGETFILE="refs/tags/${AWS_LC_VERSION}.tar.gz"
         else
-            WGETFILE="v${AWS_LC_VERSION}.tar.gz"
+            WGETFILE="refs/tags/v${AWS_LC_VERSION}.tar.gz"
         fi
 
         wget -q -O "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" \
-          "https://github.com/aws/aws-lc/archive/refs/tags/${WGETFILE}"
+          "https://github.com/aws/aws-lc/archive/${WGETFILE}"
     fi
 }
 

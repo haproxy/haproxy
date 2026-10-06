@@ -50,12 +50,12 @@ jobs:
         fetch-depth: 100
 
 #
-# Github Action cache key cannot contain comma, so we calculate it based on job name
+# Github Action cache key cannot contain comma, so we calculate it based on job name and SSL source
 #
     - name: Generate cache key
       id: generate-cache-key
       run: |
-        echo "key=$(echo ${{ matrix.name }} | sha256sum | awk '{print $1}')" >> $GITHUB_OUTPUT
+        echo "key=$(echo ${{ matrix.name }} ${{ matrix.ssl }} | sha256sum | awk '{print $1}')" >> $GITHUB_OUTPUT
 
     - name: Cache SSL libs
       if: ${{ matrix.ssl && matrix.ssl != 'stock' && matrix.ssl != 'BORINGSSL=yes' && !contains(matrix.ssl, 'QUICTLS') }}

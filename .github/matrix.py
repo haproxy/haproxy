@@ -82,6 +82,24 @@ def determine_latest_aws_lc(ssl):
     latest_tag = max(valid_tags, key=aws_lc_version_string_to_num)
     return "AWS_LC_VERSION={}".format(latest_tag[1:])
 
+@functools.lru_cache(5)
+def determine_aws_lc_branch(ssl):
+    branch = ssl.split("=branch-", 1)[1]
+    headers = {}
+    if environ.get("GITHUB_TOKEN") is not None:
+        headers["Authorization"] = "token {}".format(environ.get("GITHUB_TOKEN"))
+    url = "https://api.github.com/repos/aws/aws-lc/commits/{}".format(branch)
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request) as response:
+        commit = json.loads(response.read().decode("utf-8"))
+    sha = commit["sha"]
+    url = "https://raw.githubusercontent.com/aws/aws-lc/{}/include/openssl/base.h".format(sha)
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request) as response:
+        header = response.read().decode("utf-8")
+    release = re.search(r'^#define AWSLC_VERSION_NUMBER_STRING "([^"]+)"', header, re.MULTILINE).group(1)
+    return "AWS_LC_VERSION=git-{}".format(sha), "AWS_LC_VERSION={}+{}".format(release, sha[:8])
+
 def aws_lc_fips_version_string_to_num(version_string):
     return tuple(map(int, version_string[12:].split('.')))
 
@@ -243,6 +261,8 @@ def main(ref_name):
             "QUICTLS_VERSION=OpenSSL_1_1_1w-quic1",
             "WOLFSSL_VERSION=5.7.0",
             "AWS_LC_VERSION=1.39.0",
+            "AWS_LC_VERSION=branch-fips-2024-09-27",
+            "AWS_LC_VERSION=branch-fips-2025-09-12-lts",
             # "BORINGSSL=yes",
         ]
 
@@ -253,6 +273,7 @@ def main(ref_name):
             ]
 
         for ssl in ssl_versions:
+            ssl_name = None
             flags = ["USE_OPENSSL=1"]
             skipdup=0
             if "WOLFSSL" in ssl:
@@ -262,6 +283,8 @@ def main(ref_name):
             if ssl != "stock":
                 flags.append("SSL_LIB=${HOME}/opt/lib")
                 flags.append("SSL_INC=${HOME}/opt/include")
+            if ssl.startswith("AWS_LC_VERSION=branch-"):
+                ssl, ssl_name = determine_aws_lc_branch(ssl)
             if "LIBRESSL" in ssl and "latest" in ssl:
                 ssl = determine_latest_libressl(ssl)
                 skipdup=1
@@ -293,7 +316,7 @@ def main(ref_name):
 
             matrix.append(
                 {
-                    "name": "{}, {}, ssl={}".format(os, CC, clean_ssl(ssl)),
+                    "name": "{}, {}, ssl={}".format(os, CC, clean_ssl(ssl_name or ssl)),
                     "os": os,
                     "TARGET": TARGET,
                     "CC": CC,
