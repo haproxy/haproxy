@@ -1,0 +1,53 @@
+varnishtest "Test a CLI command line which fills the whole buffer"
+
+# A command line of exactly tune.bufsize bytes, including its final LF,
+# fills the chunk it is copied into. The last command of such a line was
+# not detected, so once it was executed, the CLI parsed the remains of
+# the line again and sent "Unknown command" errors in loop until the
+# client closed.
+#
+# Each client below sends one such line, made of commands which produce
+# no output, padded with spaces. A non-interactive CLI then only sends an
+# empty line after each command, and closes. "expect_close" skips these
+# LFs and fails on anything else, such as the first "Unknown command"
+# error. The effect of the commands is checked afterwards, to be sure
+# they were executed.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        tune.bufsize 1024
+} -start
+
+# one command: 38 + 985 + 1 = 1024 bytes
+client c1 -connect ${h1_cli_sock} {
+    send "set rate-limit connections global 1234"
+    send_n 985 " "
+    send "\n"
+    expect_close
+} -run
+
+haproxy h1 -cli {
+    send "show info"
+    expect ~ "\nConnRateLimit: 1234\n"
+}
+
+# two pipelined commands: 39 + 35 + 949 + 1 = 1024 bytes
+client c2 -connect ${h1_cli_sock} {
+    send "set rate-limit connections global 1111;"
+    send "set rate-limit sessions global 2222"
+    send_n 949 " "
+    send "\n"
+    expect_close
+} -run
+
+haproxy h1 -cli {
+    send "show info"
+    expect ~ "\nConnRateLimit: 1111\n"
+    send "show info"
+    expect ~ "\nSessRateLimit: 2222\n"
+}
