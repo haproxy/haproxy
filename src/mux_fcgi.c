@@ -4005,7 +4005,9 @@ struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 		LIST_DEL_INIT(&fstrm->send_list);
 
 		if (!fcgi_strm_sc(fstrm)) {
+			/* note: this frees the tasklet as well */
 			fcgi_strm_destroy(fstrm);
+			t = NULL;
 			if (fcgi_conn_is_dead(fconn))
 				fcgi_release(fconn);
 		}
