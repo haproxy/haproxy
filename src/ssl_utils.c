@@ -1124,9 +1124,10 @@ int curves2nid(const char *curve)
 	struct curve *curves = curves_list;
 
 	while (curves->curve_id) {
-		if ((curves->ansi && strcmp(curve, curves->ansi) == 0) ||
-		    (curves->iana && strcmp(curve, curves->iana) == 0) ||
-		    (curves->nist && strcmp(curve, curves->nist) == 0))
+		if (curves->nid != -1 &&
+		    ((curves->ansi && strcmp(curve, curves->ansi) == 0) ||
+		     (curves->iana && strcmp(curve, curves->iana) == 0) ||
+		     (curves->nist && strcmp(curve, curves->nist) == 0)))
 			return curves->nid;
 		curves++;
 	}
