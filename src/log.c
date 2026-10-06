@@ -6247,10 +6247,13 @@ static void syslog_io_handler(struct appctx *appctx)
 		goto out;
 	}
 
+	/* Only leave early when no input buffer is available. An empty buffer
+	 * must still reach applet_getchar() below, because it is what reports
+	 * the client's shutdown.
+	 */
 	inbuf = applet_get_inbuf(appctx);
-	if (inbuf == NULL || !applet_input_data(appctx)) {
+	if (inbuf == NULL)
 		goto missing_data;
-	}
 
 	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
 	while (1) {
