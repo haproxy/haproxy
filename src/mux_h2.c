@@ -1257,14 +1257,18 @@ static inline int h2_frt_has_too_many_sc(const struct h2c *h2c)
 }
 
 /* Tries to grab a buffer and to re-enable processing on mux <target>. The h2c
- * flags are used to figure what buffer was requested. It returns 1 if the
- * allocation succeeds, in which case the connection is woken up, or 0 if it's
- * impossible to wake up and we prefer to be woken up later.
+ * flags are used to figure what buffers were requested, since the same
+ * buffer_wait is shared by all of them, and all of them are served at once.
+ * It returns 1 once all requested allocations succeeded, in which case the
+ * connection is dequeued. Otherwise it returns 0 so that the connection stays
+ * in the queue and gets called again for the remaining ones. In any case the
+ * connection is woken up if some progress was made.
  */
 static int h2_buf_available(void *target)
 {
 	struct h2c *h2c = target;
 	struct h2s *h2s;
+	int progress = 0;
 
 	/* Note: we're still in the buffer wait queue when called, so we must
 	 * pass DB_F_NOQUEUE to b_alloc() otherwise our own presence in the
@@ -1273,7 +1277,7 @@ static int h2_buf_available(void *target)
 	if ((h2c->flags & H2_CF_DEM_DALLOC) && b_alloc(&h2c->dbuf, DB_MUX_RX | DB_F_NOQUEUE)) {
 		h2c->flags &= ~H2_CF_DEM_DALLOC;
 		h2c_restart_reading(h2c, 1);
-		return 1;
+		progress = 1;
 	}
 
 	if ((h2c->flags & H2_CF_MUX_MALLOC) && b_alloc(br_tail(h2c->mbuf), DB_MUX_TX | DB_F_NOQUEUE)) {
@@ -1285,7 +1289,7 @@ static int h2_buf_available(void *target)
 		}
 		/* streams blocked on the mbuf are resumed by h2_send() */
 		tasklet_wakeup(h2c->wait_event.tasklet);
-		return 1;
+		progress = 1;
 	}
 
 	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
@@ -1295,11 +1299,15 @@ static int h2_buf_available(void *target)
 		if (b_alloc(_h2s_rxbuf_tail(h2s), DB_SE_RX | DB_F_NOQUEUE)) {
 			h2c->flags &= ~H2_CF_DEM_SALLOC;
 			h2c_restart_reading(h2c, 1);
-			return 1;
+			progress = 1;
 		}
 	}
 
-	return 0;
+	/* stay in the queue as long as some allocations are still pending,
+	 * otherwise nobody would ever retry them.
+	 */
+	return progress &&
+		!(h2c->flags & (H2_CF_DEM_DALLOC | H2_CF_MUX_MALLOC | H2_CF_DEM_SALLOC));
 }
 
 /* note that bptr may not be NULL here */
