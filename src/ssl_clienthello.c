@@ -457,6 +457,10 @@ sni_lookup:
 		struct ssl_bind_conf *conf = sni_ctx->conf;
 		ssl_sock_switchctx_set(ssl, sni_ctx->ctx);
 		if (conf) {
+#if defined(SSL_CTX_set1_curves_list)
+			const char *curves;
+#endif
+
 			methodVersions[conf->ssl_methods.min].ssl_set_version(ssl, SET_MIN);
 			methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
 			if (conf->early_data)
@@ -473,6 +477,24 @@ sni_lookup:
 			    (conf->ciphersuites && !SSL_set_ciphersuites(ssl, conf->ciphersuites))) {
 				HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
 				TRACE_ERROR("Cannot set the crt-list ciphers on the SSL object",
+				            SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
+				goto abort;
+			}
+#endif
+#if defined(SSL_CTX_set1_curves_list)
+			/* Reapply the curves copied at SSL_new() time, using the
+			 * same precedence as when preparing the SSL_CTX: crt-list
+			 * curves, bind curves, crt-list ecdhe, then bind ecdhe.
+			 * This call is inefficient as it parses the curves
+			 * configuration string for each connection.
+			 */
+			curves = conf->curves ? conf->curves : s->ssl_conf.curves;
+			if (!curves)
+				curves = conf->ecdhe ? conf->ecdhe : s->ssl_conf.ecdhe;
+
+			if (curves && !SSL_set1_curves_list(ssl, curves)) {
+				HA_RWLOCK_RDUNLOCK(SNI_LOCK, &s->sni_lock);
+				TRACE_ERROR("Cannot set the crt-list curves on the SSL object",
 				            SSL_EV_CONN_SWITCHCTX_CB|SSL_EV_CONN_ERR, conn);
 				goto abort;
 			}
