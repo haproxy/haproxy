@@ -28,6 +28,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/counters.h>
 #include <haproxy/errors.h>
+#include <haproxy/event_hdl.h>
 #include <haproxy/fd.h>
 #include <haproxy/filters.h>
 #include <haproxy/frontend.h>
@@ -477,6 +478,8 @@ void deinit_proxy(struct proxy *p)
 
 	pool_destroy(p->req_cap_pool);
 	pool_destroy(p->rsp_cap_pool);
+
+	event_hdl_sub_list_destroy(&p->e_subs);
 
 	stktable_deinit(p->table);
 	ha_free(&p->table);
@@ -3268,8 +3271,10 @@ int setup_new_proxy(struct proxy *px, const char *name, unsigned int cap, char *
 	if (name && name[0] != '\0' && !(cap & PR_CAP_INT))
 		proxy_store_name(px);
 
-	if (!(cap & PR_CAP_DEF))
+	if (!(cap & PR_CAP_DEF)) {
 		LIST_APPEND(&all_proxies, &px->global_list);
+		event_hdl_sub_list_init(&px->e_subs);
+	}
 
 	return 1;
 

@@ -465,6 +465,8 @@ struct proxy {
 	unsigned int li_ready;                  /* total number of listeners ready (>=LI_READY) */
 	unsigned int li_suspended;		/* total number of listeners suspended (could be paused or unbound) */
 
+	event_hdl_sub_list e_subs;		/* event_hdl: proxy's subscribers list (atomically updated) */
+
 	/* warning: these structs are huge, keep them at the bottom */
 	struct error_snapshot *invalid_req, *invalid_rep; /* captures of last errors */
 
