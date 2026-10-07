@@ -48,9 +48,8 @@ static const char *common_kw_list[] = {
 	"use-server",
 	"stick-table", "stick", "stats", "option", "default_backend",
 	"balance", "hash-type",
-	"hash-balance-factor", "unique-id-format", "unique-id-header",
-	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
-	"error-log-format",
+	"hash-balance-factor", "unique-id-header",
+	"log-tag", "log", "source", "usesrc",
 	NULL /* must be last */
 };
 
@@ -2123,24 +2122,6 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (strcmp(args[0], "unique-id-format") == 0) {
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (*(args[2])) {
-			ha_alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		lf_expr_deinit(&curproxy->format_unique_id);
-		curproxy->format_unique_id.str = strdup(args[1]);
-		if (!curproxy->format_unique_id.str)
-			goto alloc_error;
-		curproxy->format_unique_id.conf.file = strdup(curproxy->conf.args.file);
-		curproxy->format_unique_id.conf.line = curproxy->conf.args.line;
-	}
 
 	else if (strcmp(args[0], "unique-id-header") == 0) {
 		char *copy;
@@ -2160,109 +2141,6 @@ stats_error_parsing:
 		curproxy->header_unique_id = ist(copy);
 	}
 
-	else if (strcmp(args[0], "log-format") == 0) {
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (*(args[2])) {
-			ha_alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (curproxy->logformat.str && curproxy->cap & PR_CAP_DEF) {
-			char *oldlogformat = "log-format";
-
-			if (curproxy->logformat.str == default_http_log_format)
-				oldlogformat = "option httplog";
-			else if (curproxy->logformat.str == default_tcp_log_format)
-				oldlogformat = "option tcplog";
-			else if (curproxy->logformat.str == clf_tcp_log_format)
-				oldlogformat = "option tcplog clf";
-			else if (curproxy->logformat.str == clf_http_log_format)
-				oldlogformat = "option httplog clf";
-			else if (curproxy->logformat.str == default_https_log_format)
-				oldlogformat = "option httpslog";
-			ha_warning("parsing [%s:%d]: 'log-format' overrides previous '%s' in 'defaults' section.\n",
-				   file, linenum, oldlogformat);
-		}
-		lf_expr_deinit(&curproxy->logformat);
-		curproxy->logformat.str = strdup(args[1]);
-		if (!curproxy->logformat.str)
-			goto alloc_error;
-		curproxy->logformat.conf.file = strdup(curproxy->conf.args.file);
-		curproxy->logformat.conf.line = curproxy->conf.args.line;
-
-		/* get a chance to improve log-format error reporting by
-		 * reporting the correct line-number when possible.
-		 */
-		if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
-			ha_warning("parsing [%s:%d] : backend '%s' : 'log-format' directive is ignored in backends.\n",
-				   file, linenum, curproxy->id);
-			err_code |= ERR_WARN;
-		}
-	}
-	else if (strcmp(args[0], "log-format-sd") == 0) {
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (*(args[2])) {
-			ha_alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		lf_expr_deinit(&curproxy->logformat_sd);
-		curproxy->logformat_sd.str = strdup(args[1]);
-		if (!curproxy->logformat_sd.str)
-			goto alloc_error;
-		curproxy->logformat_sd.conf.file = strdup(curproxy->conf.args.file);
-		curproxy->logformat_sd.conf.line = curproxy->conf.args.line;
-
-		/* get a chance to improve log-format-sd error reporting by
-		 * reporting the correct line-number when possible.
-		 */
-		if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
-			ha_warning("parsing [%s:%d] : backend '%s' : 'log-format-sd' directive is ignored in backends.\n",
-				   file, linenum, curproxy->id);
-			err_code |= ERR_WARN;
-		}
-	}
-	else if (strcmp(args[0], "error-log-format") == 0) {
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (*(args[2])) {
-			ha_alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (curproxy->logformat_error.str && curproxy->cap & PR_CAP_DEF) {
-			ha_warning("parsing [%s:%d]: 'error-log-format' overrides previous 'error-log-format' in 'defaults' section.\n",
-				   file, linenum);
-		}
-		lf_expr_deinit(&curproxy->logformat_error);
-		curproxy->logformat_error.str = strdup(args[1]);
-		if (!curproxy->logformat_error.str)
-			goto alloc_error;
-
-		curproxy->logformat_error.conf.file = strdup(curproxy->conf.args.file);
-		curproxy->logformat_error.conf.line = curproxy->conf.args.line;;
-
-		/* get a chance to improve log-format error reporting by
-		 * reporting the correct line-number when possible.
-		 */
-		if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
-			ha_warning("parsing [%s:%d] : backend '%s' : 'error-log-format' directive is ignored in backends.\n",
-				   file, linenum, curproxy->id);
-			err_code |= ERR_WARN;
-		}
-	}
 	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
@@ -3189,6 +3067,90 @@ static int proxy_parse_capture(char **args, int section_type, struct proxy *curp
 	return -1;
 }
 
+/* Parses the keywords which assign a log format expression to the proxy:
+ * "log-format", "log-format-sd", "error-log-format" and "unique-id-format".
+ */
+static int proxy_parse_logformat(char **args, int section_type, struct proxy *curpx,
+                                 const struct proxy *defpx, const char *file, int line,
+                                 char **err)
+{
+	struct lf_expr *lf;
+	char *str, *cfgfile;
+
+	if (!*(args[1])) {
+		memprintf(err, "%s expects an argument.", args[0]);
+		return -1;
+	}
+
+	if (*(args[2])) {
+		memprintf(err, "%s expects only one argument, don't forget to escape spaces!", args[0]);
+		return -1;
+	}
+
+	if (strcmp(args[0], "unique-id-format") == 0)
+		lf = &curpx->format_unique_id;
+	else if (strcmp(args[0], "log-format") == 0)
+		lf = &curpx->logformat;
+	else if (strcmp(args[0], "log-format-sd") == 0)
+		lf = &curpx->logformat_sd;
+	else if (strcmp(args[0], "error-log-format") == 0)
+		lf = &curpx->logformat_error;
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_logformat().");
+		return -1;
+	}
+
+	/* in a defaults section, warn about the format we're overriding, which
+	 * may have been set by an "option {tcp,http,https}log".
+	 */
+	if (lf->str && (curpx->cap & PR_CAP_DEF)) {
+		if (lf == &curpx->logformat) {
+			const char *prev = "log-format";
+
+			if (lf->str == default_http_log_format)
+				prev = "option httplog";
+			else if (lf->str == default_tcp_log_format)
+				prev = "option tcplog";
+			else if (lf->str == clf_tcp_log_format)
+				prev = "option tcplog clf";
+			else if (lf->str == clf_http_log_format)
+				prev = "option httplog clf";
+			else if (lf->str == default_https_log_format)
+				prev = "option httpslog";
+
+			ha_warning("parsing [%s:%d]: 'log-format' overrides previous '%s' in 'defaults' section.\n",
+				   file, line, prev);
+		}
+		else if (lf == &curpx->logformat_error)
+			ha_warning("parsing [%s:%d]: 'error-log-format' overrides previous 'error-log-format' in 'defaults' section.\n",
+				   file, line);
+	}
+
+	str = strdup(args[1]);
+	cfgfile = strdup(curpx->conf.args.file);
+	if (!str || !cfgfile) {
+		free(str);
+		free(cfgfile);
+		memprintf(err, "out of memory.");
+		return -1;
+	}
+
+	lf_expr_deinit(lf);
+	lf->str = str;
+	lf->conf.file = cfgfile;
+	lf->conf.line = curpx->conf.args.line;
+
+	/* all of them but "unique-id-format" are ignored in backends. Warn
+	 * about it here since we can still report the correct line number.
+	 */
+	if (lf != &curpx->format_unique_id &&
+	    !(curpx->cap & PR_CAP_DEF) && !(curpx->cap & PR_CAP_FE))
+		ha_warning("parsing [%s:%d] : backend '%s' : '%s' directive is ignored in backends.\n",
+			   file, line, curpx->id, args[0]);
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3202,6 +3164,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "dynamic-cookie-key", proxy_parse_be_opts },
 	{ CFG_LISTEN, "enabled", proxy_parse_enabled },
+	{ CFG_LISTEN, "error-log-format", proxy_parse_logformat },
 	{ CFG_LISTEN, "force-persist", proxy_parse_persist },
 	{ CFG_LISTEN, "fullconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
@@ -3210,6 +3173,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "id", proxy_parse_id_desc },
 	{ CFG_LISTEN, "ignore-persist", proxy_parse_persist },
 	{ CFG_LISTEN, "load-server-state-from-file", proxy_parse_be_opts },
+	{ CFG_LISTEN, "log-format", proxy_parse_logformat },
+	{ CFG_LISTEN, "log-format-sd", proxy_parse_logformat },
 	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "mode", proxy_parse_mode },
@@ -3243,6 +3208,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "server-state-file-name", proxy_parse_be_opts },
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "unique-id-format", proxy_parse_logformat },
 	{ 0, NULL, NULL },
 }};
 
