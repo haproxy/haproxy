@@ -1,7 +1,8 @@
-varnishtest "H1 CONNECT requests without Host header"
+varnishtest "H1 CONNECT requests without Host header or with an empty host"
 
 # A CONNECT request without Host header must get a Host header built from its
-# authority so that host-based rules apply to it.
+# authority so that host-based rules apply to it. An authority with an empty
+# host is rejected.
 
 feature ignore_unknown_macro
 
@@ -36,4 +37,10 @@ client c6 -connect ${h1_fe1_sock} {
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-host == "www.example.com:8443"
+} -run
+
+client c5 -connect ${h1_fe1_sock} {
+	txreq -req CONNECT -url ":443" -nohost
+	rxresp
+	expect resp.status == 400
 } -run

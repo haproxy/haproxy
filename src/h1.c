@@ -123,6 +123,8 @@ static int h1_validate_connect_authority(struct ist scheme, struct ist authority
 	if (!istlen(uri_port))
 		goto invalid_authority;
 	uri_host.len -= (istlen(uri_port) + 1);
+	if (!istlen(uri_host))
+		goto invalid_authority;
 
 	if (!host_hdr || !isttest(*host_hdr))
 		goto end;
