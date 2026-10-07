@@ -36,18 +36,16 @@ int cluster_secret_isset;
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"global", "busy-polling", "set-dumpable",
-	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
-	"nogetaddrinfo", "noreuseport", "uid", "gid",
+	"global", "set-dumpable",
+	"uid", "gid",
 	"external-check", "user", "group", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
 	"description", "node", "unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
-	"strict-limits",
-	"numa-cpu-mapping", "defaults", "listen", "frontend", "backend",
-	"peers", "resolvers", "cluster-secret", "limited-quic",
+	"defaults", "listen", "frontend", "backend",
+	"peers", "resolvers", "cluster-secret",
 	"stats-file",
 	NULL /* must be last */
 };
@@ -76,20 +74,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "limited-quic") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-
-		global.tune.options |= GTUNE_LIMITED_QUIC;
-	}
-	else if (strcmp(args[0], "busy-polling") == 0) { /* "no busy-polling" or "busy-polling" */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		if (kwm == KWM_NO)
-			global.tune.options &= ~GTUNE_BUSY_POLLING;
-		else
-			global.tune.options |=  GTUNE_BUSY_POLLING;
-	}
 	else if (strcmp(args[0], "set-dumpable") == 0) { /* "no set-dumpable" or "set-dumpable" */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -109,46 +93,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	                goto out;
 		}
 	}
-	else if (strcmp(args[0], "h2-workaround-bogus-websocket-clients") == 0) { /* "no h2-workaround-bogus-websocket-clients" or "h2-workaround-bogus-websocket-clients" */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		if (kwm == KWM_NO)
-			global.tune.options &= ~GTUNE_DISABLE_H2_WEBSOCKET;
-		else
-			global.tune.options |=  GTUNE_DISABLE_H2_WEBSOCKET;
-	}
-	else if (strcmp(args[0], "insecure-fork-wanted") == 0) { /* "no insecure-fork-wanted" or "insecure-fork-wanted" */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		if (kwm == KWM_NO)
-			global.tune.options &= ~GTUNE_INSECURE_FORK;
-		else
-			global.tune.options |=  GTUNE_INSECURE_FORK;
-	}
-	else if (strcmp(args[0], "insecure-setuid-wanted") == 0) { /* "no insecure-setuid-wanted" or "insecure-setuid-wanted" */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		if (kwm == KWM_NO)
-			global.tune.options &= ~GTUNE_INSECURE_SETUID;
-		else
-			global.tune.options |=  GTUNE_INSECURE_SETUID;
-	}
-	else if (strcmp(args[0], "nosplice") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options &= ~GTUNE_USE_SPLICE;
-	}
-	else if (strcmp(args[0], "nogetaddrinfo") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options &= ~GTUNE_USE_GAI;
-	}
-	else if (strcmp(args[0], "noreuseport") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
-	}
-
 	else if (strcmp(args[0], "cluster-secret") == 0) {
 		blk_SHA_CTX sha1_ctx;
 		unsigned char sha1_out[20];
@@ -819,22 +763,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 #endif /* ! USE_CPU_AFFINITY */
-	}
-	else if (strcmp(args[0], "quick-exit") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.tune.options |= GTUNE_QUICK_EXIT;
-	}
-	else if (strcmp(args[0], "strict-limits") == 0) { /* "no strict-limits" or "strict-limits" */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		if (kwm == KWM_NO)
-			global.tune.options &= ~GTUNE_STRICT_LIMITS;
-	}
-	else if (strcmp(args[0], "numa-cpu-mapping") == 0) {
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		global.numa_cpu_mapping = (kwm == KWM_NO) ? 0 : 1;
 	}
 	else if (strcmp(args[0], "anonkey") == 0) {
 		long long tmp = 0;
@@ -1992,31 +1920,107 @@ static int cfg_parse_global_worker_id(char **args, int section_type, struct prox
 	return 0;
 }
 
+/* Parses the global keywords which take no argument and only set or clear a
+ * boolean, most often one of the GTUNE_* options. Some of them also support
+ * the "no" modifier, which is checked via cfg_curr_kwm.
+ */
+static int cfg_parse_global_bool_opts(char **args, int section_type, struct proxy *curpx,
+                                      const struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "busy-polling") == 0) {
+		if (cfg_curr_kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_BUSY_POLLING;
+		else
+			global.tune.options |=  GTUNE_BUSY_POLLING;
+	}
+	else if (strcmp(args[0], "h2-workaround-bogus-websocket-clients") == 0) {
+		if (cfg_curr_kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_DISABLE_H2_WEBSOCKET;
+		else
+			global.tune.options |=  GTUNE_DISABLE_H2_WEBSOCKET;
+	}
+	else if (strcmp(args[0], "insecure-fork-wanted") == 0) {
+		if (cfg_curr_kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_INSECURE_FORK;
+		else
+			global.tune.options |=  GTUNE_INSECURE_FORK;
+	}
+	else if (strcmp(args[0], "insecure-setuid-wanted") == 0) {
+		if (cfg_curr_kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_INSECURE_SETUID;
+		else
+			global.tune.options |=  GTUNE_INSECURE_SETUID;
+	}
+	else if (strcmp(args[0], "limited-quic") == 0) {
+		global.tune.options |= GTUNE_LIMITED_QUIC;
+	}
+	else if (strcmp(args[0], "nogetaddrinfo") == 0) {
+		global.tune.options &= ~GTUNE_USE_GAI;
+	}
+	else if (strcmp(args[0], "noreuseport") == 0) {
+		protocol_clrf_all(PROTO_F_REUSEPORT_SUPPORTED);
+	}
+	else if (strcmp(args[0], "nosplice") == 0) {
+		global.tune.options &= ~GTUNE_USE_SPLICE;
+	}
+	else if (strcmp(args[0], "numa-cpu-mapping") == 0) {
+		global.numa_cpu_mapping = (cfg_curr_kwm == KWM_NO) ? 0 : 1;
+	}
+	else if (strcmp(args[0], "quick-exit") == 0) {
+		global.tune.options |= GTUNE_QUICK_EXIT;
+	}
+	else if (strcmp(args[0], "strict-limits") == 0) {
+		if (cfg_curr_kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_STRICT_LIMITS;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_bool_opts().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode, KWF_DISCOVERY } ,
 	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
 	{ CFG_GLOBAL, "force-cfg-parser-pause", cfg_parse_global_parser_pause, KWF_EXPERIMENTAL },
+	{ CFG_GLOBAL, "h2-workaround-bogus-websocket-clients", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.quic", cfg_parse_reject_privileged_ports },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
+	{ CFG_GLOBAL, "insecure-fork-wanted", cfg_parse_global_bool_opts },
+	{ CFG_GLOBAL, "insecure-setuid-wanted", cfg_parse_global_bool_opts },
+	{ CFG_GLOBAL, "limited-quic", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "localpeer", cfg_parse_global_localpeer, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "master-worker", cfg_parse_global_master_worker, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "nbproc", cfg_parse_global_unsupported_opts },
+	{ CFG_GLOBAL, "nogetaddrinfo", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "noepoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "noevports", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "nokqueue", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "noktls", cfg_parse_global_disable_ktls, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "nopoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "noreuseport", cfg_parse_global_bool_opts },
+	{ CFG_GLOBAL, "nosplice", cfg_parse_global_bool_opts },
+	{ CFG_GLOBAL, "numa-cpu-mapping", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "pidfile", cfg_parse_global_pidfile, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "prealloc-fd", cfg_parse_prealloc_fd },
 	{ CFG_GLOBAL, "presetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "quick-exit", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "quiet", cfg_parse_global_mode, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "resetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "setenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "shm-stats-file", cfg_parse_global_shm_stats_file },
 	{ CFG_GLOBAL, "shm-stats-file-max-objects", cfg_parse_global_shm_stats_file_max_objects },
 	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },
+	{ CFG_GLOBAL, "strict-limits", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.chksize", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "tune.comp.maxlevel", cfg_parse_global_tune_opts },
