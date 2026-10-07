@@ -5847,6 +5847,7 @@ static int h1_show_sd(struct buffer *msg, struct sedesc *sd, const char *pfx)
 static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 {
 	struct h1_hdr_entry *entry;
+	char *key, *p;
 
 	/* Be sure there is a non-empty <to> */
 	if (!strlen(to)) {
@@ -5860,24 +5861,36 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 		return -1;
 	}
 
+	/* <from> is looked up using lower case header names, so it is
+	 * converted to lower case.
+	 */
+	key = strdup(from);
+	if (!key) {
+		memprintf(err, "out of memory");
+		return -1;
+	}
+	for (p = key; *p; p++)
+		*p = tolower((unsigned char)*p);
+
 	/* Be sure <from> does not already existsin the tree */
-	if (ebis_lookup(&hdrs_map.map, from)) {
+	if (ebis_lookup(&hdrs_map.map, key)) {
 		memprintf(err, "duplicate entry '%s'", from);
+		free(key);
 		return -1;
 	}
 
 	/* Create the entry and insert it in the tree */
 	entry = malloc(sizeof(*entry));
 	if (!entry) {
+		free(key);
 		memprintf(err, "out of memory");
 		return -1;
 	}
 
-	entry->node.key = strdup(from);
+	entry->node.key = key;
 	entry->name = ist(strdup(to));
-	if (!entry->node.key || !isttest(entry->name)) {
+	if (!isttest(entry->name)) {
 		free(entry->node.key);
-		istfree(&entry->name);
 		free(entry);
 		memprintf(err, "out of memory");
 		return -1;
