@@ -37,11 +37,9 @@ int cluster_secret_isset;
  */
 static const char *common_kw_list[] = {
 	"global",
-	"server-state-base", "server-state-file",
 	"spread-checks", "max-spread-checks", "cpu-map",
 	"defaults", "listen", "frontend", "backend",
 	"peers", "resolvers",
-	"stats-file",
 	NULL /* must be last */
 };
 
@@ -69,51 +67,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "server-state-base") == 0) { /* path base where HAProxy can find server state files */
-		if (global.server_state_base != NULL) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : '%s' expects one argument: a directory path.\n", file, linenum, args[0]);
-			err_code |= ERR_FATAL;
-			goto out;
-		}
-
-		global.server_state_base = strdup(args[1]);
-	}
-	else if (strcmp(args[0], "server-state-file") == 0) { /* path to the file where HAProxy can load the server states */
-		if (global.server_state_file != NULL) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : '%s' expect one argument: a file path.\n", file, linenum, args[0]);
-			err_code |= ERR_FATAL;
-			goto out;
-		}
-
-		global.server_state_file = strdup(args[1]);
-	}
-	else if (strcmp(args[0], "stats-file") == 0) { /* path to the file where HAProxy can load the server states */
-		if (global.stats_file != NULL) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : '%s' expect one argument: a file path.\n", file, linenum, args[0]);
-			err_code |= ERR_FATAL;
-			goto out;
-		}
-
-		global.stats_file = strdup(args[1]);
-	}
 	else if (strcmp(args[0], "spread-checks") == 0) {  /* random time between checks (0-50) */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -2028,6 +1981,49 @@ static int cfg_parse_global_log_opts(char **args, int section_type, struct proxy
 	return 0;
 }
 
+/* Parses the global keywords which designate a file or a directory used to
+ * preload the state at boot: "server-state-base", "server-state-file" and
+ * "stats-file".
+ */
+static int cfg_parse_global_state_files(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	char **dst;
+	char *path;
+
+	if (strcmp(args[0], "server-state-base") == 0)
+		dst = &global.server_state_base;
+	else if (strcmp(args[0], "server-state-file") == 0)
+		dst = &global.server_state_file;
+	else if (strcmp(args[0], "stats-file") == 0)
+		dst = &global.stats_file;
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_state_files().");
+		return -1;
+	}
+
+	if (*dst) {
+		ha_warning("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, line, args[0]);
+		return 0;
+	}
+
+	if (!*(args[1])) {
+		memprintf(err, "'%s' expects one argument: a %s path.", args[0],
+			  (dst == &global.server_state_base) ? "directory" : "file");
+		return -1;
+	}
+
+	path = strdup(args[1]);
+	if (!path) {
+		memprintf(err, "cannot allocate memory for '%s'.", args[0]);
+		return -1;
+	}
+
+	*dst = path;
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2077,11 +2073,14 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "quick-exit", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "quiet", cfg_parse_global_mode, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "resetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "server-state-base", cfg_parse_global_state_files },
+	{ CFG_GLOBAL, "server-state-file", cfg_parse_global_state_files },
 	{ CFG_GLOBAL, "setenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "set-dumpable", cfg_parse_global_set_dumpable },
 	{ CFG_GLOBAL, "shm-stats-file", cfg_parse_global_shm_stats_file },
 	{ CFG_GLOBAL, "shm-stats-file-max-objects", cfg_parse_global_shm_stats_file_max_objects },
 	{ CFG_GLOBAL, "ssl-server-verify", cfg_parse_global_ssl_server_verify },
+	{ CFG_GLOBAL, "stats-file", cfg_parse_global_state_files },
 	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },
 	{ CFG_GLOBAL, "strict-limits", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
