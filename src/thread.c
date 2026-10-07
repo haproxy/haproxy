@@ -318,19 +318,16 @@ void wait_for_threads_completion()
 #endif
 }
 
-/* Tries to set the current thread's CPU affinity according to the cpu_map */
-void set_thread_cpu_affinity()
+/* Tries to bind the current thread to the CPUs the cpu_map assigns to
+ * the provided thread and thread group.
+ */
+void thread_bind_to_cpu_map(uint tgrp, uint ltid)
 {
 #if defined(USE_CPU_AFFINITY)
-	/* no affinity setting for the master process */
-	if (master)
-		return;
-
-	/* Now the CPU affinity for all threads */
-	if (ha_cpuset_count(&cpu_map[tgid - 1].thread[ti->ltid])) {/* only do this if the thread has a THREAD map */
+	if (ha_cpuset_count(&cpu_map[tgrp].thread[ltid])) {/* only do this if the thread has a THREAD map */
 #  if defined(__APPLE__)
 		/* Note: this API is limited to the first 32/64 CPUs */
-		unsigned long set = cpu_map[tgid - 1].thread[ti->ltid].cpuset;
+		unsigned long set = cpu_map[tgrp].thread[ltid].cpuset;
 		int j;
 
 		while ((j = ffsl(set)) > 0) {
@@ -342,12 +339,23 @@ void set_thread_cpu_affinity()
 			set &= ~(1UL << (j - 1));
 		}
 #  else
-		struct hap_cpuset *set = &cpu_map[tgid - 1].thread[ti->ltid];
+		struct hap_cpuset *set = &cpu_map[tgrp].thread[ltid];
 
 		pthread_setaffinity_np(pthread_self(), sizeof(set->cpuset), &set->cpuset);
 #  endif
 	}
 #endif /* USE_CPU_AFFINITY */
+}
+
+/* Tries to set the current thread's CPU affinity according to the cpu_map */
+void set_thread_cpu_affinity()
+{
+	/* no affinity setting for the master process */
+	if (master)
+		return;
+
+	/* Now the CPU affinity for all threads */
+	thread_bind_to_cpu_map(tgid - 1, ti->ltid);
 }
 
 /* Retrieves the opaque pthread_t of thread <thr> cast to an unsigned long long

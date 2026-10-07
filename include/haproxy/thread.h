@@ -205,6 +205,7 @@ void ha_rwlock_init(HA_RWLOCK_T *l);
 void setup_extra_threads(void *(*handler)(void *));
 void wait_for_threads_completion();
 void set_thread_cpu_affinity();
+void thread_bind_to_cpu_map(uint tgrp, uint ltid);
 unsigned long long ha_get_pthread_id(unsigned int thr);
 
 extern volatile unsigned int rdv_requests;
