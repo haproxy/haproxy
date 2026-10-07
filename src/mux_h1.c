@@ -2230,6 +2230,8 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 			    h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
 				h1m_init_res(&h1s->res);
 				h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
+				if (h1c->px->options2 & PR_O2_RSPBUG_OK)
+					h1m->err_pos = -1;
 				TRACE_STATE("1xx response rcvd", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1c->conn, h1s);
 			}
 		}
