@@ -5346,8 +5346,10 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 
 	sdo = h1s_opposite_sd(h1s);
 	if (!sdo) {
+		/* Note: <sdo> is dereferenced in the "out" path */
+		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 		TRACE_STATE("Opposite endpoint not available yet", H1_EV_STRM_RECV, h1c->conn, h1s);
-		goto out;
+		goto end;
 	}
 
   retry:
