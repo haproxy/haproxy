@@ -36,9 +36,8 @@ int cluster_secret_isset;
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"global", "maxconn",
-	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
-	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
+	"global", "ssl-server-verify",
+	"maxcomprate", "maxzlibmem", "maxcompcpuusage",
 	"description", "node", "unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
@@ -72,35 +71,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "maxconn") == 0) {
-		char *stop;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.maxconn != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.maxconn = strtol(args[1], &stop, 10);
-		if (*stop != '\0') {
-			ha_alert("parsing [%s:%d] : cannot parse '%s' value '%s', an integer is expected.\n", file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-#ifdef SYSTEM_MAXCONN
-		if (global.maxconn > SYSTEM_MAXCONN && cfg_maxconn <= SYSTEM_MAXCONN) {
-			ha_alert("parsing [%s:%d] : maxconn value %d too high for this system.\nLimiting to %d. Please use '-n' to force the value.\n", file, linenum, global.maxconn, SYSTEM_MAXCONN);
-			global.maxconn = SYSTEM_MAXCONN;
-			err_code |= ERR_ALERT;
-		}
-#endif /* SYSTEM_MAXCONN */
-	}
 	else if (strcmp(args[0], "ssl-server-verify") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -119,51 +89,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	                goto out;
 		}
 	}
-	else if (strcmp(args[0], "maxconnrate") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.cps_lim != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.cps_lim = atol(args[1]);
-	}
-	else if (strcmp(args[0], "maxsessrate") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.sps_lim != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.sps_lim = atol(args[1]);
-	}
-	else if (strcmp(args[0], "maxsslrate") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.ssl_lim != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.ssl_lim = atol(args[1]);
-	}
 	else if (strcmp(args[0], "maxcomprate") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -173,21 +98,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		global.comp_rate_lim = atoi(args[1]) * 1024;
-	}
-	else if (strcmp(args[0], "maxpipes") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.maxpipes != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.maxpipes = atol(args[1]);
 	}
 	else if (strcmp(args[0], "maxzlibmem") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
@@ -213,36 +123,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-	}
-	else if (strcmp(args[0], "fd-hard-limit") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.fd_hard_limit != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.fd_hard_limit = atol(args[1]);
-	}
-	else if (strcmp(args[0], "ulimit-n") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.rlimit_nofile != 0) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.rlimit_nofile = atol(args[1]);
 	}
 	else if (strcmp(args[0], "description") == 0) {
 		int i, len=0;
@@ -2004,6 +1884,97 @@ static int cfg_parse_global_cluster_secret(char **args, int section_type, struct
 	return 0;
 }
 
+/* Parses the global keywords which set one of the process-wide limits, such
+ * as "maxconn" or "ulimit-n". They all take a single integer argument and may
+ * only be specified once.
+ */
+static int cfg_parse_global_limits(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "maxconn") == 0) {
+		char *stop;
+
+		if (global.maxconn != 0)
+			goto already_set;
+		if (*(args[1]) == 0)
+			goto expect_integer;
+
+		global.maxconn = strtol(args[1], &stop, 10);
+		if (*stop != '\0') {
+			memprintf(err, "cannot parse '%s' value '%s', an integer is expected.", args[0], args[1]);
+			return -1;
+		}
+#ifdef SYSTEM_MAXCONN
+		if (global.maxconn > SYSTEM_MAXCONN && cfg_maxconn <= SYSTEM_MAXCONN) {
+			ha_alert("parsing [%s:%d] : maxconn value %d too high for this system.\n"
+				 "Limiting to %d. Please use '-n' to force the value.\n",
+				 file, line, global.maxconn, SYSTEM_MAXCONN);
+			global.maxconn = SYSTEM_MAXCONN;
+		}
+#endif /* SYSTEM_MAXCONN */
+	}
+	else if (strcmp(args[0], "maxconnrate") == 0) {
+		if (global.cps_lim != 0)
+			goto already_set;
+		if (*(args[1]) == 0)
+			goto expect_integer;
+		global.cps_lim = atol(args[1]);
+	}
+	else if (strcmp(args[0], "maxsessrate") == 0) {
+		if (global.sps_lim != 0)
+			goto already_set;
+		if (*(args[1]) == 0)
+			goto expect_integer;
+		global.sps_lim = atol(args[1]);
+	}
+	else if (strcmp(args[0], "maxsslrate") == 0) {
+		if (global.ssl_lim != 0)
+			goto already_set;
+		if (*(args[1]) == 0)
+			goto expect_integer;
+		global.ssl_lim = atol(args[1]);
+	}
+	else if (strcmp(args[0], "maxpipes") == 0) {
+		if (global.maxpipes != 0)
+			goto already_set;
+		if (*(args[1]) == 0)
+			goto expect_integer;
+		global.maxpipes = atol(args[1]);
+	}
+	else if (strcmp(args[0], "fd-hard-limit") == 0) {
+		if (global.fd_hard_limit != 0)
+			goto already_set;
+		if (*(args[1]) == 0)
+			goto expect_integer;
+		global.fd_hard_limit = atol(args[1]);
+	}
+	else if (strcmp(args[0], "ulimit-n") == 0) {
+		if (global.rlimit_nofile != 0)
+			goto already_set;
+		if (*(args[1]) == 0)
+			goto expect_integer;
+		global.rlimit_nofile = atol(args[1]);
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_limits().");
+		return -1;
+	}
+
+	return 0;
+
+ already_set:
+	ha_warning("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, line, args[0]);
+	return 0;
+
+ expect_integer:
+	memprintf(err, "'%s' expects an integer argument.", args[0]);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2012,6 +1983,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "external-check", cfg_parse_global_external_check },
 	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
+	{ CFG_GLOBAL, "fd-hard-limit", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "force-cfg-parser-pause", cfg_parse_global_parser_pause, KWF_EXPERIMENTAL },
 	{ CFG_GLOBAL, "h2-workaround-bogus-websocket-clients", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.quic", cfg_parse_reject_privileged_ports },
@@ -2023,6 +1995,11 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "limited-quic", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "localpeer", cfg_parse_global_localpeer, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "master-worker", cfg_parse_global_master_worker, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "maxconn", cfg_parse_global_limits },
+	{ CFG_GLOBAL, "maxconnrate", cfg_parse_global_limits },
+	{ CFG_GLOBAL, "maxpipes", cfg_parse_global_limits },
+	{ CFG_GLOBAL, "maxsessrate", cfg_parse_global_limits },
+	{ CFG_GLOBAL, "maxsslrate", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "nbproc", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "nogetaddrinfo", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "noepoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
@@ -2078,6 +2055,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.streams-elasticity", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.takeover-other-tg-connections", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "uid", cfg_parse_global_uid_gid },
+	{ CFG_GLOBAL, "ulimit-n", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "unsetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "worker-id", cfg_parse_global_worker_id },
 	{ CFG_GLOBAL, "user", cfg_parse_global_uid_gid },
