@@ -283,9 +283,11 @@ void h1_parse_connection_header(struct h1m *h1m, struct ist *value)
 
 /* Parse the Upgrade: header of an HTTP/1 request.
  * If "websocket" is found, set H1_MF_UPG_WEBSOCKET flag
- * If "h2c" or "h2" found, the value is skipped. The header value is rewritten
- * in place and the bytes freed at the end of the original value are replaced
- * with spaces so that parsing the same area again gives the same value.
+ * If "h2c" or "h2" found and the flag H1_MF_CLEAN_CONN_HDR is set, the value is
+ * skipped. The header value is rewritten in place and the bytes freed at the
+ * end of the original value are replaced with spaces so that parsing the same
+ * area again gives the same value. Without H1_MF_CLEAN_CONN_HDR, the value is
+ * never modified.
  */
 void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 {
@@ -311,7 +313,8 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 
 		if (isteqi(word, ist("websocket")))
 			h1m->flags |= H1_MF_UPG_WEBSOCKET;
-		else if (isteqi(word, ist("h2c")) || isteqi(word, ist("h2")))
+		else if ((h1m->flags & H1_MF_CLEAN_CONN_HDR) &&
+			 (isteqi(word, ist("h2c")) || isteqi(word, ist("h2"))))
 			goto skip_val;
 
 		if (value->ptr + value->len == p) {
@@ -329,7 +332,7 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 	}
 
 	/* blank the freed area to make the operation idempotent */
-	if (value->ptr + value->len < e)
+	if ((h1m->flags & H1_MF_CLEAN_CONN_HDR) && value->ptr + value->len < e)
 		memset(value->ptr + value->len, ' ', e - (value->ptr + value->len));
 
 	if (istlen(*value))

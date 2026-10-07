@@ -92,7 +92,7 @@ enum h1m_state {
 #define H1_MF_XFER_ENC          0x00000200 // transfer-encoding is present
 #define H1_MF_NO_PHDR           0x00000400 // don't add pseudo-headers in the header list
 #define H1_MF_HDRS_ONLY         0x00000800 // parse headers only
-#define H1_MF_CLEAN_CONN_HDR    0x00001000 // skip close/keep-alive values of connection headers during parsing
+#define H1_MF_CLEAN_CONN_HDR    0x00001000 // skip close/keep-alive values of connection headers and h2c/h2 values of upgrade headers during parsing (rewrites the buffer)
 #define H1_MF_METH_CONNECT      0x00002000 // Set for a response to a CONNECT request
 #define H1_MF_METH_HEAD         0x00004000 // Set for a response to a HEAD request
 #define H1_MF_UPG_WEBSOCKET     0x00008000 // Set for a Websocket upgrade handshake
