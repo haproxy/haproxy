@@ -9567,12 +9567,13 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 		 * (if it wasn't removed yet, SERVER_DEL will never succeed here)
 		 */
 		px = proxy_find_by_id(e_server->safe.proxy_uuid, PR_CAP_BE, 0);
-		BUG_ON(!px);
-		server = server_find_by_id_unique(px, e_server->safe.puid, e_server->safe.rid);
-		if (server) {
-			lua_pushstring(hlua->T, "reference");
-			hlua_fcn_new_server(hlua->T, server);
-			lua_settable(hlua->T, -3);
+		if (px) {
+			server = server_find_by_id_unique(px, e_server->safe.puid, e_server->safe.rid);
+			if (server) {
+				lua_pushstring(hlua->T, "reference");
+				hlua_fcn_new_server(hlua->T, server);
+				lua_settable(hlua->T, -3);
+			}
 		}
 	}
 #if defined(HAVE_ACME)
