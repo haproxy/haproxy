@@ -273,6 +273,8 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 			b_slow_realign(buf, trash.area, 0);
 
 		h1m_init_req(&h1m);
+		/* pseudo-headers must not be turned into regular headers */
+		h1m.flags |= H1_MF_NO_PHDR;
 		ret = h1_headers_to_hdr_list(b_head(buf), b_stop(buf),
 					     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &h1sl);
 		if (ret <= 0) {
