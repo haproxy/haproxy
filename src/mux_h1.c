@@ -4954,8 +4954,14 @@ static size_t h1_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		goto end;
 	}
 
-	if (!(h1c->flags & H1C_F_IN_ALLOC))
+	if (!(h1c->flags & H1C_F_IN_ALLOC)) {
+		int prev_glitches = h1c->glitches;
+
 		ret = h1_process_demux(h1c, buf, count);
+
+		if (h1c->glitches != prev_glitches && !(h1c->flags & H1C_F_IS_BACK))
+			session_add_glitch_ctr(h1c->conn->owner, h1c->glitches - prev_glitches);
+	}
 	else
 		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
