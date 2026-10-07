@@ -37,7 +37,7 @@ int cluster_secret_isset;
  */
 static const char *common_kw_list[] = {
 	"global",
-	"unix-bind", "log",
+	"log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
 	"defaults", "listen", "frontend", "backend",
@@ -70,86 +70,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "unix-bind") == 0) {
-		int cur_arg = 1;
-		while (*(args[cur_arg])) {
-			if (strcmp(args[cur_arg], "prefix") == 0) {
-				if (global.unix_bind.prefix != NULL) {
-					ha_alert("parsing [%s:%d] : unix-bind '%s' already specified. Continuing.\n", file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT;
-					cur_arg += 2;
-					continue;
-				}
-
-				if (*(args[cur_arg+1]) == 0) {
-		                        ha_alert("parsing [%s:%d] : unix_bind '%s' expects a path as an argument.\n", file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				global.unix_bind.prefix =  strdup(args[cur_arg+1]);
-				cur_arg += 2;
-				continue;
-			}
-
-			if (strcmp(args[cur_arg], "mode") == 0) {
-
-				global.unix_bind.ux.mode = strtol(args[cur_arg + 1], NULL, 8);
-                                cur_arg += 2;
-				continue;
-			}
-
-			if (strcmp(args[cur_arg], "uid") == 0) {
-
-				global.unix_bind.ux.uid = atol(args[cur_arg + 1 ]);
-                                cur_arg += 2;
-				continue;
-                        }
-
-			if (strcmp(args[cur_arg], "gid") == 0) {
-
-				global.unix_bind.ux.gid = atol(args[cur_arg + 1 ]);
-                                cur_arg += 2;
-				continue;
-                        }
-
-			if (strcmp(args[cur_arg], "user") == 0) {
-				struct passwd *user;
-
-				user = getpwnam(args[cur_arg + 1]);
-				if (!user) {
-					ha_alert("parsing [%s:%d] : '%s' : '%s' unknown user.\n",
-						 file, linenum, args[0], args[cur_arg + 1 ]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				global.unix_bind.ux.uid = user->pw_uid;
-				cur_arg += 2;
-				continue;
-                        }
-
-			if (strcmp(args[cur_arg], "group") == 0) {
-				struct group *group;
-
-				group = getgrnam(args[cur_arg + 1]);
-				if (!group) {
-					ha_alert("parsing [%s:%d] : '%s' : '%s' unknown group.\n",
-						 file, linenum, args[0], args[cur_arg + 1 ]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				global.unix_bind.ux.gid = group->gr_gid;
-				cur_arg += 2;
-				continue;
-			}
-
-			ha_alert("parsing [%s:%d] : '%s' only supports the 'prefix', 'mode', 'uid', 'gid', 'user' and 'group' options.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-                }
-	}
 	else if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
 		if (!parse_logger(args, &global.loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
@@ -2009,6 +1929,85 @@ static int cfg_parse_global_node_desc(char **args, int section_type, struct prox
 	return 0;
 }
 
+/* Parses the "unix-bind" keyword, which sets the default ownership and
+ * permissions of the UNIX sockets, as well as an optional path prefix.
+ */
+static int cfg_parse_global_unix_bind(char **args, int section_type, struct proxy *curpx,
+                                      const struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	int cur_arg = 1;
+
+	while (*(args[cur_arg])) {
+		if (strcmp(args[cur_arg], "prefix") == 0) {
+			char *prefix;
+
+			if (global.unix_bind.prefix != NULL) {
+				ha_warning("parsing [%s:%d] : unix-bind '%s' already specified. Continuing.\n",
+					   file, line, args[cur_arg]);
+				cur_arg += 2;
+				continue;
+			}
+
+			if (*(args[cur_arg+1]) == 0) {
+				memprintf(err, "unix_bind '%s' expects a path as an argument.", args[cur_arg]);
+				return -1;
+			}
+
+			prefix = strdup(args[cur_arg+1]);
+			if (!prefix) {
+				memprintf(err, "cannot allocate memory for '%s %s'.", args[0], args[cur_arg]);
+				return -1;
+			}
+			global.unix_bind.prefix = prefix;
+			cur_arg += 2;
+		}
+		else if (strcmp(args[cur_arg], "mode") == 0) {
+			global.unix_bind.ux.mode = strtol(args[cur_arg + 1], NULL, 8);
+			cur_arg += 2;
+		}
+		else if (strcmp(args[cur_arg], "uid") == 0) {
+			global.unix_bind.ux.uid = atol(args[cur_arg + 1]);
+			cur_arg += 2;
+		}
+		else if (strcmp(args[cur_arg], "gid") == 0) {
+			global.unix_bind.ux.gid = atol(args[cur_arg + 1]);
+			cur_arg += 2;
+		}
+		else if (strcmp(args[cur_arg], "user") == 0) {
+			struct passwd *user;
+
+			user = getpwnam(args[cur_arg + 1]);
+			if (!user) {
+				memprintf(err, "'%s' : '%s' unknown user.", args[0], args[cur_arg + 1]);
+				return -1;
+			}
+
+			global.unix_bind.ux.uid = user->pw_uid;
+			cur_arg += 2;
+		}
+		else if (strcmp(args[cur_arg], "group") == 0) {
+			struct group *group;
+
+			group = getgrnam(args[cur_arg + 1]);
+			if (!group) {
+				memprintf(err, "'%s' : '%s' unknown group.", args[0], args[cur_arg + 1]);
+				return -1;
+			}
+
+			global.unix_bind.ux.gid = group->gr_gid;
+			cur_arg += 2;
+		}
+		else {
+			memprintf(err, "'%s' only supports the 'prefix', 'mode', 'uid', 'gid', 'user' and 'group' options.",
+				  args[0]);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2096,6 +2095,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.takeover-other-tg-connections", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "uid", cfg_parse_global_uid_gid },
 	{ CFG_GLOBAL, "ulimit-n", cfg_parse_global_limits },
+	{ CFG_GLOBAL, "unix-bind", cfg_parse_global_unix_bind },
 	{ CFG_GLOBAL, "unsetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "worker-id", cfg_parse_global_worker_id },
 	{ CFG_GLOBAL, "user", cfg_parse_global_uid_gid },
