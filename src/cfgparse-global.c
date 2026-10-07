@@ -43,7 +43,7 @@ static const char *common_kw_list[] = {
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
 	"defaults", "listen", "frontend", "backend",
-	"peers", "resolvers", "cluster-secret",
+	"peers", "resolvers",
 	"stats-file",
 	NULL /* must be last */
 };
@@ -72,30 +72,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "cluster-secret") == 0) {
-		blk_SHA_CTX sha1_ctx;
-		unsigned char sha1_out[20];
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*args[1] == 0) {
-			ha_alert("parsing [%s:%d] : expects an ASCII string argument.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (cluster_secret_isset) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-
-		blk_SHA1_Init(&sha1_ctx);
-		blk_SHA1_Update(&sha1_ctx, args[1], strlen(args[1]));
-		blk_SHA1_Final(sha1_out, &sha1_ctx);
-		BUG_ON(sizeof sha1_out < sizeof global.cluster_secret);
-		memcpy(global.cluster_secret, sha1_out, sizeof global.cluster_secret);
-		cluster_secret_isset = 1;
-	}
 	else if (strcmp(args[0], "maxconn") == 0) {
 		char *stop;
 
@@ -1995,9 +1971,43 @@ static int cfg_parse_global_external_check(char **args, int section_type, struct
 	return 0;
 }
 
+/* Parses the "cluster-secret" keyword. The secret is not stored as-is, only
+ * its SHA1 digest is kept.
+ */
+static int cfg_parse_global_cluster_secret(char **args, int section_type, struct proxy *curpx,
+                                           const struct proxy *defpx, const char *file, int line,
+                                           char **err)
+{
+	blk_SHA_CTX sha1_ctx;
+	unsigned char sha1_out[20];
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*args[1] == 0) {
+		memprintf(err, "'%s' expects an ASCII string argument.", args[0]);
+		return -1;
+	}
+
+	if (cluster_secret_isset) {
+		ha_warning("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, line, args[0]);
+		return 0;
+	}
+
+	blk_SHA1_Init(&sha1_ctx);
+	blk_SHA1_Update(&sha1_ctx, args[1], strlen(args[1]));
+	blk_SHA1_Final(sha1_out, &sha1_ctx);
+	BUG_ON(sizeof sha1_out < sizeof global.cluster_secret);
+	memcpy(global.cluster_secret, sha1_out, sizeof global.cluster_secret);
+	cluster_secret_isset = 1;
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
+	{ CFG_GLOBAL, "cluster-secret", cfg_parse_global_cluster_secret },
 	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode, KWF_DISCOVERY } ,
 	{ CFG_GLOBAL, "external-check", cfg_parse_global_external_check },
 	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives, KWF_DISCOVERY },
