@@ -1166,6 +1166,17 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					if (host_idx != -1)
 						host = &hdr[host_idx].v;
 					ret = h1_validate_connect_authority(scheme, authority, host);
+
+					/* RFC9112#3.2.3: the authority-form only contains
+					 * "uri-host:port". The authority was validated
+					 * without any userinfo, path or query, which must
+					 * then not be present since the request target is
+					 * forwarded as-is.
+					 */
+					if (!ret && (istptr(authority) != istptr(sl.rq.u) ||
+						     istlen(authority) != istlen(sl.rq.u)))
+						ret = -1;
+
 					if (ret < 0) {
 						if (h1m->err_pos < -1) {
 							state = H1_MSG_LAST_LF;

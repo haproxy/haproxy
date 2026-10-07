@@ -1,0 +1,50 @@
+varnishtest "H1 CONNECT request target validation"
+
+# RFC9112#3.2.3: the request target of a CONNECT request is in authority-form
+# ("uri-host:port"). Since it is forwarded as-is, it must not contain any
+# userinfo, path or query that would make haproxy and the next hop disagree
+# on the destination.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        http-request return status 200
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+	txreq -req "CONNECT" -url "allowed.com:443" -hdr "Host: allowed.com:443"
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_li1_sock} {
+	txreq -req "CONNECT" -url "internal:22@allowed.com:443" -hdr "Host: allowed.com:443"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c3 -connect ${h1_li1_sock} {
+	txreq -req "CONNECT" -url "allowed.com:443/x" -hdr "Host: allowed.com:443"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c4 -connect ${h1_li1_sock} {
+	txreq -req "CONNECT" -url "allowed.com:443?x" -hdr "Host: allowed.com:443"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c5 -connect ${h1_li1_sock} {
+	txreq -req "CONNECT" -url "internal:22@allowed.com:443"
+	rxresp
+	expect resp.status == 400
+} -run
