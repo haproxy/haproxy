@@ -2583,9 +2583,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
  finish:
 	/* move curmsgs to the agent message list */
-	curmsgs.n->p = &curagent->messages;
-	curmsgs.p->n = &curagent->messages;
-	curagent->messages = curmsgs;
+	LIST_SPLICE(&curagent->messages, &curmsgs);
 	LIST_INIT(&curmsgs);
 
 	conf->id    = strdup(engine ? engine : curagent->id);
