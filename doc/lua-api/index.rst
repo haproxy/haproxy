@@ -706,6 +706,20 @@ Core class
     mode http
     filter lua.my-filter arg1 arg2 arg3
 
+With the filter instance mode, the same filter is declared like this::
+
+  filter-config lua id my-filter enabled arg1 arg2 arg3
+
+The instance id selects the registered filter to instantiate: the instance
+with id 'my-filter' instantiates the filter registered as "lua.my-filter".
+The optional "enabled" token activates the instance, which may also be
+enabled or disabled later with the "filter-enable" and "filter-disable"
+directives. The other arguments are the same as for the legacy declaration
+and are passed to the registration function. Contrary to the legacy "filter"
+directive, "filter-config lua" is also allowed in defaults sections, the
+instances being inherited by the proxies using them. See the
+"filter-config" entry in the configuration manual for the details.
+
 ..
 
   :see: :js:class:`Filter`

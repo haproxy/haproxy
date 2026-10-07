@@ -31510,6 +31510,10 @@ with "filter-config" may differ from the legacy filter name; it is given in
 the documentation of each filter. The "filter-config" syntax is documented
 below the legacy one.
 
+The Lua filters are not documented here: they are registered by Lua scripts
+with core.register_filter() and are declared with the "lua" filter class.
+See the Lua API documentation for their declaration syntax.
+
 The filter instances of a proxy may be inspected with the "show filter
 classes" and "show filter instances" CLI commands (see the management
 manual).
