@@ -43,10 +43,10 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"cookie", "email-alert",
-	"persist", "capture",
+	"capture",
 	"http-request", "http-response", "http-after-response",
 	"redirect", "use_backend",
-	"use-server", "force-persist", "ignore-persist",
+	"use-server",
 	"stick-table", "stick", "stats", "option", "default_backend",
 	"balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
@@ -918,59 +918,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (strcmp(args[0], "persist") == 0) {  /* persist */
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : missing persist method.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-                }
-
-		if (!strncmp(args[1], "rdp-cookie", 10)) {
-			curproxy->options2 |= PR_O2_RDPC_PRST;
-
-	                if (*(args[1] + 10) == '(') { /* cookie name */
-				const char *beg, *end;
-
-				beg = args[1] + 11;
-				end = strchr(beg, ')');
-
-				if (!end || end == beg) {
-					ha_alert("parsing [%s:%d] : persist rdp-cookie(name)' requires an rdp cookie name.\n",
-						 file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				free(curproxy->rdp_cookie_name);
-				curproxy->rdp_cookie_name = my_strndup(beg, end - beg);
-				if (!curproxy->rdp_cookie_name)
-					goto alloc_error;
-				curproxy->rdp_cookie_len = end-beg;
-			}
-			else if (*(args[1] + 10) == '\0') { /* default cookie name 'msts' */
-				free(curproxy->rdp_cookie_name);
-				curproxy->rdp_cookie_name = strdup("msts");
-				if (!curproxy->rdp_cookie_name)
-					goto alloc_error;
-				curproxy->rdp_cookie_len = strlen(curproxy->rdp_cookie_name);
-			}
-			else { /* syntax */
-				ha_alert("parsing [%s:%d] : persist rdp-cookie(name)' requires an rdp cookie name.\n",
-					 file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-		else {
-			ha_alert("parsing [%s:%d] : unknown persist method.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
 	else if (strcmp(args[0], "capture") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -1334,54 +1281,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&rule->list);
 		LIST_APPEND(&curproxy->server_rules, &rule->list);
 		curproxy->be_req_ana |= AN_REQ_SRV_RULES;
-	}
-	else if ((strcmp(args[0], "force-persist") == 0) ||
-		 (strcmp(args[0], "ignore-persist") == 0)) {
-		struct persist_rule *rule;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (strcmp(args[1], "if") != 0 && strcmp(args[1], "unless") != 0) {
-			ha_alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
-			ha_alert("parsing [%s:%d] : error detected while parsing a '%s' rule : %s.\n",
-				 file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* note: BE_REQ_CNT is the first one after FE_SET_BCK, which is
-		 * where force-persist is applied.
-		 */
-		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_REQ_CNT, &errmsg);
-		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-
-		rule = calloc(1, sizeof(*rule));
-		if (!rule) {
-			free_acl_cond(cond);
-			goto alloc_error;
-		}
-		rule->cond = cond;
-		if (strcmp(args[0], "force-persist") == 0) {
-			rule->type = PERSIST_TYPE_FORCE;
-		} else {
-			rule->type = PERSIST_TYPE_IGNORE;
-		}
-		LIST_INIT(&rule->list);
-		LIST_APPEND(&curproxy->persist_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "stick-table") == 0) {
 		struct stktable *other;
@@ -3205,6 +3104,119 @@ static int proxy_parse_monitor(char **args, int section_type, struct proxy *curp
 	return 0;
 }
 
+/* Parses the persistence keywords "persist", "force-persist" and
+ * "ignore-persist".
+ */
+static int proxy_parse_persist(char **args, int section_type, struct proxy *curpx,
+                               const struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	if (strcmp(args[0], "persist") == 0) {  /* persist */
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "missing persist method.");
+			return -1;
+		}
+
+		if (strncmp(args[1], "rdp-cookie", 10) != 0) {
+			memprintf(err, "unknown persist method.");
+			return -1;
+		}
+
+		curpx->options2 |= PR_O2_RDPC_PRST;
+
+		if (*(args[1] + 10) == '(') { /* cookie name */
+			const char *beg, *end;
+			char *name;
+
+			beg = args[1] + 11;
+			end = strchr(beg, ')');
+
+			if (!end || end == beg) {
+				memprintf(err, "persist rdp-cookie(name)' requires an rdp cookie name.");
+				return -1;
+			}
+
+			name = my_strndup(beg, end - beg);
+			if (!name)
+				goto alloc_error;
+
+			free(curpx->rdp_cookie_name);
+			curpx->rdp_cookie_name = name;
+			curpx->rdp_cookie_len = end - beg;
+		}
+		else if (*(args[1] + 10) == '\0') { /* default cookie name 'msts' */
+			char *name = strdup("msts");
+
+			if (!name)
+				goto alloc_error;
+
+			free(curpx->rdp_cookie_name);
+			curpx->rdp_cookie_name = name;
+			curpx->rdp_cookie_len = strlen(name);
+		}
+		else { /* syntax */
+			memprintf(err, "persist rdp-cookie(name)' requires an rdp cookie name.");
+			return -1;
+		}
+	}
+	else if (strcmp(args[0], "force-persist") == 0 ||
+		 strcmp(args[0], "ignore-persist") == 0) {
+		struct persist_rule *rule;
+		struct acl_cond *cond;
+		char *errmsg = NULL;
+
+		if (curpx->cap & PR_CAP_DEF) {
+			memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+			return -1;
+		}
+
+		warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL);
+
+		if (strcmp(args[1], "if") != 0 && strcmp(args[1], "unless") != 0) {
+			memprintf(err, "'%s' requires either 'if' or 'unless' followed by a condition.", args[0]);
+			return -1;
+		}
+
+		cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args + 1, &errmsg);
+		if (!cond) {
+			memprintf(err, "error detected while parsing a '%s' rule : %s.", args[0], errmsg);
+			free(errmsg);
+			return -1;
+		}
+
+		/* note: BE_REQ_CNT is the first one after FE_SET_BCK, which is
+		 * where force-persist is applied.
+		 */
+		if (warnif_cond_conflicts(cond, SMP_VAL_BE_REQ_CNT, &errmsg))
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+		free(errmsg);
+
+		rule = calloc(1, sizeof(*rule));
+		if (!rule) {
+			free_acl_cond(cond);
+			goto alloc_error;
+		}
+
+		rule->cond = cond;
+		rule->type = (args[0][0] == 'f') ? PERSIST_TYPE_FORCE : PERSIST_TYPE_IGNORE;
+		LIST_INIT(&rule->list);
+		LIST_APPEND(&curpx->persist_rules, &rule->list);
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_persist().");
+		return -1;
+	}
+
+	return 0;
+
+ alloc_error:
+	memprintf(err, "out of memory.");
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3217,11 +3229,13 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "dynamic-cookie-key", proxy_parse_be_opts },
 	{ CFG_LISTEN, "enabled", proxy_parse_enabled },
+	{ CFG_LISTEN, "force-persist", proxy_parse_persist },
 	{ CFG_LISTEN, "fullconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "http-reuse", proxy_parse_be_opts },
 	{ CFG_LISTEN, "http-send-name-header", proxy_parse_be_opts },
 	{ CFG_LISTEN, "id", proxy_parse_id_desc },
+	{ CFG_LISTEN, "ignore-persist", proxy_parse_persist },
 	{ CFG_LISTEN, "load-server-state-from-file", proxy_parse_be_opts },
 	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
@@ -3229,6 +3243,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "monitor", proxy_parse_monitor },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "monitor-uri", proxy_parse_monitor },
+	{ CFG_LISTEN, "persist", proxy_parse_persist },
 	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "reqadd", proxy_parse_removed_kw },
