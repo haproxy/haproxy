@@ -2625,9 +2625,10 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 		if (sl->flags & HTX_SL_F_XFER_ENC)
 			h1m->flags |= H1_MF_XFER_ENC;
 	}
+
 	if (h1s->status < 200)
 		h1s->flags |= H1S_F_HAVE_O_CONN;
-	else if ((sl->flags & HTX_SL_F_BODYLESS_RESP) || h1s->status == 204 || h1s->status == 304)
+	else if (h1s->status == 204 || h1s->status == 304)
 		h1s->flags |= H1S_F_BODYLESS_RESP;
 
 	/* The chunked transfer-coding must not be used in a response to an

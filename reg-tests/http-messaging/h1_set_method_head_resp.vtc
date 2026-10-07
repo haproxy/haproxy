@@ -1,0 +1,35 @@
+varnishtest "H1 response to a GET turned into a HEAD by the configuration"
+
+# When the request method is changed from GET to HEAD, the response from the
+# server has no payload but the client expects one: the connection must be
+# closed instead of being kept alive.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.method == "HEAD"
+	txresp -nolen -hdr "Content-Length: 1234"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        http-request set-method HEAD
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+	txreq -req GET -url /
+	rxresp -no_obj
+	expect resp.status == 200
+	expect resp.http.content-length == "1234"
+	expect resp.http.connection == "close"
+	expect_close
+} -run
