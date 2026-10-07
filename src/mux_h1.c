@@ -950,6 +950,8 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	}
 	h1s->h1c = h1c;
 	h1c->h1s = h1s;
+	/* must be done here since decremented by h1s_destroy() */
+	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
 	h1s->sess = NULL;
 	h1s->sd = NULL;
 	h1s->flags = H1S_F_WANT_KAL;
@@ -1014,7 +1016,6 @@ static struct h1s *h1c_frt_stream_new(struct h1c *h1c, struct stconn *sc, struct
 	if (h1c->px->options2 & PR_O2_REQBUG_OK)
 		h1s->req.err_pos = -1;
 
-	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
 	HA_ATOMIC_INC(&h1c->px_counters->total_streams);
 
 	h1c->idle_exp = TICK_ETERNITY;
@@ -1054,7 +1055,6 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct stconn *sc, struct
 	if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 		h1s->res.err_pos = -1;
 
-	HA_ATOMIC_INC(&h1c->px_counters->open_streams);
 	HA_ATOMIC_INC(&h1c->px_counters->total_streams);
 
 	TRACE_STATE("created new H1 back stream", H1_EV_H1S_NEW, h1c->conn, h1s);
