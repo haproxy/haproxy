@@ -37,7 +37,7 @@ int cluster_secret_isset;
  */
 static const char *common_kw_list[] = {
 	"global",
-	"spread-checks", "max-spread-checks", "cpu-map",
+	"cpu-map",
 	"defaults", "listen", "frontend", "backend",
 	"peers", "resolvers",
 	NULL /* must be last */
@@ -67,57 +67,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "spread-checks") == 0) {  /* random time between checks (0-50) */
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.spread_checks != 0) {
-			ha_alert("parsing [%s:%d]: spread-checks already specified. Continuing.\n", file, linenum);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d]: '%s' expects an integer argument (0..50).\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.spread_checks = atol(args[1]);
-		if (global.spread_checks < 0 || global.spread_checks > 50) {
-			ha_alert("parsing [%s:%d]: 'spread-checks' needs a positive value in range 0..50.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-	}
-	else if (strcmp(args[0], "max-spread-checks") == 0) {  /* maximum time between first and last check */
-		const char *err;
-		unsigned int val;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d]: '%s' expects an integer argument (0..50).\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
-		if (err == PARSE_TIME_OVER) {
-			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 ms (~24.8 days).\n",
-			         file, linenum, args[1], args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (err == PARSE_TIME_UNDER) {
-			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.\n",
-			         file, linenum, args[1], args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (err) {
-			ha_alert("parsing [%s:%d]: unsupported character '%c' in '%s' (wants an integer delay).\n", file, linenum, *err, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.max_spread_checks = val;
-	}
 	else if (strcmp(args[0], "cpu-map") == 0) {
 		/* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
@@ -2024,6 +1973,65 @@ static int cfg_parse_global_state_files(char **args, int section_type, struct pr
 	return 0;
 }
 
+/* Parses the "spread-checks" and "max-spread-checks" keywords, which control
+ * the spreading of the health checks over time.
+ */
+static int cfg_parse_global_spread_checks(char **args, int section_type, struct proxy *curpx,
+                                          const struct proxy *defpx, const char *file, int line,
+                                          char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "spread-checks") == 0) {  /* random time between checks (0-50) */
+		if (global.spread_checks != 0) {
+			ha_warning("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, line, args[0]);
+			return 0;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument (0..50).", args[0]);
+			return -1;
+		}
+		global.spread_checks = atol(args[1]);
+		if (global.spread_checks < 0 || global.spread_checks > 50) {
+			memprintf(err, "'%s' needs a positive value in range 0..50.", args[0]);
+			return -1;
+		}
+	}
+	else if (strcmp(args[0], "max-spread-checks") == 0) {  /* maximum time between first and last check */
+		const char *res;
+		unsigned int val;
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument (0..50).", args[0]);
+			return -1;
+		}
+
+		res = parse_time_err(args[1], &val, TIME_UNIT_MS);
+		if (res == PARSE_TIME_OVER) {
+			memprintf(err, "timer overflow in argument <%s> to <%s>, maximum value is 2147483647 ms (~24.8 days).",
+				  args[1], args[0]);
+			return -1;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			memprintf(err, "timer underflow in argument <%s> to <%s>, minimum non-null value is 1 ms.",
+				  args[1], args[0]);
+			return -1;
+		}
+		else if (res) {
+			memprintf(err, "unsupported character '%c' in '%s' (wants an integer delay).", *res, args[0]);
+			return -1;
+		}
+		global.max_spread_checks = val;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_spread_checks().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2048,6 +2056,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "log-tag", cfg_parse_global_log_opts },
 	{ CFG_GLOBAL, "localpeer", cfg_parse_global_localpeer, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "master-worker", cfg_parse_global_master_worker, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "max-spread-checks", cfg_parse_global_spread_checks },
 	{ CFG_GLOBAL, "maxconn", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "maxconnrate", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "maxcompcpuusage", cfg_parse_global_comp_limits },
@@ -2079,6 +2088,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "set-dumpable", cfg_parse_global_set_dumpable },
 	{ CFG_GLOBAL, "shm-stats-file", cfg_parse_global_shm_stats_file },
 	{ CFG_GLOBAL, "shm-stats-file-max-objects", cfg_parse_global_shm_stats_file_max_objects },
+	{ CFG_GLOBAL, "spread-checks", cfg_parse_global_spread_checks },
 	{ CFG_GLOBAL, "ssl-server-verify", cfg_parse_global_ssl_server_verify },
 	{ CFG_GLOBAL, "stats-file", cfg_parse_global_state_files },
 	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },
