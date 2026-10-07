@@ -36,7 +36,7 @@ int cluster_secret_isset;
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"global", "external-check", "maxconn",
+	"global", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
 	"description", "node", "unix-bind", "log",
@@ -95,18 +95,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		BUG_ON(sizeof sha1_out < sizeof global.cluster_secret);
 		memcpy(global.cluster_secret, sha1_out, sizeof global.cluster_secret);
 		cluster_secret_isset = 1;
-	}
-	else if (strcmp(args[0], "external-check") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		global.external_check = 1;
-		if (strcmp(args[1], "preserve-env") == 0) {
-			global.external_check = 2;
-		} else if (*args[1]) {
-			ha_alert("parsing [%s:%d] : '%s' only supports 'preserve-env' as an argument, found '%s'.\n", file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-	                goto out;
-		}
 	}
 	else if (strcmp(args[0], "maxconn") == 0) {
 		char *stop;
@@ -1988,10 +1976,30 @@ static int cfg_parse_global_uid_gid(char **args, int section_type, struct proxy 
 	return 0;
 }
 
+/* Parses the "external-check" keyword. */
+static int cfg_parse_global_external_check(char **args, int section_type, struct proxy *curpx,
+                                           const struct proxy *defpx, const char *file, int line,
+                                           char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	global.external_check = 1;
+	if (strcmp(args[1], "preserve-env") == 0)
+		global.external_check = 2;
+	else if (*args[1]) {
+		memprintf(err, "'%s' only supports 'preserve-env' as an argument, found '%s'.", args[0], args[1]);
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode, KWF_DISCOVERY } ,
+	{ CFG_GLOBAL, "external-check", cfg_parse_global_external_check },
 	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
 	{ CFG_GLOBAL, "force-cfg-parser-pause", cfg_parse_global_parser_pause, KWF_EXPERIMENTAL },
