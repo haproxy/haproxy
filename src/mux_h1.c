@@ -773,7 +773,13 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			/* idle front connections. */
 			h1c->task->expire = (tick_isset(h1c->idle_exp) ? h1c->idle_exp : tick_add_ifset(now_ms, h1c->timeout));
 			TRACE_DEVEL("refreshing connection's timeout (idle front h1c)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
-			is_idle_conn = 1;
+			/* With "option idle-close-on-response", idle connections
+			 * must not be closed during a soft-stop, the next response
+			 * will carry a "Connection: close" instead (see
+			 * h1_process()).
+			 */
+			if (!(h1c->px->options & PR_O_IDLE_CLOSE_RESP))
+				is_idle_conn = 1;
 		}
 		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->state != H1_CS_RUNNING)) {
 			/* alive front connections waiting for a fully usable stream need a timeout. */
