@@ -7137,6 +7137,15 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 					goto fail;
 				}
 
+				/* RFC8441 only maps GET + Upgrade requests. An Extended
+				 * CONNECT is turned into a GET on the other side, so
+				 * other methods cannot be converted.
+				 */
+				if (sl->info.req.meth != HTTP_METH_GET) {
+					TRACE_STATE("cannot convert upgrade for non-GET request", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
+					goto fail;
+				}
+
 				do {
 					if (isteqi(iststop(connection_ist, ','),
 					           ist("upgrade"))) {

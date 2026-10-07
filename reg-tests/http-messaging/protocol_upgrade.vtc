@@ -215,6 +215,21 @@ client c1_h1_h2 -connect ${hap_frt_h1_h2_sock} {
 	expect resp.http.upgrade == "custom_protocol"
 } -run
 
+## connect to h1 translation frontend with a method other than GET: it
+## cannot be converted to an Extended CONNECT, which would be turned into
+## a GET by the h2 frontend, so it must be rejected without reaching srv_h1.
+client c1_h1_h2_delete -connect ${hap_frt_h1_h2_sock} {
+	txreq \
+	  -req "DELETE" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+
+	rxresp
+	expect resp.status == 502
+} -run
+
 # connect to h2 server frontend
 client c2_h2 -connect ${hap_frt_h2_sock} {
 	txpri
