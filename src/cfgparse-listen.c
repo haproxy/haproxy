@@ -43,7 +43,7 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"monitor-uri",
-	"acl", "cookie", "email-alert",
+	"cookie", "email-alert",
 	"persist", "capture",
 	"http-request", "http-response", "http-after-response",
 	"redirect", "use_backend",
@@ -648,36 +648,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto alloc_error;
 
 		goto out;
-	}
-	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
-		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err = invalid_char(args[1]);
-		if (err) {
-			ha_alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
-				 file, linenum, *err, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (strcasecmp(args[1], "or") == 0) {
-			ha_alert("parsing [%s:%d] : acl name '%s' will never match. 'or' is used to express a "
-				   "logical disjunction within a condition.\n",
-				   file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (parse_acl((const char **)args + 1, &curproxy->acl, &errmsg, &curproxy->conf.args, file, linenum) == NULL) {
-			ha_alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
-				 file, linenum, args[1], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (strcmp(args[0], "cookie") == 0) {  /* cookie name */
 		int cur_arg;
@@ -3192,7 +3162,42 @@ static int proxy_parse_id_desc(char **args, int section_type, struct proxy *curp
 	return 0;
 }
 
+/* Parses the "acl" keyword, which declares a named ACL. */
+static int proxy_parse_acl(char **args, int section_type, struct proxy *curpx,
+                           const struct proxy *defpx, const char *file, int line,
+                           char **err)
+{
+	const char *errptr;
+	char *errmsg = NULL;
+
+	if ((curpx->cap & PR_CAP_DEF) && strlen(curpx->id) == 0) {
+		memprintf(err, "'%s' not allowed in anonymous 'defaults' section.", args[0]);
+		return -1;
+	}
+
+	errptr = invalid_char(args[1]);
+	if (errptr) {
+		memprintf(err, "character '%c' is not permitted in acl name '%s'.", *errptr, args[1]);
+		return -1;
+	}
+
+	if (strcasecmp(args[1], "or") == 0) {
+		memprintf(err, "acl name '%s' will never match. 'or' is used to express a "
+			  "logical disjunction within a condition.", args[1]);
+		return -1;
+	}
+
+	if (parse_acl((const char **)args + 1, &curpx->acl, &errmsg, &curpx->conf.args, file, line) == NULL) {
+		memprintf(err, "error detected while parsing ACL '%s' : %s.", args[1], errmsg);
+		free(errmsg);
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
