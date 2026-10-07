@@ -44,13 +44,13 @@ static const char *common_kw_list[] = {
 	"default-server", "server-template", "bind",
 	"monitor-uri", "mode", "id", "description", "disabled", "enabled",
 	"acl", "dynamic-cookie-key", "cookie", "email-alert",
-	"persist", "appsession", "load-server-state-from-file",
+	"persist", "load-server-state-from-file",
 	"server-state-file-name", "max-session-srv-conns", "capture",
 	"retries", "http-request", "http-response", "http-after-response",
-	"http-send-name-header", "block", "redirect", "use_backend",
+	"http-send-name-header", "redirect", "use_backend",
 	"use-server", "force-persist", "ignore-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
-	"http-reuse", "monitor", "transparent", "maxconn", "backlog",
+	"http-reuse", "monitor", "maxconn", "backlog",
 	"fullconn", "balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
@@ -780,10 +780,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		curproxy->flags &= ~PR_FL_DISABLED;
 	}
-	else if (strcmp(args[0], "bind-process") == 0) {  /* enable this proxy only on some processes */
-		ha_alert("parsing [%s:%d]: '%s' is not supported anymore.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
 		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
@@ -1172,11 +1168,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (strcmp(args[0], "appsession") == 0) {  /* cookie name */
-		ha_alert("parsing [%s:%d] : '%s' is not supported anymore since HAProxy 1.6.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else if (strcmp(args[0], "load-server-state-from-file") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -1486,12 +1477,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (!isttest(curproxy->server_id_hdr_name))
 			goto alloc_error;
 		ist2bin_lc(istptr(curproxy->server_id_hdr_name), curproxy->server_id_hdr_name);
-	}
-	else if (strcmp(args[0], "block") == 0) {
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. Use 'http-request deny' which uses the exact same syntax.\n", file, linenum, args[0]);
-
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
 	}
 	else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *rule;
@@ -2546,12 +2531,6 @@ stats_error_parsing:
 		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (strcmp(args[0], "redispatch") == 0 || strcmp(args[0], "redisp") == 0) {
-		ha_alert("parsing [%s:%d] : keyword '%s' directive is not supported anymore since HAProxy 2.1. Use 'option redispatch'.\n", file, linenum, args[0]);
-
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else if (strcmp(args[0], "http-reuse") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -2624,13 +2603,6 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (strcmp(args[0], "transparent") == 0) {
-		ha_alert("parsing [%s:%d]: support for '%s' was removed in version 3.5. "
-		         "The modern way to do the same is to create a server with address 0.0.0.0.\n",
-		         file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
 			err_code |= ERR_WARN;
@@ -2669,12 +2641,6 @@ stats_error_parsing:
 		curproxy->fullconn = atol(args[1]);
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-	}
-	else if (strcmp(args[0], "grace") == 0) {  /* grace time (ms) */
-		ha_alert("parsing [%s:%d]: the '%s' keyword is not supported any more since HAProxy version 2.5.\n",
-			   file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
 	}
 	else if (strcmp(args[0], "balance") == 0) {  /* set balancing with optional algorithm */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -3086,125 +3052,6 @@ stats_error_parsing:
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (strcmp(args[0], "cliexp") == 0 || strcmp(args[0], "reqrep") == 0) {  /* replace request header from a regex */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request replace-path', 'http-request replace-uri' or 'http-request replace-header' instead.\n",
-			 file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqdel") == 0) {  /* delete request header from a regex */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request del-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqdeny") == 0) {  /* deny a request if a header matches this regex */
-		ha_alert("parsing [%s:%d] : The '%s' not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request deny' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqpass") == 0) {  /* pass this header without allowing or denying the request */
-		ha_alert("parsing [%s:%d] : The '%s' not supported anymore since HAProxy 2.1.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqallow") == 0) {  /* allow a request if a header matches this regex */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request allow' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqtarpit") == 0) {  /* tarpit a request if a header matches this regex */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request tarpit' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqirep") == 0) {  /* replace request header from a regex, ignoring case */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request replace-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqidel") == 0) {  /* delete request header from a regex ignoring case */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request del-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqideny") == 0) {  /* deny a request if a header matches this regex ignoring case */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request deny' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqipass") == 0) {  /* pass this header without allowing or denying the request */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqiallow") == 0) {  /* allow a request if a header matches this regex ignoring case */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request allow' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqitarpit") == 0) {  /* tarpit a request if a header matches this regex ignoring case */
-		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			 "Use 'http-request tarpit' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "reqadd") == 0) {  /* add request header */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-request add-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "srvexp") == 0 || strcmp(args[0], "rsprep") == 0) {  /* replace response header from a regex */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-response replace-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "rspdel") == 0) {  /* delete response header from a regex */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-response del-header' .\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "rspdeny") == 0) {  /* block response header from a regex */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-response deny' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "rspirep") == 0) {  /* replace response header from a regex ignoring case */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-response replace-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "rspidel") == 0) {  /* delete response header from a regex ignoring case */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-response del-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "rspideny") == 0) {  /* block response header from a regex ignoring case */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-response deny' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-	else if (strcmp(args[0], "rspadd") == 0) {  /* add response header */
-	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
-			"Use 'http-response add-header' instead.\n", file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else {
 		struct cfg_kw_list *kwl;
 		const char *best;
@@ -3258,6 +3105,48 @@ stats_error_parsing:
 	goto out;
 }
 
+/* Keywords which are not supported anymore. They are still parsed so that a
+ * helpful message can be emitted, pointing at the modern equivalent when there
+ * is one. The message is built as "the '<kw>' keyword is not supported anymore
+ * [since HAProxy <ver>]." optionally followed by <hint>.
+ */
+static const struct {
+	const char *kw;
+	const char *ver;
+	const char *hint;
+} removed_kw_list[] = {
+	{ "appsession",   "1.6", NULL },
+	{ "bind-process", "2.7", NULL },
+	{ "block",        "2.1", "Use 'http-request deny' which uses the exact same syntax." },
+	{ "cliexp",       "2.1", "Use 'http-request replace-path', 'http-request replace-uri' or 'http-request replace-header' instead." },
+	{ "grace",        "2.5", NULL },
+	{ "redisp",       "2.1", "Use 'option redispatch'." },
+	{ "redispatch",   "2.1", "Use 'option redispatch'." },
+	{ "reqadd",       "2.1", "Use 'http-request add-header' instead." },
+	{ "reqallow",     "2.1", "Use 'http-request allow' instead." },
+	{ "reqdel",       "2.1", "Use 'http-request del-header' instead." },
+	{ "reqdeny",      "2.1", "Use 'http-request deny' instead." },
+	{ "reqiallow",    "2.1", "Use 'http-request allow' instead." },
+	{ "reqidel",      "2.1", "Use 'http-request del-header' instead." },
+	{ "reqideny",     "2.1", "Use 'http-request deny' instead." },
+	{ "reqipass",     "2.1", NULL },
+	{ "reqirep",      "2.1", "Use 'http-request replace-header' instead." },
+	{ "reqitarpit",   "2.1", "Use 'http-request tarpit' instead." },
+	{ "reqpass",      "2.1", NULL },
+	{ "reqrep",       "2.1", "Use 'http-request replace-path', 'http-request replace-uri' or 'http-request replace-header' instead." },
+	{ "reqtarpit",    "2.1", "Use 'http-request tarpit' instead." },
+	{ "rspadd",       "2.1", "Use 'http-response add-header' instead." },
+	{ "rspdel",       "2.1", "Use 'http-response del-header' instead." },
+	{ "rspdeny",      "2.1", "Use 'http-response deny' instead." },
+	{ "rspidel",      "2.1", "Use 'http-response del-header' instead." },
+	{ "rspideny",     "2.1", "Use 'http-response deny' instead." },
+	{ "rspirep",      "2.1", "Use 'http-response replace-header' instead." },
+	{ "rsprep",       "2.1", "Use 'http-response replace-header' instead." },
+	{ "srvexp",       "2.1", "Use 'http-response replace-header' instead." },
+	{ "transparent",  "3.5", "The modern way to do the same is to create a server with address 0.0.0.0." },
+	{ NULL, NULL, NULL } /* must be last */
+};
+
 /* Parses the proxy keywords which are not supported anymore, and only reports
  * what to use instead.
  */
@@ -3285,13 +3174,58 @@ static int proxy_parse_removed_kw(char **args, int section_type, struct proxy *c
 		return -1;
 	}
 
+	for (i = 0; removed_kw_list[i].kw; i++) {
+		if (strcmp(args[0], removed_kw_list[i].kw) != 0)
+			continue;
+
+		if (removed_kw_list[i].ver)
+			memprintf(err, "the '%s' keyword is not supported anymore since HAProxy %s.",
+				  args[0], removed_kw_list[i].ver);
+		else
+			memprintf(err, "the '%s' keyword is not supported anymore.", args[0]);
+
+		if (removed_kw_list[i].hint)
+			memprintf(err, "%s %s", *err, removed_kw_list[i].hint);
+
+		return -1;
+	}
+
 	BUG_ON(1, "unhandled keyword in proxy_parse_removed_kw().");
 	return -1;
 }
 
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "redispatch", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqadd", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqallow", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqdel", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqdeny", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqiallow", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqidel", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqideny", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqipass", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqirep", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqitarpit", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqpass", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqrep", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "reqtarpit", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "rspadd", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "rspdel", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "rspdeny", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "rspidel", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "rspideny", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "rspirep", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "rsprep", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
 	{ 0, NULL, NULL },
 }};
 
