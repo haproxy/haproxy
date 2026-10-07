@@ -1,0 +1,36 @@
+varnishtest "H1 errors must be sent even when a content-length was parsed"
+
+# A request rejected after a non-null content-length was parsed must still
+# receive its error response instead of a silent close.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request return status 200
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	send "POST / HTTP/1.1\r\nHost: a\r\nContent-Length: 5\r\nFoo : x\r\n\r\nhello"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+	send "POST / HTTP/1.1\r\nHost: a\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nhello"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c3 -connect ${h1_fe1_sock} {
+	send "GET / HTTP/1.0\r\nHost: a\r\nContent-Length: 5\r\n\r\nhello"
+	rxresp
+	expect resp.status == 413
+} -run

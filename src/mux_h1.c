@@ -3886,6 +3886,13 @@ static int h1_send_error(struct h1c *h1c)
 	if (h1c->state == H1_CS_EMBRYONIC) {
 		BUG_ON(h1c->h1s == NULL || h1s_sc(h1c->h1s) != NULL);
 		TRACE_DEVEL("Abort embryonic H1S", H1_EV_H1C_ERR, h1c->conn, h1c->h1s);
+		/* The request was never forwarded, so a content-length
+		 * that may have been parsed must not be considered as a
+		 * truncated payload by h1s_destroy(), otherwise the
+		 * connection is put in error and the error message is
+		 * never sent.
+		 */
+		h1c->h1s->req.curr_len = h1c->h1s->res.curr_len = 0;
 		h1s_destroy(h1c->h1s);
 	}
 
