@@ -2630,6 +2630,16 @@ static size_t h1_make_stline(struct h1s *h1s, struct h1m *h1m, struct htx *htx, 
 	else if ((sl->flags & HTX_SL_F_BODYLESS_RESP) || h1s->status == 204 || h1s->status == 304)
 		h1s->flags |= H1S_F_BODYLESS_RESP;
 
+	/* The chunked transfer-coding must not be used in a response to an
+	 * HTTP/1.0 request (RFC9112#6.1).
+	 */
+	if (!(h1s->req.flags & H1_MF_VER_11) && h1s->status >= 200 && !(h1m->flags & H1_MF_CLEN)) {
+		if (h1s->flags & H1S_F_BODYLESS_RESP)
+			h1m->flags &= ~(H1_MF_XFER_ENC|H1_MF_CHNK);
+		else
+			h1m->flags &= ~(H1_MF_XFER_LEN|H1_MF_XFER_ENC|H1_MF_CHNK);
+	}
+
 	h1m->state = H1_MSG_HDR_NAME;
 	ret += sz;
 	htx_remove_blk(htx, blk);

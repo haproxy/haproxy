@@ -1,0 +1,76 @@
+varnishtest "No chunked responses to HTTP/1.0 clients"
+
+# The chunked transfer-coding must not be used in responses to HTTP/1.0
+# requests. Responses without content-length are sent close-delimited
+# instead, while HTTP/1.1 clients still get chunked responses.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.proto == "HTTP/1.0"
+	txresp -nolen -hdr "Transfer-Encoding: chunked"
+	chunkedlen 5
+	chunkedlen 7
+	chunkedlen 0
+} -start
+
+server s3 {
+	rxreq
+	expect req.method == "HEAD"
+	txresp -nolen -hdr "Transfer-Encoding: chunked"
+} -start
+
+server s2 {
+	rxreq
+	expect req.proto == "HTTP/1.1"
+	txresp -nolen -hdr "Transfer-Encoding: chunked"
+	chunkedlen 5
+	chunkedlen 7
+	chunkedlen 0
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        server s1 ${s1_addr}:${s1_port}
+
+    listen li3
+        bind "fd@${li3}"
+        server s3 ${s3_addr}:${s3_port}
+
+    listen li2
+        bind "fd@${li2}"
+        server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+	txreq -req GET -url / -proto HTTP/1.0 -hdr "Connection: keep-alive"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.transfer-encoding == "<undef>"
+	expect resp.http.connection == "close"
+	expect resp.bodylen == 12
+	expect_close
+} -run
+
+client c2 -connect ${h1_li2_sock} {
+	txreq -req GET -url /
+	rxresp
+	expect resp.status == 200
+	expect resp.http.transfer-encoding == "chunked"
+	expect resp.bodylen == 12
+} -run
+
+client c3 -connect ${h1_li3_sock} {
+	txreq -req HEAD -url / -proto HTTP/1.0 -hdr "Connection: keep-alive"
+	rxresp -no_obj
+	expect resp.status == 200
+	expect resp.http.transfer-encoding == "<undef>"
+} -run
