@@ -1199,10 +1199,30 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				}
 				else { /* Scheme found:  MUST be an absolute-URI */
 					struct ist host = IST_NULL;
+					struct ist uri_host = authority;
+					struct ist uri_port = http_get_host_port(authority);
 
 					if (sl.rq.meth == HTTP_METH_CONNECT) {
 						ptr = sl.rq.u.ptr; /* Set ptr on the error */
 						goto http_msg_invalid;
+					}
+
+					/* RFC9110#4.2.1/4.2.2: an http(s) URI with an
+					 * empty host is invalid. Otherwise the target
+					 * seen by the rules (no host) would differ from
+					 * the one some servers would find in the URI.
+					 */
+					if (isttest(uri_port))
+						uri_host.len -= istlen(uri_port) + 1;
+					if (!istlen(uri_host) &&
+					    (isteqi(scheme, ist("http://")) || isteqi(scheme, ist("https://")))) {
+						if (h1m->err_pos < -1) {
+							state = H1_MSG_LAST_LF;
+							ptr = sl.rq.u.ptr; /* Set ptr on the error */
+							goto http_msg_invalid;
+						}
+						if (h1m->err_pos == -1) /* capture the error pointer */
+							h1m->err_pos = sl.rq.u.ptr - start + skip; /* >= 0 now */
 					}
 
 					if (host_idx != -1)

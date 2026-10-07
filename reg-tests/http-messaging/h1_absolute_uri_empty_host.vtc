@@ -1,0 +1,43 @@
+varnishtest "H1 absolute-form http(s) URIs with an empty host"
+
+# http and https URIs with an empty host are invalid (RFC9110#4.2.1) and
+# must be rejected, otherwise rules see no host while some servers would
+# find one in the forwarded URI.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request return status 200
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	txreq -url "http:///admin.internal/x" -nohost
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+	txreq -url "http://:8080/x" -nohost
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c3 -connect ${h1_fe1_sock} {
+	txreq -url "https://@/x" -nohost
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c4 -connect ${h1_fe1_sock} {
+	txreq -url "http://www.example.com:8080/x" -nohost
+	rxresp
+	expect resp.status == 200
+} -run

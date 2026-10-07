@@ -10445,7 +10445,13 @@ no option accept-unsafe-violations-in-http-request
       requests;
 
     * In H1 only, no check will be performed against the authority and the Host
-      header value.
+      header value;
+
+    * In H1 only, when a request has no Host header, a Host header is built
+      from the authority of its target (the request-target itself for CONNECT
+      requests). But it is not added when the authority contains characters
+      forbidden in the Host header or, for CONNECT requests, when the
+      authority is invalid.
 
     * In H1 only, tests on the HTTP version will be relaxed. It will allow
       HTTP/0.9 GET requests to pass through (no version specified), as well as

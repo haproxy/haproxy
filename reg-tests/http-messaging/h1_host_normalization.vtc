@@ -175,22 +175,22 @@ syslog S1 -level info {
 
     # C32
     recv
-    expect ~ "^.* uri: GET http:/// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: <BADREQ>; host: $"
     barrier b1 sync
 
     # C33
     recv
-    expect ~ "^.* uri: GET https:/// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: <BADREQ>; host: $"
     barrier b1 sync
 
     # C34
     recv
-    expect ~ "^.* uri: GET http:/// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: <BADREQ>; host: $"
     barrier b1 sync
 
     # C35
     recv
-    expect ~ "^.* uri: GET https:/// HTTP/1.1; host: {}$"
+    expect ~ "^.* uri: <BADREQ>; host: $"
     barrier b1 sync
 
     # C36
@@ -769,7 +769,7 @@ client c32 -connect ${h1_fe_sock} {
       -hdr "host: :80"
 
     rxresp
-    expect resp.status == 200
+    expect resp.status == 400
 } -run
 
 # Wait matching on log message
@@ -783,7 +783,7 @@ client c33 -connect ${h1_fe_sock} {
       -hdr "host: :443"
 
     rxresp
-    expect resp.status == 200
+    expect resp.status == 400
 } -run
 
 # Wait matching on log message
@@ -797,7 +797,7 @@ client c34 -connect ${h1_fe_sock} {
       -hdr "host: :"
 
     rxresp
-    expect resp.status == 200
+    expect resp.status == 400
 } -run
 
 # Wait matching on log message
@@ -811,7 +811,7 @@ client c35 -connect ${h1_fe_sock} {
       -hdr "host: :"
 
     rxresp
-    expect resp.status == 200
+    expect resp.status == 400
 } -run
 
 # Wait matching on log message
