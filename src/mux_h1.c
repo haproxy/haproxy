@@ -1094,7 +1094,7 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1_release_buf(h1c, &h1s->rxbuf);
 
-		h1c->flags &= ~(H1C_F_WANT_FASTFWD|
+		h1c->flags &= ~(H1C_F_WANT_FASTFWD|H1C_F_CANT_FASTFWD|
 				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_OUT_MAYALLOC|
 				H1C_F_IN_SALLOC|H1C_F_IN_SMAYALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
