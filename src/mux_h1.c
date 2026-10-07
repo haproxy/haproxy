@@ -3620,11 +3620,11 @@ static size_t h1_make_chunk(struct h1s *h1s, struct h1m * h1m, size_t len)
 		b_slow_realign(&h1c->obuf, trash.area, b_data(&h1c->obuf));
 	outbuf = b_make(b_tail(&h1c->obuf), b_contig_space(&h1c->obuf), 0, 0);
 
-	if (h1m->state == H1_MSG_CHUNK_CRLF) {
-		if (!chunk_memcat(&outbuf, "\r\n", 2))
-			goto full;
-		h1m->state = H1_MSG_CHUNK_SIZE;
-	}
+	/* Note: <outbuf> is only committed on success, so the message state
+	 * must not change before.
+	 */
+	if (h1m->state == H1_MSG_CHUNK_CRLF && !chunk_memcat(&outbuf, "\r\n", 2))
+		goto full;
 	if (!h1_append_chunk_size(&outbuf, len))
 		goto full;
 
