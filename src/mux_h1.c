@@ -4402,8 +4402,11 @@ static int h1_process(struct h1c * h1c)
 	 */
 	if (!(h1c->flags & H1C_F_IS_BACK)) {
 		if (unlikely(h1c->px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
+			/* Note: an idle connection may still have the end of
+			 * the previous response to send.
+			 */
 			if (!(h1c->px->options & PR_O_IDLE_CLOSE_RESP) &&
-				h1c->flags & H1C_F_WAIT_NEXT_REQ) {
+			    (h1c->flags & H1C_F_WAIT_NEXT_REQ) && !b_data(&h1c->obuf)) {
 
 				int send_close = 1;
 				/* If a close-spread-time option is set, we want to avoid
