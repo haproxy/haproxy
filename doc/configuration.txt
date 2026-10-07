@@ -121,11 +121,12 @@ Summary
 9.    Supported filters
 9.1.      Trace
 9.2.      HTTP compression
-9.3.      Stream Processing Offload Engine (SPOE)
-9.4.      Cache
-9.5.      fcgi-app
-9.6.      OpenTracing
-9.7.      Bandwidth limitation
+9.3.      Decompression
+9.4.      Stream Processing Offload Engine (SPOE)
+9.5.      Cache
+9.6.      fcgi-app
+9.7.      OpenTracing
+9.8.      Bandwidth limitation
 
 10.   FastCGI applications
 10.1.     Setup
@@ -16980,7 +16981,7 @@ set-bandwidth-limit <name> [limit {<expr> | <size>}] [period {<expr> | <time>}]
     http-request set-bandwidth-limit global-limit
     http-request set-bandwidth-limit my-limit limit 1m period 10s
 
-  See section 9.7 about bandwidth limitation filter setup.
+  See section 9.8 about bandwidth limitation filter setup.
 
 
 set-bc-mark { <mark> | <expr> }
@@ -31571,30 +31572,17 @@ filter-config trace id <name> [enabled] [quiet] [random-parsing]
 ---------------------
 
 filter comp-req
-
-Enables filter that explicitly tries to compress HTTP requests according to
-"compression" settings. Implicitly sets "compression direction request".
+  Enables filter that explicitly tries to compress HTTP requests according to
+  "compression" settings. Implicitly sets "compression direction request".
 
 filter comp-res
-
-Enables filter that explicitly tries to compress HTTP responses according to
-"compression" settings. Implicitly sets "compression direction response"
+  Enables filter that explicitly tries to compress HTTP responses according to
+  "compression" settings. Implicitly sets "compression direction response"
 
 filter compression (deprecated)
-
-Alias for backward compatibility purposes that is functionally equivalent to
-enabling both "comp-req" and "comp-res" filter. "compression" keyword must be
-used to configure appropriate behavior:
-
-The HTTP compression has been moved in a filter in HAProxy 1.7. "compression"
-keyword must still be used to enable and configure the HTTP compression. And
-when no other filter is used, it is enough. When used with the cache or the
-fcgi-app enabled, it is also enough. In this case, the compression is always
-done after the response is stored in the cache. But it is mandatory to
-explicitly use a filter line to enable the HTTP compression when at least one
-filter other than the cache or the fcgi-app is used for the same
-listener/frontend/backend. This is important to know the filters evaluation
-order.
+  Alias for backward compatibility purposes that is functionally equivalent to
+  enabling both "comp-req" and "comp-res" filter. "compression" keyword must be
+  used to configure appropriate behavior:
 
 filter-config http-comp-req
 filter-config http-comp-res
@@ -31611,26 +31599,38 @@ filter-config http-comp-res
   other ones is defined by the class placement and can be adjusted with the
   "filter-sequence" directive.
 
-See also : "compression", section 9.4 about the cache filter and section 9.5
+The HTTP compression has been moved in a filter in HAProxy 1.7. "compression"
+keyword must still be used to enable and configure the HTTP compression. And
+when no other filter is used, it is enough. When used with the cache or the
+fcgi-app enabled, it is also enough. In this case, the compression is always
+done after the response is stored in the cache. But it is mandatory to
+explicitly use a filter line to enable the HTTP compression when at least one
+filter other than the cache or the fcgi-app is used for the same
+listener/frontend/backend. This is important to know the filters evaluation
+order.
+
+See also : "compression", section 9.5 about the cache filter and section 9.6
            about the fcgi-app filter.
 
-filter decomp-req
 
-Enables filter that explicitly tries to decompress requests according to
-"decompression" settings (setting algo is mandatory). It is only allowed on
-proxies with frontend capability. It supports both TCP and HTTP compressed
-streams. The filter runs during the stream forwarding phase, thus it will not
-be possible to perform TCP/HTTP rules on the decompressed stream (ie: req.body
-won't work).
+9.3. Decompression
+---------------------
+
+filter decomp-req
+  Enables filter that explicitly tries to decompress requests according to
+  "decompression" settings (setting algo is mandatory). It is only allowed on
+  proxies with frontend capability. It supports both TCP and HTTP compressed
+  streams. The filter runs during the stream forwarding phase, thus it will not
+  be possible to perform TCP/HTTP rules on the decompressed stream (ie:
+  req.body won't work).
 
 filter decomp-res
-
-Enables filter that explicitly tries to decompress responses according to
-"decompression" settings (setting algo is mandatory). It is only allowed on
-proxies with backend capability. It supports both TCP and HTTP compressed
-streams. The filter runs during the stream forwarding phase, thus it will not
-be possible to perform TCP/HTTP rules on the decompressed stream (ie: res.body
-won't work).
+  Enables filter that explicitly tries to decompress responses according to
+  "decompression" settings (setting algo is mandatory). It is only allowed on
+  proxies with backend capability. It supports both TCP and HTTP compressed
+  streams. The filter runs during the stream forwarding phase, thus it will not
+  be possible to perform TCP/HTTP rules on the decompressed stream (ie:
+  res.body won't work).
 
 filter-config decomp-req
   Explicitly declare the request decompression filter with the new mode. This
@@ -31643,10 +31643,11 @@ filter-config decomp-res
   decomp-res", it is configured with the "decompression" directives.
 
 
-9.3. Stream Processing Offload Engine (SPOE)
+9.4. Stream Processing Offload Engine (SPOE)
 --------------------------------------------
 
 filter spoe [engine <name>] config <file>
+  Enables the SPOE filter
 
   Arguments :
 
@@ -31657,6 +31658,13 @@ filter spoe [engine <name>] config <file>
     <file>      is the path of the engine configuration file. This file can
                 contain configuration of several engines. In this case, each
                 part must be placed in its own scope.
+
+filter-config spoe id <id> [enabled] [engine <name>] config <file>
+  Declare a SPOE filter with the new mode. The instance id is mandatory, as
+  the class allows several instances in the same proxy, but it is only used by
+  the "filter-enable", "filter-disable" and "filter-sequence" directives.
+  The "engine" and "config" parameters are the same as for the legacy
+  syntax.
 
 The Stream Processing Offload Engine (SPOE) is a filter communicating with
 external components. It allows the offload of some specifics processing on the
@@ -31673,34 +31681,29 @@ of this "SPOE" stream. It means it is possible to retrieve variables of the
 main stream from the "SPOE" stream. See section 2.8 about variables for
 details.
 
-filter-config spoe id <id> [enabled] [engine <name>] config <file>
-  Declare a SPOE filter with the new mode. The instance id is mandatory, as
-  the class allows several instances in the same proxy, but it is only used by
-  the "filter-enable", "filter-disable" and "filter-sequence" directives.
-  The "engine" and "config" parameters are the same as for the legacy
-  syntax.
-
 For all information about the SPOE configuration and the SPOP specification, see
 "doc/SPOE.txt".
 
-9.4. Cache
+
+9.5. Cache
 ----------
 
 filter cache <name>
+  Enables the cache filter
 
   Arguments :
 
     <name>      is name of the cache section this filter will use.
 
-The cache uses a filter to store cacheable responses. The HTTP rules
-"cache-store" and "cache-use" must be used to define how and when to use a
-cache. By default the corresponding filter is implicitly defined. And when no
-other filters than fcgi-app or compression are used, it is enough. In such
-case, the compression filter is always evaluated after the cache filter. But it
-is mandatory to explicitly use a filter line to use a cache when at least one
-filter other than the compression or the fcgi-app is used for the same
-listener/frontend/backend. This is important to know the filters evaluation
-order.
+  The cache uses a filter to store cacheable responses. The HTTP rules
+  "cache-store" and "cache-use" must be used to define how and when to use a
+  cache. By default the corresponding filter is implicitly defined. And when no
+  other filters than fcgi-app or compression are used, it is enough. In such
+  case, the compression filter is always evaluated after the cache filter. But
+  it is mandatory to explicitly use a filter line to use a cache when at least
+  one filter other than the compression or the fcgi-app is used for the same
+  listener/frontend/backend. This is important to know the filters evaluation
+  order.
 
 filter-config cache-store id <name> [enabled]
   Declare a cache filter with the new mode. The instance id is mandatory and
@@ -31710,28 +31713,28 @@ filter-config cache-store id <name> [enabled]
   "cache-store" and "cache-use" rules when needed, and its evaluation order
   can be adjusted with the "filter-sequence" directive.
 
-See also : section 9.2 about the compression filter, section 9.5 about the
+See also : section 9.2 about the compression filter, section 9.6 about the
            fcgi-app filter and section 6 about cache.
 
 
-9.5. Fcgi-app
+9.6. Fcgi-app
 -------------
 
 filter fcgi-app <name>
-
+  Enables the fcgi filter
   Arguments :
 
     <name>      is name of the fcgi-app section this filter will use.
 
-The FastCGI application uses a filter to evaluate all custom parameters on the
-request path, and to process the headers on the response path. the <name> must
-reference an existing fcgi-app section. The directive "use-fcgi-app" should be
-used to define the application to use. By default the corresponding filter is
-implicitly defined. And when no other filters than cache or compression are
-used, it is enough. But it is mandatory to explicitly use a filter line to a
-fcgi-app when at least one filter other than the compression or the cache is
-used for the same backend. This is important to know the filters evaluation
-order.
+  The FastCGI application uses a filter to evaluate all custom parameters on
+  the request path, and to process the headers on the response path. the <name>
+  must reference an existing fcgi-app section. The directive "use-fcgi-app"
+  should be used to define the application to use. By default the corresponding
+  filter is implicitly defined. And when no other filters than cache or
+  compression are used, it is enough. But it is mandatory to explicitly use a
+  filter line to a fcgi-app when at least one filter other than the compression
+  or the cache is used for the same backend. This is important to know the
+  filters evaluation order.
 
 filter-config fcgi id <name> [enabled]
   Declare a fcgi-app filter with the new mode. The instance id is mandatory
@@ -31741,11 +31744,11 @@ filter-config fcgi id <name> [enabled]
   "use-fcgi-app" when needed, and its evaluation order can be adjusted with
   the "filter-sequence" directive.
 
-See also: "use-fcgi-app", section 9.2 about the compression filter, section 9.4
+See also: "use-fcgi-app", section 9.2 about the compression filter, section 9.5
           about the cache filter and section 10 about FastCGI application.
 
 
-9.6. OpenTracing
+9.7. OpenTracing
 ----------------
 
 The OpenTracing filter was removed in version 3.5. A replacement filter based
@@ -31755,7 +31758,7 @@ currently at:
           https://github.com/haproxytech/haproxy-opentelemetry/
 
 
-9.7. Bandwidth limitation
+9.8. Bandwidth limitation
 --------------------------
 
 filter bwlim-in  <name> default-limit <size> default-period <time> [min-size <sz>]
@@ -32716,7 +32719,7 @@ Example:
       stick-table type ip size 1m expire 5m store gpc0,conn_rate(30s)
 
 See also : "stick match", "stick on", "stick store-request", "track-sc",
-           section 2.5 about time format, section 11.2 about peers, section 9.7
+           section 2.5 about time format, section 11.2 about peers, section 9.8
            about bandwidth limitations, and section 7 about ACLs.
 
 
