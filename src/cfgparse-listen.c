@@ -42,7 +42,7 @@
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
-	"monitor-uri", "id", "description",
+	"monitor-uri",
 	"acl", "cookie", "email-alert",
 	"persist", "capture",
 	"http-request", "http-response", "http-after-response",
@@ -648,77 +648,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto alloc_error;
 
 		goto out;
-	}
-	else if (strcmp(args[0], "id") == 0) {
-		struct proxy *conflict;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		curproxy->uuid = atol(args[1]);
-		curproxy->options |= PR_O_FORCED_ID;
-
-		if (curproxy->uuid <= 0) {
-			ha_alert("parsing [%s:%d]: custom id has to be > 0.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		conflict = proxy_find_by_id(curproxy->uuid, 0, 0);
-		if (conflict) {
-			ha_alert("parsing [%s:%d]: %s %s reuses same custom id as %s %s (declared at %s:%d).\n",
-				 file, linenum, proxy_type_str(curproxy), curproxy->id,
-				 proxy_type_str(conflict), conflict->id, conflict->conf.file, conflict->conf.line);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		proxy_index_id(curproxy);
-	}
-	else if (strcmp(args[0], "description") == 0) {
-		int i, len=0;
-		char *d;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d]: '%s' expects a string argument.\n",
-				 file, linenum, args[0]);
-			return -1;
-		}
-
-		for (i = 1; *args[i]; i++)
-			len += strlen(args[i]) + 1;
-
-		d = calloc(1, len);
-		if (!d)
-			goto alloc_error;
-		ha_free(&curproxy->desc);
-		curproxy->desc = d;
-
-		d += snprintf(d, curproxy->desc + len - d, "%s", args[1]);
-		for (i = 2; *args[i]; i++)
-			d += snprintf(d, curproxy->desc + len - d, " %s", args[i]);
-
 	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
 		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
@@ -3188,12 +3117,88 @@ static int proxy_parse_mode(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+/* Parses the "id" and "description" keywords, which respectively assign a
+ * numeric identifier and a description to this proxy. Neither is permitted in
+ * a defaults section.
+ */
+static int proxy_parse_id_desc(char **args, int section_type, struct proxy *curpx,
+                               const struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+		return -1;
+	}
+
+	if (strcmp(args[0], "id") == 0) {
+		struct proxy *conflict;
+
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		if (!*args[1]) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+
+		curpx->uuid = atol(args[1]);
+		curpx->options |= PR_O_FORCED_ID;
+
+		if (curpx->uuid <= 0) {
+			memprintf(err, "custom id has to be > 0.");
+			return -1;
+		}
+
+		conflict = proxy_find_by_id(curpx->uuid, 0, 0);
+		if (conflict) {
+			memprintf(err, "%s %s reuses same custom id as %s %s (declared at %s:%d).",
+				  proxy_type_str(curpx), curpx->id,
+				  proxy_type_str(conflict), conflict->id,
+				  conflict->conf.file, conflict->conf.line);
+			return -1;
+		}
+		proxy_index_id(curpx);
+	}
+	else if (strcmp(args[0], "description") == 0) {
+		int i, len = 0;
+		char *d;
+
+		if (!*args[1]) {
+			memprintf(err, "'%s' expects a string argument.", args[0]);
+			return -1;
+		}
+
+		for (i = 1; *args[i]; i++)
+			len += strlen(args[i]) + 1;
+
+		d = calloc(1, len);
+		if (!d) {
+			memprintf(err, "out of memory.");
+			return -1;
+		}
+
+		ha_free(&curpx->desc);
+		curpx->desc = d;
+
+		d += snprintf(d, curpx->desc + len - d, "%s", args[1]);
+		for (i = 2; *args[i]; i++)
+			d += snprintf(d, curpx->desc + len - d, " %s", args[i]);
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_id_desc().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "description", proxy_parse_id_desc },
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "dynamic-cookie-key", proxy_parse_be_opts },
@@ -3202,6 +3207,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "http-reuse", proxy_parse_be_opts },
 	{ CFG_LISTEN, "http-send-name-header", proxy_parse_be_opts },
+	{ CFG_LISTEN, "id", proxy_parse_id_desc },
 	{ CFG_LISTEN, "load-server-state-from-file", proxy_parse_be_opts },
 	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
