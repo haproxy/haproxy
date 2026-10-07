@@ -4375,8 +4375,19 @@ static int h1_process(struct h1c * h1c)
 		BUG_ON(!h1c->h1s);
 		if (se_fl_test(h1c->h1s->sd, SE_FL_EOI)) {
 			if (h1s_must_shut_conn(h1c->h1s)) {
-				h1_shutw_conn(conn);
-				goto release;
+				/* The H1 stream is no longer needed but the
+				 * end of the response may still be pending
+				 * in the output buffer. In this case, wait
+				 * for it to be sent, h1_send() will perform
+				 * the shutdown.
+				 */
+				h1_close(h1c);
+				h1s_destroy(h1c->h1s);
+				if (!b_data(&h1c->obuf)) {
+					h1_shutw_conn(conn);
+					goto release;
+				}
+				goto end;
 			}
 			if (h1s_finish_detach(h1c->h1s) == -1)
 				goto released;
