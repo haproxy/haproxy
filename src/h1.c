@@ -448,7 +448,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 	if (h1m->flags & H1_MF_HDRS_ONLY) {
 		state = H1_MSG_HDR_FIRST;
-		h1m->next = 0;
+		h1m->flags &= (H1_MF_RESTART_MASK|H1_MF_VER_11);
+		h1m->curr_len = h1m->body_len = h1m->next = 0;
 	}
 	else {
 		state = h1m->state;
