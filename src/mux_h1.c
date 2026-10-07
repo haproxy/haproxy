@@ -600,7 +600,17 @@ static int h1_buf_available(void *target)
 		h1c->flags |=  H1C_F_IN_MAYALLOC;
 	}
 
-	if ((h1c->flags & H1C_F_OUT_ALLOC) && h1c->h1s) {
+	if ((h1c->flags & H1C_F_OUT_ALLOC) && (h1c->flags & H1C_F_ABRT_PENDING)) {
+		/* an error message is waiting for the obuf, maybe without any
+		 * stream (e.g. 408 on an idle connection), so the connection
+		 * itself must be woken up to send it.
+		 */
+		TRACE_STATE("unblocking h1c, obuf allocatable for pending error", H1_EV_H1C_ERR|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
+		h1c->flags &= ~H1C_F_OUT_ALLOC;
+		h1c->flags |=  H1C_F_OUT_MAYALLOC;
+		tasklet_wakeup(h1c->wait_event.tasklet);
+	}
+	else if ((h1c->flags & H1C_F_OUT_ALLOC) && h1c->h1s) {
 		TRACE_STATE("unblocking h1s, obuf allocatable", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1c->h1s);
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
 		h1c->flags |=  H1C_F_OUT_MAYALLOC;
@@ -4539,7 +4549,7 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 		ret = h1_send(h1c);
 	if (!(h1c->wait_event.events & SUB_RETRY_RECV))
 		ret |= h1_recv(h1c);
-	if (ret || b_data(&h1c->ibuf))
+	if (ret || b_data(&h1c->ibuf) || (h1c->flags & H1C_F_ABRT_PENDING))
 		ret = h1_process(h1c);
 
 	/* If we were in an idle list, we want to add it back into it,
