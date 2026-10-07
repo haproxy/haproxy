@@ -3565,6 +3565,13 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 			n = htx_get_blk_name(htx, blk);
 			v = htx_get_blk_value(htx, blk);
 
+			/* Skip the trailer if the same name is used to add the
+			 * server name, like it is done for the headers.
+			 */
+			if (!(h1m->flags & H1_MF_RESP) && isttest(h1c->px->server_id_hdr_name) &&
+			    isteqi(n, h1c->px->server_id_hdr_name))
+				goto nextblk;
+
 			if (!h1_format_htx_hdr(n, v, &outbuf, hdrs_map))
 				goto full;
 		}
