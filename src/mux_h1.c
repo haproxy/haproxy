@@ -4296,6 +4296,7 @@ static int h1_process(struct h1c * h1c)
 		if (h1s->sess->t_idle == -1)
 			h1s->sess->t_idle = ns_to_ms(now_ns - h1s->sess->accept_ts) - h1s->sess->t_handshake;
 
+	retry_parsing:
 		/* Get the stream rxbuf */
 		buf = h1_get_rxbuf(h1s);
 		if (!buf) {
@@ -4321,6 +4322,10 @@ static int h1_process(struct h1c * h1c)
 				TRACE_ERROR("parsing error detected", H1_EV_H1C_WAKE|H1_EV_H1C_ERR);
 			}
 			else {
+				/* When draining, if input data remain to parse, retry the parsing now the rxbuf was emptied */
+				if (h1c->state == H1_CS_DRAINING && (h1s->flags & H1S_F_RX_CONGESTED) && b_data(&h1c->ibuf))
+					goto retry_parsing;
+
 				TRACE_STATE("Incomplete message, subscribing", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 			}
