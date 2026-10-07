@@ -37,7 +37,6 @@ int cluster_secret_isset;
  */
 static const char *common_kw_list[] = {
 	"global",
-	"cpu-map",
 	"defaults", "listen", "frontend", "backend",
 	"peers", "resolvers",
 	NULL /* must be last */
@@ -67,102 +66,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "cpu-map") == 0) {
-		/* map a process list to a CPU set */
-#ifdef USE_CPU_AFFINITY
-		char *slash;
-		unsigned long tgroup = 0, thread = 0;
-		int g, j, n, autoinc;
-		struct hap_cpuset cpus, cpus_copy;
-
-		if (!*args[1] || !*args[2]) {
-			ha_alert("parsing [%s:%d] : %s expects a thread group number "
-				 " ('all', 'odd', 'even', a number from 1 to %d or a range), "
-				 " followed by a list of CPU ranges with numbers from 0 to %d.\n",
-				 file, linenum, args[0], LONGBITS, LONGBITS - 1);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if ((slash = strchr(args[1], '/')) != NULL)
-			*slash = 0;
-
-		/* note: we silently ignore thread group numbers over MAX_TGROUPS
-		 * and threads over MAX_THREADS so as not to make configurations a
-		 * pain to maintain.
-		 */
-		if (parse_process_number(args[1], &tgroup, LONGBITS, &autoinc, &errmsg)) {
-			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (slash) {
-			if (parse_process_number(slash+1, &thread, LONGBITS, NULL, &errmsg)) {
-				ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			*slash = '/';
-		} else
-			thread = ~0UL; /* missing '/' = 'all' */
-
-		/* from now on, thread cannot be NULL anymore */
-
-		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
-			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (autoinc &&
-		    my_popcountl(tgroup) != ha_cpuset_count(&cpus) &&
-		    my_popcountl(thread) != ha_cpuset_count(&cpus)) {
-			ha_alert("parsing [%s:%d] : %s : TGROUP/THREAD range and CPU sets "
-				 "must have the same size to be automatically bound\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* we now have to deal with 3 real cases :
-		 *    cpu-map P-Q    => mapping for whole tgroups, numbers P to Q
-		 *    cpu-map P-Q/1  => mapping of first thread of groups P to Q
-		 *    cpu-map P/T-U  => mapping of threads T to U of tgroup P
-		 */
-		/* first tgroup, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
-		for (g = 0; g < MAX_TGROUPS; g++) {
-			/* No mapping for this tgroup */
-			if (!(tgroup & (1UL << g)))
-				continue;
-
-			ha_cpuset_assign(&cpus_copy, &cpus);
-
-			/* a thread set is specified, apply the
-			 * CPU set to these threads.
-			 */
-			for (j = n = 0; j < MAX_THREADS_PER_GROUP; j++) {
-				/* No mapping for this thread */
-				if (!(thread & (1UL << j)))
-					continue;
-
-				if (!autoinc)
-					ha_cpuset_assign(&cpu_map[g].thread[j], &cpus);
-				else {
-					ha_cpuset_zero(&cpu_map[g].thread[j]);
-					n = ha_cpuset_ffs(&cpus_copy) - 1;
-					ha_cpuset_clr(&cpus_copy, n);
-					ha_cpuset_set(&cpu_map[g].thread[j], n);
-				}
-			}
-		}
-#else
-		ha_alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n",
-			 file, linenum, args[0]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-#endif /* ! USE_CPU_AFFINITY */
-	}
 	else if (strcmp(args[0], "anonkey") == 0) {
 		long long tmp = 0;
 
@@ -2032,10 +1935,109 @@ static int cfg_parse_global_spread_checks(char **args, int section_type, struct 
 	return 0;
 }
 
+/* Parses the "cpu-map" keyword, which maps a thread group and/or thread range
+ * to a CPU set.
+ */
+static int cfg_parse_global_cpu_map(char **args, int section_type, struct proxy *curpx,
+                                    const struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+#ifdef USE_CPU_AFFINITY
+	char *errmsg = NULL;
+	char *slash;
+	unsigned long tgroup = 0, thread = 0;
+	int g, j, n, autoinc;
+	struct hap_cpuset cpus, cpus_copy;
+
+	if (!*args[1] || !*args[2]) {
+		memprintf(err, "%s expects a thread group number "
+			  " ('all', 'odd', 'even', a number from 1 to %d or a range), "
+			  " followed by a list of CPU ranges with numbers from 0 to %d.",
+			  args[0], LONGBITS, LONGBITS - 1);
+		return -1;
+	}
+
+	if ((slash = strchr(args[1], '/')) != NULL)
+		*slash = 0;
+
+	/* note: we silently ignore thread group numbers over MAX_TGROUPS
+	 * and threads over MAX_THREADS so as not to make configurations a
+	 * pain to maintain.
+	 */
+	if (parse_process_number(args[1], &tgroup, LONGBITS, &autoinc, &errmsg) != 0)
+		goto err_with_msg;
+
+	if (slash) {
+		if (parse_process_number(slash+1, &thread, LONGBITS, NULL, &errmsg) != 0)
+			goto err_with_msg;
+
+		*slash = '/';
+	} else
+		thread = ~0UL; /* missing '/' = 'all' */
+
+	/* from now on, thread cannot be NULL anymore */
+
+	if (parse_cpu_set((const char **)args+2, &cpus, &errmsg) != 0)
+		goto err_with_msg;
+
+	if (autoinc &&
+	    my_popcountl(tgroup) != ha_cpuset_count(&cpus) &&
+	    my_popcountl(thread) != ha_cpuset_count(&cpus)) {
+		memprintf(err, "%s : TGROUP/THREAD range and CPU sets "
+			  "must have the same size to be automatically bound", args[0]);
+		return -1;
+	}
+
+	/* we now have to deal with 3 real cases :
+	 *    cpu-map P-Q    => mapping for whole tgroups, numbers P to Q
+	 *    cpu-map P-Q/1  => mapping of first thread of groups P to Q
+	 *    cpu-map P/T-U  => mapping of threads T to U of tgroup P
+	 */
+	/* first tgroup, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
+	for (g = 0; g < MAX_TGROUPS; g++) {
+		/* No mapping for this tgroup */
+		if (!(tgroup & (1UL << g)))
+			continue;
+
+		ha_cpuset_assign(&cpus_copy, &cpus);
+
+		/* a thread set is specified, apply the
+		 * CPU set to these threads.
+		 */
+		for (j = n = 0; j < MAX_THREADS_PER_GROUP; j++) {
+			/* No mapping for this thread */
+			if (!(thread & (1UL << j)))
+				continue;
+
+			if (!autoinc)
+				ha_cpuset_assign(&cpu_map[g].thread[j], &cpus);
+			else {
+				ha_cpuset_zero(&cpu_map[g].thread[j]);
+				n = ha_cpuset_ffs(&cpus_copy) - 1;
+				ha_cpuset_clr(&cpus_copy, n);
+				ha_cpuset_set(&cpu_map[g].thread[j], n);
+			}
+		}
+	}
+
+	return 0;
+
+ err_with_msg:
+	/* reports errmsg, frees it and returns a failure */
+	memprintf(err, "%s : %s", args[0], errmsg);
+	free(errmsg);
+	return -1;
+#else
+	memprintf(err, "'%s' is not enabled, please check build options for USE_CPU_AFFINITY.", args[0]);
+	return -1;
+#endif /* ! USE_CPU_AFFINITY */
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ CFG_GLOBAL, "cluster-secret", cfg_parse_global_cluster_secret },
+	{ CFG_GLOBAL, "cpu-map", cfg_parse_global_cpu_map },
 	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode, KWF_DISCOVERY } ,
 	{ CFG_GLOBAL, "external-check", cfg_parse_global_external_check },
 	{ CFG_GLOBAL, "description", cfg_parse_global_node_desc },
