@@ -5137,6 +5137,15 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 	if (proxy_ref_defaults(px, defpx, &msg))
 		goto err;
 
+	/* Finalize the filter instances inherited from <defpx>, before the
+	 * proxy finalization so the filter analyzers are enabled if needed.
+	 */
+	err_code |= flt_start_new_proxy(px);
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		memprintf(&msg, "failed to finalize the filter instances");
+		goto err;
+	}
+
 	proxy_init_per_thr(px);
 
 	if (proxy_finalize(px, &err_code))
@@ -5146,6 +5155,16 @@ static int cli_parse_add_backend(char **args, char *payload, struct appctx *appc
 		err_code |= ppcf->fct(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL))
 			goto err;
+	}
+
+	/* Initialize the filters on every thread, after the post-proxy-check
+	 * callbacks which validate the instances, while the threads are still
+	 * isolated.
+	 */
+	err_code |= flt_init_new_proxy(px);
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		memprintf(&msg, "failed to initialize the filters");
+		goto err;
 	}
 
 	px->flags |= PR_FL_BE_UNPUBLISHED;
@@ -5313,6 +5332,11 @@ static int cli_parse_delete_backend(char **args, char *payload, struct appctx *a
 	LIST_DELETE(&px->el);
 
 	px->flags |= PR_FL_DELETED;
+
+	/* Deinitialize the per-thread filters in the context of every thread,
+	 * before the proxy is destroyed, while the threads are still isolated.
+	 */
+	flt_deinit_new_proxy(px);
 
 	thread_release();
 

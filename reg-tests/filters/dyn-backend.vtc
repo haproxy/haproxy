@@ -1,0 +1,146 @@
+varnishtest "Dynamic backends inherit and activate their filter instances"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA) && feature(THREAD)'"
+feature ignore_unknown_macro
+
+# The instances of the defaults section are inherited by the dynamic
+# backends, finalized at creation time and initialized on every thread: the
+# per-thread Lua states of the D-scoped instances are ready when the streams
+# are attached on both threads.
+server s1 {
+    # Before the dynamic backend exists, the request falls through the
+    # use_backend rule to the default backend, which has no filter.
+    rxreq
+    expect req.http.x-probe-order == <undef>
+    txresp -body "no filter yet"
+    close
+    accept
+
+    rxreq
+    expect req.http.x-probe-order == "D.a;D.b;"
+    expect req.http.x-probe-threads == "D.a:1;D.b:1;"
+    expect req.http.x-probe-instances == "D.a:2;D.b:1;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "dyn thread one"
+    close
+    accept
+
+    rxreq
+    expect req.http.x-probe-order == "D.a;D.b;"
+    expect req.http.x-probe-threads == "D.a:2;D.b:2;"
+    expect req.http.x-probe-instances == "D.a:2;D.b:1;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "dyn thread two"
+    close
+    accept
+
+    rxreq
+    expect req.http.x-probe-order == "D.a;D.b;"
+    expect req.http.x-probe-threads == "D.a:1;D.b:1;"
+    expect req.http.x-probe-instances == "D.a:4;D.b:3;"
+    expect req.http.x-probe-errors == <undef>
+    txresp -body "dyn thread one again"
+} -start
+
+haproxy h1 -conf {
+    global
+        chroot /
+        nbthread 2
+        thread-groups 1
+        tune.lua.bool-sample-conversion normal
+        lua-load-per-thread "${testdir}/lua-probe.lua"
+
+    defaults plain
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # The instances of this defaults section are inherited and activated by
+    # the dynamic backends created from it. probe-c is explicitly disabled.
+    # The global sequence changes the attachment order (b then a), the
+    # response sequence the response evaluation order, the request order
+    # keeps the declaration order.
+    defaults dynbe from plain
+        filter-config lua id probe-a enabled D a
+        filter-config lua id probe-b enabled D b
+        filter-config lua id probe-c enabled D c
+        filter-sequence global lua/probe-b:before(lua/probe-a)
+        filter-sequence response lua/probe-b:before(lua/probe-a)
+        filter-disable lua/probe-c
+
+    frontend one from plain
+        bind "fd@${one}" thread 1
+        use_backend %[req.hdr(x-be)]
+        default_backend be
+
+    frontend two from plain
+        bind "fd@${two}" thread 2
+        use_backend %[req.hdr(x-be)]
+        default_backend be
+
+    backend be from plain
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# The dynamic backend does not exist yet, the request is served by the
+# default backend.
+client c1 -connect ${h1_one_sock} {
+    txreq -hdr "x-be: dyn"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "no filter yet"
+} -run
+
+haproxy h1 -cli {
+    send "add backend dyn from dynbe"
+    expect ~ "New backend registered."
+
+    send "add server dyn/s1 ${s1_addr}:${s1_port}"
+    expect ~ "New server registered."
+
+    send "enable server dyn/s1"
+    expect ~ ".*"
+
+    send "publish backend dyn"
+    expect ~ "Backend published."
+
+    # A second dynamic backend, kept unpublished and empty so it can be
+    # deleted: its per-thread filter contexts are deinitialized on every
+    # thread during the deletion.
+    send "add backend dyn2 from dynbe"
+    expect ~ "New backend registered."
+}
+
+# The inherited instances are active on the first thread, with the response
+# evaluation order from the inherited sequence.
+client c2 -connect ${h1_one_sock} {
+    txreq -hdr "x-be: dyn"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "D.b;D.a;"
+    expect resp.body == "dyn thread one"
+} -run
+
+# ... and on the second thread.
+client c3 -connect ${h1_two_sock} {
+    txreq -hdr "x-be: dyn"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-probe-order == "D.b;D.a;"
+    expect resp.body == "dyn thread two"
+} -run
+
+haproxy h1 -cli {
+    send "del backend dyn2"
+    expect ~ "Backend deleted."
+}
+
+# The deletion of dyn2 released the per-thread contexts of every thread
+# without altering the ones of dyn.
+client c4 -connect ${h1_one_sock} {
+    txreq -hdr "x-be: dyn"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "dyn thread one again"
+} -run

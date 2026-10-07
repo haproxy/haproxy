@@ -1,30 +1,40 @@
 varnishtest "Enforce the legacy filter mode on the proxies without declaration"
 
-# Regression test for the "filter-api downgrade-to-legacy" global option:
-# the proxies without explicit filter declaration must use the legacy filter
-# mode, the ones with an explicit "filter-*" declaration must keep the new mode.
+# Regression test for the "filter-api downgrade-to-legacy" global option: the proxies
+# without explicit filter declaration must use the legacy filter mode, the
+# ones with an explicit "filter-*" declaration must keep the new mode. The
+# backends dynamically created with the "add backend" CLI command follow
+# the same rule.
 
 feature ignore_unknown_macro
 
 server s1 {
     rxreq
     txresp -hdr "Content-Type: text/plain" -bodylen 500
-} -repeat 2 -start
+} -repeat 3 -start
 
 haproxy h1 -conf {
     global
         filter-api downgrade-to-legacy
+	chroot /
 
-    defaults
+    defaults plain
         mode http
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
 
+    # The instances of this defaults section, and the compression options,
+    # are inherited by the backends created at runtime with "add backend".
+    # Without explicit filter declaration, they work in legacy mode.
+    defaults dynbe from plain
+        compression algo gzip
+        compression type text/plain
+
     # No filter declaration: with the legacy filter mode enforced globally,
     # the implicit declaration of the compression filter is handled in the
     # legacy mode, it must be operational.
-    listen li-implicit
+    listen li-implicit from plain
         bind "fd@${li1}"
         compression algo gzip
         compression type text/plain
@@ -34,11 +44,19 @@ haproxy h1 -conf {
     # declaration always wins over the mode enforced globally, and the
     # explicit instance replaces the implicit one. It is not enabled, so
     # the compression is not performed.
-    listen li-explicit
+    listen li-explicit from plain
         bind "fd@${li2}"
         filter-config http-comp-res
         compression algo gzip
         compression type text/plain
+        server s1 ${s1_addr}:${s1_port}
+
+    frontend fe from plain
+        bind "fd@${fe}"
+        use_backend %[req.hdr(x-be)]
+        default_backend be
+
+    backend be from plain
         server s1 ${s1_addr}:${s1_port}
 } -start
 
@@ -52,4 +70,28 @@ client c-explicit -connect ${h1_li2_sock} {
     txreq -url /explicit -hdr "Accept-Encoding: gzip"
     rxresp
     expect resp.http.content-encoding == <undef>
+} -run
+
+# The dynamic backend inherits the compression options of the dynbe
+# defaults section. Without explicit filter declaration, the legacy filter
+# mode is enforced, the implicit compression is handled in the legacy
+# mode.
+haproxy h1 -cli {
+    send "add backend dyn from dynbe"
+    expect ~ "New backend registered."
+
+    send "add server dyn/s1 ${s1_addr}:${s1_port}"
+    expect ~ "New server registered."
+
+    send "enable server dyn/s1"
+    expect ~ ".*"
+
+    send "publish backend dyn"
+    expect ~ "Backend published."
+}
+
+client c-dyn -connect ${h1_fe_sock} {
+    txreq -url /dyn -hdr "x-be: dyn" -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.http.content-encoding == gzip
 } -run

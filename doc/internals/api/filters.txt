@@ -887,6 +887,12 @@ HAProxy is started with more than one thread. If it is started with one thread
 (or compiled without the threads support), these callbacks will be silently
 ignored (in this case, global.nbthread will be always equal to one).
 
+For a proxy dynamically created at runtime (with the "add backend" CLI
+command), the lifecycle follows the same stages: the check and init callbacks
+run on the thread performing the creation, the per-thread callbacks are
+deferred to every thread, and the deinit callbacks run on the thread
+performing the deletion, once every thread ran its per-thread callbacks.
+
 
 3.4. HANDLING THE STREAMS ACTIVITY
 -----------------------------------
