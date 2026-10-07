@@ -55,8 +55,12 @@ static const char *common_kw_list[] = {
  */
 int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 {
-	int err_code = 0;
+	struct cfg_kw_list *kwl;
 	char *errmsg = NULL;
+	const char *best;
+	int err_code = 0;
+	int index;
+	int rc;
 
 	if (strcmp(args[0], "global") == 0) {  /* new section */
 		/* no option, nothing special to do */
@@ -64,55 +68,46 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 	}
 
-	if (global.mode & MODE_DISCOVERY)
-		goto discovery_kw;
+	list_for_each_entry(kwl, &cfg_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			if (kwl->kw[index].section != CFG_GLOBAL)
+				continue;
+			if (strcmp(kwl->kw[index].kw, args[0]) != 0)
+				continue;
 
-	else {
-		struct cfg_kw_list *kwl;
-		const char *best;
-		int index;
-		int rc;
-discovery_kw:
-		list_for_each_entry(kwl, &cfg_keywords.list, list) {
-			for (index = 0; kwl->kw[index].kw != NULL; index++) {
-				if (kwl->kw[index].section != CFG_GLOBAL)
-					continue;
-				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
+			/* in MODE_DISCOVERY we read only the keywords which contain the appropriate flag */
+			if ((global.mode & MODE_DISCOVERY) && !(kwl->kw[index].flags & KWF_DISCOVERY))
+				goto out;
 
-					/* in MODE_DISCOVERY we read only the keywords, which contains the appropriate flag */
-					if ((global.mode & MODE_DISCOVERY) && ((kwl->kw[index].flags & KWF_DISCOVERY) == 0 ))
-						goto out;
-
-					if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
-						ha_alert("%s\n", errmsg);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, file, linenum, &errmsg);
-					if (rc < 0) {
-						ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
-						err_code |= ERR_ALERT | ERR_FATAL;
-					}
-					else if (rc > 0) {
-						ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
-						err_code |= ERR_WARN;
-					}
-					goto out;
-				}
+			if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
+				ha_alert("%s\n", errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
 			}
-		}
 
-		if (global.mode & MODE_DISCOVERY)
+			rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, file, linenum, &errmsg);
+			if (rc < 0) {
+				ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+			else if (rc > 0) {
+				ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+				err_code |= ERR_WARN;
+			}
 			goto out;
-
-		best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_GLOBAL, common_kw_list);
-		if (best)
-			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
-		else
-			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
-		err_code |= ERR_ALERT | ERR_FATAL;
+		}
 	}
+
+	/* unknown keyword; they are silently ignored during the discovery pass */
+	if (global.mode & MODE_DISCOVERY)
+		goto out;
+
+	best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_GLOBAL, common_kw_list);
+	if (best)
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
+	else
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
+	err_code |= ERR_ALERT | ERR_FATAL;
 
  out:
 	free(errmsg);
