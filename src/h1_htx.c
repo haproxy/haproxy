@@ -437,7 +437,12 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 		/* If there no start-line, be sure to only parse the headers */
 		h1m->flags |= H1_MF_HDRS_ONLY;
 	}
-	ret = h1_headers_to_hdr_list(b_peek(srcbuf, ofs), b_tail(srcbuf),
+	/* The buffer was realigned above, so <b_stop()> safely points to the
+	 * byte following the end of the data. Note that b_tail() must not be
+	 * used instead: it wraps to the buffer's origin when the data end
+	 * exactly at the end of the buffer.
+	 */
+	ret = h1_headers_to_hdr_list(b_peek(srcbuf, ofs), b_stop(srcbuf),
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), h1m, h1sl);
 	if (ret <= 0) {
 		/* Incomplete or invalid message. If the input buffer only
@@ -1026,13 +1031,18 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 		goto output_full;
 	}
 
-	/* Realing input buffer if necessary */
-	if (b_peek(srcbuf, ofs) > b_tail(srcbuf))
+	/* Realign input buffer if necessary */
+	if (b_head(srcbuf) + b_data(srcbuf) > b_wrap(srcbuf))
 		b_slow_realign_ofs(srcbuf, trash.area, 0);
 
 	tlr_h1m.flags = (H1_MF_NO_PHDR|H1_MF_HDRS_ONLY);
 	tlr_h1m.err_pos = h1m->err_pos;
-	ret = h1_headers_to_hdr_list(b_peek(srcbuf, ofs), b_tail(srcbuf),
+	/* The buffer was realigned above, so <b_stop()> safely points to the
+	 * byte following the end of the data. Note that b_tail() must not be
+	 * used instead: it wraps to the buffer's origin when the data end
+	 * exactly at the end of the buffer.
+	 */
+	ret = h1_headers_to_hdr_list(b_peek(srcbuf, ofs), b_stop(srcbuf),
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &tlr_h1m, NULL);
 	if (ret <= 0) {
 		/* Incomplete or invalid trailers. If the input buffer only
