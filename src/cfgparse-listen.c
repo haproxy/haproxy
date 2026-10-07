@@ -45,13 +45,12 @@ static const char *common_kw_list[] = {
 	"monitor-uri", "mode", "id", "description",
 	"acl", "dynamic-cookie-key", "cookie", "email-alert",
 	"persist", "load-server-state-from-file",
-	"server-state-file-name", "max-session-srv-conns", "capture",
+	"server-state-file-name", "capture",
 	"retries", "http-request", "http-response", "http-after-response",
 	"http-send-name-header", "redirect", "use_backend",
 	"use-server", "force-persist", "ignore-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
-	"http-reuse", "monitor", "maxconn", "backlog",
-	"fullconn", "balance", "hash-type",
+	"http-reuse", "monitor", "balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
 	"error-log-format",
@@ -1192,17 +1191,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (!curproxy->server_state_file_name)
 			goto alloc_error;
-	}
-	else if (strcmp(args[0], "max-session-srv-conns") == 0) {
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a number. Got no argument\n",
-			    file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->max_out_conns = atoi(args[1]);
 	}
 	else if (strcmp(args[0], "capture") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
@@ -2593,45 +2581,6 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->maxconn = atol(args[1]);
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-	}
-	else if (strcmp(args[0], "backlog") == 0) {  /* backlog */
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->backlog = atol(args[1]);
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-	}
-	else if (strcmp(args[0], "fullconn") == 0) {  /* fullconn */
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], " Maybe you want 'maxconn' instead ?"))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->fullconn = atol(args[1]);
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-	}
 	else if (strcmp(args[0], "balance") == 0) {  /* set balancing with optional algorithm */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -3207,15 +3156,59 @@ static int proxy_parse_enabled(char **args, int section_type, struct proxy *curp
 	return 0;
 }
 
+/* Parses the proxy keywords which limit the number of connections:
+ * "maxconn", "backlog", "fullconn" and "max-session-srv-conns". They all take
+ * a single integer argument.
+ */
+static int proxy_parse_conn_limits(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument.", args[0]);
+		return -1;
+	}
+
+	if (strcmp(args[0], "maxconn") == 0) {
+		warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], " Maybe you want 'fullconn' instead ?");
+		curpx->maxconn = atol(args[1]);
+	}
+	else if (strcmp(args[0], "backlog") == 0) {
+		warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
+		curpx->backlog = atol(args[1]);
+	}
+	else if (strcmp(args[0], "fullconn") == 0) {
+		warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], " Maybe you want 'maxconn' instead ?");
+		curpx->fullconn = atol(args[1]);
+	}
+	else if (strcmp(args[0], "max-session-srv-conns") == 0) {
+		warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
+		curpx->max_out_conns = atoi(args[1]);
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_conn_limits().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "enabled", proxy_parse_enabled },
+	{ CFG_LISTEN, "fullconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
+	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redispatch", proxy_parse_removed_kw },
