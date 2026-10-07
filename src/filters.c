@@ -395,18 +395,22 @@ flt_dump_kws(char **out)
 }
 
 /*
- * Lists the known filters on <out>
+ * Lists the known filter classes on <out>, in their global order
  */
 void
-list_filters(FILE *out)
+list_filter_classes(FILE *out)
 {
-	char *filters, *p, *f;
+	struct filter_class *cls;
+	int first = 1;
 
-	fprintf(out, "Available filters :\n");
-	flt_dump_kws(&filters);
-	for (p = filters; (f = strtok_r(p,"\n",&p));)
-		fprintf(out, "\t%s\n", f);
-	free(filters);
+	fprintf(out, "Available filter classes :\n\t");
+	list_for_each_entry(cls, &filter_classes, list) {
+		fprintf(out, "%s%s", first ? "" : ", ", cls->name);
+		first = 0;
+	}
+	if (first)
+		fprintf(out, "<none>");
+	fprintf(out, "\n");
 }
 
 /* Returns 1 if the proxy <px> has at least one active filter, legacy or

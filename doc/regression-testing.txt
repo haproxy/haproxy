@@ -521,10 +521,10 @@ Here is the output produced by varnishtest with the latter VTC file:
     ***  h1    0.0 debug|pref=150,  test result FAILED
     ***  h1    0.0 debug|Total: 3 (2 usable), will use epoll.
     ***  h1    0.0 debug|
-    ***  h1    0.0 debug|Available filters :
-    ***  h1    0.0 debug|\t[SPOE] spoe
-    ***  h1    0.0 debug|\t[COMP] compression
-    ***  h1    0.0 debug|\t[TRACE] trace
+    ***  h1    0.0 debug|Available filter classes :
+    ***  h1    0.0 debug|\ttrace, cache-store, decomp-req, decomp-res, spoe,
+    ***  h1    0.0 debug|\tlua, http-comp-req, http-comp-res, bwlim-in,
+    ***  h1    0.0 debug|\tbwlim-out, fcgi
     **** Slg_1  0.0 syslog|<133>Jun  7 14:12:51 haproxy[15787]: Proxy fe1 started.
     **   Slg_1  0.0 === recv
     **** Slg_1  0.0 syslog|<133>Jun  7 14:12:51 haproxy[15787]: Proxy be_app started.
@@ -651,10 +651,10 @@ of the "syslog" "expect" command:
     ***  h1    0.0 debug|     select : pref=150,  test result FAILED
     ***  h1    0.0 debug|Total: 3 (2 usable), will use epoll.
     ***  h1    0.0 debug|
-    ***  h1    0.0 debug|Available filters :
-    ***  h1    0.0 debug|\t[SPOE] spoe
-    ***  h1    0.0 debug|\t[COMP] compression
-    ***  h1    0.0 debug|\t[TRACE] trace
+    ***  h1    0.0 debug|Available filter classes :
+    ***  h1    0.0 debug|\ttrace, cache-store, decomp-req, decomp-res, spoe,
+    ***  h1    0.0 debug|\tlua, http-comp-req, http-comp-res, bwlim-in,
+    ***  h1    0.0 debug|\tbwlim-out, fcgi
     ***  h1    0.0 debug|Using epoll() as the polling mechanism.
     **** Slg_1  0.0 syslog|<133>Jun  7 14:10:18 haproxy[12728]: Proxy fe1 started.
     **   Slg_1  0.0 === recv
