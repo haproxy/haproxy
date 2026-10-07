@@ -43,7 +43,6 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"cookie", "email-alert",
-	"capture",
 	"http-request", "http-response", "http-after-response",
 	"redirect", "use_backend",
 	"use-server",
@@ -918,120 +917,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (strcmp(args[0], "capture") == 0) {
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (strcmp(args[1], "cookie") == 0) {  /* name of a cookie to capture */
-			if (curproxy->cap & PR_CAP_DEF) {
-				ha_alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (alertif_too_many_args_idx(4, 1, file, linenum, args, &err_code))
-				goto out;
-
-			if (*(args[4]) == 0) {
-				ha_alert("parsing [%s:%d] : '%s' expects 'cookie' <cookie_name> 'len' <len>.\n",
-					 file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			free(curproxy->capture_name);
-			curproxy->capture_name = strdup(args[2]);
-			if (!curproxy->capture_name)
-				goto alloc_error;
-			curproxy->capture_namelen = strlen(curproxy->capture_name);
-			curproxy->capture_len = atol(args[4]);
-			curproxy->to_log |= LW_COOKIE;
-		}
-		else if (strcmp(args[1], "request") == 0 && strcmp(args[2], "header") == 0) {
-			struct cap_hdr *hdr;
-
-			if (curproxy->cap & PR_CAP_DEF) {
-				ha_alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (alertif_too_many_args_idx(4, 1, file, linenum, args, &err_code))
-				goto out;
-
-			if (*(args[3]) == 0 || strcmp(args[4], "len") != 0 || *(args[5]) == 0) {
-				ha_alert("parsing [%s:%d] : '%s %s' expects 'header' <header_name> 'len' <len>.\n",
-					 file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			hdr = calloc(1, sizeof(*hdr));
-			if (!hdr)
-				goto req_caphdr_alloc_error;
-			hdr->next = curproxy->req_cap;
-			hdr->name = strdup(args[3]);
-			if (!hdr->name)
-				goto req_caphdr_alloc_error;
-			hdr->namelen = strlen(args[3]);
-			hdr->len = atol(args[5]);
-			hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
-			if (!hdr->pool) {
-			  req_caphdr_alloc_error:
-				if (hdr)
-					ha_free(&hdr->name);
-				ha_free(&hdr);
-				goto alloc_error;
-			}
-			hdr->index = curproxy->nb_req_cap++;
-			curproxy->req_cap = hdr;
-			curproxy->to_log |= LW_REQHDR;
-		}
-		else if (strcmp(args[1], "response") == 0 && strcmp(args[2], "header") == 0) {
-			struct cap_hdr *hdr;
-
-			if (curproxy->cap & PR_CAP_DEF) {
-				ha_alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (alertif_too_many_args_idx(4, 1, file, linenum, args, &err_code))
-				goto out;
-
-			if (*(args[3]) == 0 || strcmp(args[4], "len") != 0 || *(args[5]) == 0) {
-				ha_alert("parsing [%s:%d] : '%s %s' expects 'header' <header_name> 'len' <len>.\n",
-					 file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			hdr = calloc(1, sizeof(*hdr));
-			if (!hdr)
-				goto res_caphdr_alloc_error;
-			hdr->next = curproxy->rsp_cap;
-			hdr->name = strdup(args[3]);
-			if (!hdr->name)
-				goto res_caphdr_alloc_error;
-			hdr->namelen = strlen(args[3]);
-			hdr->len = atol(args[5]);
-			hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
-			if (!hdr->pool) {
-			  res_caphdr_alloc_error:
-				if (hdr)
-					ha_free(&hdr->name);
-				ha_free(&hdr);
-				goto alloc_error;
-			}
-			hdr->index = curproxy->nb_rsp_cap++;
-			curproxy->rsp_cap = hdr;
-			curproxy->to_log |= LW_RSPHDR;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : '%s' expects 'cookie' or 'request header' or 'response header'.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
 	else if (strcmp(args[0], "http-request") == 0) {	/* request access control: allow/deny/auth */
 		struct act_rule *rule;
 		int where = 0;
@@ -3217,12 +3102,100 @@ static int proxy_parse_persist(char **args, int section_type, struct proxy *curp
 	return -1;
 }
 
+/* Parses the "capture" keyword, which captures a cookie or a request or
+ * response header for the logs.
+ */
+static int proxy_parse_capture(char **args, int section_type, struct proxy *curpx,
+                               const struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	struct cap_hdr *hdr;
+
+	warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
+
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s %s' not allowed in 'defaults' section.", args[0], args[1]);
+		return -1;
+	}
+
+	if (too_many_args_idx(4, 1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "cookie") == 0) {  /* name of a cookie to capture */
+		char *name;
+
+		if (*(args[4]) == 0) {
+			memprintf(err, "'%s' expects 'cookie' <cookie_name> 'len' <len>.", args[0]);
+			return -1;
+		}
+
+		name = strdup(args[2]);
+		if (!name)
+			goto alloc_error;
+
+		free(curpx->capture_name);
+		curpx->capture_name = name;
+		curpx->capture_namelen = strlen(name);
+		curpx->capture_len = atol(args[4]);
+		curpx->to_log |= LW_COOKIE;
+		return 0;
+	}
+
+	if ((strcmp(args[1], "request") != 0 && strcmp(args[1], "response") != 0) ||
+	    strcmp(args[2], "header") != 0) {
+		memprintf(err, "'%s' expects 'cookie' or 'request header' or 'response header'.", args[0]);
+		return -1;
+	}
+
+	if (*(args[3]) == 0 || strcmp(args[4], "len") != 0 || *(args[5]) == 0) {
+		memprintf(err, "'%s %s' expects 'header' <header_name> 'len' <len>.", args[0], args[1]);
+		return -1;
+	}
+
+	hdr = calloc(1, sizeof(*hdr));
+	if (!hdr)
+		goto alloc_error;
+
+	hdr->name = strdup(args[3]);
+	if (!hdr->name)
+		goto alloc_err_free_hdr;
+
+	hdr->namelen = strlen(args[3]);
+	hdr->len = atol(args[5]);
+	hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+	if (!hdr->pool)
+		goto alloc_err_free_name;
+
+	if (strcmp(args[1], "request") == 0) {
+		hdr->next = curpx->req_cap;
+		hdr->index = curpx->nb_req_cap++;
+		curpx->req_cap = hdr;
+		curpx->to_log |= LW_REQHDR;
+	}
+	else {
+		hdr->next = curpx->rsp_cap;
+		hdr->index = curpx->nb_rsp_cap++;
+		curpx->rsp_cap = hdr;
+		curpx->to_log |= LW_RSPHDR;
+	}
+	return 0;
+
+ alloc_err_free_name:
+	free(hdr->name);
+ alloc_err_free_hdr:
+	free(hdr);
+ alloc_error:
+	memprintf(err, "out of memory.");
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "capture", proxy_parse_capture },
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "description", proxy_parse_id_desc },
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
