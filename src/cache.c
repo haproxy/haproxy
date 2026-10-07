@@ -2695,7 +2695,6 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	 * Vary). */
 	if (res) {
 		struct appctx *appctx;
-		int detached = 0;
 
 		entry_block = block_ptr(res);
 		shctx_wrlock(shctx);
@@ -2710,7 +2709,6 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			 */
 			retain_entry(res);
 			shctx_row_detach(shctx, entry_block);
-			detached = 1;
 		} else {
 			/* p[1] holds the "no-early-hints" opt-out set by parse_cache_use(). */
 			if ((cache->flags & CACHE_CF_EARLY_HINTS) && !rule->arg.act.p[1] &&
@@ -2788,12 +2786,12 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 					 * not from here, see below.
 					 */
 					to_release = res;
-					to_reattach = detached ? block_ptr(res) : NULL;
+					to_reattach = block_ptr(res);
 				}
 				else if (sec_entry != res) {
 					/* The wrong row was added to the hot list. */
 					to_release = res;
-					to_reattach = detached ? block_ptr(res) : NULL;
+					to_reattach = block_ptr(res);
 					shctx_wrlock(shctx);
 					/* Same as for the primary entry above: retain
 					 * this one under the lock that detaches its
