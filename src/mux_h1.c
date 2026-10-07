@@ -2998,7 +2998,8 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		/* 1xx response was sent, reset response processing */
 		h1m_init_res(h1m);
 		h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
-		h1s->flags &= ~H1S_F_HAVE_O_CONN;
+		/* "content-length: 0" may have been emitted for the 1xx */
+		h1s->flags &= ~(H1S_F_HAVE_O_CONN|H1S_F_HAVE_CLEN|H1S_F_HAVE_CHNK);
 		TRACE_STATE("1xx response xferred", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 	}
 	else if (blk->flags & HTX_BLK_FL_EOM) {

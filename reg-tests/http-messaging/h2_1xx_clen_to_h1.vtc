@@ -1,0 +1,41 @@
+varnishtest "1xx with content-length 0 from an H2 server followed by a final response with a content-length"
+
+# A "content-length: 0" header is kept on 1xx responses by the H1 mux. It must
+# not prevent the content-length of the final response from being emitted.
+feature ignore_unknown_macro
+
+server s1 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 103 -nostrend -hdr "content-length" "0" -hdr "link" "</a.css>"
+		txresp -status 200 -hdr "content-length" "5" -body "hello"
+	} -run
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        server s1 ${s1_addr}:${s1_port} proto h2
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+	txreq
+	rxresp
+	expect resp.status == 103
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 5
+} -run
