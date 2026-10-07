@@ -37,9 +37,8 @@ int cluster_secret_isset;
  */
 static const char *common_kw_list[] = {
 	"global",
-	"log",
-	"log-send-hostname", "server-state-base", "server-state-file",
-	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
+	"server-state-base", "server-state-file",
+	"spread-checks", "max-spread-checks", "cpu-map",
 	"defaults", "listen", "frontend", "backend",
 	"peers", "resolvers",
 	"stats-file",
@@ -70,30 +69,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
-		if (!parse_logger(args, &global.loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
-			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "log-send-hostname") == 0) { /* set the hostname in syslog header */
-		char *name;
-
-		if (global.log_send_hostname != NULL) {
-			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-
-		if (*(args[1]))
-			name = args[1];
-		else
-			name = hostname;
-
-		free(global.log_send_hostname);
-		global.log_send_hostname = strdup(name);
-	}
 	else if (strcmp(args[0], "server-state-base") == 0) { /* path base where HAProxy can find server state files */
 		if (global.server_state_base != NULL) {
 			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
@@ -138,23 +113,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 		global.stats_file = strdup(args[1]);
-	}
-	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		chunk_destroy(&global.log_tag);
-		chunk_initlen(&global.log_tag, strdup(args[1]), strlen(args[1]), strlen(args[1]));
-		if (b_orig(&global.log_tag) == NULL) {
-			chunk_destroy(&global.log_tag);
-			ha_alert("parsing [%s:%d]: cannot allocate memory for '%s'.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (strcmp(args[0], "spread-checks") == 0) {  /* random time between checks (0-50) */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
@@ -2008,6 +1966,68 @@ static int cfg_parse_global_unix_bind(char **args, int section_type, struct prox
 	return 0;
 }
 
+/* Parses the log-related global keywords: "log", "log-send-hostname" and
+ * "log-tag".
+ */
+static int cfg_parse_global_log_opts(char **args, int section_type, struct proxy *curpx,
+                                     const struct proxy *defpx, const char *file, int line,
+                                     char **err)
+{
+	if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
+		char *errmsg = NULL;
+
+		if (!parse_logger(args, &global.loggers, (cfg_curr_kwm == KWM_NO), file, line, &errmsg)) {
+			memprintf(err, "%s : %s", args[0], errmsg);
+			free(errmsg);
+			return -1;
+		}
+	}
+	else if (strcmp(args[0], "log-send-hostname") == 0) { /* set the hostname in syslog header */
+		char *name;
+
+		if (global.log_send_hostname != NULL) {
+			ha_warning("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, line, args[0]);
+			return 0;
+		}
+
+		if (*(args[1]))
+			name = args[1];
+		else
+			name = hostname;
+
+		name = strdup(name);
+		if (!name) {
+			memprintf(err, "cannot allocate memory for '%s'.", args[0]);
+			return -1;
+		}
+
+		global.log_send_hostname = name;
+	}
+	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a tag for use in syslog.", args[0]);
+			return -1;
+		}
+
+		chunk_destroy(&global.log_tag);
+		chunk_initlen(&global.log_tag, strdup(args[1]), strlen(args[1]), strlen(args[1]));
+		if (b_orig(&global.log_tag) == NULL) {
+			chunk_destroy(&global.log_tag);
+			memprintf(err, "cannot allocate memory for '%s'.", args[0]);
+			return -1;
+		}
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_log_opts().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2027,6 +2047,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "insecure-fork-wanted", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "insecure-setuid-wanted", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "limited-quic", cfg_parse_global_bool_opts },
+	{ CFG_GLOBAL, "log", cfg_parse_global_log_opts },
+	{ CFG_GLOBAL, "log-send-hostname", cfg_parse_global_log_opts },
+	{ CFG_GLOBAL, "log-tag", cfg_parse_global_log_opts },
 	{ CFG_GLOBAL, "localpeer", cfg_parse_global_localpeer, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "master-worker", cfg_parse_global_master_worker, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "maxconn", cfg_parse_global_limits },
