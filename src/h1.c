@@ -454,6 +454,13 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			restarting = 1;
 	}
 
+	/* When restarting from an interrupted state, the start line elements
+	 * were not set by this call. They are not used in this case but let's
+	 * make sure they never point to random locations (rq and st members
+	 * are at the same places).
+	 */
+	sl.rq.m = sl.rq.u = sl.rq.v = ist2(start, 0);
+
 	ptr   = start + h1m->next;
 	end   = stop;
 
@@ -705,7 +712,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			sl.st.v.len = ptr - sl.st.v.ptr;
 
-			if ((sl.st.v.len == 8) &&
+			if (!restarting && (sl.st.v.len == 8) &&
 			    (*(sl.st.v.ptr + 5) > '1' ||
 			     (*(sl.st.v.ptr + 5) == '1' && *(sl.st.v.ptr + 7) >= '1')))
 				h1m->flags |= H1_MF_VER_11;
@@ -731,8 +738,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_RPCODE:
 	http_msg_rpcode:
 		if (likely(HTTP_IS_DIGIT(*ptr))) {
-			if (ptr - sl.st.c.ptr >= 3) {
-				/* more than 3 digits */
+			if (!restarting && ptr - sl.st.c.ptr >= 3) {
+				/* more than 3 digits (checked again after a restart) */
 				if (h1m->err_pos == -1) /* only capture the error pointer */
 					h1m->err_pos = ptr - start + skip;
 				else if (h1m->err_pos < -1 || sl.st.status >= ((uint16_t)~0 - 9) / 10) {
