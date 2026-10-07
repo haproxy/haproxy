@@ -728,7 +728,7 @@ static void display_build_opts()
 	putchar('\n');
 	list_services(stdout);
 	putchar('\n');
-	list_filters(stdout);
+	list_filter_classes(stdout);
 	putchar('\n');
 	ha_free(&feat_list);
 }
@@ -2536,7 +2536,7 @@ static void step_init_2(int argc, char** argv)
 	if ((global.mode & (MODE_VERBOSE|MODE_DEBUG)) && !master) {
 		list_pollers(stderr);
 		fprintf(stderr, "\n");
-		list_filters(stderr);
+		list_filter_classes(stderr);
 	}
 
 	if (!init_pollers()) {

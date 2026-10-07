@@ -144,7 +144,7 @@ Note that additional parameters on the filter line must be parsed by the filter
 itself. The "filter" directive is only supported by filters registering a
 keyword with flt_register_keywords() (see section 3.2.2).
 
-The list of available filter keywords is reported by 'haproxy -vv' :
+The list of available filter classes is reported by 'haproxy -vv' :
 
     $> haproxy -vv
     HAProxy version 1.7-dev2-3a1d4a-33 2016/03/21
@@ -152,9 +152,9 @@ The list of available filter keywords is reported by 'haproxy -vv' :
 
     [...]
 
-    Available filters :
-            [COMP] compression
-            [TRACE] trace
+    Available filter classes :
+            trace, cache-store, decomp-req, decomp-res, spoe, lua,
+            http-comp-req, http-comp-res, bwlim-in, bwlim-out, fcgi
 
 
 Multiple filter lines can be used in a proxy section to chain filters. Filters
