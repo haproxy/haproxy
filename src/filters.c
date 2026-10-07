@@ -20,6 +20,7 @@
 #include <haproxy/filters.h>
 #include <haproxy/flt_decomp.h>
 #include <haproxy/flt_http_comp.h>
+#include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -27,7 +28,9 @@
 #include <haproxy/namespace.h>
 #include <haproxy/proxy.h>
 #include <haproxy/stream.h>
+#include <haproxy/thread.h>
 #include <haproxy/tools.h>
+#include <haproxy/twork.h>
 #include <haproxy/trace.h>
 
 
@@ -2947,6 +2950,191 @@ static int flt_precheck_instances_all()
 		flt_flatten_instances(px);
 	}
 	return 0;
+}
+
+/**************************************************************************
+ * Filter instances of proxies created at runtime
+ *************************************************************************/
+
+/* Deferred per-thread work item for a proxy created at runtime: runs
+ * flt_init_per_thread() for the proxy <arg.ptr>, in the context of the
+ * thread the item was posted to, as the filters may initialize thread-local
+ * variables. The ERR_* flags are returned to the completion callback, but
+ * only for reporting: the creation of the proxy cannot be aborted anymore.
+ */
+static union twork_arg flt_twork_init_per_thread(union twork_arg arg)
+{
+	struct proxy *px = arg.ptr;
+	int err_code;
+
+	err_code = flt_init_per_thread(px);
+	if (err_code & (ERR_ABORT|ERR_FATAL))
+		ha_alert("Failed to initialize the per-thread filters of proxy '%s' for thread %u.\n",
+			 px->id, tid);
+	return twk_u32(err_code);
+}
+
+/* Deferred per-thread work item for a proxy created at runtime: runs
+ * flt_deinit_per_thread() for the proxy <arg.ptr>, in the context of the
+ * thread the item was posted to, as the filters may release thread-local
+ * variables.
+ */
+static union twork_arg flt_twork_deinit_per_thread(union twork_arg arg)
+{
+	flt_deinit_per_thread(arg.ptr);
+	return twk_u32(ERR_NONE);
+}
+
+/* Completion callback of the deferred per-thread work items of a proxy
+ * created at runtime, running on the thread that posted them: releases the
+ * reference the item held on the proxy, so the completion of the last item
+ * marks the completion of the per-thread callbacks of every thread.
+ */
+static void flt_twork_done(union twork_arg arg, union twork_arg ret)
+{
+	proxy_drop(arg.ptr);
+}
+
+/* Finalizes the filter instances of the proxy <px> created at runtime (for
+ * now only with the "add backend" CLI command, after the instances inherited
+ * from its defaults section were copied): the parse callback of every
+ * instance is called to produce its filter configuration, the
+ * filter-enable/filter-disable and filter-sequence directives are applied,
+ * and the three evaluation orders are flattened. This mirrors the pre-check
+ * stage of the startup, so flt_start_new_proxy() must be called before
+ * proxy_finalize(), while the threads are isolated, so that the filter
+ * analyzers are enabled if the proxy has filters.
+ * Returns a combination of ERR_* flags, ERR_NONE on success.
+ */
+int flt_start_new_proxy(struct proxy *px)
+{
+	int err_code = ERR_NONE;
+
+	/* The filter mode of a new proxy may depend on the globally requested
+	 * one, apply it before finalizing the filter instances.
+	 */
+	flt_apply_default_mode(px);
+
+	err_code |= flt_precheck_instances(px);
+	if (!(err_code & (ERR_ABORT|ERR_FATAL)))
+		err_code |= flt_enable_filters(px);
+	if (!(err_code & (ERR_ABORT|ERR_FATAL)))
+		err_code |= flt_apply_sequences(px);
+
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		ha_alert("Failed to finalize the filter instances of proxy '%s'.\n",
+			 px->id);
+		return err_code;
+	}
+
+	/* Produce the flat evaluation orders and release the configuration
+	 * structures
+	 */
+	flt_flatten_instances(px);
+	return ERR_NONE;
+}
+
+/* Initializes the filters of the proxy <px> created at runtime, mirroring the
+ * post-check and per-thread initialization stages of the startup:
+ *
+ * - the 'init' callbacks run on the main thread during the startup, before
+ *   the threads are started, so they run here on the thread performing the
+ *   creation, with all the other threads isolated;
+ *
+ * - the 'init_per_thread' callbacks run on every thread during the startup,
+ *   as the filters may initialize thread-local variables. The other threads
+ *   being parked by the thread isolation, each callback is deferred to its
+ *   thread with a twork item: the items are queued while the threads are
+ *   still parked and run as their first pending work when they resume. The
+ *   new proxy is not reachable by the switching rules until it is published
+ *   with "publish backend", which happens after the items completed; only
+ *   "force-be-switch" could select it in-between.
+ *
+ * Each item holds a reference on the proxy, so the proxy cannot be destroyed
+ * before its per-thread callbacks ran (e.g. by a concurrent "del backend").
+ * flt_init_new_proxy() must be called after flt_start_new_proxy() and the
+ * post-proxy-check callbacks, while the threads are isolated.
+ * Returns a combination of ERR_* flags, ERR_NONE on success.
+ */
+int flt_init_new_proxy(struct proxy *px)
+{
+	int err_code = ERR_NONE;
+	int t;
+
+	BUG_ON(!thread_isolated());
+
+	err_code |= flt_init(px);
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		ha_alert("Failed to initialize the filters of proxy '%s'.\n", px->id);
+		return err_code;
+	}
+
+	/* nothing to defer without filter */
+	if (LIST_ISEMPTY(&px->filter_instances) && LIST_ISEMPTY(&px->filter_configs))
+		return ERR_NONE;
+
+	for (t = 0; t < global.nbthread; t++) {
+		proxy_take(px);
+		if (twork_call_on(NULL, t, flt_twork_init_per_thread, twk_ptr(px),
+				  flt_twork_done))
+			continue;
+
+		/* the item could not be queued: release the reference taken
+		 * for it and report the failure. The creation will be aborted,
+		 * so also defer the deinitialization of the threads already
+		 * notified, to balance their per-thread initialization.
+		 */
+		proxy_drop(px);
+		err_code |= ERR_ALERT|ERR_FATAL;
+		ha_alert("Failed to defer the per-thread filter initialization of proxy '%s' for thread %u.\n",
+			 px->id, t);
+		while (t-- > 0) {
+			proxy_take(px);
+			if (!twork_call_on(NULL, t, flt_twork_deinit_per_thread,
+					    twk_ptr(px), flt_twork_done))
+				proxy_drop(px);
+		}
+		return err_code;
+	}
+	return ERR_NONE;
+}
+
+/* Deinitializes the per-thread filters of the proxy <px> created at runtime
+ * (for now only with the "del backend" CLI command), mirroring the
+ * per-thread deinitialization stage of the shutdown: the
+ * 'deinit_per_thread' callbacks are deferred to each thread with twork
+ * items, queued while the threads are still parked by the thread isolation
+ * of the deletion. The callbacks may release thread-local variables or
+ * per-thread resources (e.g. references in the per-thread Lua states), so
+ * they must complete before the proxy is destroyed: each item holds a
+ * reference on the proxy, and the caller only releases the creation
+ * reference, so the proxy memory is freed by the completion of the last
+ * item, once every thread ran its callbacks.
+ */
+void flt_deinit_new_proxy(struct proxy *px)
+{
+	int t;
+
+	BUG_ON(!thread_isolated());
+
+	/* nothing to defer without filter */
+	if (LIST_ISEMPTY(&px->filter_instances) && LIST_ISEMPTY(&px->filter_configs))
+		return;
+
+	for (t = 0; t < global.nbthread; t++) {
+		proxy_take(px);
+		if (twork_call_on(NULL, t, flt_twork_deinit_per_thread, twk_ptr(px),
+				  flt_twork_done))
+			continue;
+
+		/* the item could not be queued: release the reference taken
+		 * for it. The per-thread resources of this thread, if any,
+		 * leak with the proxy, which is about to be destroyed.
+		 */
+		proxy_drop(px);
+		ha_alert("Failed to defer the per-thread filter deinitialization of proxy '%s' for thread %u.\n",
+			 px->id, t);
+	}
 }
 
 /* Dump classes in global registration order or in a channel's placement tree. */
