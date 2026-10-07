@@ -36,8 +36,7 @@ int cluster_secret_isset;
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"global", "set-dumpable",
-	"uid", "gid",
+	"global", "uid", "gid",
 	"external-check", "user", "group", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
@@ -74,25 +73,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "set-dumpable") == 0) { /* "no set-dumpable" or "set-dumpable" */
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (kwm == KWM_NO) {
-			global.tune.options &= ~GTUNE_SET_DUMPABLE;
-			goto out;
-		}
-		if (!*args[1] || strcmp(args[1], "on") == 0)
-			global.tune.options |= GTUNE_SET_DUMPABLE;
-		else if (strcmp(args[1], "libs") == 0)
-			global.tune.options |= GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS;
-		else if (strcmp(args[1], "off") == 0)
-			global.tune.options &= ~GTUNE_SET_DUMPABLE;
-		else {
-			ha_alert("parsing [%s:%d] : '%s' only supports 'on' and 'off' as an argument, found '%s'.\n", file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-	                goto out;
-		}
-	}
 	else if (strcmp(args[0], "cluster-secret") == 0) {
 		blk_SHA_CTX sha1_ctx;
 		unsigned char sha1_out[20];
@@ -1985,6 +1965,33 @@ static int cfg_parse_global_bool_opts(char **args, int section_type, struct prox
 	return 0;
 }
 
+/* Parses the "set-dumpable" keyword, which also supports the "no" modifier. */
+static int cfg_parse_global_set_dumpable(char **args, int section_type, struct proxy *curpx,
+                                         const struct proxy *defpx, const char *file, int line,
+                                         char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (cfg_curr_kwm == KWM_NO) {
+		global.tune.options &= ~GTUNE_SET_DUMPABLE;
+		return 0;
+	}
+
+	if (!*args[1] || strcmp(args[1], "on") == 0)
+		global.tune.options |= GTUNE_SET_DUMPABLE;
+	else if (strcmp(args[1], "libs") == 0)
+		global.tune.options |= GTUNE_SET_DUMPABLE | GTUNE_COLLECT_LIBS;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.options &= ~GTUNE_SET_DUMPABLE;
+	else {
+		memprintf(err, "'%s' only supports 'on' and 'off' as an argument, found '%s'.", args[0], args[1]);
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2017,6 +2024,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "quiet", cfg_parse_global_mode, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "resetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "setenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
+	{ CFG_GLOBAL, "set-dumpable", cfg_parse_global_set_dumpable },
 	{ CFG_GLOBAL, "shm-stats-file", cfg_parse_global_shm_stats_file },
 	{ CFG_GLOBAL, "shm-stats-file-max-objects", cfg_parse_global_shm_stats_file_max_objects },
 	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },
