@@ -1395,7 +1395,7 @@ static int spoe_start(struct stream *s, struct filter *filter)
 	return 1;
 }
 
-/* Called when a filter instance is detached from a stream. It release the
+/* Called when a stream filter instance is detached from a stream. It release the
  * attached SPOE context. */
 static void spoe_stop(struct stream *s, struct filter *filter)
 {
