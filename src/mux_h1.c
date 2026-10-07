@@ -4228,7 +4228,8 @@ static int h1_process(struct h1c * h1c)
 		 */
 		if (h1c->state != H1_CS_DRAINING &&
 		    b_isteq(&h1c->ibuf, 0, b_data(&h1c->ibuf), ist(H2_CONN_PREFACE)) > 0) {
-			if (!(h1c->flags & H1C_F_WAIT_NEXT_REQ) &&         /* First request */
+			if (!(h1c->flags & H1C_F_WAIT_NEXT_REQ) &&         /* First request (the flag is */
+			    !(h1s && (h1s->flags & H1S_F_NOT_FIRST)) &&    /*   moved to the h1s once created) */
 			    !(h1c->px->options2 & PR_O2_NO_H2_UPGRADE) &&  /* H2 upgrade supported by the proxy */
 			    !(conn->mux->flags & MX_FL_NO_UPG)) {          /* the current mux supports upgrades */
 				h1c->flags |= H1C_F_UPG_H2C;
