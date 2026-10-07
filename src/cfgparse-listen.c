@@ -42,14 +42,13 @@
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
-	"monitor-uri",
 	"cookie", "email-alert",
 	"persist", "capture",
 	"http-request", "http-response", "http-after-response",
 	"redirect", "use_backend",
 	"use-server", "force-persist", "ignore-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
-	"monitor", "balance", "hash-type",
+	"balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
 	"error-log-format",
@@ -626,27 +625,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		cur_arg = 2;
 		err_code |= bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
-		goto out;
-	}
-	else if (strcmp(args[0], "monitor-uri") == 0) {  /* set the URI to intercept */
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d] : '%s' expects an URI.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		istfree(&curproxy->monitor_uri);
-		curproxy->monitor_uri = istdup(ist(args[1]));
-		if (!isttest(curproxy->monitor_uri))
-			goto alloc_error;
-
 		goto out;
 	}
 	else if (strcmp(args[0], "cookie") == 0) {  /* cookie name */
@@ -2267,41 +2245,6 @@ stats_error_parsing:
 		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (strcmp(args[0], "monitor") == 0) {
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (strcmp(args[1], "fail") == 0) {
-			/* add a condition to fail monitor requests */
-			if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
-				ha_alert("parsing [%s:%d] : '%s %s' requires either 'if' or 'unless' followed by a condition.\n",
-					 file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (warnif_misplaced_monitor(curproxy, file, linenum, args[0], args[1]))
-				err_code |= ERR_WARN;
-			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
-				ha_alert("parsing [%s:%d] : error detected while parsing a '%s %s' condition : %s.\n",
-					 file, linenum, args[0], args[1], errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			LIST_APPEND(&curproxy->mon_fail_cond, &cond->list);
-		}
-		else {
-			ha_alert("parsing [%s:%d] : '%s' only supports 'fail'.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
 	else if (strcmp(args[0], "balance") == 0) {  /* set balancing with optional algorithm */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -3196,6 +3139,72 @@ static int proxy_parse_acl(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+/* Parses the monitoring keywords "monitor-uri" and "monitor". Both require the
+ * frontend capability.
+ */
+static int proxy_parse_monitor(char **args, int section_type, struct proxy *curpx,
+                               const struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
+
+	if (strcmp(args[0], "monitor-uri") == 0) {  /* set the URI to intercept */
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		if (!*args[1]) {
+			memprintf(err, "'%s' expects an URI.", args[0]);
+			return -1;
+		}
+
+		istfree(&curpx->monitor_uri);
+		curpx->monitor_uri = istdup(ist(args[1]));
+		if (!isttest(curpx->monitor_uri)) {
+			memprintf(err, "out of memory.");
+			return -1;
+		}
+	}
+	else if (strcmp(args[0], "monitor") == 0) {
+		struct acl_cond *cond;
+		char *errmsg = NULL;
+
+		if (curpx->cap & PR_CAP_DEF) {
+			memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+			return -1;
+		}
+
+		if (strcmp(args[1], "fail") == 0) {
+			/* add a condition to fail monitor requests */
+			if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
+				memprintf(err, "'%s %s' requires either 'if' or 'unless' followed by a condition.",
+				          args[0], args[1]);
+				return -1;
+			}
+
+			warnif_misplaced_monitor(curpx, file, line, args[0], args[1]);
+
+			cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args + 2, &errmsg);
+			if (!cond) {
+				memprintf(err, "error detected while parsing a '%s %s' condition : %s.",
+				          args[0], args[1], errmsg);
+				free(errmsg);
+				return -1;
+			}
+			LIST_APPEND(&curpx->mon_fail_cond, &cond->list);
+		}
+		else {
+			memprintf(err, "'%s' only supports 'fail'.", args[0]);
+			return -1;
+		}
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_monitor().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3217,7 +3226,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "mode", proxy_parse_mode },
+	{ CFG_LISTEN, "monitor", proxy_parse_monitor },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "monitor-uri", proxy_parse_monitor },
 	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "reqadd", proxy_parse_removed_kw },
