@@ -37,7 +37,6 @@ int cluster_secret_isset;
  */
 static const char *common_kw_list[] = {
 	"global", "ssl-server-verify",
-	"maxcomprate", "maxzlibmem", "maxcompcpuusage",
 	"description", "node", "unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
@@ -87,41 +86,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : '%s' expects 'none' or 'required' as argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 	                goto out;
-		}
-	}
-	else if (strcmp(args[0], "maxcomprate") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument in kb/s.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.comp_rate_lim = atoi(args[1]) * 1024;
-	}
-	else if (strcmp(args[0], "maxzlibmem") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.maxzlibmem = atol(args[1]) * 1024L * 1024L;
-	}
-	else if (strcmp(args[0], "maxcompcpuusage") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument between 0 and 100.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		compress_min_idle = 100 - atoi(args[1]);
-		if (compress_min_idle > 100) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument between 0 and 100.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
 		}
 	}
 	else if (strcmp(args[0], "description") == 0) {
@@ -1975,6 +1939,50 @@ static int cfg_parse_global_limits(char **args, int section_type, struct proxy *
 	return -1;
 }
 
+/* Parses the global keywords which limit the resources dedicated to the
+ * compression: "maxcomprate", "maxzlibmem" and "maxcompcpuusage".
+ */
+static int cfg_parse_global_comp_limits(char **args, int section_type, struct proxy *curpx,
+                                        const struct proxy *defpx, const char *file, int line,
+                                        char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "maxcomprate") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument in kb/s.", args[0]);
+			return -1;
+		}
+		global.comp_rate_lim = atoi(args[1]) * 1024;
+	}
+	else if (strcmp(args[0], "maxzlibmem") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		global.maxzlibmem = atol(args[1]) * 1024L * 1024L;
+	}
+	else if (strcmp(args[0], "maxcompcpuusage") == 0) {
+		if (*(args[1]) == 0)
+			goto expect_percent;
+
+		compress_min_idle = 100 - atoi(args[1]);
+		if (compress_min_idle > 100)
+			goto expect_percent;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_comp_limits().");
+		return -1;
+	}
+
+	return 0;
+
+ expect_percent:
+	memprintf(err, "'%s' expects an integer argument between 0 and 100.", args[0]);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -1997,9 +2005,12 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "master-worker", cfg_parse_global_master_worker, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "maxconn", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "maxconnrate", cfg_parse_global_limits },
+	{ CFG_GLOBAL, "maxcompcpuusage", cfg_parse_global_comp_limits },
+	{ CFG_GLOBAL, "maxcomprate", cfg_parse_global_comp_limits },
 	{ CFG_GLOBAL, "maxpipes", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "maxsessrate", cfg_parse_global_limits },
 	{ CFG_GLOBAL, "maxsslrate", cfg_parse_global_limits },
+	{ CFG_GLOBAL, "maxzlibmem", cfg_parse_global_comp_limits },
 	{ CFG_GLOBAL, "nbproc", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "nogetaddrinfo", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "noepoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
