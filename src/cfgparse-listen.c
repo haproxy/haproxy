@@ -43,14 +43,13 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"monitor-uri", "mode", "id", "description",
-	"acl", "dynamic-cookie-key", "cookie", "email-alert",
-	"persist", "load-server-state-from-file",
-	"server-state-file-name", "capture",
-	"retries", "http-request", "http-response", "http-after-response",
-	"http-send-name-header", "redirect", "use_backend",
+	"acl", "cookie", "email-alert",
+	"persist", "capture",
+	"http-request", "http-response", "http-after-response",
+	"redirect", "use_backend",
 	"use-server", "force-persist", "ignore-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
-	"http-reuse", "monitor", "balance", "hash-type",
+	"monitor", "balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
 	"error-log-format",
@@ -799,20 +798,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (strcmp(args[0], "dynamic-cookie-key") == 0) { /* Dynamic cookies secret key */
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <secret_key> as argument.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		free(curproxy->dyncookie_key);
-		curproxy->dyncookie_key = strdup(args[1]);
-	}
 	else if (strcmp(args[0], "cookie") == 0) {  /* cookie name */
 		int cur_arg;
 
@@ -1157,41 +1142,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (strcmp(args[0], "load-server-state-from-file") == 0) {
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-		if (strcmp(args[1], "global") == 0) {  /* use the file pointed to by global server-state-file directive */
-			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_GLOBAL;
-		}
-		else if (strcmp(args[1], "local") == 0) { /* use the server-state-file-name variable to locate the server-state file */
-			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_LOCAL;
-		}
-		else if (strcmp(args[1], "none") == 0) {  /* don't use server-state-file directive for this backend */
-			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_NONE;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : '%s' expects 'global', 'local' or 'none'. Got '%s'\n",
-				 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "server-state-file-name") == 0) {
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		ha_free(&curproxy->server_state_file_name);
-
-		if (*(args[1]) == 0 || strcmp(args[1], "use-backend-name") == 0)
-			curproxy->server_state_file_name = strdup(curproxy->id);
-		else
-			curproxy->server_state_file_name = strdup(args[1]);
-
-		if (!curproxy->server_state_file_name)
-			goto alloc_error;
-	}
 	else if (strcmp(args[0], "capture") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -1306,21 +1256,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (strcmp(args[0], "retries") == 0) {  /* connection retries */
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument (dispatch counts for one).\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->conn_retries = atol(args[1]);
-	}
 	else if (strcmp(args[0], "http-request") == 0) {	/* request access control: allow/deny/auth */
 		struct act_rule *rule;
 		int where = 0;
@@ -1427,34 +1362,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 
 		LIST_APPEND(&curproxy->http_after_res_rules, &rule->list);
-	}
-	else if (strcmp(args[0], "http-send-name-header") == 0) { /* send server name in request header */
-		/* set the header name and length into the proxy structure */
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d] : '%s' requires a header string.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (strcasecmp(args[1], "host") == 0 ||
-		    strcasecmp(args[1], "content-length") == 0 ||
-		    strcasecmp(args[1], "transfer-encoding") == 0 ||
-		    strcasecmp(args[1], "connection") == 0) {
-			ha_alert("parsing [%s:%d] : '%s' cannot be used as header name for '%s' directive.\n",
-				 file, linenum, args[1], args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* set the desired header name, in lower case */
-		istfree(&curproxy->server_id_hdr_name);
-		curproxy->server_id_hdr_name = istdup(ist(args[1]));
-		if (!isttest(curproxy->server_id_hdr_name))
-			goto alloc_error;
-		ist2bin_lc(istptr(curproxy->server_id_hdr_name), curproxy->server_id_hdr_name);
 	}
 	else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *rule;
@@ -2509,43 +2416,6 @@ stats_error_parsing:
 		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (strcmp(args[0], "http-reuse") == 0) {
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (strcmp(args[1], "never") == 0) {
-			/* enable a graceful server shutdown on an HTTP 404 response */
-			curproxy->options &= ~PR_O_REUSE_MASK;
-			curproxy->options |= PR_O_REUSE_NEVR;
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-		}
-		else if (strcmp(args[1], "safe") == 0) {
-			/* enable a graceful server shutdown on an HTTP 404 response */
-			curproxy->options &= ~PR_O_REUSE_MASK;
-			curproxy->options |= PR_O_REUSE_SAFE;
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-		}
-		else if (strcmp(args[1], "aggressive") == 0) {
-			curproxy->options &= ~PR_O_REUSE_MASK;
-			curproxy->options |= PR_O_REUSE_AGGR;
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-		}
-		else if (strcmp(args[1], "always") == 0) {
-			/* enable a graceful server shutdown on an HTTP 404 response */
-			curproxy->options &= ~PR_O_REUSE_MASK;
-			curproxy->options |= PR_O_REUSE_ALWS;
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : '%s' only supports 'never', 'safe', 'aggressive', 'always'.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
 	else if (strcmp(args[0], "monitor") == 0) {
 		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -3196,6 +3066,126 @@ static int proxy_parse_conn_limits(char **args, int section_type, struct proxy *
 	return 0;
 }
 
+/* Parses the proxy keywords which only make sense on a backend and which take
+ * a single argument: "retries", "http-reuse", "http-send-name-header",
+ * "dynamic-cookie-key", "load-server-state-from-file" and
+ * "server-state-file-name".
+ */
+static int proxy_parse_be_opts(char **args, int section_type, struct proxy *curpx,
+                               const struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL);
+
+	if (strcmp(args[0], "retries") == 0) {  /* connection retries */
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument (dispatch counts for one).", args[0]);
+			return -1;
+		}
+		curpx->conn_retries = atol(args[1]);
+	}
+	else if (strcmp(args[0], "http-reuse") == 0) {
+		int reuse;
+
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		if (strcmp(args[1], "never") == 0)
+			reuse = PR_O_REUSE_NEVR;
+		else if (strcmp(args[1], "safe") == 0)
+			reuse = PR_O_REUSE_SAFE;
+		else if (strcmp(args[1], "aggressive") == 0)
+			reuse = PR_O_REUSE_AGGR;
+		else if (strcmp(args[1], "always") == 0)
+			reuse = PR_O_REUSE_ALWS;
+		else {
+			memprintf(err, "'%s' only supports 'never', 'safe', 'aggressive', 'always'.", args[0]);
+			return -1;
+		}
+
+		curpx->options &= ~PR_O_REUSE_MASK;
+		curpx->options |= reuse;
+	}
+	else if (strcmp(args[0], "http-send-name-header") == 0) { /* send server name in request header */
+		if (!*args[1]) {
+			memprintf(err, "'%s' requires a header string.", args[0]);
+			return -1;
+		}
+
+		if (strcasecmp(args[1], "host") == 0 ||
+		    strcasecmp(args[1], "content-length") == 0 ||
+		    strcasecmp(args[1], "transfer-encoding") == 0 ||
+		    strcasecmp(args[1], "connection") == 0) {
+			memprintf(err, "'%s' cannot be used as header name for '%s' directive.", args[1], args[0]);
+			return -1;
+		}
+
+		/* set the desired header name, in lower case */
+		istfree(&curpx->server_id_hdr_name);
+		curpx->server_id_hdr_name = istdup(ist(args[1]));
+		if (!isttest(curpx->server_id_hdr_name))
+			goto alloc_error;
+		ist2bin_lc(istptr(curpx->server_id_hdr_name), curpx->server_id_hdr_name);
+	}
+	else if (strcmp(args[0], "dynamic-cookie-key") == 0) { /* Dynamic cookies secret key */
+		char *key;
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects <secret_key> as argument.", args[0]);
+			return -1;
+		}
+
+		key = strdup(args[1]);
+		if (!key)
+			goto alloc_error;
+
+		free(curpx->dyncookie_key);
+		curpx->dyncookie_key = key;
+	}
+	else if (strcmp(args[0], "load-server-state-from-file") == 0) {
+		if (strcmp(args[1], "global") == 0)  /* use the file pointed to by the global server-state-file directive */
+			curpx->load_server_state_from_file = PR_SRV_STATE_FILE_GLOBAL;
+		else if (strcmp(args[1], "local") == 0) /* use the server-state-file-name variable to locate the server-state file */
+			curpx->load_server_state_from_file = PR_SRV_STATE_FILE_LOCAL;
+		else if (strcmp(args[1], "none") == 0)  /* don't use server-state-file directive for this backend */
+			curpx->load_server_state_from_file = PR_SRV_STATE_FILE_NONE;
+		else {
+			memprintf(err, "'%s' expects 'global', 'local' or 'none'. Got '%s'", args[0], args[1]);
+			return -1;
+		}
+	}
+	else if (strcmp(args[0], "server-state-file-name") == 0) {
+		char *name;
+
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		if (*(args[1]) == 0 || strcmp(args[1], "use-backend-name") == 0)
+			name = strdup(curpx->id);
+		else
+			name = strdup(args[1]);
+
+		if (!name)
+			goto alloc_error;
+
+		ha_free(&curpx->server_state_file_name);
+		curpx->server_state_file_name = name;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_be_opts().");
+		return -1;
+	}
+
+	return 0;
+
+ alloc_error:
+	memprintf(err, "out of memory.");
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
@@ -3204,9 +3194,13 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "dynamic-cookie-key", proxy_parse_be_opts },
 	{ CFG_LISTEN, "enabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "fullconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "http-reuse", proxy_parse_be_opts },
+	{ CFG_LISTEN, "http-send-name-header", proxy_parse_be_opts },
+	{ CFG_LISTEN, "load-server-state-from-file", proxy_parse_be_opts },
 	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
@@ -3225,6 +3219,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "reqpass", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "reqrep", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "reqtarpit", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "retries", proxy_parse_be_opts },
 	{ CFG_LISTEN, "rspadd", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "rspdel", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "rspdeny", proxy_parse_removed_kw },
@@ -3232,6 +3227,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "rspideny", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "rspirep", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "rsprep", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "server-state-file-name", proxy_parse_be_opts },
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
 	{ 0, NULL, NULL },
