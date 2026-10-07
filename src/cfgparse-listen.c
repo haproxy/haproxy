@@ -42,7 +42,7 @@
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
-	"monitor-uri", "mode", "id", "description",
+	"monitor-uri", "id", "description",
 	"acl", "cookie", "email-alert",
 	"persist", "capture",
 	"http-request", "http-response", "http-after-response",
@@ -648,54 +648,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto alloc_error;
 
 		goto out;
-	}
-	else if (strcmp(args[0], "mode") == 0) {  /* sets the proxy mode */
-		enum pr_mode mode;
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		if (unlikely(strcmp(args[1], "health") == 0)) {
-			ha_alert("parsing [%s:%d] : 'mode health' doesn't exist anymore. Please use 'http-request return status 200' instead.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		mode = str_to_proxy_mode(args[1]);
-		if (!mode) {
-			if (strcmp(args[1], "haterm") == 0) {
-				if (!(curproxy->cap & PR_CAP_FE)) {
-					ha_alert("parsing [%s:%d] : mode haterm is only applicable"
-					         " on proxies with frontend capability.\n", file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				mode = PR_MODE_HTTP;
-				curproxy->stream_new_from_sc = hstream_new;
-			}
-			else {
-				ha_alert("parsing [%s:%d] : unknown proxy mode '%s'.\n", file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-		else if ((mode == PR_MODE_SYSLOG || mode == PR_MODE_SPOP) &&
-		         !(curproxy->cap & PR_CAP_BE)) {
-			ha_alert("parsing [%s:%d] : mode %s is only applicable on proxies with backend capability.\n", file, linenum, proxy_mode_str(mode));
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else {
-			/* valid mode, non "haterm" mode.
-			 * Possibly restore the ->stream_new_from_sc() callback
-			 * if set by default for "haterm" mode.
-			 */
-			curproxy->stream_new_from_sc = stream_new;
-		}
-
-		curproxy->mode = mode;
-		if (curproxy->cap & PR_CAP_DEF)
-			curproxy->flags |= PR_FL_DEF_EXPLICIT_MODE;
 	}
 	else if (strcmp(args[0], "id") == 0) {
 		struct proxy *conflict;
@@ -3186,6 +3138,56 @@ static int proxy_parse_be_opts(char **args, int section_type, struct proxy *curp
 	return -1;
 }
 
+/* Parses the "mode" keyword, which sets the proxy's operating mode. */
+static int proxy_parse_mode(char **args, int section_type, struct proxy *curpx,
+                            const struct proxy *defpx, const char *file, int line,
+                            char **err)
+{
+	enum pr_mode mode;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (unlikely(strcmp(args[1], "health") == 0)) {
+		memprintf(err, "'mode health' doesn't exist anymore. Please use 'http-request return status 200' instead.");
+		return -1;
+	}
+
+	mode = str_to_proxy_mode(args[1]);
+	if (!mode) {
+		if (strcmp(args[1], "haterm") == 0) {
+			if (!(curpx->cap & PR_CAP_FE)) {
+				memprintf(err, "mode haterm is only applicable on proxies with frontend capability.");
+				return -1;
+			}
+			mode = PR_MODE_HTTP;
+			curpx->stream_new_from_sc = hstream_new;
+		}
+		else {
+			memprintf(err, "unknown proxy mode '%s'.", args[1]);
+			return -1;
+		}
+	}
+	else if ((mode == PR_MODE_SYSLOG || mode == PR_MODE_SPOP) &&
+		 !(curpx->cap & PR_CAP_BE)) {
+		memprintf(err, "mode %s is only applicable on proxies with backend capability.", proxy_mode_str(mode));
+		return -1;
+	}
+	else {
+		/* valid mode, non "haterm" mode.
+		 * Possibly restore the ->stream_new_from_sc() callback
+		 * if set by default for "haterm" mode.
+		 */
+		curpx->stream_new_from_sc = stream_new;
+	}
+
+	curpx->mode = mode;
+	if (curpx->cap & PR_CAP_DEF)
+		curpx->flags |= PR_FL_DEF_EXPLICIT_MODE;
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
@@ -3203,6 +3205,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "load-server-state-from-file", proxy_parse_be_opts },
 	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
+	{ CFG_LISTEN, "mode", proxy_parse_mode },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redispatch", proxy_parse_removed_kw },
