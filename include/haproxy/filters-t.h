@@ -27,7 +27,7 @@
 /* Flags set on a filter config */
 #define FLT_CFG_FL_HTX    0x00000001  /* The filter can filter HTX streams */
 
-/* Flags set on a filter instance */
+/* Flags set on a stream filter instance */
 #define FLT_FL_IS_BACKEND_FILTER  0x0001 /* The filter is a backend filter */
 #define FLT_FL_IS_REQ_DATA_FILTER 0x0002 /* The filter will parse data on the request channel */
 #define FLT_FL_IS_RSP_DATA_FILTER 0x0004 /* The filter will parse data on the response channel */
@@ -84,7 +84,7 @@ struct flt_kw_list {
  *                          done.
  *
  *
- *  - attach              : Called after a filter instance creation, when it is
+ *  - attach              : Called after a stream filter instance creation, when it is
  *                          attached to a stream. This happens when the stream
  *                          is started for filters defined on the stream's
  *                          frontend and when the backend is set for filters
@@ -105,7 +105,7 @@ struct flt_kw_list {
  *  - stream_stop         : Called when a stream is stopped. This callback will
  *                          only be called for filters defined on the stream's
  *                          frontend.
- *  - detach              : Called when a filter instance is detached from a
+ *  - detach              : Called when a stream filter instance is detached from a
  *                          stream, before its destruction. This happens when
  *                          the stream is stopped for filters defined on the
  *                          stream's frontend and when the analyze ends for
@@ -220,7 +220,7 @@ struct flt_conf {
 };
 
 /*
- * Structure reprensenting a filter instance attached to a stream
+ * Structure representing a stream filter instance attached to a stream
  *
  * 2D-Array fields are used to store info per channel. The first index stands
  * for the request channel, and the second one for the response channel.
