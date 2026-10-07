@@ -1056,6 +1056,13 @@ instances being inherited by the proxies using them. See the
      (e.g.: SERVER_STATE will always be generated for each SERVER_DOWN or
      SERVER_UP)
 
+   **PROXY** Family:
+
+    * **PROXY_ADD**: when a proxy is added dynamically
+    * **PROXY_DEL**: when a server is removed dynamically
+    * **PROXY_PUB**: when a proxy is published (ready to serve connections)
+    * **PROXY_UNPUB**: when a server is unpublished (ineligible for trafic)
+
   The prototype of the Lua function used as argument is:
 
 .. code-block:: lua
@@ -1067,7 +1074,8 @@ instances being inherited by the proxies using them. See the
     when subscribing)
   * **event_data**: specific to each event family (For **SERVER** family,
     a :ref:`server_event_class` object; for **ACME** family,
-    a :ref:`acme_event_class` object)
+    a :ref:`acme_event_class` object, for **PROXY** family,
+    a :ref:`proxy_event_class` object)
   * **sub**: class to manage the subscription from within the event
     (a :ref:`event_sub_class` object)
   * **when**: timestamp corresponding to the date when the event was generated.
@@ -1255,6 +1263,59 @@ Proxy class
   :param class_proxy px: A :ref:`proxy_class` which indicates the manipulated
    proxy.
   :returns: a :ref:`proxy_mailers_class` containing proxy mailers config
+
+.. js:function:: Proxy.event_sub(px, event_types, func)
+
+  Register a function that will be called on specific proxy events.
+  It works exactly like :js:func:`core.event_sub()` except that the subscription
+  will be performed within the proxy dedicated subscription list instead of the
+  global one.
+  (Your callback function will only be called for proxy events affecting px)
+
+  See :js:func:`core.event_sub()` for function usage.
+
+  A key advantage to using :js:func:`Proxy.event_sub()` over
+  :js:func:`core.event_sub()` for proxies is that :js:func:`Proxy.event_sub()`
+  allows you to be notified for proxies events of a single proxy only.
+  It removes the needs for extra filtering in your callback function if you only
+  care about a single proxy, and also prevents useless wakeups.
+
+  .. Note::
+     You may also combine :js:func:`core.event_sub()` with
+     :js:func:`Proxy.event_sub()`.
+
+     Also, don't forget that you can use :js:func:`core.register_task()` from
+     your callback function if needed. (ie: parallel work)
+
+  Here is a working example combining :js:func:`core.event_sub()` with
+  :js:func:`Proxy.event_sub()` and :js:func:`core.register_task()`
+  (This only serves as a demo, this is not necessarily useful to do so)
+
+.. code-block:: lua
+
+  core.event_sub({"PROXY_ADD"}, function(event, data, sub)
+    -- in the global event handler
+    if data["reference"] ~= nil then
+      print("Tracking new proxy: ", data["name"])
+      data["reference"]:event_sub({"PROXY_PUB", "PROXY_UNPUB"}, function(event, data, sub)
+        -- in the per-proxy event handler
+	if data["reference"] ~= nil then
+          core.register_task(function(proxy)
+            -- subtask to perform some async work (e.g.: HTTP API calls, sending emails...)
+            print("ASYNC: PROXY ", proxy:get_name(), " is ", event == "PROXY_PUB" and "PUBLISHED" or "UNPUBLISHED")
+          end, data["reference"])
+        end
+      end)
+    end
+  end)
+
+..
+
+  In this example, we will first track global proxy addition events.
+  For each newly added proxy ("add backend" on the cli), we will register a
+  PUB, UNPUB proxy subscription.
+  Then, the callback function will schedule the event handling in an async
+  subtask which will receive the server reference as an argument.
 
 .. _proxy_mailers_class:
 

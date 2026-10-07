@@ -2254,6 +2254,27 @@ int hlua_proxy_get_mailers(lua_State *L)
 	return 1;
 }
 
+/* hlua_event_sub wrapper for per-proxy subscription:
+ *
+ * hlua_event_sub() is called with proxy->e_subs subscription list and
+ * lua arguments are passed as-is (skipping the first argument which
+ * is the proxy ctx)
+ */
+int hlua_proxy_event_sub(lua_State *L)
+{
+	struct proxy *px;
+
+	px = hlua_check_proxy(L, 1);
+	if (px == NULL) {
+		return 0;
+	}
+	/* remove first argument from the stack (proxy) */
+	lua_remove(L, 1);
+
+	/* try to subscribe within proxy's subscription list */
+	return hlua_event_sub(L, &px->e_subs);
+}
+
 int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 {
 	struct listener *lst;
@@ -2284,6 +2305,7 @@ int hlua_fcn_new_proxy(lua_State *L, struct proxy *px)
 	hlua_class_function(L, "get_srv_bck", hlua_proxy_get_srv_bck);
 	hlua_class_function(L, "get_stats", hlua_proxy_get_stats);
 	hlua_class_function(L, "get_mailers", hlua_proxy_get_mailers);
+	hlua_class_function(L, "event_sub", hlua_proxy_event_sub);
 
 	/* Browse and register servers. */
 	lua_pushstring(L, "servers");

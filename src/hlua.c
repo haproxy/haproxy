@@ -9576,6 +9576,39 @@ __LJMP static void hlua_event_hdl_cb_push_args(struct hlua_event_sub *hlua_sub,
 			}
 		}
 	}
+	else if (event_hdl_sub_family_equal(EVENT_HDL_SUB_PROXY, event)) {
+		struct event_hdl_cb_data_proxy *e_proxy = data;
+		struct proxy *px;
+
+		hlua->nargs += 1;
+		lua_newtable(hlua->T);
+		/* Add proxy name */
+		lua_pushstring(hlua->T, "name");
+		lua_pushstring(hlua->T, e_proxy->safe.name);
+		lua_settable(hlua->T, -3);
+		/* Add proxy uuid */
+		lua_pushstring(hlua->T, "uuid");
+		lua_pushinteger(hlua->T, e_proxy->safe.uuid);
+		lua_settable(hlua->T, -3);
+		/* Add proxy cap */
+		lua_pushstring(hlua->T, "cap");
+		lua_pushstring(hlua->T, proxy_cap_str(e_proxy->safe.cap));
+		lua_settable(hlua->T, -3);
+		/* Add server proxy guid */
+		lua_pushstring(hlua->T, "guid");
+		lua_pushstring(hlua->T, e_proxy->safe.guid);
+		lua_settable(hlua->T, -3);
+
+		/* attempt to provide reference proxy object
+		 * (if it wasn't removed yet, PROXY_DEL will never succeed here)
+		 */
+		px = proxy_find_by_id(e_proxy->safe.uuid, e_proxy->safe.cap, 0);
+		if (px) {
+			lua_pushstring(hlua->T, "reference");
+			hlua_fcn_new_proxy(hlua->T, px);
+			lua_settable(hlua->T, -3);
+		}
+	}
 #if defined(HAVE_ACME)
 	else if (event_hdl_sub_family_equal(EVENT_HDL_SUB_ACME, event)) {
 		MAY_LJMP(acme_hlua_event_push_args(hlua, event, data));
