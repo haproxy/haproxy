@@ -42,7 +42,7 @@
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
-	"monitor-uri", "mode", "id", "description", "disabled", "enabled",
+	"monitor-uri", "mode", "id", "description",
 	"acl", "dynamic-cookie-key", "cookie", "email-alert",
 	"persist", "load-server-state-from-file",
 	"server-state-file-name", "max-session-srv-conns", "capture",
@@ -769,16 +769,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		for (i = 2; *args[i]; i++)
 			d += snprintf(d, curproxy->desc + len - d, " %s", args[i]);
 
-	}
-	else if (strcmp(args[0], "disabled") == 0) {  /* disables this proxy */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		curproxy->flags |= PR_FL_DISABLED;
-	}
-	else if (strcmp(args[0], "enabled") == 0) {  /* enables this proxy (used to revert a disabled default) */
-		if (alertif_too_many_args(0, file, linenum, args, &err_code))
-			goto out;
-		curproxy->flags &= ~PR_FL_DISABLED;
 	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
 		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
@@ -3194,12 +3184,37 @@ static int proxy_parse_removed_kw(char **args, int section_type, struct proxy *c
 	return -1;
 }
 
+/* Parses the "disabled" and "enabled" keywords, which mark this proxy as
+ * disabled or not. "enabled" is mostly used to revert a "disabled" inherited
+ * from a defaults section.
+ */
+static int proxy_parse_enabled(char **args, int section_type, struct proxy *curpx,
+                               const struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "disabled") == 0)
+		curpx->flags |= PR_FL_DISABLED;
+	else if (strcmp(args[0], "enabled") == 0)
+		curpx->flags &= ~PR_FL_DISABLED;
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_enabled().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "enabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
