@@ -3854,13 +3854,13 @@ static int h1_send_error(struct h1c *h1c)
 		}
 	}
 
+  out_abort:
 	if (h1c->state == H1_CS_EMBRYONIC) {
 		BUG_ON(h1c->h1s == NULL || h1s_sc(h1c->h1s) != NULL);
 		TRACE_DEVEL("Abort embryonic H1S", H1_EV_H1C_ERR, h1c->conn, h1c->h1s);
 		h1s_destroy(h1c->h1s);
 	}
 
-  out_abort:
 	h1c->flags = (h1c->flags & ~(H1C_F_WAIT_NEXT_REQ|H1C_F_ABRT_PENDING)) | H1C_F_ABRTED;
 	h1_close(h1c);
   out:
