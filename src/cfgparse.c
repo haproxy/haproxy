@@ -119,6 +119,14 @@ int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
 char *cfg_scope = NULL;                 /* the current scope during the configuration parsing */
 int non_global_section_parsed = 0;
 
+/* keyword modifier ("no" or "default") found in front of the keyword which is
+ * currently being parsed. It is reset for each new line, and is only meaningful
+ * during the config parsing. Section parsers receive it as an argument, but the
+ * keyword parsers registered in a cfg_kw_list don't, so those which support a
+ * modifier have to consult this variable.
+ */
+int cfg_curr_kwm = KWM_STD;
+
 /* how to handle default paths */
 static enum default_path_mode {
 	DEFAULT_PATH_CURRENT = 0,  /* "current": paths are relative to CWD (this is the default) */
@@ -2131,6 +2139,9 @@ next_line:
 			lshift_args(args);
 		}
 
+		/* also expose it to the keyword parsers, which don't receive it */
+		cfg_curr_kwm = kwm;
+
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 &&
 		    strcmp(args[0], "log") != 0 && strcmp(args[0], "busy-polling") != 0 &&
 		    strcmp(args[0], "set-dumpable") != 0 && strcmp(args[0], "strict-limits") != 0 &&
@@ -2216,6 +2227,7 @@ section_parser:
 	}
 
 	ha_free(&global.cfg_curr_section);
+	cfg_curr_kwm = KWM_STD;
 
 	/* call post_section_parser of the last section when there is no more lines */
 	if (cs) {

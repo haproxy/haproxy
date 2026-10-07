@@ -109,6 +109,7 @@ extern char *cfg_scope;
 extern struct cfg_kw_list cfg_keywords;
 extern char *cursection;
 extern int non_global_section_parsed;
+extern int cfg_curr_kwm;
 
 extern struct proxy *curproxy;
 extern struct proxy *last_defproxy;
