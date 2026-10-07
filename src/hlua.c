@@ -11994,7 +11994,18 @@ static void hlua_filter_deinit_per_thread(struct proxy *px, struct flt_conf *fco
 
 	state_id = reg_flt_to_stack_id(conf->reg);
 	L = hlua_states[state_id];
+
+	/* The common state is shared by all the threads, which may be running
+	 * Lua code when a dynamically created proxy is destroyed at runtime:
+	 * the reference must be released under the global lock. This is
+	 * uncontended during the startup and the shutdown, where this also
+	 * runs.
+	 */
+	if (!state_id)
+		lua_take_global_lock();
 	hlua_unref(L, conf->ref[state_id]);
+	if (!state_id)
+		lua_drop_global_lock();
 }
 
 static int hlua_filter_init(struct proxy *px, struct flt_conf *fconf)
