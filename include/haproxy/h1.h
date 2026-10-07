@@ -104,9 +104,14 @@ enum h1m_state {
  *
  * WARNING: Don't forget to update it if a new flag must be preserved when
  *          headers parsing is restarted.
+ *
+ * Note: H1_MF_CONN_CLO and H1_MF_CONN_KAL must be preserved because the
+ *       corresponding values may have been removed from the connection
+ *       headers before the restart (see h1_parse_connection_header()).
  */
 #define H1_MF_RESTART_MASK    (H1_MF_RESP|H1_MF_TOLOWER|H1_MF_NO_PHDR|H1_MF_HDRS_ONLY| \
-			       H1_MF_CLEAN_CONN_HDR|H1_MF_METH_CONNECT|H1_MF_METH_HEAD)
+			       H1_MF_CLEAN_CONN_HDR|H1_MF_METH_CONNECT|H1_MF_METH_HEAD| \
+			       H1_MF_CONN_CLO|H1_MF_CONN_KAL)
 
 /* Note: for a connection to be persistent, we need this for the request :
  *   - one of CLEN or CHNK

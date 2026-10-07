@@ -217,7 +217,12 @@ static int h1_validate_mismatch_authority(struct ist scheme, struct ist authorit
  * function is safe for being called multiple times if multiple occurrences
  * are found. If the flag H1_MF_CLEAN_CONN_HDR, the header value is cleaned
  * up from "keep-alive" and "close" values. To do so, the header value is
- * rewritten in place and its length is updated.
+ * rewritten in place and its length is updated. The bytes freed at the end of
+ * the original value are replaced with spaces so that parsing the same area
+ * again (e.g. when the parser restarts on an incomplete message) gives the
+ * same value. However the removed values are not there anymore, so the caller
+ * must preserve the H1_MF_CONN_CLO and H1_MF_CONN_KAL flags across such
+ * restarts.
  */
 void h1_parse_connection_header(struct h1m *h1m, struct ist *value)
 {
@@ -270,11 +275,17 @@ void h1_parse_connection_header(struct h1m *h1m, struct ist *value)
 	  skip_val:
 		word.ptr = p = n;
 	}
+
+	/* blank the freed area to make the operation idempotent */
+	if ((h1m->flags & H1_MF_CLEAN_CONN_HDR) && value->ptr + value->len < e)
+		memset(value->ptr + value->len, ' ', e - (value->ptr + value->len));
 }
 
 /* Parse the Upgrade: header of an HTTP/1 request.
  * If "websocket" is found, set H1_MF_UPG_WEBSOCKET flag
- * If "h2c" or "h2" found, the value is skipped.
+ * If "h2c" or "h2" found, the value is skipped. The header value is rewritten
+ * in place and the bytes freed at the end of the original value are replaced
+ * with spaces so that parsing the same area again gives the same value.
  */
 void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 {
@@ -316,6 +327,10 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 	  skip_val:
 		word.ptr = p = n;
 	}
+
+	/* blank the freed area to make the operation idempotent */
+	if (value->ptr + value->len < e)
+		memset(value->ptr + value->len, ' ', e - (value->ptr + value->len));
 
 	if (istlen(*value))
 		h1m->flags |= H1_MF_UPG_HDR;
