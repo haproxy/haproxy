@@ -7203,17 +7203,30 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 				scheme = ist2(uri.ptr, len);
 				uri = istadv(uri, len + 3);
 
-				/* find the auth part of the URI */
+				/* find the auth part of the URI. As per RFC3986#3.2,
+				 * it ends at the first '/', '?' or '#'.
+				 */
 				auth = ist2(uri.ptr, 0);
-				while (auth.len < uri.len && auth.ptr[auth.len] != '/')
+				while (auth.len < uri.len && auth.ptr[auth.len] != '/' &&
+				       auth.ptr[auth.len] != '?' && auth.ptr[auth.len] != '#')
 					auth.len++;
 
 				uri = istadv(uri, auth.len);
 
-				/* RFC9113#8.3.1: :authority must not carry the deprecated userinfo */
-				at = istfind(auth, '@');
-				if (istlen(at))
-					auth = istadv(at, 1);
+				for (at = ist2(istend(auth), 0); at.ptr > auth.ptr; at.ptr--) {
+					if (at.ptr[-1] == '@') {
+						auth = ist2(at.ptr, istend(auth) - at.ptr);
+						break;
+					}
+				}
+
+				if (uri.len && *uri.ptr != '/') {
+					struct buffer *path = get_trash_chunk();
+
+					if (!chunk_memcat(path, "/", 1) || !chunk_memcat(path, uri.ptr, uri.len))
+						goto fail;
+					uri = ist2(b_orig(path), b_data(path));
+				}
 			}
 		}
 
