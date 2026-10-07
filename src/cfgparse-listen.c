@@ -41,7 +41,7 @@
  */
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
-	"default-server", "server-template", "bind", "monitor-net",
+	"default-server", "server-template", "bind",
 	"monitor-uri", "mode", "id", "description", "disabled", "enabled",
 	"acl", "dynamic-cookie-key", "cookie", "email-alert",
 	"persist", "appsession", "load-server-state-from-file",
@@ -51,7 +51,7 @@ static const char *common_kw_list[] = {
 	"use-server", "force-persist", "ignore-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
 	"http-reuse", "monitor", "transparent", "maxconn", "backlog",
-	"fullconn", "dispatch", "balance", "hash-type",
+	"fullconn", "balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
 	"error-log-format",
@@ -628,11 +628,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		cur_arg = 2;
 		err_code |= bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
-		goto out;
-	}
-	else if (strcmp(args[0], "monitor-net") == 0) {  /* set the range of IPs to ignore */
-		ha_alert("parsing [%s:%d] : 'monitor-net' doesn't exist anymore. Please use 'http-request return status 200 if { src %s }' instead.\n", file, linenum, args[1]);
-		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
 	else if (strcmp(args[0], "monitor-uri") == 0) {  /* set the URI to intercept */
@@ -2681,15 +2676,6 @@ stats_error_parsing:
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (strcmp(args[0], "dispatch") == 0) {  /* dispatch address */
-		ha_alert("parsing [%s:%d]: support for '%s' was removed in version 3.5. "
-			 "The modern way to do the same is to create a server with the same address, and "
-			 "possibly to assign any extra server a weight of zero if any:\n"
-			 "    server dispatch %s\n",
-			 file, linenum, args[0], args[1]);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else if (strcmp(args[0], "balance") == 0) {  /* set balancing with optional algorithm */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -3271,3 +3257,42 @@ stats_error_parsing:
 	err_code |= ERR_ALERT | ERR_ABORT;
 	goto out;
 }
+
+/* Parses the proxy keywords which are not supported anymore, and only reports
+ * what to use instead.
+ */
+static int proxy_parse_removed_kw(char **args, int section_type, struct proxy *curpx,
+                                  const struct proxy *defpx, const char *file, int line,
+                                  char **err)
+{
+	int i;
+
+	/* these two report the argument they were passed, so they can't be
+	 * described by a static message.
+	 */
+	if (strcmp(args[0], "monitor-net") == 0) {
+		memprintf(err, "the '%s' keyword is not supported anymore. "
+			  "Please use 'http-request return status 200 if { src %s }' instead.",
+			  args[0], args[1]);
+		return -1;
+	}
+
+	if (strcmp(args[0], "dispatch") == 0) {
+		memprintf(err, "the '%s' keyword is not supported anymore since HAProxy 3.5. "
+			  "The modern way to do the same is to create a server with the same address, "
+			  "and possibly to assign any extra server a weight of zero if any:\n"
+			  "    server dispatch %s", args[0], args[1]);
+		return -1;
+	}
+
+	BUG_ON(1, "unhandled keyword in proxy_parse_removed_kw().");
+	return -1;
+}
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
