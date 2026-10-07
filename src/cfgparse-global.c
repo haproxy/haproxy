@@ -36,7 +36,7 @@ int cluster_secret_isset;
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"global", "ssl-server-verify",
+	"global",
 	"description", "node", "unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
@@ -70,24 +70,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "ssl-server-verify") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (strcmp(args[1],"none") == 0)
-			global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
-		else if (strcmp(args[1],"required") == 0)
-			global.ssl_server_verify = SSL_SERVER_VERIFY_REQUIRED;
-		else {
-			ha_alert("parsing [%s:%d] : '%s' expects 'none' or 'required' as argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-	                goto out;
-		}
-	}
 	else if (strcmp(args[0], "description") == 0) {
 		int i, len=0;
 		char *d;
@@ -1983,6 +1965,31 @@ static int cfg_parse_global_comp_limits(char **args, int section_type, struct pr
 	return -1;
 }
 
+/* Parses the "ssl-server-verify" keyword. */
+static int cfg_parse_global_ssl_server_verify(char **args, int section_type, struct proxy *curpx,
+                                              const struct proxy *defpx, const char *file, int line,
+                                              char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument.", args[0]);
+		return -1;
+	}
+
+	if (strcmp(args[1], "none") == 0)
+		global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
+	else if (strcmp(args[1], "required") == 0)
+		global.ssl_server_verify = SSL_SERVER_VERIFY_REQUIRED;
+	else {
+		memprintf(err, "'%s' expects 'none' or 'required' as argument.", args[0]);
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2031,6 +2038,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "set-dumpable", cfg_parse_global_set_dumpable },
 	{ CFG_GLOBAL, "shm-stats-file", cfg_parse_global_shm_stats_file },
 	{ CFG_GLOBAL, "shm-stats-file-max-objects", cfg_parse_global_shm_stats_file_max_objects },
+	{ CFG_GLOBAL, "ssl-server-verify", cfg_parse_global_ssl_server_verify },
 	{ CFG_GLOBAL, "stress-level", cfg_parse_global_stress_level },
 	{ CFG_GLOBAL, "strict-limits", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "tune.bufsize", cfg_parse_global_tune_opts },
