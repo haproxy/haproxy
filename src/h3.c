@@ -2425,7 +2425,7 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 	enum htx_blk_type type;
 	struct htx_blk *blk;
 	struct htx_sl *sl;
-	struct ist meth, uri, scheme = IST_NULL, auth = IST_NULL;
+	struct ist meth, uri, scheme = IST_NULL, auth = IST_NULL, at;
 	int frame_length_size;  /* size in bytes of frame length varint field */
 	int smallbuf = 1;
 	int ret = 0;
@@ -2511,13 +2511,33 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 			scheme = ist2(uri.ptr, len);
 			uri = istadv(uri, len + 3);
 
-			/* find the auth part of the URI */
+			/* find the auth part of the URI. As per RFC3986#3.2,
+			 * it ends at the first '/', '?' or '#'.
+			 */
 			auth = ist2(uri.ptr, 0);
-			while (auth.len < uri.len && auth.ptr[auth.len] != '/')
+			while (auth.len < uri.len && auth.ptr[auth.len] != '/' &&
+			       auth.ptr[auth.len] != '?' && auth.ptr[auth.len] != '#')
 				auth.len++;
 
 			uri = istadv(uri, auth.len);
+
+			for (at = ist2(istend(auth), 0); at.ptr > auth.ptr; at.ptr--) {
+				if (at.ptr[-1] == '@') {
+					auth = ist2(at.ptr, istend(auth) - at.ptr);
+					break;
+				}
+			}
 		}
+	}
+
+	if (!uri.len)
+		uri = ((sl->info.req.meth == HTTP_METH_OPTIONS) ? ist("*") : ist("/"));
+	else if (*uri.ptr != '/' && *uri.ptr != '*') {
+		struct buffer *path = get_trash_chunk();
+
+		if (!chunk_memcat(path, "/", 1) || !chunk_memcat(path, uri.ptr, uri.len))
+			goto err;
+		uri = ist2(b_orig(path), b_data(path));
 	}
 
 	if (!istlen(scheme)) {
