@@ -37,7 +37,7 @@ int cluster_secret_isset;
  */
 static const char *common_kw_list[] = {
 	"global",
-	"description", "node", "unix-bind", "log",
+	"unix-bind", "log",
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map",
 	"defaults", "listen", "frontend", "backend",
@@ -70,58 +70,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "description") == 0) {
-		int i, len=0;
-		char *d;
-
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d]: '%s' expects a string argument.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		for (i = 1; *args[i]; i++)
-			len += strlen(args[i]) + 1;
-
-		free(global.desc);
-		global.desc = d = calloc(1, len);
-		if (!d) {
-			ha_alert("parsing [%s:%d]: cannot allocate memory for '%s'.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-
-		d += snprintf(d, global.desc + len - d, "%s", args[1]);
-		for (i = 2; *args[i]; i++)
-			d += snprintf(d, global.desc + len - d, " %s", args[i]);
-	}
-	else if (strcmp(args[0], "node") == 0) {
-		int i;
-		char c;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		for (i=0; args[1][i]; i++) {
-			c = args[1][i];
-			if (!isupper((unsigned char)c) && !islower((unsigned char)c) &&
-			    !isdigit((unsigned char)c) && c != '_' && c != '-' && c != '.')
-				break;
-		}
-
-		if (!i || args[1][i]) {
-			ha_alert("parsing [%s:%d]: '%s' requires valid node name - non-empty string"
-				 " with digits(0-9), letters(A-Z, a-z), dot(.), hyphen(-) or underscode(_).\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		free(global.node);
-		global.node = strdup(args[1]);
-	}
 	else if (strcmp(args[0], "unix-bind") == 0) {
 		int cur_arg = 1;
 		while (*(args[cur_arg])) {
@@ -1990,12 +1938,84 @@ static int cfg_parse_global_ssl_server_verify(char **args, int section_type, str
 	return 0;
 }
 
+/* Parses the "node" and "description" keywords, which sets the name and
+ * description for this node.
+ */
+static int cfg_parse_global_node_desc(char **args, int section_type, struct proxy *curpx,
+                                      const struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (strcmp(args[0], "description") == 0) {
+		int i, len = 0;
+		char *d;
+
+		if (!*args[1]) {
+			memprintf(err, "'%s' expects a string argument.", args[0]);
+			return -1;
+		}
+
+		for (i = 1; *args[i]; i++)
+			len += strlen(args[i]) + 1;
+
+		d = calloc(1, len);
+		if (!d) {
+			memprintf(err, "cannot allocate memory for '%s'.", args[0]);
+			return -1;
+		}
+
+		free(global.desc);
+		global.desc = d;
+
+		d += snprintf(d, global.desc + len - d, "%s", args[1]);
+		for (i = 2; *args[i]; i++)
+			d += snprintf(d, global.desc + len - d, " %s", args[i]);
+	}
+	else if (strcmp(args[0], "node") == 0) {
+		char *node;
+		int i;
+		char c;
+
+		if (too_many_args(1, args, err, NULL))
+			return -1;
+
+		for (i = 0; args[1][i]; i++) {
+			c = args[1][i];
+			if (!isupper((unsigned char)c) && !islower((unsigned char)c) &&
+			    !isdigit((unsigned char)c) && c != '_' && c != '-' && c != '.')
+				break;
+		}
+
+		if (!i || args[1][i]) {
+			memprintf(err, "'%s' requires valid node name - non-empty string"
+				  " with digits(0-9), letters(A-Z, a-z), dot(.), hyphen(-) or underscode(_).",
+				  args[0]);
+			return -1;
+		}
+
+		node = strdup(args[1]);
+		if (!node) {
+			memprintf(err, "cannot allocate memory for '%s'.", args[0]);
+			return -1;
+		}
+
+		free(global.node);
+		global.node = node;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_node_desc().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ CFG_GLOBAL, "cluster-secret", cfg_parse_global_cluster_secret },
 	{ CFG_GLOBAL, "daemon", cfg_parse_global_mode, KWF_DISCOVERY } ,
 	{ CFG_GLOBAL, "external-check", cfg_parse_global_external_check },
+	{ CFG_GLOBAL, "description", cfg_parse_global_node_desc },
 	{ CFG_GLOBAL, "expose-deprecated-directives", cfg_parse_global_non_std_directives, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "expose-experimental-directives", cfg_parse_global_non_std_directives },
 	{ CFG_GLOBAL, "fd-hard-limit", cfg_parse_global_limits },
@@ -2020,6 +2040,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "maxzlibmem", cfg_parse_global_comp_limits },
 	{ CFG_GLOBAL, "nbproc", cfg_parse_global_unsupported_opts },
 	{ CFG_GLOBAL, "nogetaddrinfo", cfg_parse_global_bool_opts },
+	{ CFG_GLOBAL, "node", cfg_parse_global_node_desc },
 	{ CFG_GLOBAL, "noepoll", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "noevports", cfg_parse_global_disable_poller, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "nokqueue", cfg_parse_global_disable_poller, KWF_DISCOVERY },
