@@ -66,30 +66,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	if (global.mode & MODE_DISCOVERY)
 		goto discovery_kw;
 
-	else if (strcmp(args[0], "anonkey") == 0) {
-		long long tmp = 0;
-
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*args[1] == 0) {
-			ha_alert("parsing [%s:%d]: a key is expected after '%s'.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (HA_ATOMIC_LOAD(&global.anon_key) == 0) {
-			tmp = atoll(args[1]);
-			if (tmp < 0 || tmp > UINT_MAX) {
-				ha_alert("parsing [%s:%d]: '%s' value must be within range %u-%u (was '%s').\n",
-					 file, linenum, args[0], 0, UINT_MAX, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			HA_ATOMIC_STORE(&global.anon_key, tmp);
-		}
-	}
 	else {
 		struct cfg_kw_list *kwl;
 		const char *best;
@@ -2033,7 +2009,41 @@ static int cfg_parse_global_cpu_map(char **args, int section_type, struct proxy 
 #endif /* ! USE_CPU_AFFINITY */
 }
 
+/* Parses the "anonkey" keyword, which sets the key used to anonymize the
+ * configuration and the dumps. It is ignored if a key was already set, e.g.
+ * from the command line.
+ */
+static int cfg_parse_global_anonkey(char **args, int section_type, struct proxy *curpx,
+                                    const struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	long long key;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (*args[1] == 0) {
+		memprintf(err, "a key is expected after '%s'.", args[0]);
+		return -1;
+	}
+
+	if (HA_ATOMIC_LOAD(&global.anon_key) != 0)
+		return 0;
+
+	key = atoll(args[1]);
+	if (key < 0 || key > UINT_MAX) {
+		memprintf(err, "'%s' value must be within range %u-%u (was '%s').",
+			  args[0], 0, UINT_MAX, args[1]);
+		return -1;
+	}
+
+	HA_ATOMIC_STORE(&global.anon_key, key);
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "anonkey", cfg_parse_global_anonkey },
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
 	{ CFG_GLOBAL, "cluster-secret", cfg_parse_global_cluster_secret },
