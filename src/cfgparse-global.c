@@ -36,8 +36,7 @@ int cluster_secret_isset;
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"global", "uid", "gid",
-	"external-check", "user", "group", "maxconn",
+	"global", "external-check", "maxconn",
 	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
 	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
 	"description", "node", "unix-bind", "log",
@@ -97,45 +96,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		memcpy(global.cluster_secret, sha1_out, sizeof global.cluster_secret);
 		cluster_secret_isset = 1;
 	}
-	else if (strcmp(args[0], "uid") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.uid >= 0) {
-			ha_alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (strl2irc(args[1], strlen(args[1]), &global.uid) != 0) {
-			ha_warning("parsing [%s:%d] :  uid: string '%s' is not a number.\n   | You might want to use the 'user' parameter to use a system user name.\n", file, linenum, args[1]);
-			err_code |= ERR_WARN;
-			goto out;
-		}
-
-	}
-	else if (strcmp(args[0], "gid") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.gid >= 0) {
-			ha_alert("parsing [%s:%d] : group/gid already specified. Continuing.\n", file, linenum);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (strl2irc(args[1], strlen(args[1]), &global.gid) != 0) {
-			ha_warning("parsing [%s:%d] :  gid: string '%s' is not a number.\n   | You might want to use the 'group' parameter to use a system group name.\n", file, linenum, args[1]);
-			err_code |= ERR_WARN;
-			goto out;
-		}
-	}
 	else if (strcmp(args[0], "external-check") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -148,65 +108,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	                goto out;
 		}
 	}
-	/* user/group name handling */
-	else if (strcmp(args[0], "user") == 0) {
-		struct passwd *ha_user;
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.uid >= 0) {
-			ha_alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-
-		if (build_is_static) {
-			ha_warning("parsing [%s:%d] : haproxy is built statically, the "
-			              "libc might crash when resolving \"user %s\", "
-			              "please use \"uid\" instead\n",
-			               file, linenum, args[1]);
-			err_code |= ERR_WARN;
-		}
-
-		errno = 0;
-		ha_user = getpwnam(args[1]);
-		if (ha_user != NULL) {
-			global.uid = (int)ha_user->pw_uid;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : cannot find user id for '%s' (%d:%s)\n", file, linenum, args[1], errno, strerror(errno));
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-	}
-	else if (strcmp(args[0], "group") == 0) {
-		struct group *ha_group;
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (global.gid >= 0) {
-			ha_alert("parsing [%s:%d] : gid/group was already specified. Continuing.\n", file, linenum);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
-
-		if (build_is_static) {
-			ha_warning("parsing [%s:%d] : haproxy is built statically, the "
-			              "libc might crash when resolving \"group %s\", "
-			              "please use \"gid\" instead\n",
-			               file, linenum, args[1]);
-			err_code |= ERR_WARN;
-		}
-
-
-		errno = 0;
-		ha_group = getgrnam(args[1]);
-		if (ha_group != NULL) {
-			global.gid = (int)ha_group->gr_gid;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : cannot find group id for '%s' (%d:%s)\n", file, linenum, args[1], errno, strerror(errno));
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-	}
-	/* end of user/group name handling*/
 	else if (strcmp(args[0], "maxconn") == 0) {
 		char *stop;
 
@@ -1992,6 +1893,101 @@ static int cfg_parse_global_set_dumpable(char **args, int section_type, struct p
 	return 0;
 }
 
+/* Parses the "uid", "gid", "user" and "group" keywords, which all end up
+ * setting global.uid or global.gid, either from a number or from a system
+ * user or group name.
+ */
+static int cfg_parse_global_uid_gid(char **args, int section_type, struct proxy *curpx,
+                                    const struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[0], "uid") == 0) {
+		if (global.uid >= 0) {
+			ha_alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, line);
+			return 0;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		if (strl2irc(args[1], strlen(args[1]), &global.uid) != 0) {
+			memprintf(err, "uid: string '%s' is not a number.\n"
+				  "   | You might want to use the 'user' parameter to use a system user name.",
+				  args[1]);
+			return 1;
+		}
+	}
+	else if (strcmp(args[0], "gid") == 0) {
+		if (global.gid >= 0) {
+			ha_alert("parsing [%s:%d] : group/gid already specified. Continuing.\n", file, line);
+			return 0;
+		}
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+		if (strl2irc(args[1], strlen(args[1]), &global.gid) != 0) {
+			memprintf(err, "gid: string '%s' is not a number.\n"
+				  "   | You might want to use the 'group' parameter to use a system group name.",
+				  args[1]);
+			return 1;
+		}
+	}
+	else if (strcmp(args[0], "user") == 0) {
+		struct passwd *ha_user;
+
+		if (global.uid >= 0) {
+			ha_alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, line);
+			return 0;
+		}
+
+		if (build_is_static)
+			ha_warning("parsing [%s:%d] : haproxy is built statically, the "
+				   "libc might crash when resolving \"user %s\", "
+				   "please use \"uid\" instead\n",
+				   file, line, args[1]);
+
+		errno = 0;
+		ha_user = getpwnam(args[1]);
+		if (!ha_user) {
+			memprintf(err, "cannot find user id for '%s' (%d:%s)", args[1], errno, strerror(errno));
+			return -1;
+		}
+		global.uid = (int)ha_user->pw_uid;
+	}
+	else if (strcmp(args[0], "group") == 0) {
+		struct group *ha_group;
+
+		if (global.gid >= 0) {
+			ha_alert("parsing [%s:%d] : gid/group was already specified. Continuing.\n", file, line);
+			return 0;
+		}
+
+		if (build_is_static)
+			ha_warning("parsing [%s:%d] : haproxy is built statically, the "
+				   "libc might crash when resolving \"group %s\", "
+				   "please use \"gid\" instead\n",
+				   file, line, args[1]);
+
+		errno = 0;
+		ha_group = getgrnam(args[1]);
+		if (!ha_group) {
+			memprintf(err, "cannot find group id for '%s' (%d:%s)", args[1], errno, strerror(errno));
+			return -1;
+		}
+		global.gid = (int)ha_group->gr_gid;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in cfg_parse_global_uid_gid().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "busy-polling", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "chroot", cfg_parse_global_chroot },
@@ -2002,6 +1998,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "h2-workaround-bogus-websocket-clients", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.quic", cfg_parse_reject_privileged_ports },
 	{ CFG_GLOBAL, "harden.reject-privileged-ports.tcp",  cfg_parse_reject_privileged_ports },
+	{ CFG_GLOBAL, "gid", cfg_parse_global_uid_gid },
+	{ CFG_GLOBAL, "group", cfg_parse_global_uid_gid },
 	{ CFG_GLOBAL, "insecure-fork-wanted", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "insecure-setuid-wanted", cfg_parse_global_bool_opts },
 	{ CFG_GLOBAL, "limited-quic", cfg_parse_global_bool_opts },
@@ -2061,8 +2059,10 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.sndbuf.server", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.streams-elasticity", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.takeover-other-tg-connections", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "uid", cfg_parse_global_uid_gid },
 	{ CFG_GLOBAL, "unsetenv", cfg_parse_global_env_opts, KWF_DISCOVERY },
 	{ CFG_GLOBAL, "worker-id", cfg_parse_global_worker_id },
+	{ CFG_GLOBAL, "user", cfg_parse_global_uid_gid },
 	{ CFG_GLOBAL, "zero-warning", cfg_parse_global_mode, KWF_DISCOVERY },
 	{ 0, NULL, NULL },
 }};
