@@ -1,0 +1,38 @@
+varnishtest "H1 websocket upgrade response received just after a 1xx response"
+
+# When a 1xx interim response and the 101 response of a websocket upgrade are
+# received at once, the websocket key must be searched in the 101 response,
+# not in the interim one which is still present in the buffer.
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.http.upgrade == "websocket"
+	send "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 101 Switching Protocols\r\nConnection: upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+	txreq -req GET -url /chat \
+	  -hdr "Connection: upgrade" \
+	  -hdr "Upgrade: websocket" \
+	  -hdr "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+	  -hdr "Sec-WebSocket-Version: 13"
+	rxresp
+	expect resp.status == 100
+	rxresp
+	expect resp.status == 101
+	expect resp.http.sec-websocket-accept == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+} -run
