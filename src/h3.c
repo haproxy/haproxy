@@ -755,8 +755,6 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	/* TODO support trailer parsing in this function */
 
-	/* TODO support buffer wrapping */
-	BUG_ON(b_head(buf) + len > b_wrap(buf));
 	ret = qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
@@ -1260,8 +1258,6 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	/* TODO support buffer wrapping */
-	BUG_ON(b_head(buf) + len > b_wrap(buf));
 	ret = qpack_decode_fs((const unsigned char *)b_head(buf), len, tmp,
 	                    list, sizeof(list) / sizeof(list[0]));
 	if (ret < 0) {
@@ -1532,9 +1528,6 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	if (len) {
-		/* TODO support buffer wrapping */
-		BUG_ON(b_head(buf) + len > b_wrap(buf));
-
 		ret = qpack_decode_fs((const unsigned char *)b_head(buf), len,
 		                      tmp, list, sizeof(list) / sizeof(list[0]));
 		if (ret < 0) {
@@ -1908,6 +1901,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	struct h3s *h3s = qcs->ctx;
 	struct h3c *h3c = h3s->h3c;
 	ssize_t total = 0, ret = 0;
+	struct buffer aligned = BUF_NULL;
 
 	TRACE_ENTER(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 
@@ -2050,8 +2044,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		ftype = h3s->demux_frame_type;
 
 		/* Current HTTP/3 parser can currently only parse fully
-		 * received and aligned frames. The only exception is for DATA
-		 * frames as they can frequently be larger than bufsize.
+		 * received frames. The only exception is for DATA frames as
+		 * they can frequently be larger than bufsize.
 		 */
 		if (ftype != H3_FT_DATA) {
 			/* Reject frames bigger than bufsize.
@@ -2068,19 +2062,42 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				goto err;
 			}
 
-			/* TODO extend parser to support the realignment of a frame. */
-			if (b_head(b) + b_data(b) > b_wrap(b)) {
-				TRACE_ERROR("cannot parse unaligned data frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, H3_ERR_EXCESSIVE_LOAD, 1,
-				              muxc_tevt_type_other_err);
-				qcc_report_glitch(qcs->qcc, 1);
-				goto err;
-			}
-
 			/* Only parse full HTTP/3 frames. */
 			if (flen > b_data(b)) {
 				TRACE_PROTO("pause parsing on incomplete payload", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 				break;
+			}
+
+			/* HEADERS frame must be aligned before parsing. This
+			 * is a requirement for qpack_decode_fs().
+			 *
+			 * TODO implement wrapping content decoding in
+			 * qpack_decode_fs() to remove alignment requirement
+			 */
+			if (ftype == H3_FT_HEADERS && b_head(b) + flen > b_wrap(b)) {
+				const size_t contig = b_wrap(b) - b_head(b);
+
+				/* Cannot realign on the original area as this
+				 * would mangle the base ncbuf MUX storage.
+				 * Switch to a temporary area for the remainder
+				 * of this parsing iteration.
+				 */
+
+				/* TODO use a thread-local static storage buf,
+				 * safe as not kept beyond current call.
+				 * Do not rely on trash as already used by H3/QPACK parsers.
+				 */
+				if (!b_alloc(&aligned, DB_MUX_RX)) {
+					TRACE_ERROR("Rx aligned buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+					qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1, muxc_tevt_type_internal_err);
+					goto err;
+				}
+
+				TRACE_PROTO("realign frame content", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+				memmove(aligned.area, b_head(b), contig);
+				memmove(aligned.area + contig, b_orig(b), b_data(b) - contig);
+				b->area = aligned.area;
+				b->head = 0;
 			}
 		}
 
@@ -2290,10 +2307,12 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 	 */
 
  done:
+	b_free(&aligned);
 	TRACE_LEAVE(H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 	return total;
 
  err:
+	b_free(&aligned);
 	TRACE_DEVEL("leaving on error", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 	return -1;
 }
