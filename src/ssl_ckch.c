@@ -5648,7 +5648,7 @@ static int cfg_parse_crtstore(const char *file, int linenum, char **args, int kw
 		}
 	}
 
-	best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_CRTSTORE, NULL);
+	best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_CRTSTORE);
 	if (best)
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
 	else

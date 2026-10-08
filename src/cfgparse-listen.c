@@ -568,7 +568,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 
-	best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_LISTEN, common_kw_list);
+	best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_LISTEN);
 	if (best)
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
 	else
