@@ -43,7 +43,6 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"cookie", "email-alert",
-	"redirect",
 	"stick-table", "stick", "stats", "option",
 	NULL /* must be last */
 };
@@ -911,35 +910,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (strcmp(args[0], "redirect") == 0) {
-		struct redirect_rule *rule;
-		int where = 0;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if ((rule = http_parse_redirect_rule(file, linenum, curproxy, (const char **)args + 1, &errmsg, 0, 0)) == NULL) {
-			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing redirect rule : %s.\n",
-				 file, linenum, proxy_type_str(curproxy), curproxy->id, errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		LIST_APPEND(&curproxy->redirect_rules, &rule->list);
-		if (warnif_misplaced_redirect(curproxy, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (curproxy->cap & PR_CAP_FE)
-			where |= SMP_VAL_FE_HRQ_HDR;
-		if (curproxy->cap & PR_CAP_BE)
-			where |= SMP_VAL_BE_HRQ_HDR;
-		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-	}
 	else if (strcmp(args[0], "stick-table") == 0) {
 		struct stktable *other;
 
@@ -3143,6 +3113,45 @@ static int proxy_parse_http_rules(char **args, int section_type, struct proxy *c
 	return -1;
 }
 
+/* Parses the "redirect" keyword, which adds a redirect rule. */
+static int proxy_parse_redirect(char **args, int section_type, struct proxy *curpx,
+                                const struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	struct redirect_rule *rule;
+	char *errmsg = NULL;
+	int where = 0;
+
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+		goto fail;
+	}
+
+	rule = http_parse_redirect_rule(file, line, curpx, (const char **)args + 1, &errmsg, 0, 0);
+	if (!rule) {
+		memprintf(err, "error detected in %s '%s' while parsing redirect rule : %s.",
+			  proxy_type_str(curpx), curpx->id, errmsg);
+		goto fail;
+	}
+
+	LIST_APPEND(&curpx->redirect_rules, &rule->list);
+	warnif_misplaced_redirect(curpx, file, line, args[0], NULL);
+
+	if (curpx->cap & PR_CAP_FE)
+		where |= SMP_VAL_FE_HRQ_HDR;
+	if (curpx->cap & PR_CAP_BE)
+		where |= SMP_VAL_BE_HRQ_HDR;
+
+	if (warnif_cond_conflicts(rule->cond, where, &errmsg))
+		ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+	ha_free(&errmsg);
+
+	return 0;
+ fail:
+	ha_free(&errmsg);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3183,6 +3192,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "monitor-uri", proxy_parse_monitor },
 	{ CFG_LISTEN, "persist", proxy_parse_persist },
+	{ CFG_LISTEN, "redirect", proxy_parse_redirect },
 	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "redispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "reqadd", proxy_parse_removed_kw },
