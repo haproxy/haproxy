@@ -239,7 +239,8 @@ static struct qcs *qcs_new(struct qcc *qcc, uint64_t id, enum qcs_type type)
 	 */
 	if (qcc->app_st >= QCC_APP_ST_SHUT && !qcc->app_ops->shutdown) {
 		qcc_abort_stream_read(qcs, 0);
-		qcc_reset_stream(qcs, 0, 0);
+		if (!quic_stream_is_uni(qcs->id))
+			qcc_reset_stream(qcs, 0, 0);
 		goto out;
 	}
 	else if (qcc->app_ops->attach && qcc->app_ops->attach(qcs, qcc->ctx)) {
