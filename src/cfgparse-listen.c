@@ -47,7 +47,6 @@ static const char *common_kw_list[] = {
 	"redirect", "use_backend",
 	"use-server",
 	"stick-table", "stick", "stats", "option", "default_backend",
-	"source", "usesrc",
 	NULL /* must be last */
 };
 
@@ -2028,160 +2027,6 @@ stats_error_parsing:
 	}
 
 
-	else if (strcmp(args[0], "source") == 0) {  /* address to which we bind when connecting */
-		int cur_arg;
-		int port1, port2;
-		struct sockaddr_storage *sk;
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (!*args[1]) {
-			ha_alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optionally '%s' <addr>, and '%s' <name>.\n",
-				 file, linenum, "source", "usesrc", "interface");
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* we must first clear any optional default setting */
-		curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-		ha_free(&curproxy->conn_src.iface_name);
-		curproxy->conn_src.iface_len = 0;
-
-		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL, NULL,
-		                  &errmsg, NULL, NULL, NULL,
-		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
-		if (!sk) {
-			ha_alert("parsing [%s:%d] : '%s %s' : %s\n",
-				 file, linenum, args[0], args[1], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		curproxy->conn_src.source_addr = *sk;
-		curproxy->conn_src.opts |= CO_SRC_BIND;
-
-		cur_arg = 2;
-		while (*(args[cur_arg])) {
-			if (strcmp(args[cur_arg], "usesrc") == 0) {  /* address to use outside */
-#if defined(CONFIG_HAP_TRANSPARENT)
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
-						 file, linenum, "usesrc");
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (strcmp(args[cur_arg + 1], "client") == 0) {
-					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-					curproxy->conn_src.opts |= CO_SRC_TPROXY_CLI;
-				} else if (strcmp(args[cur_arg + 1], "clientip") == 0) {
-					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-					curproxy->conn_src.opts |= CO_SRC_TPROXY_CIP;
-				} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
-					char *name, *end;
-
-					name = args[cur_arg+1] + 7;
-					while (isspace((unsigned char)*name))
-						name++;
-
-					end = name;
-					while (*end && !isspace((unsigned char)*end) && *end != ',' && *end != ')')
-						end++;
-
-					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-					curproxy->conn_src.opts |= CO_SRC_TPROXY_DYN;
-					free(curproxy->conn_src.bind_hdr_name);
-					curproxy->conn_src.bind_hdr_name = calloc(1, end - name + 1);
-					if (!curproxy->conn_src.bind_hdr_name)
-						goto alloc_error;
-					curproxy->conn_src.bind_hdr_len = end - name;
-					memcpy(curproxy->conn_src.bind_hdr_name, name, end - name);
-					curproxy->conn_src.bind_hdr_name[end-name] = '\0';
-					curproxy->conn_src.bind_hdr_occ = -1;
-
-					/* now look for an occurrence number */
-					while (isspace((unsigned char)*end))
-						end++;
-					if (*end == ',') {
-						end++;
-						name = end;
-						if (*end == '-')
-							end++;
-						while (isdigit((unsigned char)*end))
-							end++;
-						curproxy->conn_src.bind_hdr_occ = strl2ic(name, end-name);
-					}
-
-					if (curproxy->conn_src.bind_hdr_occ < -MAX_HDR_HISTORY) {
-						ha_alert("parsing [%s:%d] : usesrc hdr_ip(name,num) does not support negative"
-							 " occurrences values smaller than %d.\n",
-							 file, linenum, MAX_HDR_HISTORY);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				} else {
-					struct sockaddr_storage *sk;
-
-					sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, NULL, NULL, NULL,
-					                  &errmsg, NULL, NULL, NULL,
-					                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
-					if (!sk) {
-						ha_alert("parsing [%s:%d] : '%s %s' : %s\n",
-							 file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					curproxy->conn_src.tproxy_addr = *sk;
-					curproxy->conn_src.opts |= CO_SRC_TPROXY_ADDR;
-				}
-				global.last_checks |= LSTCHK_NETADM;
-#else	/* no TPROXY support */
-				ha_alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
-					 file, linenum, "usesrc");
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-#endif
-				cur_arg += 2;
-				continue;
-			}
-
-			if (strcmp(args[cur_arg], "interface") == 0) { /* specifically bind to this interface */
-#ifdef SO_BINDTODEVICE
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d] : '%s' : missing interface name.\n",
-						 file, linenum, args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				free(curproxy->conn_src.iface_name);
-				curproxy->conn_src.iface_name = strdup(args[cur_arg + 1]);
-				if (!curproxy->conn_src.iface_name)
-					goto alloc_error;
-				curproxy->conn_src.iface_len  = strlen(curproxy->conn_src.iface_name);
-				global.last_checks |= LSTCHK_NETADM;
-#else
-				ha_alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
-					 file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-#endif
-				cur_arg += 2;
-				continue;
-			}
-			ha_alert("parsing [%s:%d] : '%s' only supports optional keywords '%s' and '%s'.\n",
-				 file, linenum, args[0], "interface", "usesrc");
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "usesrc") == 0) {  /* address to use outside: needs "source" first */
-		ha_alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
-			 file, linenum, "usesrc", "source");
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
 	else {
 		struct cfg_kw_list *kwl;
 		const char *best;
@@ -3170,6 +3015,162 @@ static int proxy_parse_balance(char **args, int section_type, struct proxy *curp
 	return 0;
 }
 
+/* Parses the "source" keyword, which sets the address to bind to when
+ * connecting to a server, as well as the "usesrc" keyword which is only valid
+ * as an argument to the former.
+ */
+static int proxy_parse_source(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	struct sockaddr_storage *sk;
+	char *errmsg = NULL;
+	int port1, port2;
+	int cur_arg;
+
+	if (strcmp(args[0], "usesrc") == 0) {  /* address to use outside: needs "source" first */
+		memprintf(err, "'%s' only allowed after a '%s' statement.", "usesrc", "source");
+		goto fail;
+	}
+
+	warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL);
+
+	if (!*args[1]) {
+		memprintf(err, "'%s' expects <addr>[:<port>], and optionally '%s' <addr>, and '%s' <name>.",
+			  "source", "usesrc", "interface");
+		goto fail;
+	}
+
+	/* we must first clear any optional default setting */
+	curpx->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+	ha_free(&curpx->conn_src.iface_name);
+	curpx->conn_src.iface_len = 0;
+
+	sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL, NULL,
+			  &errmsg, NULL, NULL, NULL,
+			  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
+	if (!sk) {
+		memprintf(err, "'%s %s' : %s", args[0], args[1], errmsg);
+		goto fail;
+	}
+
+	curpx->conn_src.source_addr = *sk;
+	curpx->conn_src.opts |= CO_SRC_BIND;
+
+	for (cur_arg = 2; *(args[cur_arg]); cur_arg += 2) {
+		if (strcmp(args[cur_arg], "usesrc") == 0) {  /* address to use outside */
+#if defined(CONFIG_HAP_TRANSPARENT)
+			if (!*args[cur_arg + 1]) {
+				memprintf(err, "'%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.", "usesrc");
+				goto fail;
+			}
+
+			if (strcmp(args[cur_arg + 1], "client") == 0) {
+				curpx->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+				curpx->conn_src.opts |= CO_SRC_TPROXY_CLI;
+			} else if (strcmp(args[cur_arg + 1], "clientip") == 0) {
+				curpx->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+				curpx->conn_src.opts |= CO_SRC_TPROXY_CIP;
+			} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
+				char *name, *end;
+				char *hdr_name;
+
+				name = args[cur_arg+1] + 7;
+				while (isspace((unsigned char)*name))
+					name++;
+
+				end = name;
+				while (*end && !isspace((unsigned char)*end) && *end != ',' && *end != ')')
+					end++;
+
+				hdr_name = calloc(1, end - name + 1);
+				if (!hdr_name) {
+					memprintf(err, "out of memory.");
+					goto fail;
+				}
+
+				curpx->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+				curpx->conn_src.opts |= CO_SRC_TPROXY_DYN;
+				free(curpx->conn_src.bind_hdr_name);
+				curpx->conn_src.bind_hdr_name = hdr_name;
+				curpx->conn_src.bind_hdr_len = end - name;
+				memcpy(hdr_name, name, end - name);
+				hdr_name[end - name] = '\0';
+				curpx->conn_src.bind_hdr_occ = -1;
+
+				/* now look for an occurrence number */
+				while (isspace((unsigned char)*end))
+					end++;
+				if (*end == ',') {
+					end++;
+					name = end;
+					if (*end == '-')
+						end++;
+					while (isdigit((unsigned char)*end))
+						end++;
+					curpx->conn_src.bind_hdr_occ = strl2ic(name, end-name);
+				}
+
+				if (curpx->conn_src.bind_hdr_occ < -MAX_HDR_HISTORY) {
+					memprintf(err, "usesrc hdr_ip(name,num) does not support negative"
+						  " occurrences values smaller than %d.", MAX_HDR_HISTORY);
+					goto fail;
+				}
+			} else {
+				sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, NULL, NULL, NULL,
+						  &errmsg, NULL, NULL, NULL,
+						  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
+				if (!sk) {
+					memprintf(err, "'%s %s' : %s", args[cur_arg], args[cur_arg+1], errmsg);
+					goto fail;
+				}
+
+				curpx->conn_src.tproxy_addr = *sk;
+				curpx->conn_src.opts |= CO_SRC_TPROXY_ADDR;
+			}
+			global.last_checks |= LSTCHK_NETADM;
+#else	/* no TPROXY support */
+			memprintf(err, "'%s' not allowed here because support for TPROXY was not compiled in.", "usesrc");
+			goto fail;
+#endif
+		}
+		else if (strcmp(args[cur_arg], "interface") == 0) { /* specifically bind to this interface */
+#ifdef SO_BINDTODEVICE
+			char *name;
+
+			if (!*args[cur_arg + 1]) {
+				memprintf(err, "'%s' : missing interface name.", args[0]);
+				goto fail;
+			}
+
+			name = strdup(args[cur_arg + 1]);
+			if (!name) {
+				memprintf(err, "out of memory.");
+				goto fail;
+			}
+
+			free(curpx->conn_src.iface_name);
+			curpx->conn_src.iface_name = name;
+			curpx->conn_src.iface_len  = strlen(name);
+			global.last_checks |= LSTCHK_NETADM;
+#else
+			memprintf(err, "'%s' : '%s' option not implemented.", args[0], args[cur_arg]);
+			goto fail;
+#endif
+		}
+		else {
+			memprintf(err, "'%s' only supports optional keywords '%s' and '%s'.",
+				  args[0], "interface", "usesrc");
+			goto fail;
+		}
+	}
+
+	return 0;
+ fail:
+	free(errmsg);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3230,10 +3231,12 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "rspirep", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "rsprep", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "server-state-file-name", proxy_parse_be_opts },
+	{ CFG_LISTEN, "source", proxy_parse_source },
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "unique-id-format", proxy_parse_logformat },
 	{ CFG_LISTEN, "unique-id-header", proxy_parse_log_opts },
+	{ CFG_LISTEN, "usesrc", proxy_parse_source },
 	{ 0, NULL, NULL },
 }};
 
