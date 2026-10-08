@@ -43,7 +43,7 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"cookie", "email-alert",
-	"stick-table", "stick", "stats", "option",
+	"stick", "stats", "option",
 	NULL /* must be last */
 };
 
@@ -910,55 +910,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (strcmp(args[0], "stick-table") == 0) {
-		struct stktable *other;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : 'stick-table' is not supported in 'defaults' section.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		other = stktable_find_by_name(curproxy->id);
-		if (other) {
-			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
-				 file, linenum, curproxy->id,
-				 other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
-				 other->proxy ? other->id : other->peers.p->id,
-				 other->conf.file, other->conf.line);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		curproxy->table = calloc(1, sizeof *curproxy->table);
-		if (!curproxy->table) {
-			ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
-			         file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err_code |= parse_stick_table(file, linenum, args, curproxy->table,
-		                              curproxy->id, curproxy->id, NULL);
-		if (err_code & ERR_FATAL) {
-			ha_free(&curproxy->table);
-			goto out;
-		}
-
-		/* Store the proxy in the stick-table. */
-		curproxy->table->proxy = curproxy;
-
-		stktable_store_name(curproxy->table);
-		curproxy->table->next = stktables_list;
-		stktables_list = curproxy->table;
-
-		/* Add this proxy to the list of proxies which refer to its stick-table. */
-		if (curproxy->table->proxies_list != curproxy) {
-			curproxy->next_stkt_ref = curproxy->table->proxies_list;
-			curproxy->table->proxies_list = curproxy;
-		}
-	}
 	else if (strcmp(args[0], "stick") == 0) {
 		struct sticking_rule *rule;
 		struct sample_expr *expr;
@@ -3152,6 +3103,59 @@ static int proxy_parse_redirect(char **args, int section_type, struct proxy *cur
 	return -1;
 }
 
+/* Parses "stick-table" */
+static int proxy_parse_stick_table(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	struct stktable *other;
+	int ret;
+
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' is not supported in 'defaults' section.", args[0]);
+		goto fail;
+	}
+
+	other = stktable_find_by_name(curpx->id);
+	if (other) {
+		memprintf(err, "stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.",
+			  curpx->id,
+			  other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
+			  other->proxy ? other->id : other->peers.p->id,
+			  other->conf.file, other->conf.line);
+		goto fail;
+	}
+
+	curpx->table = calloc(1, sizeof *curpx->table);
+	if (!curpx->table) {
+		memprintf(err, "'%s %s' : memory allocation failed", args[0], args[1]);
+		goto fail;
+	}
+
+	/* the messages are emitted by parse_stick_table() itself */
+	ret = parse_stick_table(file, line, args, curpx->table, curpx->id, curpx->id, NULL);
+	if (ret & ERR_FATAL) {
+		ha_free(&curpx->table);
+		goto fail;
+	}
+
+	/* Store the proxy in the stick-table. */
+	curpx->table->proxy = curpx;
+
+	stktable_store_name(curpx->table);
+	curpx->table->next = stktables_list;
+	stktables_list = curpx->table;
+
+	/* Add this proxy to the list of proxies which refer to its stick-table. */
+	if (curpx->table->proxies_list != curpx) {
+		curpx->next_stkt_ref = curpx->table->proxies_list;
+		curpx->table->proxies_list = curpx;
+	}
+	return 0;
+ fail:
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3219,6 +3223,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "server-state-file-name", proxy_parse_be_opts },
 	{ CFG_LISTEN, "source", proxy_parse_source },
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "stick-table", proxy_parse_stick_table },
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "unique-id-format", proxy_parse_logformat },
 	{ CFG_LISTEN, "unique-id-header", proxy_parse_log_opts },
