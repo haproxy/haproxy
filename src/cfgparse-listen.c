@@ -38,6 +38,7 @@
 
 /* some keywords that are still being parsed using strcmp() and are not
  * registered anywhere. They are used as suggestions for mistyped words.
+ * DO NOT ADD ANY NEW KEYWORDS HERE, THAT MUST NO LONGER BE NECESSARY!
  */
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults",
@@ -300,11 +301,13 @@ int cfg_parse_listen_match_option(const char *file, int linenum, int kwm,
 	return 0;
 }
 
+/* main proxy section keyword parser */
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curr_defproxy = NULL;
-	const char *err;
-	int rc;
+	struct cfg_kw_list *kwl;
+	const char *err, *best;
+	int rc, index;
 	int err_code = 0;
 	char *errmsg = NULL;
 	const char *file_prev = NULL;
@@ -537,49 +540,41 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	curproxy->conf.args.line = linenum;
 
 	/* Now let's parse the proxy-specific keywords */
-	{
-		struct cfg_kw_list *kwl;
-		const char *best;
-		int index;
+	list_for_each_entry(kwl, &cfg_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			if (kwl->kw[index].section != CFG_LISTEN)
+				continue;
+			if (strcmp(kwl->kw[index].kw, args[0]) != 0)
+				continue;
 
-		list_for_each_entry(kwl, &cfg_keywords.list, list) {
-			for (index = 0; kwl->kw[index].kw != NULL; index++) {
-				if (kwl->kw[index].section != CFG_LISTEN)
-					continue;
-				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
-					if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
-						ha_alert("%s\n", errmsg);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					/* prepare error message just in case */
-					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, curr_defproxy, file, linenum, &errmsg);
-					if (rc < 0) {
-						if (errmsg)
-							ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					else if (rc > 0) {
-						if (errmsg)
-							ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
-						err_code |= ERR_WARN;
-						goto out;
-					}
-					goto out;
-				}
+			if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
+				ha_alert("%s\n", errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
 			}
-		}
 
-		best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_LISTEN, common_kw_list);
-		if (best)
-			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
-		else
-			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
+			rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, curr_defproxy, file, linenum, &errmsg);
+			if (rc < 0) {
+				if (errmsg)
+					ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+			else if (rc > 0) {
+				if (errmsg)
+					ha_warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+				err_code |= ERR_WARN;
+			}
+			goto out;
+		}
 	}
+
+	best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_LISTEN, common_kw_list);
+	if (best)
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
+	else
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+	err_code |= ERR_ALERT | ERR_FATAL;
+
  out:
 	free(errmsg);
 	return err_code;
