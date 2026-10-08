@@ -43,7 +43,6 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"cookie", "email-alert",
-	"http-request", "http-response", "http-after-response",
 	"redirect",
 	"stick-table", "stick", "stats", "option",
 	NULL /* must be last */
@@ -912,113 +911,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (strcmp(args[0], "http-request") == 0) {	/* request access control: allow/deny/auth */
-		struct act_rule *rule;
-		int where = 0;
-
-		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!LIST_ISEMPTY(&curproxy->http_req_rules) &&
-		    !LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_req_rules, struct act_rule *, list)->flags & ACT_FLAG_FINAL)) {
-			ha_warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
-				   file, linenum, args[0]);
-			err_code |= ERR_WARN;
-		}
-
-		rule = parse_http_req_cond((const char **)args + 1, file, linenum, curproxy);
-
-		if (!rule) {
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-
-		if (warnif_misplaced_http_req(curproxy, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (curproxy->cap & PR_CAP_FE)
-			where |= SMP_VAL_FE_HRQ_HDR;
-		if (curproxy->cap & PR_CAP_BE)
-			where |= SMP_VAL_BE_HRQ_HDR;
-		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-
-		LIST_APPEND(&curproxy->http_req_rules, &rule->list);
-	}
-	else if (strcmp(args[0], "http-response") == 0) {	/* response access control */
-		struct act_rule *rule;
-		int where = 0;
-
-		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!LIST_ISEMPTY(&curproxy->http_res_rules) &&
-		    !LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_res_rules, struct act_rule *, list)->flags & ACT_FLAG_FINAL)) {
-			ha_warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
-				   file, linenum, args[0]);
-			err_code |= ERR_WARN;
-		}
-
-		rule = parse_http_res_cond((const char **)args + 1, file, linenum, curproxy);
-
-		if (!rule) {
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-
-		if (curproxy->cap & PR_CAP_FE)
-			where |= SMP_VAL_FE_HRS_HDR;
-		if (curproxy->cap & PR_CAP_BE)
-			where |= SMP_VAL_BE_HRS_HDR;
-		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-
-		LIST_APPEND(&curproxy->http_res_rules, &rule->list);
-	}
-	else if (strcmp(args[0], "http-after-response") == 0) {
-		struct act_rule *rule;
-		int where = 0;
-		if ((curproxy->cap & PR_CAP_DEF) && strlen(curproxy->id) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in anonymous 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!LIST_ISEMPTY(&curproxy->http_after_res_rules) &&
-		    !LIST_PREV(&curproxy->http_after_res_rules, struct act_rule *, list)->cond &&
-		    (LIST_PREV(&curproxy->http_after_res_rules, struct act_rule *, list)->flags & ACT_FLAG_FINAL)) {
-			ha_warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
-				   file, linenum, args[0]);
-			err_code |= ERR_WARN;
-		}
-
-		rule = parse_http_after_res_cond((const char **)args + 1, file, linenum, curproxy);
-
-		if (!rule) {
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-
-		if (curproxy->cap & PR_CAP_FE)
-			where |= SMP_VAL_FE_HRS_HDR;
-		if (curproxy->cap & PR_CAP_BE)
-			where |= SMP_VAL_BE_HRS_HDR;
-		err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-
-		LIST_APPEND(&curproxy->http_after_res_rules, &rule->list);
-	}
 	else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *rule;
 		int where = 0;
@@ -3177,6 +3069,80 @@ static int proxy_parse_use_backend(char **args, int section_type, struct proxy *
 	return -1;
 }
 
+/* Parses the HTTP rule sets "http-request", "http-response" and
+ * "http-after-response".
+ */
+static int proxy_parse_http_rules(char **args, int section_type, struct proxy *curpx,
+                                  const struct proxy *defpx, const char *file, int line,
+                                  char **err)
+{
+	struct act_rule *(*parse_cond)(const char **args, const char *file, int linenum, struct proxy *px);
+	struct list *rules;
+	struct act_rule *rule;
+	char *errmsg = NULL;
+	int fe_where, be_where;
+	int where = 0;
+
+	if (strcmp(args[0], "http-request") == 0) {
+		rules      = &curpx->http_req_rules;
+		parse_cond = parse_http_req_cond;
+		fe_where   = SMP_VAL_FE_HRQ_HDR;
+		be_where   = SMP_VAL_BE_HRQ_HDR;
+	}
+	else if (strcmp(args[0], "http-response") == 0) {
+		rules      = &curpx->http_res_rules;
+		parse_cond = parse_http_res_cond;
+		fe_where   = SMP_VAL_FE_HRS_HDR;
+		be_where   = SMP_VAL_BE_HRS_HDR;
+	}
+	else if (strcmp(args[0], "http-after-response") == 0) {
+		rules      = &curpx->http_after_res_rules;
+		parse_cond = parse_http_after_res_cond;
+		fe_where   = SMP_VAL_FE_HRS_HDR;
+		be_where   = SMP_VAL_BE_HRS_HDR;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_http_rules().");
+		goto fail;
+	}
+
+	if ((curpx->cap & PR_CAP_DEF) && strlen(curpx->id) == 0) {
+		memprintf(err, "'%s' not allowed in anonymous 'defaults' section.", args[0]);
+		goto fail;
+	}
+
+	if (!LIST_ISEMPTY(rules) &&
+	    !LIST_PREV(rules, struct act_rule *, list)->cond &&
+	    (LIST_PREV(rules, struct act_rule *, list)->flags & ACT_FLAG_FINAL))
+		ha_warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
+		           file, line, args[0]);
+
+	rule = parse_cond((const char **)args + 1, file, line, curpx);
+	if (!rule) {
+		/* the error was already reported by the action parser */
+		goto fail;
+	}
+
+	if (rules == &curpx->http_req_rules)
+		warnif_misplaced_http_req(curpx, file, line, args[0], NULL);
+
+	if (curpx->cap & PR_CAP_FE)
+		where |= fe_where;
+	if (curpx->cap & PR_CAP_BE)
+		where |= be_where;
+
+	if (warnif_cond_conflicts(rule->cond, where, &errmsg))
+		ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+	ha_free(&errmsg);
+
+	LIST_APPEND(rules, &rule->list);
+
+	return 0;
+ fail:
+	ha_free(&errmsg);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3198,6 +3164,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "hash-balance-factor", proxy_parse_balance },
 	{ CFG_LISTEN, "hash-type", proxy_parse_balance },
+	{ CFG_LISTEN, "http-after-response", proxy_parse_http_rules },
+	{ CFG_LISTEN, "http-request", proxy_parse_http_rules },
+	{ CFG_LISTEN, "http-response", proxy_parse_http_rules },
 	{ CFG_LISTEN, "http-reuse", proxy_parse_be_opts },
 	{ CFG_LISTEN, "http-send-name-header", proxy_parse_be_opts },
 	{ CFG_LISTEN, "id", proxy_parse_id_desc },
