@@ -32,17 +32,6 @@
 
 int cluster_secret_isset;
 
-/* some keywords that are still being parsed using strcmp() and are not
- * registered anywhere. They are used as suggestions for mistyped words.
- * DO NOT ADD ANY NEW KEYWORDS HERE, THAT MUST NO LONGER BE NECESSARY!
- */
-static const char *common_kw_list[] = {
-	"global",
-	"defaults", "listen", "frontend", "backend",
-	"peers", "resolvers",
-	NULL /* must be last */
-};
-
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or
  * any combination of :
