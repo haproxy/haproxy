@@ -48,8 +48,7 @@ static const char *common_kw_list[] = {
 	"use-server",
 	"stick-table", "stick", "stats", "option", "default_backend",
 	"balance", "hash-type",
-	"hash-balance-factor", "unique-id-header",
-	"log-tag", "log", "source", "usesrc",
+	"hash-balance-factor", "source", "usesrc",
 	NULL /* must be last */
 };
 
@@ -2123,46 +2122,7 @@ stats_error_parsing:
 		}
 	}
 
-	else if (strcmp(args[0], "unique-id-header") == 0) {
-		char *copy;
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		copy = strdup(args[1]);
-		if (copy == NULL) {
-			ha_alert("parsing [%s:%d] : failed to allocate memory for unique-id-header\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 
-		istfree(&curproxy->header_unique_id);
-		curproxy->header_unique_id = ist(copy);
-	}
-
-	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		chunk_destroy(&curproxy->log_tag);
-		chunk_initlen(&curproxy->log_tag, strdup(args[1]), strlen(args[1]), strlen(args[1]));
-		if (b_orig(&curproxy->log_tag) == NULL) {
-			chunk_destroy(&curproxy->log_tag);
-			ha_alert("parsing [%s:%d]: cannot allocate memory for '%s'.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
-		if (!parse_logger(args, &curproxy->loggers, (kwm == KWM_NO), file, linenum, &errmsg)) {
-			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
 	else if (strcmp(args[0], "source") == 0) {  /* address to which we bind when connecting */
 		int cur_arg;
 		int port1, port2;
@@ -3151,6 +3111,59 @@ static int proxy_parse_logformat(char **args, int section_type, struct proxy *cu
 	return 0;
 }
 
+/* Parses the logging keywords "log", "log-tag" and "unique-id-header". */
+static int proxy_parse_log_opts(char **args, int section_type, struct proxy *curpx,
+                                const struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
+
+		if (!parse_logger(args, &curpx->loggers, (cfg_curr_kwm == KWM_NO), file, line, &errmsg)) {
+			memprintf(err, "%s : %s", args[0], errmsg);
+			goto fail;
+		}
+	}
+	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a tag for use in syslog.", args[0]);
+			goto fail;
+		}
+
+		chunk_destroy(&curpx->log_tag);
+		chunk_initlen(&curpx->log_tag, strdup(args[1]), strlen(args[1]), strlen(args[1]));
+		if (b_orig(&curpx->log_tag) == NULL) {
+			chunk_destroy(&curpx->log_tag);
+			memprintf(err, "cannot allocate memory for '%s'.", args[0]);
+			goto fail;
+		}
+	}
+	else if (strcmp(args[0], "unique-id-header") == 0) {
+		char *name;
+
+		if (!*(args[1])) {
+			memprintf(err, "%s expects an argument.", args[0]);
+			goto fail;
+		}
+
+		name = strdup(args[1]);
+		if (!name) {
+			memprintf(err, "failed to allocate memory for '%s'.", args[0]);
+			goto fail;
+		}
+
+		istfree(&curpx->header_unique_id);
+		curpx->header_unique_id = ist(name);
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_log_opts().");
+		return -1;
+	}
+
+	return 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3173,8 +3186,10 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "id", proxy_parse_id_desc },
 	{ CFG_LISTEN, "ignore-persist", proxy_parse_persist },
 	{ CFG_LISTEN, "load-server-state-from-file", proxy_parse_be_opts },
+	{ CFG_LISTEN, "log", proxy_parse_log_opts },
 	{ CFG_LISTEN, "log-format", proxy_parse_logformat },
 	{ CFG_LISTEN, "log-format-sd", proxy_parse_logformat },
+	{ CFG_LISTEN, "log-tag", proxy_parse_log_opts },
 	{ CFG_LISTEN, "max-session-srv-conns", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "maxconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "mode", proxy_parse_mode },
@@ -3209,6 +3224,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "unique-id-format", proxy_parse_logformat },
+	{ CFG_LISTEN, "unique-id-header", proxy_parse_log_opts },
 	{ 0, NULL, NULL },
 }};
 
