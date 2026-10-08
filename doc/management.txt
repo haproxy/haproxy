@@ -237,8 +237,18 @@ list of options is :
     key. Please also see the CLI's "set anon" command.
 
   -dD : enable diagnostic mode. This mode will output extra warnings about
-    suspicious configuration statements. This will never prevent startup even in
-    "zero-warning" mode nor change the exit status code.
+    suspicious configuration statements. Some outputs will prevent startup
+    in "zero-warning" mode.
+
+    Please note that such diagnostics are essentially meant to raise
+    awareness of humans about some potential latent problems which might
+    be totally intentional, and are subject to change including within a
+    stable branch as well as between machines running the exact same
+    configurations. As such they *will* regularly report valid statements
+    as suspicious, and should only be used combined with "-c" to perform
+    a more in-depth diagnostic. Their result should never be used to
+    prevent a service from starting (what happens when combined with
+    "zero-warning" or "-dW").
 
   -dF : disable data fast-forward. It is a mechanism to optimize the data
     forwarding by passing data directly from a side to the other one without
