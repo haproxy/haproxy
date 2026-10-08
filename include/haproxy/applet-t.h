@@ -99,6 +99,10 @@ struct applet {
 	size_t (*fastfwd)(struct appctx *appctx, struct buffer *buf, size_t count, unsigned int flags); /* Callback to fast-forward data */
 	void (*shut)(struct appctx *appctx, unsigned int mode, struct se_abort_info *reason); /* shutdown function */
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
+	void (*destroy)(struct appctx *);  /* callback called when the appctx is destroyed,
+	                                      may be NULL. Called by __appctx_free(),
+	                                      after the last stream using this applet was
+	                                      released. */
 	unsigned int timeout;              /* execution timeout. */
 };
 
