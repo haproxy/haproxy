@@ -42,7 +42,7 @@
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
-	"cookie", "email-alert",
+	"email-alert",
 	"stats", "option",
 	NULL /* must be last */
 };
@@ -619,223 +619,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		err_code |= bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
 		goto out;
 	}
-	else if (strcmp(args[0], "cookie") == 0) {  /* cookie name */
-		int cur_arg;
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects <cookie_name> as argument.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		curproxy->ck_opts = 0;
-		curproxy->cookie_maxidle = curproxy->cookie_maxlife = 0;
-		ha_free(&curproxy->cookie_domain);
-		free(curproxy->cookie_name);
-		curproxy->cookie_name = strdup(args[1]);
-		if (!curproxy->cookie_name)
-			goto alloc_error;
-		curproxy->cookie_len = strlen(curproxy->cookie_name);
-
-		cur_arg = 2;
-		while (*(args[cur_arg])) {
-			if (strcmp(args[cur_arg], "rewrite") == 0) {
-				curproxy->ck_opts |= PR_CK_RW;
-			}
-			else if (strcmp(args[cur_arg], "indirect") == 0) {
-				curproxy->ck_opts |= PR_CK_IND;
-			}
-			else if (strcmp(args[cur_arg], "insert") == 0) {
-				curproxy->ck_opts |= PR_CK_INS;
-			}
-			else if (strcmp(args[cur_arg], "nocache") == 0) {
-				curproxy->ck_opts |= PR_CK_NOC;
-			}
-			else if (strcmp(args[cur_arg], "postonly") == 0) {
-				curproxy->ck_opts |= PR_CK_POST;
-			}
-			else if (strcmp(args[cur_arg], "preserve") == 0) {
-				curproxy->ck_opts |= PR_CK_PSV;
-			}
-			else if (strcmp(args[cur_arg], "prefix") == 0) {
-				curproxy->ck_opts |= PR_CK_PFX;
-			}
-			else if (strcmp(args[cur_arg], "httponly") == 0) {
-				curproxy->ck_opts |= PR_CK_HTTPONLY;
-			}
-			else if (strcmp(args[cur_arg], "secure") == 0) {
-				curproxy->ck_opts |= PR_CK_SECURE;
-			}
-			else if (strcmp(args[cur_arg], "domain") == 0) {
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d]: '%s' expects <domain> as argument.\n",
-						 file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (!strchr(args[cur_arg + 1], '.')) {
-					/* rfc6265, 5.2.3 The Domain Attribute */
-					ha_warning("parsing [%s:%d]: domain '%s' contains no embedded dot,"
-						   " this configuration may not work properly (see RFC6265#5.2.3).\n",
-						   file, linenum, args[cur_arg + 1]);
-					err_code |= ERR_WARN;
-				}
-
-				err = invalid_domainchar(args[cur_arg + 1]);
-				if (err) {
-					ha_alert("parsing [%s:%d]: character '%c' is not permitted in domain name '%s'.\n",
-						 file, linenum, *err, args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (!curproxy->cookie_domain) {
-					curproxy->cookie_domain = strdup(args[cur_arg + 1]);
-				} else {
-					/* one domain was already specified, add another one by
-					 * building the string which will be returned along with
-					 * the cookie.
-					 */
-					memprintf(&curproxy->cookie_domain, "%s; domain=%s", curproxy->cookie_domain, args[cur_arg+1]);
-				}
-
-				if (!curproxy->cookie_domain)
-					goto alloc_error;
-				cur_arg++;
-			}
-			else if (strcmp(args[cur_arg], "maxidle") == 0) {
-				unsigned int maxidle;
-				const char *res;
-
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d]: '%s' expects <idletime> in seconds as argument.\n",
-						 file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				res = parse_time_err(args[cur_arg + 1], &maxidle, TIME_UNIT_S);
-				if (res == PARSE_TIME_OVER) {
-					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 s (~68 years).\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (res == PARSE_TIME_UNDER) {
-					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 s.\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (res) {
-					ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
-						 file, linenum, *res, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				curproxy->cookie_maxidle = maxidle;
-				cur_arg++;
-			}
-			else if (strcmp(args[cur_arg], "maxlife") == 0) {
-				unsigned int maxlife;
-				const char *res;
-
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d]: '%s' expects <lifetime> in seconds as argument.\n",
-						 file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-
-				res = parse_time_err(args[cur_arg + 1], &maxlife, TIME_UNIT_S);
-				if (res == PARSE_TIME_OVER) {
-					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s>, maximum value is 2147483647 s (~68 years).\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (res == PARSE_TIME_UNDER) {
-					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s>, minimum non-null value is 1 s.\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (res) {
-					ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
-						 file, linenum, *res, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				curproxy->cookie_maxlife = maxlife;
-				cur_arg++;
-			}
-			else if (strcmp(args[cur_arg], "dynamic") == 0) { /* Dynamic persistent cookies secret key */
-
-				if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[cur_arg], NULL))
-					err_code |= ERR_WARN;
-				curproxy->ck_opts |= PR_CK_DYNAMIC;
-			}
-			else if (strcmp(args[cur_arg], "attr") == 0) {
-				char *val;
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d]: '%s' expects <value> as argument.\n",
-						 file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				val = args[cur_arg + 1];
-				while (*val) {
-					if (iscntrl((unsigned char)*val) || *val == ';') {
-						ha_alert("parsing [%s:%d]: character '%%x%02X' is not permitted in attribute value.\n",
-							 file, linenum, *val);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					val++;
-				}
-				/* don't add ';' for the first attribute */
-				if (!curproxy->cookie_attrs)
-					curproxy->cookie_attrs = strdup(args[cur_arg + 1]);
-				else
-					memprintf(&curproxy->cookie_attrs, "%s; %s", curproxy->cookie_attrs, args[cur_arg + 1]);
-
-				if (!curproxy->cookie_attrs)
-					goto alloc_error;
-				cur_arg++;
-			}
-
-			else {
-				ha_alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache', 'postonly', 'domain', 'maxidle', 'dynamic', 'maxlife' and 'attr' options.\n",
-					 file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			cur_arg++;
-		}
-		if (!POWEROF2(curproxy->ck_opts & (PR_CK_RW|PR_CK_IND))) {
-			ha_alert("parsing [%s:%d] : cookie 'rewrite' and 'indirect' modes are incompatible.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-
-		if (!POWEROF2(curproxy->ck_opts & (PR_CK_RW|PR_CK_INS|PR_CK_PFX))) {
-			ha_alert("parsing [%s:%d] : cookie 'rewrite', 'insert' and 'prefix' modes are incompatible.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-
-		if ((curproxy->ck_opts & (PR_CK_PSV | PR_CK_INS | PR_CK_IND)) == PR_CK_PSV) {
-			ha_alert("parsing [%s:%d] : cookie 'preserve' requires at least 'insert' or 'indirect'.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-	}/* end else if (!strcmp(args[0], "cookie"))  */
 	else if (strcmp(args[0], "email-alert") == 0) {
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
@@ -3151,6 +2934,190 @@ static int proxy_parse_stick(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
+/* Parses the "cookie" keyword, which configures the cookie-based
+ * persistence.
+ */
+static int proxy_parse_cookie(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	const char *errptr;
+	char *name;
+	int cur_arg;
+
+	warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL);
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects <cookie_name> as argument.", args[0]);
+		goto fail;
+	}
+
+	name = strdup(args[1]);
+	if (!name)
+		goto alloc_error;
+
+	curpx->ck_opts = 0;
+	curpx->cookie_maxidle = curpx->cookie_maxlife = 0;
+	ha_free(&curpx->cookie_domain);
+	free(curpx->cookie_name);
+	curpx->cookie_name = name;
+	curpx->cookie_len = strlen(name);
+
+	for (cur_arg = 2; *(args[cur_arg]); cur_arg++) {
+		if (strcmp(args[cur_arg], "rewrite") == 0) {
+			curpx->ck_opts |= PR_CK_RW;
+		}
+		else if (strcmp(args[cur_arg], "indirect") == 0) {
+			curpx->ck_opts |= PR_CK_IND;
+		}
+		else if (strcmp(args[cur_arg], "insert") == 0) {
+			curpx->ck_opts |= PR_CK_INS;
+		}
+		else if (strcmp(args[cur_arg], "nocache") == 0) {
+			curpx->ck_opts |= PR_CK_NOC;
+		}
+		else if (strcmp(args[cur_arg], "postonly") == 0) {
+			curpx->ck_opts |= PR_CK_POST;
+		}
+		else if (strcmp(args[cur_arg], "preserve") == 0) {
+			curpx->ck_opts |= PR_CK_PSV;
+		}
+		else if (strcmp(args[cur_arg], "prefix") == 0) {
+			curpx->ck_opts |= PR_CK_PFX;
+		}
+		else if (strcmp(args[cur_arg], "httponly") == 0) {
+			curpx->ck_opts |= PR_CK_HTTPONLY;
+		}
+		else if (strcmp(args[cur_arg], "secure") == 0) {
+			curpx->ck_opts |= PR_CK_SECURE;
+		}
+		else if (strcmp(args[cur_arg], "dynamic") == 0) { /* Dynamic persistent cookies secret key */
+			curpx->ck_opts |= PR_CK_DYNAMIC;
+		}
+		else if (strcmp(args[cur_arg], "domain") == 0) {
+			if (!*args[cur_arg + 1]) {
+				memprintf(err, "'%s' expects <domain> as argument.", args[cur_arg]);
+				goto fail;
+			}
+
+			if (!strchr(args[cur_arg + 1], '.')) {
+				/* rfc6265, 5.2.3 The Domain Attribute */
+				ha_warning("parsing [%s:%d]: domain '%s' contains no embedded dot,"
+					   " this configuration may not work properly (see RFC6265#5.2.3).\n",
+					   file, line, args[cur_arg + 1]);
+			}
+
+			errptr = invalid_domainchar(args[cur_arg + 1]);
+			if (errptr) {
+				memprintf(err, "character '%c' is not permitted in domain name '%s'.",
+					  *errptr, args[cur_arg + 1]);
+				goto fail;
+			}
+
+			if (!curpx->cookie_domain)
+				curpx->cookie_domain = strdup(args[cur_arg + 1]);
+			else {
+				/* one domain was already specified, add another one by
+				 * building the string which will be returned along with
+				 * the cookie.
+				 */
+				memprintf(&curpx->cookie_domain, "%s; domain=%s", curpx->cookie_domain, args[cur_arg+1]);
+			}
+
+			if (!curpx->cookie_domain)
+				goto alloc_error;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "maxidle") == 0 ||
+			 strcmp(args[cur_arg], "maxlife") == 0) {
+			unsigned int delay;
+			const char *res;
+
+			if (!*args[cur_arg + 1]) {
+				memprintf(err, "'%s' expects <%s> in seconds as argument.", args[cur_arg],
+					  (args[cur_arg][3] == 'i') ? "idletime" : "lifetime");
+				goto fail;
+			}
+
+			res = parse_time_err(args[cur_arg + 1], &delay, TIME_UNIT_S);
+			if (res == PARSE_TIME_OVER) {
+				memprintf(err, "timer overflow in argument <%s> to <%s>, maximum value is 2147483647 s (~68 years).",
+					  args[cur_arg+1], args[cur_arg]);
+				goto fail;
+			}
+			else if (res == PARSE_TIME_UNDER) {
+				memprintf(err, "timer underflow in argument <%s> to <%s>, minimum non-null value is 1 s.",
+					  args[cur_arg+1], args[cur_arg]);
+				goto fail;
+			}
+			else if (res) {
+				memprintf(err, "unexpected character '%c' in argument to <%s>.", *res, args[cur_arg]);
+				goto fail;
+			}
+
+			if (args[cur_arg][3] == 'i') // idle
+				curpx->cookie_maxidle = delay;
+			else
+				curpx->cookie_maxlife = delay;
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "attr") == 0) {
+			char *val;
+
+			if (!*args[cur_arg + 1]) {
+				memprintf(err, "'%s' expects <value> as argument.", args[cur_arg]);
+				goto fail;
+			}
+
+			val = args[cur_arg + 1];
+			while (*val) {
+				if (iscntrl((unsigned char)*val) || *val == ';') {
+					memprintf(err, "character '%%x%02X' is not permitted in attribute value.", *val);
+					goto fail;
+				}
+				val++;
+			}
+
+			/* don't add ';' for the first attribute */
+			if (!curpx->cookie_attrs)
+				curpx->cookie_attrs = strdup(args[cur_arg + 1]);
+			else
+				memprintf(&curpx->cookie_attrs, "%s; %s", curpx->cookie_attrs, args[cur_arg + 1]);
+
+			if (!curpx->cookie_attrs)
+				goto alloc_error;
+			cur_arg++;
+		}
+		else {
+			memprintf(err, "'%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache', "
+				  "'postonly', 'domain', 'maxidle', 'dynamic', 'maxlife' and 'attr' options.", args[0]);
+			goto fail;
+		}
+	}
+
+	if (!POWEROF2(curpx->ck_opts & (PR_CK_RW|PR_CK_IND))) {
+		memprintf(err, "cookie 'rewrite' and 'indirect' modes are incompatible.");
+		goto fail;
+	}
+
+	if (!POWEROF2(curpx->ck_opts & (PR_CK_RW|PR_CK_INS|PR_CK_PFX))) {
+		memprintf(err, "cookie 'rewrite', 'insert' and 'prefix' modes are incompatible.");
+		goto fail;
+	}
+
+	if ((curpx->ck_opts & (PR_CK_PSV | PR_CK_INS | PR_CK_IND)) == PR_CK_PSV) {
+		memprintf(err, "cookie 'preserve' requires at least 'insert' or 'indirect'.");
+		goto fail;
+	}
+
+	return 0;
+
+ alloc_error:
+	memprintf(err, "out of memory.");
+ fail:
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3160,6 +3127,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "capture", proxy_parse_capture },
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "cookie", proxy_parse_cookie },
 	{ CFG_LISTEN, "default_backend", proxy_parse_use_backend },
 	{ CFG_LISTEN, "description", proxy_parse_id_desc },
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
