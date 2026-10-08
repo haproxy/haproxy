@@ -47,8 +47,7 @@ static const char *common_kw_list[] = {
 	"redirect", "use_backend",
 	"use-server",
 	"stick-table", "stick", "stats", "option", "default_backend",
-	"balance", "hash-type",
-	"hash-balance-factor", "source", "usesrc",
+	"source", "usesrc",
 	NULL /* must be last */
 };
 
@@ -2027,100 +2026,6 @@ stats_error_parsing:
 		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (strcmp(args[0], "balance") == 0) {  /* set balancing with optional algorithm */
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (backend_parse_balance((const char **)args + 1, &errmsg, curproxy) < 0) {
-			ha_alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
-	else if (strcmp(args[0], "hash-type") == 0) { /* set hashing method */
-		/**
-		 * The syntax for hash-type config element is
-		 * hash-type {map-based|consistent} [[<algo>] avalanche]
-		 *
-		 * The default hash function is sdbm for map-based and sdbm+avalanche for consistent.
-		 */
-		curproxy->lbprm.algo &= ~(BE_LB_HASH_TYPE | BE_LB_HASH_FUNC | BE_LB_HASH_MOD);
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (strcmp(args[1], "consistent") == 0) {	/* use consistent hashing */
-			curproxy->lbprm.algo |= BE_LB_HASH_CONS;
-		}
-		else if (strcmp(args[1], "map-based") == 0) {	/* use map-based hashing */
-			curproxy->lbprm.algo |= BE_LB_HASH_MAP;
-		}
-		else if (strcmp(args[1], "avalanche") == 0) {
-			ha_alert("parsing [%s:%d] : experimental feature '%s %s' is not supported anymore, please use '%s map-based sdbm avalanche' instead.\n", file, linenum, args[0], args[1], args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : '%s' only supports 'consistent' and 'map-based'.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* set the hash function to use */
-		if (!*args[2]) {
-			/* the default algo is sdbm */
-			curproxy->lbprm.algo |= BE_LB_HFCN_SDBM;
-
-			/* if consistent with no argument, then avalanche modifier is also applied */
-			if ((curproxy->lbprm.algo & BE_LB_HASH_TYPE) == BE_LB_HASH_CONS)
-				curproxy->lbprm.algo |= BE_LB_HMOD_AVAL;
-		} else {
-			/* set the hash function */
-			if (strcmp(args[2], "sdbm") == 0) {
-				curproxy->lbprm.algo |= BE_LB_HFCN_SDBM;
-			}
-			else if (strcmp(args[2], "djb2") == 0) {
-				curproxy->lbprm.algo |= BE_LB_HFCN_DJB2;
-			}
-			else if (strcmp(args[2], "wt6") == 0) {
-				curproxy->lbprm.algo |= BE_LB_HFCN_WT6;
-			}
-			else if (strcmp(args[2], "crc32") == 0) {
-				curproxy->lbprm.algo |= BE_LB_HFCN_CRC32;
-			}
-			else if (strcmp(args[2], "none") == 0) {
-				curproxy->lbprm.algo |= BE_LB_HFCN_NONE;
-			}
-			else {
-				ha_alert("parsing [%s:%d] : '%s' only supports 'sdbm', 'djb2', 'crc32', or 'wt6' hash functions.\n", file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			/* set the hash modifier */
-			if (strcmp(args[3], "avalanche") == 0) {
-				curproxy->lbprm.algo |= BE_LB_HMOD_AVAL;
-			}
-			else if (*args[3]) {
-				ha_alert("parsing [%s:%d] : '%s' only supports 'avalanche' as a modifier for hash functions.\n", file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-	}
-	else if (strcmp(args[0], "hash-balance-factor") == 0) {
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->lbprm.hash_balance_factor = atol(args[1]);
-		if (curproxy->lbprm.hash_balance_factor != 0 && curproxy->lbprm.hash_balance_factor <= 100) {
-			ha_alert("parsing [%s:%d] : '%s' must be 0 or greater than 100.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	}
 
 
 	else if (strcmp(args[0], "source") == 0) {  /* address to which we bind when connecting */
@@ -3158,6 +3063,107 @@ static int proxy_parse_log_opts(char **args, int section_type, struct proxy *cur
 	}
 	else {
 		BUG_ON(1, "unhandled keyword in proxy_parse_log_opts().");
+		goto fail;
+	}
+
+	return 0;
+ fail:
+	free(errmsg);
+	return -1;
+}
+
+/* Parses the load-balancing keywords "balance", "hash-type" and
+ * "hash-balance-factor", which all require the backend capability.
+ */
+static int proxy_parse_balance(char **args, int section_type, struct proxy *curpx,
+                               const struct proxy *defpx, const char *file, int line,
+                               char **err)
+{
+	warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL);
+
+	if (strcmp(args[0], "balance") == 0) {  /* set balancing with optional algorithm */
+		char *errmsg = NULL;
+
+		if (backend_parse_balance((const char **)args + 1, &errmsg, curpx) < 0) {
+			memprintf(err, "%s %s", args[0], errmsg);
+			free(errmsg);
+			return -1;
+		}
+	}
+	else if (strcmp(args[0], "hash-type") == 0) { /* set hashing method */
+		/*
+		 * The syntax for hash-type config element is
+		 * hash-type {map-based|consistent} [[<algo>] avalanche]
+		 *
+		 * The default hash function is sdbm for map-based and sdbm+avalanche for consistent.
+		 */
+		curpx->lbprm.algo &= ~(BE_LB_HASH_TYPE | BE_LB_HASH_FUNC | BE_LB_HASH_MOD);
+
+		if (strcmp(args[1], "consistent") == 0) {	/* use consistent hashing */
+			curpx->lbprm.algo |= BE_LB_HASH_CONS;
+		}
+		else if (strcmp(args[1], "map-based") == 0) {	/* use map-based hashing */
+			curpx->lbprm.algo |= BE_LB_HASH_MAP;
+		}
+		else if (strcmp(args[1], "avalanche") == 0) {
+			memprintf(err, "experimental feature '%s %s' is not supported anymore, "
+				  "please use '%s map-based sdbm avalanche' instead.",
+				  args[0], args[1], args[0]);
+			return -1;
+		}
+		else {
+			memprintf(err, "'%s' only supports 'consistent' and 'map-based'.", args[0]);
+			return -1;
+		}
+
+		/* set the hash function to use */
+		if (!*args[2]) {
+			/* the default algo is sdbm */
+			curpx->lbprm.algo |= BE_LB_HFCN_SDBM;
+
+			/* if consistent with no argument, then avalanche modifier is also applied */
+			if ((curpx->lbprm.algo & BE_LB_HASH_TYPE) == BE_LB_HASH_CONS)
+				curpx->lbprm.algo |= BE_LB_HMOD_AVAL;
+		} else {
+			/* set the hash function */
+			if (strcmp(args[2], "sdbm") == 0)
+				curpx->lbprm.algo |= BE_LB_HFCN_SDBM;
+			else if (strcmp(args[2], "djb2") == 0)
+				curpx->lbprm.algo |= BE_LB_HFCN_DJB2;
+			else if (strcmp(args[2], "wt6") == 0)
+				curpx->lbprm.algo |= BE_LB_HFCN_WT6;
+			else if (strcmp(args[2], "crc32") == 0)
+				curpx->lbprm.algo |= BE_LB_HFCN_CRC32;
+			else if (strcmp(args[2], "none") == 0)
+				curpx->lbprm.algo |= BE_LB_HFCN_NONE;
+			else {
+				memprintf(err, "'%s' only supports 'sdbm', 'djb2', 'crc32', or 'wt6' hash functions.", args[0]);
+				return -1;
+			}
+
+			/* set the hash modifier */
+			if (strcmp(args[3], "avalanche") == 0)
+				curpx->lbprm.algo |= BE_LB_HMOD_AVAL;
+			else if (*args[3]) {
+				memprintf(err, "'%s' only supports 'avalanche' as a modifier for hash functions.", args[0]);
+				return -1;
+			}
+		}
+	}
+	else if (strcmp(args[0], "hash-balance-factor") == 0) {
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects an integer argument.", args[0]);
+			return -1;
+		}
+
+		curpx->lbprm.hash_balance_factor = atol(args[1]);
+		if (curpx->lbprm.hash_balance_factor != 0 && curpx->lbprm.hash_balance_factor <= 100) {
+			memprintf(err, "'%s' must be 0 or greater than 100.", args[0]);
+			return -1;
+		}
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_balance().");
 		return -1;
 	}
 
@@ -3168,6 +3174,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
+	{ CFG_LISTEN, "balance", proxy_parse_balance },
 	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "capture", proxy_parse_capture },
@@ -3181,6 +3188,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "force-persist", proxy_parse_persist },
 	{ CFG_LISTEN, "fullconn", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "grace", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "hash-balance-factor", proxy_parse_balance },
+	{ CFG_LISTEN, "hash-type", proxy_parse_balance },
 	{ CFG_LISTEN, "http-reuse", proxy_parse_be_opts },
 	{ CFG_LISTEN, "http-send-name-header", proxy_parse_be_opts },
 	{ CFG_LISTEN, "id", proxy_parse_id_desc },
