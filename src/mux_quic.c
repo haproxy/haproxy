@@ -3014,6 +3014,7 @@ static int qcc_emit_fctl(struct qcc *qcc)
 	struct eb64_node *node;
 	struct qcs *qcs;
 	int64_t id;
+	int ret;
 
 	TRACE_ENTER(QMUX_EV_QCC_END, qcc->conn);
 
@@ -3026,25 +3027,26 @@ static int qcc_emit_fctl(struct qcc *qcc)
 		LIST_DELETE(&frm->list);
 		LIST_APPEND(&single_frm, &frm->list);
 
-		if (qcc_send_frames(qcc, &single_frm, 0)) {
-			if (!LIST_ISEMPTY(&single_frm)) {
-				/* replace frame that cannot be sent in qcc list. */
-				LIST_DELETE(&frm->list);
-				LIST_INSERT(&qcc->lfctl.frms, &frm->list);
-			}
-			goto err;
+		ret = qcc_send_frames(qcc, &single_frm, 0);
+		if (!LIST_ISEMPTY(&single_frm)) {
+			/* replace frame that cannot be sent in qcc list. */
+			LIST_DELETE(&frm->list);
+			LIST_INSERT(&qcc->lfctl.frms, &frm->list);
 		}
-
-		BUG_ON_HOT(!LIST_ISEMPTY(&single_frm));
-
-		/* If frame is MAX_STREAM_DATA, reset corresponding QCS msd_frm pointer. */
-		if (id >= 0) {
+		else if (id >= 0) {
+			/* Frame now handled by transport layer, either on send
+			 * success or after transient error. For a stream level
+			 * frame, reset QCS <msd_frm> pointer.
+			 */
 			node = eb64_lookup(&qcc->streams_by_id, id);
 			if (node) {
 				qcs = eb64_entry(node, struct qcs, by_id);
 				qcs->tx.msd_frm = NULL;
 			}
 		}
+
+		if (ret)
+			goto err;
 	}
 
 	TRACE_LEAVE(QMUX_EV_QCC_SEND, qcc->conn);
