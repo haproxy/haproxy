@@ -62,6 +62,9 @@ static struct list res_filter_classes = LIST_HEAD_INIT(res_filter_classes);
 /* Used to be sure internal filters classes are initialized before any other ones */
 static int filter_classes_initialized = 0;
 
+/* If set, downgrade the filter API to the legacy mode by default (with implicit declarations only) */
+static int filter_api_downgraded = 0;
+
 /* Pool used to allocate filters */
 DECLARE_STATIC_TYPED_POOL(pool_head_filter, "filter", struct filter);
 
@@ -2515,6 +2518,35 @@ static int parse_filter_sequence(char **args, int section_type, struct proxy *cu
 
 }
 
+/* Parser for the "filter-api" keyword */
+static int parse_global_filter_api(char **args, int section_type,
+				   struct proxy *curpx, const struct proxy *defpx,
+				   const char *file, int line, char **err)
+{
+
+	if (too_many_args(1, args, err, NULL))
+		goto err;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' : expects 'default' or 'downgrade-to-legacy' as argument.\n", args[0]);
+		goto err;
+	}
+
+	if (strcmp(args[1], "default") == 0)
+		filter_api_downgraded = 0;
+	else if (strcmp(args[1], "downgrade-to-legacy") == 0)
+		filter_api_downgraded = 1;
+	else {
+		memprintf(err, "'%s' : unknown argument '%s' (expects 'default' or 'downgrade-to-legacy')",
+			  args[0], args[1]);
+		goto err;
+	}
+
+	return 0;
+  err:
+	return -1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
  * all code contributors.
@@ -2527,6 +2559,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 		{ CFG_LISTEN, "filter-disable", parse_filter_enable },
 		{ CFG_LISTEN, "filter-enable", parse_filter_enable },
 		{ CFG_LISTEN, "filter-sequence", parse_filter_sequence },
+		{ CFG_GLOBAL, "filter-api", parse_global_filter_api },
 		{ 0, NULL, NULL },
 	}
 };
@@ -2854,11 +2887,33 @@ static int flt_precheck_instances(struct proxy *proxy)
 }
 
 
+/* Applies the default filter mode on the proxy <px>: when the legacy filter
+ * mode was requested globally, a proxy with no explicit filter declaration
+ * (neither "filter" nor "filter-*" directives) uses the legacy mode instead
+ * of the new one, so the implicit declarations of the filters not supporting
+ * the new mode keep working. A proxy with explicit declarations keeps the
+ * mode it selected: the legacy mode for the "filter" directives, the new
+ * one for the "filter-*" directives.
+ */
+static void flt_apply_default_mode(struct proxy *px)
+{
+	if (filter_api_downgraded == 1 &&
+	    !flt_use_legacy_filter(px) && !flt_has_explicit_config(px))
+		px->flags |= PR_FL_FILTER_LEGACY;
+}
+
 /* Calls flt_precheck_instances() for all proxies, see above */
 static int flt_precheck_instances_all()
 {
 	struct proxy *px;
 	int err_code = ERR_NONE;
+
+	/* Apply the globally requested mode before finalizing the filter
+	 * instances, so the proxies using the legacy mode by default keep
+	 * their instances as metadata only.
+	 */
+	list_for_each_entry(px, &main_proxies, el)
+		flt_apply_default_mode(px);
 
 	list_for_each_entry(px, &main_proxies, el) {
 		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
