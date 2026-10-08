@@ -145,7 +145,7 @@ struct spoe_agent {
                 char         *file;           /* file where the SPOE agent appears */
                 int           line;           /* line where the SPOE agent appears */
         } conf;                               /* config information */
-	struct proxy       fe;                /* Agent frontend */
+	struct proxy       *fe;               /* Agent frontend */
 	union {
 		struct proxy *be;             /* Backend used by this agent */
 		char         *name;           /* Backend name used during conf parsing */
@@ -171,6 +171,7 @@ struct spoe_agent {
 	struct list messages;                 /* list of all messages attached to this SPOE agent */
 
 	char *engine_id;                      /* engine-id string */
+        int refcount;                         /* # of references on this agent */
 
 	struct {
 		unsigned long long nb_processed; /* # of frames processed by the SPOE */
