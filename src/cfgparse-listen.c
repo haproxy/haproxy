@@ -42,7 +42,6 @@
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
-	"email-alert",
 	"stats", "option",
 	NULL /* must be last */
 };
@@ -619,80 +618,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		err_code |= bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
 		goto out;
 	}
-	else if (strcmp(args[0], "email-alert") == 0) {
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-                }
-
-		if (strcmp(args[1], "from") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			free(curproxy->email_alert.from);
-			curproxy->email_alert.from = strdup(args[2]);
-			if (!curproxy->email_alert.from)
-				goto alloc_error;
-		}
-		else if (strcmp(args[1], "mailers") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			free(curproxy->email_alert.mailers.name);
-			curproxy->email_alert.mailers.name = strdup(args[2]);
-			if (!curproxy->email_alert.mailers.name)
-				goto alloc_error;
-		}
-		else if (strcmp(args[1], "myhostname") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			free(curproxy->email_alert.myhostname);
-			curproxy->email_alert.myhostname = strdup(args[2]);
-			if (!curproxy->email_alert.myhostname)
-				goto alloc_error;
-		}
-		else if (strcmp(args[1], "level") == 0) {
-			curproxy->email_alert.level = get_log_level(args[2]);
-			if (curproxy->email_alert.level < 0) {
-				ha_alert("parsing [%s:%d] : unknown log level '%s' after '%s'\n",
-					 file, linenum, args[2], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-		else if (strcmp(args[1], "to") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			free(curproxy->email_alert.to);
-			curproxy->email_alert.to = strdup(args[2]);
-			if (!curproxy->email_alert.to)
-				goto alloc_error;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : email-alert: unknown argument '%s'.\n",
-				 file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		/* Indicate that the email_alert is at least partially configured */
-		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
-	}/* end else if (!strcmp(args[0], "email-alert"))  */
 	else if (strcmp(args[0], "stats") == 0) {
 		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == curr_defproxy->uri_auth) {
 			/* we must detach from the default config */
@@ -3122,6 +3047,63 @@ static int proxy_parse_cookie(char **args, int section_type, struct proxy *curpx
 	return -1;
 }
 
+/* Parses the "email-alert" keyword, which configures the email alerts. */
+static int proxy_parse_email_alert(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	char **dst = NULL;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "missing argument after '%s'.", args[0]);
+		return -1;
+	}
+
+	if (strcmp(args[1], "from") == 0)
+		dst = &curpx->email_alert.from;
+	else if (strcmp(args[1], "mailers") == 0)
+		dst = &curpx->email_alert.mailers.name;
+	else if (strcmp(args[1], "myhostname") == 0)
+		dst = &curpx->email_alert.myhostname;
+	else if (strcmp(args[1], "to") == 0)
+		dst = &curpx->email_alert.to;
+	else if (strcmp(args[1], "level") != 0) {
+		memprintf(err, "email-alert: unknown argument '%s'.", args[1]);
+		goto fail;
+	}
+
+	if (*(args[2]) == 0) {
+		memprintf(err, "missing argument after '%s'.", args[1]);
+		goto fail;
+	}
+
+	if (dst) {
+		char *val = strdup(args[2]);
+
+		if (!val) {
+			memprintf(err, "out of memory.");
+			goto fail;
+		}
+
+		free(*dst);
+		*dst = val;
+	}
+	else {
+		curpx->email_alert.level = get_log_level(args[2]);
+		if (curpx->email_alert.level < 0) {
+			memprintf(err, "unknown log level '%s' after '%s'", args[2], args[1]);
+			goto fail;
+		}
+	}
+
+	/* Indicate that the email_alert is at least partially configured */
+	curpx->email_alert.flags |= PR_EMAIL_ALERT_SET;
+
+	return 0;
+ fail:
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3137,6 +3119,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "dynamic-cookie-key", proxy_parse_be_opts },
+	{ CFG_LISTEN, "email-alert", proxy_parse_email_alert },
 	{ CFG_LISTEN, "enabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "error-log-format", proxy_parse_logformat },
 	{ CFG_LISTEN, "force-persist", proxy_parse_persist },
