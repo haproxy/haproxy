@@ -40,7 +40,7 @@
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"listen", "frontend", "backend", "defaults", "bind",
+	"listen", "frontend", "backend", "defaults",
 	"option",
 	NULL /* must be last */
 };
@@ -308,7 +308,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	int rc;
 	int err_code = 0;
 	char *errmsg = NULL;
-	struct bind_conf *bind_conf;
 	const char *file_prev = NULL;
 	int line_prev = 0;
 
@@ -539,60 +538,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	curproxy->conf.args.line = linenum;
 
 	/* Now let's parse the proxy-specific keywords */
-	if (strcmp(args[0], "bind") == 0) {  /* new listen addresses */
-		struct listener *l;
-		int cur_arg;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (!*(args[1])) {
-			ha_alert("parsing [%s:%d] : '%s' expects {<path>|[addr1]:port1[-end1]}{,[addr]:port[-end]}... as arguments.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		bind_conf = bind_conf_alloc(curproxy, file, linenum, args[1], xprt_get(XPRT_RAW));
-		if (!bind_conf)
-			goto alloc_error;
-
-		/* use default settings for unix sockets */
-		bind_conf->settings.ux.uid  = global.unix_bind.ux.uid;
-		bind_conf->settings.ux.gid  = global.unix_bind.ux.gid;
-		bind_conf->settings.ux.mode = global.unix_bind.ux.mode;
-
-		/* NOTE: the following line might create several listeners if there
-		 * are comma-separated IPs or port ranges. So all further processing
-		 * will have to be applied to all listeners created after last_listen.
-		 */
-		if (!str2listener(args[1], curproxy, bind_conf, file, linenum, &errmsg)) {
-			if (errmsg) {
-				indent_msg(&errmsg, 2);
-				ha_alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], errmsg);
-			}
-			else
-				ha_alert("parsing [%s:%d] : '%s' : error encountered while parsing listening address '%s'.\n",
-					 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-			/* Set default global rights and owner for unix bind  */
-			global.maxsock++;
-		}
-
-		cur_arg = 2;
-		err_code |= bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
-		goto out;
-	}
-	else if (strcmp(args[0], "option") == 0) {
+	if (strcmp(args[0], "option") == 0) {
 		if (*(args[1]) == '\0') {
 			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
 				 file, linenum, args[0]);
@@ -1098,11 +1044,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
  out:
 	free(errmsg);
 	return err_code;
-
- alloc_error:
-	ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-	err_code |= ERR_ALERT | ERR_ABORT;
-	goto out;
 }
 
 /* Keywords which are not supported anymore. They are still parsed so that a
@@ -3130,11 +3071,73 @@ static int proxy_parse_server(char **args, int section_type, struct proxy *curpx
 	return (ret & ERR_FATAL) ? -1 : 0;
 }
 
+/* Parses the "bind" keyword, which declares new listening addresses. */
+static int proxy_parse_bind(char **args, int section_type, struct proxy *curpx,
+                            const struct proxy *defpx, const char *file, int line,
+                            char **err)
+{
+	struct bind_conf *bind_conf;
+	struct listener *l;
+	char *errmsg = NULL;
+	int ret = ERR_FATAL; // assume errors for early returns
+
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+		goto fail;
+	}
+
+	warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
+
+	if (!*(args[1])) {
+		memprintf(err, "'%s' expects {<path>|[addr1]:port1[-end1]}{,[addr]:port[-end]}... as arguments.",
+		          args[0]);
+		goto fail;
+	}
+
+	bind_conf = bind_conf_alloc(curpx, file, line, args[1], xprt_get(XPRT_RAW));
+	if (!bind_conf) {
+		memprintf(err, "out of memory.");
+		goto fail;
+	}
+
+	/* use default settings for unix sockets */
+	bind_conf->settings.ux.uid  = global.unix_bind.ux.uid;
+	bind_conf->settings.ux.gid  = global.unix_bind.ux.gid;
+	bind_conf->settings.ux.mode = global.unix_bind.ux.mode;
+
+	/* NOTE: the following line might create several listeners if there
+	 * are comma-separated IPs or port ranges. So all further processing
+	 * will have to be applied to all listeners created after last_listen.
+	 */
+	if (!str2listener(args[1], curpx, bind_conf, file, line, &errmsg)) {
+		if (errmsg) {
+			indent_msg(&errmsg, 2);
+			memprintf(err, "'%s' : %s", args[0], errmsg);
+		}
+		else
+			memprintf(err, "'%s' : error encountered while parsing listening address '%s'.",
+			          args[0], args[1]);
+		goto fail;
+	}
+
+	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+		/* Set default global rights and owner for unix bind  */
+		global.maxsock++;
+	}
+
+	/* the messages are emitted by bind_parse_args_list() itself */
+	ret = bind_parse_args_list(bind_conf, args, 2, cursection, file, line);
+ fail:
+	ha_free(&errmsg);
+	return (ret & ERR_FATAL) ? -1 : 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "backlog", proxy_parse_conn_limits },
 	{ CFG_LISTEN, "balance", proxy_parse_balance },
+	{ CFG_LISTEN, "bind", proxy_parse_bind },
 	{ CFG_LISTEN, "bind-process", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "capture", proxy_parse_capture },
