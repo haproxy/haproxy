@@ -1,0 +1,55 @@
+varnishtest "Enforce the legacy filter mode on the proxies without declaration"
+
+# Regression test for the "filter-api downgrade-to-legacy" global option:
+# the proxies without explicit filter declaration must use the legacy filter
+# mode, the ones with an explicit "filter-*" declaration must keep the new mode.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -hdr "Content-Type: text/plain" -bodylen 500
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    global
+        filter-api downgrade-to-legacy
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # No filter declaration: with the legacy filter mode enforced globally,
+    # the implicit declaration of the compression filter is handled in the
+    # legacy mode, it must be operational.
+    listen li-implicit
+        bind "fd@${li1}"
+        compression algo gzip
+        compression type text/plain
+        server s1 ${s1_addr}:${s1_port}
+
+    # Explicit "filter-config" declaration: the new mode selected by the
+    # declaration always wins over the mode enforced globally, and the
+    # explicit instance replaces the implicit one. It is not enabled, so
+    # the compression is not performed.
+    listen li-explicit
+        bind "fd@${li2}"
+        filter-config http-comp-res
+        compression algo gzip
+        compression type text/plain
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c-implicit -connect ${h1_li1_sock} {
+    txreq -url /implicit -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.http.content-encoding == gzip
+} -run
+
+client c-explicit -connect ${h1_li2_sock} {
+    txreq -url /explicit -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.http.content-encoding == <undef>
+} -run
