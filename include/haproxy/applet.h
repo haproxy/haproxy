@@ -140,6 +140,12 @@ static inline int appctx_init(struct appctx *appctx)
 /* Releases an appctx previously allocated by appctx_new(). */
 static inline void __appctx_free(struct appctx *appctx)
 {
+	/* Let the applet release the resources bound to the applet context,
+	 * before it is released.
+	 */
+	if (appctx->applet->destroy)
+		CALL_APPLET_NO_RET(appctx->applet, destroy(appctx));
+
 	appctx_release_buf(appctx, &appctx->inbuf);
 	appctx_release_buf(appctx, &appctx->outbuf);
 
