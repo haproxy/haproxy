@@ -36,15 +36,6 @@
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth.h>
 
-/* some keywords that are still being parsed using strcmp() and are not
- * registered anywhere. They are used as suggestions for mistyped words.
- * DO NOT ADD ANY NEW KEYWORDS HERE, THAT MUST NO LONGER BE NECESSARY!
- */
-static const char *common_kw_list[] = {
-	"listen", "frontend", "backend", "defaults",
-	NULL /* must be last */
-};
-
 /* Options which are not described in the cfg_opts* arrays because they need a
  * dedicated parsing, and which are only used as suggestions for mistyped
  * words. This list must be kept in sync with the options which have a
