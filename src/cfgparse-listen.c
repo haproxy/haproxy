@@ -41,7 +41,6 @@
  */
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults",
-	"option",
 	NULL /* must be last */
 };
 
@@ -538,467 +537,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	curproxy->conf.args.line = linenum;
 
 	/* Now let's parse the proxy-specific keywords */
-	if (strcmp(args[0], "option") == 0) {
-		if (*(args[1]) == '\0') {
-			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		/* try to match option within cfg_opts */
-		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts, &err_code, args,
-		                                  PR_MODES, PR_CAP_NONE,
-		                                  &curproxy->options, &curproxy->no_options))
-			goto out;
-		if (err_code & ERR_CODE)
-			goto out;
-
-		/* try to match option within cfg_opts2 */
-		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts2, &err_code, args,
-		                                  PR_MODES, PR_CAP_NONE,
-		                                  &curproxy->options2, &curproxy->no_options2))
-			goto out;
-		if (err_code & ERR_CODE)
-			goto out;
-
-		/* try to match option within cfg_opts3 */
-		if (cfg_parse_listen_match_option(file, linenum, kwm, cfg_opts3, &err_code, args,
-		                                  PR_MODES, PR_CAP_NONE,
-		                                  &curproxy->options3, &curproxy->no_options3))
-			goto out;
-		if (err_code & ERR_CODE)
-			goto out;
-
-		/* HTTP options override each other. They can be cancelled using
-		 * "no option xxx" which only switches to default mode if the mode
-		 * was this one (useful for cancelling options set in defaults
-		 * sections).
-		 */
-		if (strcmp(args[1], "forceclose") == 0) {
-			ha_alert("parsing [%s:%d]: option '%s' is not supported any more since HAProxy 2.0, please just remove it, or use 'option httpclose' if absolutely needed.\n",
-				   file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (strcmp(args[1], "httpclose") == 0) {
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-			if (kwm == KWM_STD) {
-				curproxy->options &= ~PR_O_HTTP_MODE;
-				curproxy->options |= PR_O_HTTP_CLO;
-				goto out;
-			}
-			else if (kwm == KWM_NO) {
-				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_CLO)
-					curproxy->options &= ~PR_O_HTTP_MODE;
-				goto out;
-			}
-		}
-		else if (strcmp(args[1], "http-server-close") == 0) {
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-			if (kwm == KWM_STD) {
-				curproxy->options &= ~PR_O_HTTP_MODE;
-				curproxy->options |= PR_O_HTTP_SCL;
-				goto out;
-			}
-			else if (kwm == KWM_NO) {
-				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL)
-					curproxy->options &= ~PR_O_HTTP_MODE;
-				goto out;
-			}
-		}
-		else if (strcmp(args[1], "http-keep-alive") == 0) {
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-			if (kwm == KWM_STD) {
-				curproxy->options &= ~PR_O_HTTP_MODE;
-				curproxy->options |= PR_O_HTTP_KAL;
-				goto out;
-			}
-			else if (kwm == KWM_NO) {
-				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_KAL)
-					curproxy->options &= ~PR_O_HTTP_MODE;
-				goto out;
-			}
-		}
-		else if (strcmp(args[1], "http-tunnel") == 0) {
-			ha_alert("parsing [%s:%d]: option '%s' is not supported any more since HAProxy 2.1, please just remove it, it shouldn't be needed.\n",
-				 file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (strcmp(args[1], "forwarded") == 0) {
-			if (kwm == KWM_STD) {
-				err_code |= proxy_http_parse_7239(args, 0, curproxy, curr_defproxy, file, linenum);
-				goto out;
-			}
-			else if (kwm == KWM_NO) {
-				if (curproxy->http_ext)
-					http_ext_7239_clean(curproxy);
-				goto out;
-			}
-		}
-
-		/* Redispatch can take an integer argument that control when the
-		 * resispatch occurs. All values are relative to the retries option.
-		 * This can be cancelled using "no option xxx".
-		 */
-		if (strcmp(args[1], "redispatch") == 0) {
-			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL)) {
-				err_code |= ERR_WARN;
-				goto out;
-			}
-
-			curproxy->no_options &= ~PR_O_REDISP;
-			curproxy->options &= ~PR_O_REDISP;
-
-			switch (kwm) {
-			case KWM_STD:
-				curproxy->options |= PR_O_REDISP;
-				curproxy->redispatch_after = -1;
-				if (*args[2]) {
-					curproxy->redispatch_after = atol(args[2]);
-					if (!curproxy->redispatch_after)
-						curproxy->options &= ~PR_O_REDISP;
-				}
-				break;
-			case KWM_NO:
-				curproxy->no_options |= PR_O_REDISP;
-				curproxy->redispatch_after = 0;
-				break;
-			case KWM_DEF: /* already cleared */
-				break;
-			}
-			goto out;
-		}
-
-		if (strcmp(args[1], "http_proxy") == 0) {
-			ha_alert("parsing [%s:%d]: option '%s' is not supported any more since HAProxy 2.5. This option stopped working in HAProxy 1.9 and usually had nasty side effects. It can be more reliably implemented with combinations of 'http-request set-dst' and 'http-request set-uri', and even 'http-request do-resolve' if DNS resolution is desired.\n",
-				   file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (strcmp(args[1], "use-small-buffers") == 0) {
-			unsigned int flags = PR_O2_USE_SBUF_ALL;
-
-			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL)) {
-				err_code |= ERR_WARN;
-				goto out;
-			}
-
-			if (*(args[2])) {
-				int cur_arg;
-
-				flags = 0;
-				for (cur_arg = 2; *(args[cur_arg]); cur_arg++) {
-					if (strcmp(args[cur_arg], "queue") == 0)
-						flags |= PR_O2_USE_SBUF_QUEUE;
-					else if (strcmp(args[cur_arg], "l7-retries") == 0)
-						flags |= PR_O2_USE_SBUF_L7_RETRY;
-					else if (strcmp(args[cur_arg], "check") == 0)
-						flags |= PR_O2_USE_SBUF_CHECK;
-					else {
-						ha_alert("parsing [%s:%d] : invalid parameter '%s'. option '%s' expects 'queue', 'l7-retries' or 'check' value.\n",
-							 file, linenum, args[cur_arg], args[1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				}
-			}
-			if (kwm == KWM_STD) {
-				curproxy->options2 &= ~PR_O2_USE_SBUF_ALL;
-				curproxy->options2 |= flags;
-			}
-			else if (kwm == KWM_NO) {
-				curproxy->options2 &= ~flags;
-			}
-			goto out;
-		}
-
-		if (kwm != KWM_STD) {
-			ha_alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",
-				 file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (strcmp(args[1], "httplog") == 0) {
-			char *logformat;
-
-			/* generate a complete HTTP log */
-			logformat = default_http_log_format;
-			if (*(args[2]) != '\0') {
-				if (strcmp(args[2], "clf") == 0) {
-					curproxy->options2 |= PR_O2_CLFLOG;
-					logformat = clf_http_log_format;
-				} else {
-					ha_alert("parsing [%s:%d] : keyword '%s' only supports option 'clf'.\n", file, linenum, args[1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (alertif_too_many_args_idx(1, 1, file, linenum, args, &err_code))
-					goto out;
-			}
-			if (curproxy->logformat.str && curproxy->cap & PR_CAP_DEF) {
-				char *oldlogformat = "log-format";
-				char *clflogformat = "";
-
-				if (curproxy->logformat.str == default_http_log_format)
-					oldlogformat = "option httplog";
-				else if (curproxy->logformat.str == default_tcp_log_format)
-					oldlogformat = "option tcplog";
-				else if (curproxy->logformat.str == clf_tcp_log_format)
-				    oldlogformat = "option tcplog clf";
-				else if (curproxy->logformat.str == clf_http_log_format)
-					oldlogformat = "option httplog clf";
-				else if (curproxy->logformat.str == default_https_log_format)
-					oldlogformat = "option httpslog";
-				if (logformat == clf_http_log_format)
-					clflogformat = " clf";
-				ha_warning("parsing [%s:%d]: 'option httplog%s' overrides previous '%s' in 'defaults' section.\n",
-					   file, linenum, clflogformat, oldlogformat);
-			}
-			lf_expr_deinit(&curproxy->logformat);
-			curproxy->logformat.str = logformat;
-			curproxy->logformat.conf.file = strdup(curproxy->conf.args.file);
-			curproxy->logformat.conf.line = curproxy->conf.args.line;
-
-			if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
-				ha_warning("parsing [%s:%d] : backend '%s' : 'option httplog' directive is ignored in backends.\n",
-					file, linenum, curproxy->id);
-				err_code |= ERR_WARN;
-			}
-		}
-		else if (strcmp(args[1], "tcplog") == 0) {
-			char *logformat;
-
-			/* generate a detailed TCP log */
-			logformat = default_tcp_log_format;
-			if (*(args[2]) != '\0') {
-				if (strcmp(args[2], "clf") == 0) {
-					logformat = clf_tcp_log_format;
-				} else {
-					ha_alert("parsing [%s:%d] : keyword '%s' only supports option 'clf'.\n", file, linenum, args[1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (alertif_too_many_args_idx(1, 1, file, linenum, args, &err_code))
-					goto out;
-			}
-			if (curproxy->logformat.str && curproxy->cap & PR_CAP_DEF) {
-				char *oldlogformat = "log-format";
-				char *clflogformat = "";
-
-				if (curproxy->logformat.str == default_http_log_format)
-					oldlogformat = "option httplog";
-				else if (curproxy->logformat.str == default_tcp_log_format)
-					oldlogformat = "option tcplog";
-				else if (curproxy->logformat.str == clf_tcp_log_format)
-				    oldlogformat = "option tcplog clf";
-				else if (curproxy->logformat.str == clf_http_log_format)
-					oldlogformat = "option httplog clf";
-				else if (curproxy->logformat.str == default_https_log_format)
-					oldlogformat = "option httpslog";
-				if (logformat == clf_tcp_log_format)
-					clflogformat = " clf";
-				ha_warning("parsing [%s:%d]: 'option tcplog%s' overrides previous '%s' in 'defaults' section.\n",
-					   file, linenum, clflogformat, oldlogformat);
-			}
-			/* generate a detailed TCP log */
-			lf_expr_deinit(&curproxy->logformat);
-			curproxy->logformat.str = logformat;
-			curproxy->logformat.conf.file = strdup(curproxy->conf.args.file);
-			curproxy->logformat.conf.line = curproxy->conf.args.line;
-
-
-			if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
-				ha_warning("parsing [%s:%d] : backend '%s' : 'option tcplog' directive is ignored in backends.\n",
-					file, linenum, curproxy->id);
-				err_code |= ERR_WARN;
-			}
-		}
-		else if (strcmp(args[1], "httpslog") == 0) {
-			char *logformat;
-
-			/* generate a complete HTTP log */
-			logformat = default_https_log_format;
-			if (curproxy->logformat.str && curproxy->cap & PR_CAP_DEF) {
-				char *oldlogformat = "log-format";
-
-				if (curproxy->logformat.str == default_http_log_format)
-					oldlogformat = "option httplog";
-				else if (curproxy->logformat.str == default_tcp_log_format)
-					oldlogformat = "option tcplog";
-				else if (curproxy->logformat.str == clf_tcp_log_format)
-					oldlogformat = "option tcplog clf";
-				else if (curproxy->logformat.str == clf_http_log_format)
-					oldlogformat = "option httplog clf";
-				else if (curproxy->logformat.str == default_https_log_format)
-					oldlogformat = "option httpslog";
-				ha_warning("parsing [%s:%d]: 'option httpslog' overrides previous '%s' in 'defaults' section.\n",
-					   file, linenum, oldlogformat);
-			}
-			lf_expr_deinit(&curproxy->logformat);
-			curproxy->logformat.str = logformat;
-			curproxy->logformat.conf.file = strdup(curproxy->conf.args.file);
-			curproxy->logformat.conf.line = curproxy->conf.args.line;
-
-			if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
-				ha_warning("parsing [%s:%d] : backend '%s' : 'option httpslog' directive is ignored in backends.\n",
-					file, linenum, curproxy->id);
-				err_code |= ERR_WARN;
-			}
-		}
-		else if (strcmp(args[1], "tcpka") == 0) {
-			/* enable TCP keep-alives on client and server streams */
-			if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[1], NULL))
-				err_code |= ERR_WARN;
-
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-
-			if (curproxy->cap & PR_CAP_FE)
-				curproxy->options |= PR_O_TCP_CLI_KA;
-			if (curproxy->cap & PR_CAP_BE)
-				curproxy->options |= PR_O_TCP_SRV_KA;
-		}
-		else if (strcmp(args[1], "httpchk") == 0) {
-			err_code |= proxy_parse_httpchk_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "ssl-hello-chk") == 0) {
-			err_code |= proxy_parse_ssl_hello_chk_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "smtpchk") == 0) {
-			err_code |= proxy_parse_smtpchk_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "pgsql-check") == 0) {
-			err_code |= proxy_parse_pgsql_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "redis-check") == 0) {
-			err_code |= proxy_parse_redis_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "mysql-check") == 0) {
-			err_code |= proxy_parse_mysql_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "ldap-check") == 0) {
-			err_code |= proxy_parse_ldap_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-#if defined(USE_SPOE)
-		else if (strcmp(args[1], "spop-check") == 0) {
-			err_code |= proxy_parse_spop_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-#endif
-		else if (strcmp(args[1], "tcp-check") == 0) {
-			err_code |= proxy_parse_tcp_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "external-check") == 0) {
-			err_code |= proxy_parse_external_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "forwardfor") == 0) {
-			err_code |= proxy_http_parse_xff(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "originalto") == 0) {
-			err_code |= proxy_http_parse_xot(args, 0, curproxy, curr_defproxy, file, linenum);
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-		else if (strcmp(args[1], "http-restrict-req-hdr-names") == 0) {
-			if (alertif_too_many_args(2, file, linenum, args, &err_code))
-				goto out;
-
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : missing parameter. option '%s' expects 'preserve', 'reject' or 'delete' option.\n",
-					 file, linenum, args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			curproxy->options2 &= ~PR_O2_RSTRICT_REQ_HDR_NAMES_MASK;
-			if (strcmp(args[2], "preserve") == 0)
-				curproxy->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_NOOP;
-			else if (strcmp(args[2], "reject") == 0)
-				curproxy->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_BLK;
-			else if (strcmp(args[2], "delete") == 0)
-				curproxy->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_DEL;
-			else {
-				ha_alert("parsing [%s:%d] : invalid parameter '%s'. option '%s' expects 'preserve', 'reject' or 'delete' option.\n",
-					 file, linenum, args[2], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-		else if (strcmp(args[1], "accept-invalid-http-request") == 0 ||
-			 strcmp(args[1], "accept-invalid-http-response") == 0) {
-			unsigned int val;
-
-			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
-				goto out;
-
-			if (args[1][22] == 'q') {
-                            if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[1], NULL)) {
-                                err_code |= ERR_WARN;
-                                goto out;
-                            }
-                            ha_warning("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-request' if absolutely needed.\n",
-                                       file, linenum, args[1]);
-                            val = PR_O2_REQBUG_OK;
-			}
-			else {
-                            if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL)) {
-                                err_code |= ERR_WARN;
-                                goto out;
-                            }
-                            ha_warning("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-response' if absolutely needed.\n",
-                                       file, linenum, args[1]);
-                            val = PR_O2_RSPBUG_OK;
-			}
-
-			curproxy->no_options2 &= ~val;
-			curproxy->options2    |= val;
-
-			err_code |= ERR_WARN;
-			goto out;
-		}
-		else {
-			const char *best = proxy_find_best_option(args[1], common_options);
-
-			if (best)
-				ha_alert("parsing [%s:%d] : unknown option '%s'; did you mean '%s' maybe ?\n", file, linenum, args[1], best);
-			else
-				ha_alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
-
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		goto out;
-	}
-
-
-	else {
+	{
 		struct cfg_kw_list *kwl;
 		const char *best;
 		int index;
@@ -1780,23 +1319,9 @@ static int proxy_parse_logformat(char **args, int section_type, struct proxy *cu
 	 * may have been set by an "option {tcp,http,https}log".
 	 */
 	if (lf->str && (curpx->cap & PR_CAP_DEF)) {
-		if (lf == &curpx->logformat) {
-			const char *prev = "log-format";
-
-			if (lf->str == default_http_log_format)
-				prev = "option httplog";
-			else if (lf->str == default_tcp_log_format)
-				prev = "option tcplog";
-			else if (lf->str == clf_tcp_log_format)
-				prev = "option tcplog clf";
-			else if (lf->str == clf_http_log_format)
-				prev = "option httplog clf";
-			else if (lf->str == default_https_log_format)
-				prev = "option httpslog";
-
+		if (lf == &curpx->logformat)
 			ha_warning("parsing [%s:%d]: 'log-format' overrides previous '%s' in 'defaults' section.\n",
-				   file, line, prev);
-		}
+				   file, line, proxy_logformat_origin(curpx));
 		else if (lf == &curpx->logformat_error)
 			ha_warning("parsing [%s:%d]: 'error-log-format' overrides previous 'error-log-format' in 'defaults' section.\n",
 				   file, line);
@@ -3132,6 +2657,362 @@ static int proxy_parse_bind(char **args, int section_type, struct proxy *curpx,
 	return (ret & ERR_FATAL) ? -1 : 0;
 }
 
+/* Parses a proxy "option" keyword. Most of the options only set a flag in one
+ * of the proxy's option sets and are listed in the cfg_opts* arrays; the ones
+ * which need a dedicated processing generally take an argument or are not
+ * supported anymore are handled below. Please update common_options[] at the
+ * top of this file when adding an entry here, it is what allows a mistyped
+ * option to be suggested. Returns <0 for fatal error, >0 on warning, otherwise
+ * zero.
+ */
+static int proxy_parse_option(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	int kwm = cfg_curr_kwm;
+	int ret = 0; // assume success
+
+	if (*(args[1]) == '\0') {
+		memprintf(err, "'%s' expects an option name.", args[0]);
+		ret |= ERR_FATAL;
+		goto done;
+	}
+
+	/* the functions below already emit a message if needed */
+
+	/* try to match option within cfg_opts */
+	if (cfg_parse_listen_match_option(file, line, kwm, cfg_opts, &ret, args,
+	                                  PR_MODES, PR_CAP_NONE,
+	                                  &curpx->options, &curpx->no_options))
+		goto done;
+
+	if (ret & ERR_CODE)
+		goto done;
+
+	if (cfg_parse_listen_match_option(file, line, kwm, cfg_opts, &ret, args,
+	                                  PR_MODES, PR_CAP_NONE,
+	                                  &curpx->options, &curpx->no_options))
+		goto done;
+
+	if (ret & ERR_CODE)
+		goto done;
+
+	/* try to match option within cfg_opts2 */
+	if (cfg_parse_listen_match_option(file, line, kwm, cfg_opts2, &ret, args,
+	                                  PR_MODES, PR_CAP_NONE,
+	                                  &curpx->options2, &curpx->no_options2))
+		goto done;
+
+	if (ret & ERR_CODE)
+		goto done;
+
+	/* try to match option within cfg_opts3 */
+	if (cfg_parse_listen_match_option(file, line, kwm, cfg_opts3, &ret, args,
+	                                  PR_MODES, PR_CAP_NONE,
+	                                  &curpx->options3, &curpx->no_options3))
+		goto done;
+
+	if (ret & ERR_CODE)
+		goto done;
+
+	/* HTTP options override each other. They can be cancelled using
+	 * "no option xxx" which only switches to default mode if the mode
+	 * was this one (useful for cancelling options set in defaults
+	 * sections).
+	 */
+	if (strcmp(args[1], "forceclose") == 0) {
+		memprintf(err, "option '%s' is not supported any more since HAProxy 2.0, please just remove it, "
+		          "or use 'option httpclose' if absolutely needed.", args[1]);
+		ret |= ERR_FATAL;
+		goto done;
+	}
+	else if (strcmp(args[1], "httpclose") == 0 ||
+		 strcmp(args[1], "http-server-close") == 0 ||
+		 strcmp(args[1], "http-keep-alive") == 0) {
+		int mode;
+
+		if (too_many_args_idx(0, 1, args, err, NULL)) {
+			ret |= ERR_FATAL;
+			goto done;
+		}
+
+		if (strcmp(args[1], "httpclose") == 0)
+			mode = PR_O_HTTP_CLO;
+		else if (strcmp(args[1], "http-server-close") == 0)
+			mode = PR_O_HTTP_SCL;
+		else
+			mode = PR_O_HTTP_KAL;
+
+		if (kwm == KWM_STD) {
+			curpx->options &= ~PR_O_HTTP_MODE;
+			curpx->options |= mode;
+			goto done;
+		}
+		else if (kwm == KWM_NO) {
+			if ((curpx->options & PR_O_HTTP_MODE) == mode)
+				curpx->options &= ~PR_O_HTTP_MODE;
+			goto done;
+		}
+	}
+	else if (strcmp(args[1], "http-tunnel") == 0) {
+		memprintf(err, "option '%s' is not supported any more since HAProxy 2.1, please just remove it, "
+		          "it shouldn't be needed.", args[1]);
+		ret |= ERR_FATAL;
+		goto done;
+	}
+	else if (strcmp(args[1], "forwarded") == 0) {
+		if (kwm == KWM_STD) {
+			ret = proxy_http_parse_7239(args, 0, curpx, defpx, file, line);
+			goto done;
+		}
+		else if (kwm == KWM_NO) {
+			if (curpx->http_ext)
+				http_ext_7239_clean(curpx);
+			goto done;
+		}
+	}
+
+	/* Redispatch can take an integer argument that control when the
+	 * redispatch occurs. All values are relative to the retries option.
+	 * This can be cancelled using "no option xxx".
+	 */
+	if (strcmp(args[1], "redispatch") == 0) {
+		if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[1], NULL)) {
+			ret |= ERR_WARN;
+			goto done;
+		}
+
+		curpx->no_options &= ~PR_O_REDISP;
+		curpx->options &= ~PR_O_REDISP;
+
+		switch (kwm) {
+		case KWM_STD:
+			curpx->options |= PR_O_REDISP;
+			curpx->redispatch_after = -1;
+			if (*args[2]) {
+				curpx->redispatch_after = atol(args[2]);
+				if (!curpx->redispatch_after)
+					curpx->options &= ~PR_O_REDISP;
+			}
+			break;
+		case KWM_NO:
+			curpx->no_options |= PR_O_REDISP;
+			curpx->redispatch_after = 0;
+			break;
+		case KWM_DEF: /* already cleared */
+			break;
+		}
+		goto done;
+	}
+
+	if (strcmp(args[1], "http_proxy") == 0) {
+		memprintf(err, "option '%s' is not supported any more since HAProxy 2.5. This option stopped "
+			  "working in HAProxy 1.9 and usually had nasty side effects. It can be more reliably "
+			  "implemented with combinations of 'http-request set-dst' and 'http-request set-uri', "
+			  "and even 'http-request do-resolve' if DNS resolution is desired.", args[1]);
+		ret |= ERR_FATAL;
+		goto done;
+	}
+	else if (strcmp(args[1], "use-small-buffers") == 0) {
+		unsigned int flags = PR_O2_USE_SBUF_ALL;
+
+		if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[1], NULL)) {
+			ret |= ERR_WARN;
+			goto done;
+		}
+
+		if (*(args[2])) {
+			int cur_arg;
+
+			flags = 0;
+			for (cur_arg = 2; *(args[cur_arg]); cur_arg++) {
+				if (strcmp(args[cur_arg], "queue") == 0)
+					flags |= PR_O2_USE_SBUF_QUEUE;
+				else if (strcmp(args[cur_arg], "l7-retries") == 0)
+					flags |= PR_O2_USE_SBUF_L7_RETRY;
+				else if (strcmp(args[cur_arg], "check") == 0)
+					flags |= PR_O2_USE_SBUF_CHECK;
+				else {
+					memprintf(err, "invalid parameter '%s'. option '%s' expects 'queue', "
+						  "'l7-retries' or 'check' value.", args[cur_arg], args[1]);
+					ret |= ERR_FATAL;
+					goto done;
+				}
+			}
+		}
+
+		if (kwm == KWM_STD) {
+			curpx->options2 &= ~PR_O2_USE_SBUF_ALL;
+			curpx->options2 |= flags;
+		}
+		else if (kwm == KWM_NO)
+			curpx->options2 &= ~flags;
+		goto done;
+	}
+
+	if (kwm != KWM_STD) {
+		memprintf(err, "negation/default is not supported for option '%s'.", args[1]);
+		ret |= ERR_FATAL;
+		goto done;
+	}
+
+	if (strcmp(args[1], "httplog") == 0 ||
+	    strcmp(args[1], "tcplog") == 0) {
+		int http = (args[1][0] == 'h');
+		char *logformat = http ? default_http_log_format : default_tcp_log_format;
+		char *kw = http ? "option httplog" : "option tcplog";
+
+		if (*(args[2]) != '\0') {
+			if (strcmp(args[2], "clf") != 0) {
+				memprintf(err, "keyword '%s' only supports option 'clf'.", args[1]);
+				ret |= ERR_FATAL;
+				goto done;
+			}
+
+			if (http) {
+				curpx->options2 |= PR_O2_CLFLOG;
+				logformat = clf_http_log_format;
+				kw = "option httplog clf";
+			}
+			else {
+				logformat = clf_tcp_log_format;
+				kw = "option tcplog clf";
+			}
+
+			if (too_many_args_idx(1, 1, args, err, NULL)) {
+				ret |= ERR_FATAL;
+				goto done;
+			}
+		}
+
+		if (curpx->logformat.str && (curpx->cap & PR_CAP_DEF))
+			ha_warning("parsing [%s:%d]: '%s' overrides previous '%s' in 'defaults' section.\n",
+			           file, line, kw, proxy_logformat_origin(curpx));
+		else if (!(curpx->cap & (PR_CAP_DEF | PR_CAP_FE)))
+			ha_warning("parsing [%s:%d] : backend '%s' : '%s' directive is ignored in backends.\n",
+			           file, line, curpx->id, kw);
+
+		lf_expr_deinit(&curpx->logformat);
+		curpx->logformat.str = logformat;
+		curpx->logformat.conf.file = strdup(curpx->conf.args.file);
+		curpx->logformat.conf.line = curpx->conf.args.line;
+	}
+	else if (strcmp(args[1], "httpslog") == 0) {
+		if (curpx->logformat.str && (curpx->cap & PR_CAP_DEF))
+			ha_warning("parsing [%s:%d]: '%s' overrides previous '%s' in 'defaults' section.\n",
+			           file, line, "option httpslog", proxy_logformat_origin(curpx));
+		else if (!(curpx->cap & (PR_CAP_DEF | PR_CAP_FE)))
+			ha_warning("parsing [%s:%d] : backend '%s' : '%s' directive is ignored in backends.\n",
+			           file, line, curpx->id, "option httpslog");
+
+		lf_expr_deinit(&curpx->logformat);
+		curpx->logformat.str = default_https_log_format;
+		curpx->logformat.conf.file = strdup(curpx->conf.args.file);
+		curpx->logformat.conf.line = curpx->conf.args.line;
+	}
+	else if (strcmp(args[1], "tcpka") == 0) {
+		/* enable TCP keep-alives on client and server streams */
+		warnifnotcap(curpx, PR_CAP_BE | PR_CAP_FE, file, line, args[1], NULL);
+
+		if (too_many_args_idx(0, 1, args, err, NULL)) {
+			ret |= ERR_FATAL;
+			goto done;
+		}
+
+		if (curpx->cap & PR_CAP_FE)
+			curpx->options |= PR_O_TCP_CLI_KA;
+		if (curpx->cap & PR_CAP_BE)
+			curpx->options |= PR_O_TCP_SRV_KA;
+	}
+	else if (strcmp(args[1], "httpchk") == 0)
+		ret = proxy_parse_httpchk_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "ssl-hello-chk") == 0)
+		ret = proxy_parse_ssl_hello_chk_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "smtpchk") == 0)
+		ret = proxy_parse_smtpchk_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "pgsql-check") == 0)
+		ret = proxy_parse_pgsql_check_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "redis-check") == 0)
+		ret = proxy_parse_redis_check_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "mysql-check") == 0)
+		ret = proxy_parse_mysql_check_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "ldap-check") == 0)
+		ret = proxy_parse_ldap_check_opt(args, 0, curpx, defpx, file, line);
+#if defined(USE_SPOE)
+	else if (strcmp(args[1], "spop-check") == 0)
+		ret = proxy_parse_spop_check_opt(args, 0, curpx, defpx, file, line);
+#endif
+	else if (strcmp(args[1], "tcp-check") == 0)
+		ret = proxy_parse_tcp_check_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "external-check") == 0)
+		ret = proxy_parse_external_check_opt(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "forwardfor") == 0)
+		ret = proxy_http_parse_xff(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "originalto") == 0)
+		ret = proxy_http_parse_xot(args, 0, curpx, defpx, file, line);
+	else if (strcmp(args[1], "http-restrict-req-hdr-names") == 0) {
+		if (too_many_args(2, args, err, NULL)) {
+			ret |= ERR_FATAL;
+			goto done;
+		}
+
+		if (*(args[2]) == 0) {
+			memprintf(err, "missing parameter. option '%s' expects 'preserve', 'reject' or 'delete' option.", args[1]);
+			ret |= ERR_FATAL;
+			goto done;
+		}
+
+		curpx->options2 &= ~PR_O2_RSTRICT_REQ_HDR_NAMES_MASK;
+		if (strcmp(args[2], "preserve") == 0)
+			curpx->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_NOOP;
+		else if (strcmp(args[2], "reject") == 0)
+			curpx->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_BLK;
+		else if (strcmp(args[2], "delete") == 0)
+			curpx->options2 |= PR_O2_RSTRICT_REQ_HDR_NAMES_DEL;
+		else {
+			memprintf(err, "invalid parameter '%s'. option '%s' expects 'preserve', 'reject' or 'delete' option.",
+			          args[2], args[1]);
+			ret |= ERR_FATAL;
+			goto done;
+		}
+	}
+	else if (strcmp(args[1], "accept-invalid-http-request") == 0 ||
+		 strcmp(args[1], "accept-invalid-http-response") == 0) {
+		int req = (args[1][22] == 'q');
+		unsigned int val;
+
+		if (too_many_args_idx(0, 1, args, err, NULL)) {
+			ret |= ERR_FATAL;
+			goto done;
+		}
+
+		if (warnifnotcap(curpx, req ? PR_CAP_FE : PR_CAP_BE, file, line, args[1], NULL)) {
+			ret |= ERR_WARN;
+			goto done;
+		}
+
+		ha_warning("parsing [%s:%d]: option '%s' is deprecated. please use 'option accept-unsafe-violations-in-http-%s' if absolutely needed.\n",
+		           file, line, args[1], req ? "request" : "response");
+
+		val = req ? PR_O2_REQBUG_OK : PR_O2_RSPBUG_OK;
+		curpx->no_options2 &= ~val;
+		curpx->options2    |= val;
+	}
+	else {
+		const char *best = proxy_find_best_option(args[1], common_options);
+
+		if (best)
+			memprintf(err, "unknown option '%s'; did you mean '%s' maybe ?", args[1], best);
+		else
+			memprintf(err, "unknown option '%s'.", args[1]);
+		ret |= ERR_FATAL;
+		goto done;
+	}
+
+ done:
+	return (ret & ERR_FATAL) ? -1 : (ret & ERR_WARN) ? 1 : 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3175,6 +3056,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "monitor", proxy_parse_monitor },
 	{ CFG_LISTEN, "monitor-net", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "monitor-uri", proxy_parse_monitor },
+	{ CFG_LISTEN, "option", proxy_parse_option },
 	{ CFG_LISTEN, "persist", proxy_parse_persist },
 	{ CFG_LISTEN, "redirect", proxy_parse_redirect },
 	{ CFG_LISTEN, "redisp", proxy_parse_removed_kw },
