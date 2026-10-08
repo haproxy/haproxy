@@ -42,7 +42,7 @@
 static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
-	"stats", "option",
+	"option",
 	NULL /* must be last */
 };
 
@@ -308,7 +308,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	const char *err;
 	int rc;
 	int err_code = 0;
-	struct acl_cond *cond = NULL;
 	char *errmsg = NULL;
 	struct bind_conf *bind_conf;
 	const char *file_prev = NULL;
@@ -617,224 +616,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		cur_arg = 2;
 		err_code |= bind_parse_args_list(bind_conf, args, cur_arg, cursection, file, linenum);
 		goto out;
-	}
-	else if (strcmp(args[0], "stats") == 0) {
-		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == curr_defproxy->uri_auth) {
-			/* we must detach from the default config */
-			stats_uri_auth_drop(curproxy->uri_auth);
-			curproxy->uri_auth = NULL;
-		}
-
-		if (!*args[1]) {
-			goto stats_error_parsing;
-		} else if (strcmp(args[1], "admin") == 0) {
-			struct stats_admin_rule *rule;
-			int where = 0;
-
-			if (curproxy->cap & PR_CAP_DEF) {
-				ha_alert("parsing [%s:%d]: '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (!stats_check_init_uri_auth(&curproxy->uri_auth))
-				goto alloc_error;
-
-			if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
-				ha_alert("parsing [%s:%d] : '%s %s' requires either 'if' or 'unless' followed by a condition.\n",
-					 file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
-				ha_alert("parsing [%s:%d] : error detected while parsing a '%s %s' rule : %s.\n",
-					 file, linenum, args[0], args[1], errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (curproxy->cap & PR_CAP_FE)
-				where |= SMP_VAL_FE_HRQ_HDR;
-			if (curproxy->cap & PR_CAP_BE)
-				where |= SMP_VAL_BE_HRQ_HDR;
-			err_code |= warnif_cond_conflicts(cond, where, &errmsg);
-			if (errmsg)
-				ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-
-			rule = calloc(1, sizeof(*rule));
-			if (!rule) {
-				free_acl_cond(cond);
-				goto alloc_error;
-			}
-			rule->cond = cond;
-			LIST_INIT(&rule->list);
-			LIST_APPEND(&curproxy->uri_auth->admin_rules, &rule->list);
-		} else if (strcmp(args[1], "uri") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : 'uri' needs an URI prefix.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			} else if (!stats_set_uri(&curproxy->uri_auth, args[2]))
-				goto alloc_error;
-		} else if (strcmp(args[1], "realm") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : 'realm' needs an realm name.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			} else if (!stats_set_realm(&curproxy->uri_auth, args[2]))
-				goto alloc_error;
-		} else if (strcmp(args[1], "refresh") == 0) {
-			unsigned interval;
-
-			err = parse_time_err(args[2], &interval, TIME_UNIT_S);
-			if (err == PARSE_TIME_OVER) {
-				ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to stats refresh interval, maximum value is 2147483647 s (~68 years).\n",
-					 file, linenum, args[2]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			else if (err == PARSE_TIME_UNDER) {
-				ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to stats refresh interval, minimum non-null value is 1 s.\n",
-					 file, linenum, args[2]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			else if (err) {
-				ha_alert("parsing [%s:%d]: unexpected character '%c' in argument to stats refresh interval.\n",
-					 file, linenum, *err);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			} else if (!stats_set_refresh(&curproxy->uri_auth, interval))
-				goto alloc_error;
-		} else if (strcmp(args[1], "http-request") == 0) {    /* request access control: allow/deny/auth */
-			struct act_rule *rule;
-			int where = 0;
-
-			if (curproxy->cap & PR_CAP_DEF) {
-				ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (!stats_check_init_uri_auth(&curproxy->uri_auth))
-				goto alloc_error;
-
-			if (!LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules) &&
-			    !LIST_PREV(&curproxy->uri_auth->http_req_rules, struct act_rule *, list)->cond) {
-				ha_warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
-					   file, linenum, args[0]);
-				err_code |= ERR_WARN;
-			}
-
-			rule = parse_http_req_cond((const char **)args + 2, file, linenum, curproxy);
-
-			if (!rule) {
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-
-			if (curproxy->cap & PR_CAP_FE)
-				where |= SMP_VAL_FE_HRQ_HDR;
-			if (curproxy->cap & PR_CAP_BE)
-				where |= SMP_VAL_BE_HRQ_HDR;
-			err_code |= warnif_cond_conflicts(rule->cond, where, &errmsg);
-			if (errmsg)
-				ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-			LIST_APPEND(&curproxy->uri_auth->http_req_rules, &rule->list);
-
-		} else if (strcmp(args[1], "auth") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : 'auth' needs a user:password account.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			} else if (!stats_add_auth(&curproxy->uri_auth, args[2]))
-				goto alloc_error;
-		} else if (strcmp(args[1], "scope") == 0) {
-			if (*(args[2]) == 0) {
-				ha_alert("parsing [%s:%d] : 'scope' needs a proxy name.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			} else if (!stats_add_scope(&curproxy->uri_auth, args[2]))
-				goto alloc_error;
-		} else if (strcmp(args[1], "enable") == 0) {
-			if (!stats_check_init_uri_auth(&curproxy->uri_auth))
-				goto alloc_error;
-		} else if (strcmp(args[1], "hide-version") == 0) {
-			if (curproxy->uri_auth)
-				curproxy->uri_auth->flags &= ~STAT_F_SHOWVER;
-		} else if (strcmp(args[1], "show-version") == 0) {
-			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_SHOWVER))
-				goto alloc_error;
-		} else if (strcmp(args[1], "show-legends") == 0) {
-			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_SHLGNDS))
-				goto alloc_error;
-		} else if (strcmp(args[1], "show-modules") == 0) {
-			if (!stats_set_flag(&curproxy->uri_auth, STAT_F_SHMODULES))
-				goto alloc_error;
-		} else if (strcmp(args[1], "show-node") == 0) {
-
-			if (*args[2]) {
-				int i;
-				char c;
-
-				for (i=0; args[2][i]; i++) {
-					c = args[2][i];
-					if (!isupper((unsigned char)c) && !islower((unsigned char)c) &&
-					    !isdigit((unsigned char)c) && c != '_' && c != '-' && c != '.')
-						break;
-				}
-
-				if (!i || args[2][i]) {
-					ha_alert("parsing [%s:%d]: '%s %s' invalid node name - should be a string"
-						 "with digits(0-9), letters(A-Z, a-z), hyphen(-) or underscode(_).\n",
-						 file, linenum, args[0], args[1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-			}
-
-			if (!stats_set_node(&curproxy->uri_auth, args[2]))
-				goto alloc_error;
-		} else if (strcmp(args[1], "show-desc") == 0) {
-			char *desc = NULL;
-
-			if (*args[2]) {
-				int i, len=0;
-				char *d;
-
-				for (i = 2; *args[i]; i++)
-					len += strlen(args[i]) + 1;
-
-				desc = d = calloc(1, len);
-				if (unlikely(!d)) {
-					ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
-							 file, linenum, args[0], args[1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				d += snprintf(d, desc + len - d, "%s", args[2]);
-				for (i = 3; *args[i]; i++)
-					d += snprintf(d, desc + len - d, " %s", args[i]);
-			}
-
-			if (!*args[2] && !global.desc)
-				ha_warning("parsing [%s:%d]: '%s' requires a parameter or 'desc' to be set in the global section.\n",
-					   file, linenum, args[1]);
-			else {
-				if (!stats_set_desc(&curproxy->uri_auth, desc)) {
-					free(desc);
-					goto alloc_error;
-				}
-				free(desc);
-			}
-		} else {
-stats_error_parsing:
-			ha_alert("parsing [%s:%d]: %s '%s', expects 'admin', 'uri', 'realm', 'auth', 'scope', 'enable', 'hide-version', 'show-node', 'show-desc' , 'show-legends' or 'show-version'.\n",
-				 file, linenum, *args[1]?"unknown stats parameter":"missing keyword in", args[*args[1]?1:0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (strcmp(args[0], "option") == 0) {
 		if (*(args[1]) == '\0') {
@@ -3100,6 +2881,251 @@ static int proxy_parse_email_alert(char **args, int section_type, struct proxy *
 	return -1;
 }
 
+/* Parses the "stats" keyword, which configures the HTML stats page of this
+ * proxy.
+ */
+static int proxy_parse_stats(char **args, int section_type, struct proxy *curpx,
+                             const struct proxy *defpx, const char *file, int line,
+                             char **err)
+{
+	char *errmsg = NULL;
+
+	if (!(curpx->cap & PR_CAP_DEF) && curpx->uri_auth == defpx->uri_auth) {
+		/* we must detach from the default config */
+		stats_uri_auth_drop(curpx->uri_auth);
+		curpx->uri_auth = NULL;
+	}
+
+	if (!*args[1])
+		goto error_parsing;
+
+	if (strcmp(args[1], "admin") == 0) {
+		struct stats_admin_rule *rule;
+		struct acl_cond *cond;
+		int where = 0;
+
+		if (curpx->cap & PR_CAP_DEF) {
+			memprintf(err, "'%s %s' not allowed in 'defaults' section.", args[0], args[1]);
+			goto fail;
+		}
+
+		if (!stats_check_init_uri_auth(&curpx->uri_auth))
+			goto alloc_error;
+
+		if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
+			memprintf(err, "'%s %s' requires either 'if' or 'unless' followed by a condition.",
+				  args[0], args[1]);
+			goto fail;
+		}
+
+		cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args + 2, &errmsg);
+		if (!cond) {
+			memprintf(err, "error detected while parsing a '%s %s' rule : %s.",
+				  args[0], args[1], errmsg);
+			goto fail;
+		}
+
+		if (curpx->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		if (curpx->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRQ_HDR;
+
+		if (warnif_cond_conflicts(cond, where, &errmsg))
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+		ha_free(&errmsg);
+
+		rule = calloc(1, sizeof(*rule));
+		if (!rule) {
+			free_acl_cond(cond);
+			goto fail;
+		}
+
+		rule->cond = cond;
+		LIST_INIT(&rule->list);
+		LIST_APPEND(&curpx->uri_auth->admin_rules, &rule->list);
+	}
+	else if (strcmp(args[1], "uri") == 0) {
+		if (*(args[2]) == 0) {
+			memprintf(err, "'uri' needs an URI prefix.");
+			goto fail;
+		}
+		if (!stats_set_uri(&curpx->uri_auth, args[2]))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "realm") == 0) {
+		if (*(args[2]) == 0) {
+			memprintf(err, "'realm' needs an realm name.");
+			goto fail;
+		}
+		if (!stats_set_realm(&curpx->uri_auth, args[2]))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "refresh") == 0) {
+		unsigned interval;
+		const char *res;
+
+		res = parse_time_err(args[2], &interval, TIME_UNIT_S);
+		if (res == PARSE_TIME_OVER) {
+			memprintf(err, "timer overflow in argument <%s> to stats refresh interval, maximum value is 2147483647 s (~68 years).",
+				  args[2]);
+			goto fail;
+		}
+		else if (res == PARSE_TIME_UNDER) {
+			memprintf(err, "timer underflow in argument <%s> to stats refresh interval, minimum non-null value is 1 s.",
+				  args[2]);
+			goto fail;
+		}
+		else if (res) {
+			memprintf(err, "unexpected character '%c' in argument to stats refresh interval.", *res);
+			goto fail;
+		}
+		if (!stats_set_refresh(&curpx->uri_auth, interval))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "http-request") == 0) {    /* request access control: allow/deny/auth */
+		struct act_rule *rule;
+		int where = 0;
+
+		if (curpx->cap & PR_CAP_DEF) {
+			memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+			goto fail;
+		}
+
+		if (!stats_check_init_uri_auth(&curpx->uri_auth))
+			goto alloc_error;
+
+		if (!LIST_ISEMPTY(&curpx->uri_auth->http_req_rules) &&
+		    !LIST_PREV(&curpx->uri_auth->http_req_rules, struct act_rule *, list)->cond)
+			ha_warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
+				   file, line, args[0]);
+
+		rule = parse_http_req_cond((const char **)args + 2, file, line, curpx);
+		if (!rule) {
+			/* the error was already reported by the action parser */
+			goto fail;
+		}
+
+		if (curpx->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		if (curpx->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRQ_HDR;
+
+		if (warnif_cond_conflicts(rule->cond, where, &errmsg))
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+		free(errmsg);
+
+		LIST_APPEND(&curpx->uri_auth->http_req_rules, &rule->list);
+	}
+	else if (strcmp(args[1], "auth") == 0) {
+		if (*(args[2]) == 0) {
+			memprintf(err, "'auth' needs a user:password account.");
+			goto fail;
+		}
+		if (!stats_add_auth(&curpx->uri_auth, args[2]))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "scope") == 0) {
+		if (*(args[2]) == 0) {
+			memprintf(err, "'scope' needs a proxy name.");
+			goto fail;
+		}
+		if (!stats_add_scope(&curpx->uri_auth, args[2]))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "enable") == 0) {
+		if (!stats_check_init_uri_auth(&curpx->uri_auth))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "hide-version") == 0) {
+		if (curpx->uri_auth)
+			curpx->uri_auth->flags &= ~STAT_F_SHOWVER;
+	}
+	else if (strcmp(args[1], "show-version") == 0) {
+		if (!stats_set_flag(&curpx->uri_auth, STAT_F_SHOWVER))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "show-legends") == 0) {
+		if (!stats_set_flag(&curpx->uri_auth, STAT_F_SHLGNDS))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "show-modules") == 0) {
+		if (!stats_set_flag(&curpx->uri_auth, STAT_F_SHMODULES))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "show-node") == 0) {
+		if (*args[2]) {
+			int i;
+			char c;
+
+			for (i = 0; args[2][i]; i++) {
+				c = args[2][i];
+				if (!isupper((unsigned char)c) && !islower((unsigned char)c) &&
+				    !isdigit((unsigned char)c) && c != '_' && c != '-' && c != '.')
+					break;
+			}
+
+			if (!i || args[2][i]) {
+				memprintf(err, "'%s %s' invalid node name - should be a string"
+					  "with digits(0-9), letters(A-Z, a-z), hyphen(-) or underscode(_).",
+					  args[0], args[1]);
+				goto fail;
+			}
+		}
+
+		if (!stats_set_node(&curpx->uri_auth, args[2]))
+			goto alloc_error;
+	}
+	else if (strcmp(args[1], "show-desc") == 0) {
+		char *desc = NULL;
+
+		if (*args[2]) {
+			int i, len = 0;
+			char *d;
+
+			for (i = 2; *args[i]; i++)
+				len += strlen(args[i]) + 1;
+
+			desc = d = calloc(1, len);
+			if (unlikely(!d)) {
+				memprintf(err, "'%s %s' : memory allocation failed", args[0], args[1]);
+				goto fail;
+			}
+
+			d += snprintf(d, desc + len - d, "%s", args[2]);
+			for (i = 3; *args[i]; i++)
+				d += snprintf(d, desc + len - d, " %s", args[i]);
+		}
+
+		if (!*args[2] && !global.desc)
+			ha_warning("parsing [%s:%d]: '%s' requires a parameter or 'desc' to be set in the global section.\n",
+				   file, line, args[1]);
+		else {
+			if (!stats_set_desc(&curpx->uri_auth, desc)) {
+				free(desc);
+				goto fail;
+			}
+		}
+		free(desc);
+	}
+	else
+		goto error_parsing;
+
+	return 0;
+
+ error_parsing:
+	memprintf(err, "%s '%s', expects 'admin', 'uri', 'realm', 'auth', 'scope', 'enable', "
+		  "'hide-version', 'show-node', 'show-desc' , 'show-legends' or 'show-version'.",
+		  *args[1] ? "unknown stats parameter" : "missing keyword in",
+		  args[*args[1] ? 1 : 0]);
+	return -1;
+
+ alloc_error:
+	memprintf(err, "out of memory.");
+ fail:
+	free(errmsg);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3169,6 +3195,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "server-state-file-name", proxy_parse_be_opts },
 	{ CFG_LISTEN, "source", proxy_parse_source },
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "stats", proxy_parse_stats },
 	{ CFG_LISTEN, "stick", proxy_parse_stick },
 	{ CFG_LISTEN, "stick-table", proxy_parse_stick },
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
