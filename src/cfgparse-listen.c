@@ -40,8 +40,7 @@
  * registered anywhere. They are used as suggestions for mistyped words.
  */
 static const char *common_kw_list[] = {
-	"listen", "frontend", "backend", "defaults", "server",
-	"default-server", "server-template", "bind",
+	"listen", "frontend", "backend", "defaults", "bind",
 	"option",
 	NULL /* must be last */
 };
@@ -540,31 +539,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	curproxy->conf.args.line = linenum;
 
 	/* Now let's parse the proxy-specific keywords */
-	if ((strcmp(args[0], "server") == 0)) {
-		err_code |= parse_server(file, linenum, args,
-		                         curproxy, curr_defproxy,
-		                         SRV_PARSE_PARSE_ADDR);
-
-		if (err_code & ERR_FATAL)
-			goto out;
-	}
-	else if (strcmp(args[0], "default-server") == 0) {
-		err_code |= parse_server(file, linenum, args,
-		                         curproxy, curr_defproxy,
-		                         SRV_PARSE_DEFAULT_SERVER);
-
-		if (err_code & ERR_FATAL)
-			goto out;
-	}
-	else if (strcmp(args[0], "server-template") == 0) {
-		err_code |= parse_server(file, linenum, args,
-		                         curproxy, curr_defproxy,
-		                         SRV_PARSE_TEMPLATE|SRV_PARSE_PARSE_ADDR);
-
-		if (err_code & ERR_FATAL)
-			goto out;
-	}
-	else if (strcmp(args[0], "bind") == 0) {  /* new listen addresses */
+	if (strcmp(args[0], "bind") == 0) {  /* new listen addresses */
 		struct listener *l;
 		int cur_arg;
 
@@ -3126,6 +3101,31 @@ static int proxy_parse_stats(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
+/* Parses the "server", "default-server" and "server-template" keywords */
+static int proxy_parse_server(char **args, int section_type, struct proxy *curpx,
+                              const struct proxy *defpx, const char *file, int line,
+                              char **err)
+{
+	int flags;
+	int ret;
+
+	if (strcmp(args[0], "server") == 0)
+		flags = SRV_PARSE_PARSE_ADDR;
+	else if (strcmp(args[0], "default-server") == 0)
+		flags = SRV_PARSE_DEFAULT_SERVER;
+	else if (strcmp(args[0], "server-template") == 0)
+		flags = SRV_PARSE_TEMPLATE | SRV_PARSE_PARSE_ADDR;
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_server().");
+		return -1;
+	}
+
+	/* the messages are emitted by parse_server() itself */
+	ret = parse_server(file, line, args, curpx, (struct proxy *)defpx, flags);
+
+	return (ret & ERR_FATAL) ? -1 : 0;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3136,6 +3136,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "capture", proxy_parse_capture },
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "cookie", proxy_parse_cookie },
+	{ CFG_LISTEN, "default-server", proxy_parse_server },
 	{ CFG_LISTEN, "default_backend", proxy_parse_use_backend },
 	{ CFG_LISTEN, "description", proxy_parse_id_desc },
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
@@ -3192,7 +3193,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "rspideny", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "rspirep", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "rsprep", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "server", proxy_parse_server },
 	{ CFG_LISTEN, "server-state-file-name", proxy_parse_be_opts },
+	{ CFG_LISTEN, "server-template", proxy_parse_server },
 	{ CFG_LISTEN, "source", proxy_parse_source },
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "stats", proxy_parse_stats },
