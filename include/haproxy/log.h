@@ -246,6 +246,25 @@ static inline struct proxy *log_forward_by_name(const char *name)
 	return NULL;
 }
 
+/* Returns the name of the directive which assigned the proxy's current log
+ * format, for use in the warning emitted when it is overridden. Defaults to
+ * "log-format" for a format which is not one of the built-in ones.
+ */
+static inline const char *proxy_logformat_origin(const struct proxy *px)
+{
+	if (px->logformat.str == default_http_log_format)
+		return "option httplog";
+	if (px->logformat.str == default_tcp_log_format)
+		return "option tcplog";
+	if (px->logformat.str == clf_tcp_log_format)
+		return "option tcplog clf";
+	if (px->logformat.str == clf_http_log_format)
+		return "option httplog clf";
+	if (px->logformat.str == default_https_log_format)
+		return "option httpslog";
+	return "log-format";
+}
+
 #endif /* _HAPROXY_LOG_H */
 
 /*
