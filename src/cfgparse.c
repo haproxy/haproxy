@@ -2699,6 +2699,14 @@ init_proxies_list_stage2:
 					stop_proxy(curpeers->peers_fe);
 				curpeers->peers_fe = NULL;
 			}
+			else if (LIST_ISEMPTY(&curpeers->peers_fe->conf.listeners)) {
+				ha_alert("Incomplete section 'peers %s' (missing listen/bind information for local peer named '%s').\n",
+					   curpeers->id, localpeer);
+				cfgerr++;
+				if (curpeers->peers_fe)
+					stop_proxy(curpeers->peers_fe);
+				curpeers->peers_fe = NULL;
+			}
 			else {
 				/* Initializes the transport layer of the server part of all the peers belonging to
 				 * <curpeers> section if required.
