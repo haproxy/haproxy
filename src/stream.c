@@ -738,6 +738,15 @@ void stream_free(struct stream *s)
 				pool_free(h->pool, s->res_cap[h->index]);
 			pool_free(fe->rsp_cap_pool, s->res_cap);
 		}
+
+		/* Hold a reference on the frontend for the rest of the stream
+		 * teardown. The stream connectors are destroyed below. An
+		 * client applet attached to the stream will be released there,
+		 * and it may free an internal frontend (created and owned by an
+		 * applet), leaving the end of the function with a dangling
+		 * frontend. The reference is dropped at the very end.
+		 */
+		proxy_take(fe);
 	}
 
 	/* Cleanup all variable contexts. */
@@ -799,6 +808,8 @@ void stream_free(struct stream *s)
 		pool_flush(fe->req_cap_pool);
 		pool_flush(fe->rsp_cap_pool);
 	}
+
+	proxy_drop(fe);
 }
 
 
