@@ -32,7 +32,6 @@
 
 struct buffer *qc_txb_alloc(struct quic_conn *qc);
 void qc_txb_release(struct quic_conn *qc);
-int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf);
 struct buffer *qc_get_txb(struct quic_conn *qc);
 
 enum quic_tx_err qc_send_mux(struct quic_conn *qc, struct list *frms,

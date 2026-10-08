@@ -480,14 +480,13 @@ leave:
 	return ret;
 }
 
-/* Flush txbuf for <qc> connection. This must be called prior to a packet
- * preparation when txbuf contains older data. A send will be conducted for
- * these data.
+/* Flush txbuf for <qc> connection. Useful to retry emission on already
+ * prepared datagrams after a transient error.
  *
- * Returns 1 on success : buffer is empty and can be use for packet
- * preparation. On error 0 is returned.
+ * Returns 1 on success, everything sent and buffer now empty. Value 0 is used
+ * if emission failed and buffer still contains some data.
  */
-int qc_purge_txbuf(struct quic_conn *qc, struct buffer *buf)
+static int qc_flush_txbuf(struct quic_conn *qc, struct buffer *buf)
 {
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT, qc);
 
@@ -908,8 +907,8 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 		goto out;
 	}
 
-	if (b_data(buf) && !qc_purge_txbuf(qc, buf)) {
-		TRACE_ERROR("Could not purge TX buffer", QUIC_EV_CONN_TXPKT, qc);
+	if (b_data(buf) && !qc_flush_txbuf(qc, buf)) {
+		TRACE_ERROR("Could not flush TX buffer", QUIC_EV_CONN_TXPKT, qc);
 		ret = -1;
 		goto out;
 	}
