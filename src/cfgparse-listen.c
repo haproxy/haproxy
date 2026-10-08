@@ -43,7 +43,7 @@ static const char *common_kw_list[] = {
 	"listen", "frontend", "backend", "defaults", "server",
 	"default-server", "server-template", "bind",
 	"cookie", "email-alert",
-	"stick-table", "stick", "stats", "option",
+	"stats", "option",
 	NULL /* must be last */
 };
 
@@ -910,175 +910,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.flags |= PR_EMAIL_ALERT_SET;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (strcmp(args[0], "stick-table") == 0) {
-		struct stktable *other;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : 'stick-table' is not supported in 'defaults' section.\n",
-				 file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		other = stktable_find_by_name(curproxy->id);
-		if (other) {
-			ha_alert("parsing [%s:%d] : stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.\n",
-				 file, linenum, curproxy->id,
-				 other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
-				 other->proxy ? other->id : other->peers.p->id,
-				 other->conf.file, other->conf.line);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		curproxy->table = calloc(1, sizeof *curproxy->table);
-		if (!curproxy->table) {
-			ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
-			         file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err_code |= parse_stick_table(file, linenum, args, curproxy->table,
-		                              curproxy->id, curproxy->id, NULL);
-		if (err_code & ERR_FATAL) {
-			ha_free(&curproxy->table);
-			goto out;
-		}
-
-		/* Store the proxy in the stick-table. */
-		curproxy->table->proxy = curproxy;
-
-		stktable_store_name(curproxy->table);
-		curproxy->table->next = stktables_list;
-		stktables_list = curproxy->table;
-
-		/* Add this proxy to the list of proxies which refer to its stick-table. */
-		if (curproxy->table->proxies_list != curproxy) {
-			curproxy->next_stkt_ref = curproxy->table->proxies_list;
-			curproxy->table->proxies_list = curproxy;
-		}
-	}
-	else if (strcmp(args[0], "stick") == 0) {
-		struct sticking_rule *rule;
-		struct sample_expr *expr;
-		int myidx = 0;
-		const char *name = NULL;
-		int flags;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL)) {
-			err_code |= ERR_WARN;
-			goto out;
-		}
-
-		myidx++;
-		if ((strcmp(args[myidx], "store") == 0) ||
-		    (strcmp(args[myidx], "store-request") == 0)) {
-			myidx++;
-			flags = STK_IS_STORE;
-		}
-		else if (strcmp(args[myidx], "store-response") == 0) {
-			myidx++;
-			flags = STK_IS_STORE | STK_ON_RSP;
-		}
-		else if (strcmp(args[myidx], "match") == 0) {
-			myidx++;
-			flags = STK_IS_MATCH;
-		}
-		else if (strcmp(args[myidx], "on") == 0) {
-			myidx++;
-			flags = STK_IS_MATCH | STK_IS_STORE;
-		}
-		else {
-			ha_alert("parsing [%s:%d] : '%s' expects 'on', 'match', or 'store'.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (*(args[myidx]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a fetch method.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		curproxy->conf.args.ctx = ARGC_STK;
-		expr = sample_parse_expr(args, &myidx, file, linenum, &errmsg, &curproxy->conf.args, NULL);
-		if (!expr) {
-			ha_alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (flags & STK_ON_RSP) {
-			if (!(expr->fetch->val & SMP_VAL_BE_STO_RUL)) {
-				ha_alert("parsing [%s:%d] : '%s': fetch method '%s' extracts information from '%s', none of which is available for 'store-response'.\n",
-					 file, linenum, args[0], expr->fetch->kw, sample_src_names(expr->fetch->use));
-		                err_code |= ERR_ALERT | ERR_FATAL;
-				free(expr);
-			        goto out;
-			}
-		} else {
-			if (!(expr->fetch->val & SMP_VAL_BE_SET_SRV)) {
-				ha_alert("parsing [%s:%d] : '%s': fetch method '%s' extracts information from '%s', none of which is available during request.\n",
-					 file, linenum, args[0], expr->fetch->kw, sample_src_names(expr->fetch->use));
-				err_code |= ERR_ALERT | ERR_FATAL;
-				free(expr);
-				goto out;
-			}
-		}
-
-		/* check if we need to allocate an http_txn struct for HTTP parsing */
-		curproxy->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
-
-		if (strcmp(args[myidx], "table") == 0) {
-			myidx++;
-			name = args[myidx++];
-		}
-
-		if (strcmp(args[myidx], "if") == 0 || strcmp(args[myidx], "unless") == 0) {
-			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + myidx, &errmsg)) == NULL) {
-				ha_alert("parsing [%s:%d] : '%s': error detected while parsing sticking condition : %s.\n",
-					 file, linenum, args[0], errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				free(expr);
-				goto out;
-			}
-		}
-		else if (*(args[myidx])) {
-			ha_alert("parsing [%s:%d] : '%s': unknown keyword '%s'.\n",
-				 file, linenum, args[0], args[myidx]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			free(expr);
-			goto out;
-		}
-		if (flags & STK_ON_RSP)
-			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_STO_RUL, &errmsg);
-		else
-			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, &errmsg);
-		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-
-		rule = calloc(1, sizeof(*rule));
-		if (!rule) {
-			free_acl_cond(cond);
-			goto alloc_error;
-		}
-		rule->cond = cond;
-		rule->expr = expr;
-		rule->flags = flags;
-		rule->table.name = name ? strdup(name) : NULL;
-		LIST_INIT(&rule->list);
-		if (flags & STK_ON_RSP)
-			LIST_APPEND(&curproxy->storersp_rules, &rule->list);
-		else
-			LIST_APPEND(&curproxy->sticking_rules, &rule->list);
-	}
 	else if (strcmp(args[0], "stats") == 0) {
 		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == curr_defproxy->uri_auth) {
 			/* we must detach from the default config */
@@ -3152,6 +2983,174 @@ static int proxy_parse_redirect(char **args, int section_type, struct proxy *cur
 	return -1;
 }
 
+/* Parses the stickiness keywords "stick-table" and "stick". Neither is allowed
+ * in a defaults section.
+ */
+static int proxy_parse_stick(char **args, int section_type, struct proxy *curpx,
+                             const struct proxy *defpx, const char *file, int line,
+                             char **err)
+{
+	struct sample_expr *expr = NULL;
+	struct acl_cond *cond = NULL;
+	char *errmsg = NULL;
+
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' is not supported in 'defaults' section.", args[0]);
+		goto fail;
+	}
+
+	if (strcmp(args[0], "stick-table") == 0) {
+		struct stktable *other;
+		int ret;
+
+		other = stktable_find_by_name(curpx->id);
+		if (other) {
+			memprintf(err, "stick-table name '%s' conflicts with table declared in %s '%s' at %s:%d.",
+				  curpx->id,
+				  other->proxy ? proxy_cap_str(other->proxy->cap) : "peers",
+				  other->proxy ? other->id : other->peers.p->id,
+				  other->conf.file, other->conf.line);
+			goto fail;
+		}
+
+		curpx->table = calloc(1, sizeof *curpx->table);
+		if (!curpx->table) {
+			memprintf(err, "'%s %s' : memory allocation failed", args[0], args[1]);
+			goto fail;
+		}
+
+		/* the messages are emitted by parse_stick_table() itself */
+		ret = parse_stick_table(file, line, args, curpx->table, curpx->id, curpx->id, NULL);
+		if (ret & ERR_FATAL) {
+			ha_free(&curpx->table);
+			goto fail;
+		}
+
+		/* Store the proxy in the stick-table. */
+		curpx->table->proxy = curpx;
+
+		stktable_store_name(curpx->table);
+		curpx->table->next = stktables_list;
+		stktables_list = curpx->table;
+
+		/* Add this proxy to the list of proxies which refer to its stick-table. */
+		if (curpx->table->proxies_list != curpx) {
+			curpx->next_stkt_ref = curpx->table->proxies_list;
+			curpx->table->proxies_list = curpx;
+		}
+	}
+	else if (strcmp(args[0], "stick") == 0) {
+		struct sticking_rule *rule;
+		const char *name = NULL;
+		int myidx = 0;
+		int flags;
+
+		if (warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL))
+			return 0;
+
+		myidx++;
+		if ((strcmp(args[myidx], "store") == 0) ||
+		    (strcmp(args[myidx], "store-request") == 0)) {
+			myidx++;
+			flags = STK_IS_STORE;
+		}
+		else if (strcmp(args[myidx], "store-response") == 0) {
+			myidx++;
+			flags = STK_IS_STORE | STK_ON_RSP;
+		}
+		else if (strcmp(args[myidx], "match") == 0) {
+			myidx++;
+			flags = STK_IS_MATCH;
+		}
+		else if (strcmp(args[myidx], "on") == 0) {
+			myidx++;
+			flags = STK_IS_MATCH | STK_IS_STORE;
+		}
+		else {
+			memprintf(err, "'%s' expects 'on', 'match', or 'store'.", args[0]);
+			goto fail;
+		}
+
+		if (*(args[myidx]) == 0) {
+			memprintf(err, "'%s' expects a fetch method.", args[0]);
+			goto fail;
+		}
+
+		curpx->conf.args.ctx = ARGC_STK;
+		expr = sample_parse_expr(args, &myidx, file, line, &errmsg, &curpx->conf.args, NULL);
+		if (!expr) {
+			memprintf(err, "'%s': %s", args[0], errmsg);
+			goto fail;
+		}
+
+		if (flags & STK_ON_RSP) {
+			if (!(expr->fetch->val & SMP_VAL_BE_STO_RUL)) {
+				memprintf(err, "'%s': fetch method '%s' extracts information from '%s', none of which is available for 'store-response'.",
+					  args[0], expr->fetch->kw, sample_src_names(expr->fetch->use));
+				goto fail;
+			}
+		} else {
+			if (!(expr->fetch->val & SMP_VAL_BE_SET_SRV)) {
+				memprintf(err, "'%s': fetch method '%s' extracts information from '%s', none of which is available during request.",
+					  args[0], expr->fetch->kw, sample_src_names(expr->fetch->use));
+				goto fail;
+			}
+		}
+
+		/* check if we need to allocate an http_txn struct for HTTP parsing */
+		curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
+
+		if (strcmp(args[myidx], "table") == 0) {
+			myidx++;
+			name = args[myidx++];
+		}
+
+		if (strcmp(args[myidx], "if") == 0 || strcmp(args[myidx], "unless") == 0) {
+			cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args + myidx, &errmsg);
+			if (!cond) {
+				memprintf(err, "'%s': error detected while parsing sticking condition : %s.",
+					  args[0], errmsg);
+				goto fail;
+			}
+		}
+		else if (*(args[myidx])) {
+			memprintf(err, "'%s': unknown keyword '%s'.", args[0], args[myidx]);
+			goto fail;
+		}
+
+		if (warnif_cond_conflicts(cond, (flags & STK_ON_RSP) ? SMP_VAL_BE_STO_RUL : SMP_VAL_BE_SET_SRV, &errmsg))
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+		ha_free(&errmsg);
+
+		rule = calloc(1, sizeof(*rule));
+		if (!rule) {
+			memprintf(err, "out of memory.");
+			goto fail;
+		}
+
+		rule->cond = cond;
+		rule->expr = expr;
+		rule->flags = flags;
+		rule->table.name = name ? strdup(name) : NULL;
+		LIST_INIT(&rule->list);
+		if (flags & STK_ON_RSP)
+			LIST_APPEND(&curpx->storersp_rules, &rule->list);
+		else
+			LIST_APPEND(&curpx->sticking_rules, &rule->list);
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_stick().");
+		goto fail;
+	}
+
+	return 0;
+ fail:
+	free(errmsg);
+	free_acl_cond(cond);
+	free(expr);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3219,6 +3218,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "server-state-file-name", proxy_parse_be_opts },
 	{ CFG_LISTEN, "source", proxy_parse_source },
 	{ CFG_LISTEN, "srvexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "stick", proxy_parse_stick },
+	{ CFG_LISTEN, "stick-table", proxy_parse_stick },
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "unique-id-format", proxy_parse_logformat },
 	{ CFG_LISTEN, "unique-id-header", proxy_parse_log_opts },
