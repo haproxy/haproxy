@@ -149,7 +149,7 @@ int too_many_args(int maxarg, char **args, char **msg, int *err_code);
 int alertif_too_many_args_idx(int maxarg, int index, const char *file, int linenum, char **args, int *err_code);
 int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args, int *err_code);
 int parse_process_number(const char *arg, unsigned long *proc, int max, int *autoinc, char **err);
-const char *cfg_find_best_match(const char *word, const struct list *list, int section, const char **extra);
+const char *cfg_find_best_match(const char *word, const struct list *list, int section);
 int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint);
 int failifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint);
 void cfg_dump_registered_keywords();

@@ -480,15 +480,15 @@ int warnif_tcp_http_cond(const struct proxy *px, const struct acl_cond *cond)
 
 /* try to find in <list> the word that looks closest to <word> by counting
  * transitions between letters, digits and other characters. Will return the
- * best matching word if found, otherwise NULL. An optional array of extra
- * words to compare may be passed in <extra>, but it must then be terminated
- * by a NULL entry. If unused it may be NULL.
+ * best matching word if found, otherwise NULL. If no match is found, then the
+ * registered section names are checked and a matching one is proposed.
  */
-const char *cfg_find_best_match(const char *word, const struct list *list, int section, const char **extra)
+const char *cfg_find_best_match(const char *word, const struct list *list, int section)
 {
 	uint8_t word_sig[1024]; // 0..25=letter, 26=digit, 27=other, 28=begin, 29=end
 	uint8_t list_sig[1024];
 	const struct cfg_kw_list *kwl;
+	const struct cfg_section *cs;
 	int index;
 	const char *best_ptr = NULL;
 	int dist, best_dist = INT_MAX;
@@ -508,14 +508,16 @@ const char *cfg_find_best_match(const char *word, const struct list *list, int s
 		}
 	}
 
-	while (extra && *extra) {
-		make_word_fingerprint(list_sig, *extra);
+	/* the name of any section is a valid word at this place, and none of
+	 * them is registered as a keyword.
+	 */
+	list_for_each_entry(cs, &sections, list) {
+		make_word_fingerprint(list_sig, cs->section_name);
 		dist = word_fingerprint_distance(word_sig, list_sig);
 		if (dist < best_dist) {
 			best_dist = dist;
-			best_ptr = *extra;
+			best_ptr = cs->section_name;
 		}
-		extra++;
 	}
 
 	if (best_dist > 2 * strlen(word) || (best_ptr && best_dist > 2 * strlen(best_ptr)))
