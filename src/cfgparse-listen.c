@@ -44,9 +44,8 @@ static const char *common_kw_list[] = {
 	"default-server", "server-template", "bind",
 	"cookie", "email-alert",
 	"http-request", "http-response", "http-after-response",
-	"redirect", "use_backend",
-	"use-server",
-	"stick-table", "stick", "stats", "option", "default_backend",
+	"redirect",
+	"stick-table", "stick", "stats", "option",
 	NULL /* must be last */
 };
 
@@ -1049,120 +1048,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (errmsg)
 			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
 	}
-	else if (strcmp(args[0], "use_backend") == 0) {
-		struct switching_rule *rule;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a backend name.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0) {
-			if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
-				ha_alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
-					 file, linenum, errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, &errmsg);
-			if (errmsg)
-				ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-		}
-		else if (*args[2]) {
-			ha_alert("parsing [%s:%d] : unexpected keyword '%s' after switching rule, only 'if' and 'unless' are allowed.\n",
-				 file, linenum, args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		rule = calloc(1, sizeof(*rule));
-		if (!rule)
-			goto use_backend_alloc_error;
-		rule->cond = cond;
-		rule->be.name = strdup(args[1]);
-		if (!rule->be.name)
-			goto use_backend_alloc_error;
-		rule->line = linenum;
-		rule->file = strdup(file);
-		if (!rule->file) {
-		  use_backend_alloc_error:
-			free_acl_cond(cond);
-			if (rule)
-				ha_free(&(rule->be.name));
-			ha_free(&rule);
-			goto alloc_error;
-		}
-		LIST_INIT(&rule->list);
-		LIST_APPEND(&curproxy->switching_rules, &rule->list);
-	}
-	else if (strcmp(args[0], "use-server") == 0) {
-		struct server_rule *rule;
-
-		if (curproxy->cap & PR_CAP_DEF) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a server name.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
-			ha_alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if ((cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
-			ha_alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
-				 file, linenum, errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, &errmsg);
-		if (errmsg)
-			ha_warning("parsing [%s:%d] : '%s'.\n", file, linenum, errmsg);
-
-		rule = calloc(1, sizeof(*rule));
-		if (!rule)
-			goto use_server_alloc_error;
-		rule->cond = cond;
-		rule->srv.name = strdup(args[1]);
-		if (!rule->srv.name)
-			goto use_server_alloc_error;
-		rule->line = linenum;
-		rule->file = strdup(file);
-		if (!rule->file) {
-		  use_server_alloc_error:
-			free_acl_cond(cond);
-			if (rule)
-				ha_free(&(rule->srv.name));
-			ha_free(&rule);
-			goto alloc_error;
-		}
-		LIST_INIT(&rule->list);
-		LIST_APPEND(&curproxy->server_rules, &rule->list);
-		curproxy->be_req_ana |= AN_REQ_SRV_RULES;
-	}
 	else if (strcmp(args[0], "stick-table") == 0) {
 		struct stktable *other;
 
@@ -2007,23 +1892,6 @@ stats_error_parsing:
 			goto out;
 		}
 		goto out;
-	}
-	else if (strcmp(args[0], "default_backend") == 0) {
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a backend name.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		free(curproxy->defbe.name);
-		curproxy->defbe.name = strdup(args[1]);
-		if (!curproxy->defbe.name)
-			goto alloc_error;
-
-		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
-			goto out;
 	}
 
 
@@ -3171,6 +3039,144 @@ static int proxy_parse_source(char **args, int section_type, struct proxy *curpx
 	return -1;
 }
 
+/* Parses the backend and server selection keywords "default_backend",
+ * "use_backend" and "use-server".
+ */
+static int proxy_parse_use_backend(char **args, int section_type, struct proxy *curpx,
+                                   const struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	struct acl_cond *cond = NULL;
+	char *errmsg = NULL;
+	char *name = NULL;
+	char *cfgfile = NULL;
+
+	if (strcmp(args[0], "default_backend") == 0) {
+		warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
+
+		if (too_many_args_idx(1, 0, args, err, NULL))
+			goto fail;
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a backend name.", args[0]);
+			goto fail;
+		}
+
+		name = strdup(args[1]);
+		if (!name)
+			goto alloc_error;
+
+		free(curpx->defbe.name);
+		curpx->defbe.name = name;
+
+		return 0;
+	}
+
+	if (curpx->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' not allowed in 'defaults' section.", args[0]);
+		goto fail;
+	}
+
+	if (strcmp(args[0], "use_backend") == 0) {
+		struct switching_rule *rule;
+
+		warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a backend name.", args[0]);
+			goto fail;
+		}
+
+		if (strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0) {
+			cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args + 2, &errmsg);
+			if (!cond) {
+				memprintf(err, "error detected while parsing switching rule : %s.", errmsg);
+				goto fail;
+			}
+
+			if (warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, &errmsg))
+				ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+			ha_free(&errmsg);
+		}
+		else if (*args[2]) {
+			memprintf(err, "unexpected keyword '%s' after switching rule, only 'if' and 'unless' are allowed.",
+				  args[2]);
+			goto fail;
+		}
+
+		name = strdup(args[1]);
+		cfgfile = strdup(file);
+		rule = calloc(1, sizeof(*rule));
+		if (!name || !cfgfile || !rule) {
+			free(rule);
+			goto alloc_error;
+		}
+
+		rule->cond = cond;
+		rule->be.name = name;
+		rule->file = cfgfile;
+		rule->line = line;
+		LIST_INIT(&rule->list);
+		LIST_APPEND(&curpx->switching_rules, &rule->list);
+	}
+	else if (strcmp(args[0], "use-server") == 0) {
+		struct server_rule *rule;
+
+		warnifnotcap(curpx, PR_CAP_BE, file, line, args[0], NULL);
+
+		if (*(args[1]) == 0) {
+			memprintf(err, "'%s' expects a server name.", args[0]);
+			goto fail;
+		}
+
+		if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
+			memprintf(err, "'%s' requires either 'if' or 'unless' followed by a condition.", args[0]);
+			goto fail;
+		}
+
+		cond = build_acl_cond(file, line, &curpx->acl, curpx, (const char **)args + 2, &errmsg);
+		if (!cond) {
+			memprintf(err, "error detected while parsing switching rule : %s.", errmsg);
+			goto fail;
+		}
+
+		if (warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, &errmsg))
+			ha_warning("parsing [%s:%d] : '%s'.\n", file, line, errmsg);
+		ha_free(&errmsg);
+
+		name = strdup(args[1]);
+		cfgfile = strdup(file);
+		rule = calloc(1, sizeof(*rule));
+		if (!name || !cfgfile || !rule) {
+			free(rule);
+			goto alloc_error;
+		}
+
+		rule->cond = cond;
+		rule->srv.name = name;
+		rule->file = cfgfile;
+		rule->line = line;
+		LIST_INIT(&rule->list);
+		LIST_APPEND(&curpx->server_rules, &rule->list);
+		curpx->be_req_ana |= AN_REQ_SRV_RULES;
+	}
+	else {
+		BUG_ON(1, "unhandled keyword in proxy_parse_use_backend().");
+		goto fail;
+	}
+
+	return 0;
+
+ alloc_error:
+	free_acl_cond(cond);
+	free(name);
+	free(cfgfile);
+	memprintf(err, "out of memory.");
+ fail:
+	free(errmsg);
+	return -1;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "acl", proxy_parse_acl },
 	{ CFG_LISTEN, "appsession", proxy_parse_removed_kw },
@@ -3180,6 +3186,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "block", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "capture", proxy_parse_capture },
 	{ CFG_LISTEN, "cliexp", proxy_parse_removed_kw },
+	{ CFG_LISTEN, "default_backend", proxy_parse_use_backend },
 	{ CFG_LISTEN, "description", proxy_parse_id_desc },
 	{ CFG_LISTEN, "disabled", proxy_parse_enabled },
 	{ CFG_LISTEN, "dispatch", proxy_parse_removed_kw },
@@ -3236,6 +3243,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "transparent", proxy_parse_removed_kw },
 	{ CFG_LISTEN, "unique-id-format", proxy_parse_logformat },
 	{ CFG_LISTEN, "unique-id-header", proxy_parse_log_opts },
+	{ CFG_LISTEN, "use-server", proxy_parse_use_backend },
+	{ CFG_LISTEN, "use_backend", proxy_parse_use_backend },
 	{ CFG_LISTEN, "usesrc", proxy_parse_source },
 	{ 0, NULL, NULL },
 }};
