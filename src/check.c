@@ -816,7 +816,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	}
 
 	errno = unclean_errno(errno_bck);
-	if (conn && !errno)
+	if (conn && !errno && !(conn->flags & CO_FL_FDLESS))
 		retrieve_errno_from_socket(conn);
 
 	TRACE_ENTER(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check, 0, 0, (size_t[]){expired});
