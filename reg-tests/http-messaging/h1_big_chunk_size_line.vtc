@@ -1,0 +1,65 @@
+varnishtest "Test a chunk-size line which fills the whole buffer"
+
+# A chunked request whose first chunk-size line is longer than the
+# buffer used to cause an endless parsing loop: the parser could not
+# progress on the incomplete line, the buffer was full so no more data
+# could be received, and the connection remained stuck until the client
+# timeout. Such a line is now reported as a parsing error.
+#
+# The first client below sends a request whose first chunk-size line,
+# including its final LF, is longer than tune.bufsize, so it cannot
+# possibly fit in any buffer. The proxy must reply with a 400 at once
+# instead of remaining stuck until the client timeout. The error is
+# checked in the log because the response may be lost when the proxy
+# closes the connection with the request not fully drained.
+#
+# The second client sends a valid request to check that the proxy
+# remains alive and behaves normally.
+
+feature ignore_unknown_macro
+
+syslog S -level info {
+    recv
+    expect ~ ".* li1 li1/<NOSRV> -1/-1/-1/-1/[0-9]* 400 .* PR-- .* \"<BADREQ>\""
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+        tune.bufsize 1024
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        option httplog
+        option dontlog-normal
+        log "${S_addr}:${S_port}" local0 info
+        server s1 "${h1_li2_addr}:${h1_li2_port}"
+
+    listen li2
+        bind "fd@${li2}"
+        http-request return status 200
+} -start
+
+# 42 + 984 + 2 = 1028 bytes: too long for a 1024-byte buffer
+client c1 -connect ${h1_li1_sock} {
+    txreq -req POST -url /big -hdr "Transfer-Encoding: chunked" -nolen
+    send_n 984 "0"
+    send "\r\n"
+} -run
+
+# a valid request must still work
+client c2 -connect ${h1_li1_sock} {
+    txreq -url /ok
+    rxresp
+    expect resp.status == 200
+} -run
+
+syslog S -wait

@@ -947,7 +947,22 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 	}
 	else if (h1m->flags & H1_MF_CHNK) {
 		/* te:chunked : parse chunks */
-		total += h1_parse_msg_chunks(h1m, dsthtx, srcbuf, ofs, max, htxbuf);
+		sz = h1_parse_msg_chunks(h1m, dsthtx, srcbuf, ofs, max, htxbuf);
+
+		/* Incomplete chunk-size line. If the input buffer only
+		 * contains it and is full, which is detected by it being full
+		 * and the offset to be zero, it's an error because the line is
+		 * too large to be handled by the parser. Report a parsing
+		 * error rather than retrying forever on the same data.
+		 */
+		if (!sz && !ofs && h1m->state == H1_MSG_CHUNK_SIZE &&
+		    !buf_room_for_htx_data(srcbuf)) {
+			(*dsthtx)->flags |= HTX_FL_PARSING_ERROR;
+			h1m->err_state = h1m->state;
+			h1m->err_pos = ofs;
+			return 0;
+		}
+		total += sz;
 	}
 	else if (h1m->flags & H1_MF_XFER_LEN) {
 		/* XFER_LEN is set but not CLEN nor CHNK, it means there is no
