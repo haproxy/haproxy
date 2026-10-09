@@ -523,7 +523,6 @@ void proxy_drop(struct proxy *p)
 static int proxy_purge_servers(struct proxy *px, int max_srv_delete)
 {
 	struct server *srv;
-	int ret;
 
 	while (!LIST_ISEMPTY(&px->servers_purge)) {
 		if (!max_srv_delete)
@@ -535,22 +534,16 @@ static int proxy_purge_servers(struct proxy *px, int max_srv_delete)
 			continue;
 		}
 
-		/* TODO unnecessary server lookup */
-		ret = srv_check_for_deletion(px->id, srv->id, PR_DEL_MODE_SYNC, NULL, NULL, NULL);
-		if (ret < 0) {
-			srv_cancel_purge(srv);
-			LIST_DEL_INIT(&srv->el_alt);
-		}
-		else if (ret > 0) {
-			ha_notice("Server '%s/%s' purged.\n", px->id, srv->id);
-			srv_unregister(srv);
-			srv_drop(srv);
-			--max_srv_delete;
-		}
-		else {
-			/* Interrupt work on first server not yet removable. */
+		/* A non removable server must not be flagged for purge. */
+		BUG_ON(srv->flags & (SRV_F_NON_PURGEABLE | SRV_F_NAME_REFD));
+
+		if (srv_in_use(srv))
 			break;
-		}
+
+		ha_notice("Server '%s/%s' purged.\n", px->id, srv->id);
+		srv_unregister(srv);
+		srv_drop(srv);
+		--max_srv_delete;
 	}
 
 	return !(LIST_ISEMPTY(&px->servers_purge) || max_srv_delete);

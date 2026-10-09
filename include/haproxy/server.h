@@ -96,6 +96,7 @@ const char *srv_adm_st_chg_cause(enum srv_adm_st_chg_cause cause);
 const char *srv_op_st_chg_cause(enum srv_op_st_chg_cause cause);
 void srv_event_hdl_publish_check(struct server *srv, struct check *check);
 
+int srv_in_use(const struct server *srv);
 int srv_check_for_deletion(const char *bename, const char *svname, enum pr_del_mode del_mode,
                            struct proxy **pb, struct server **ps, const char **pm);
 void srv_unregister(struct server *srv);

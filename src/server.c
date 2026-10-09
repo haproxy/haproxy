@@ -2094,7 +2094,7 @@ static int srv_parse_strict_maxconn(char **args, int *cur_arg, struct proxy *px,
 	return 0;
 }
 /* Returns 1 if the server has streams pointing to it, and 0 otherwise. */
-static int srv_has_streams(struct server *srv)
+static int srv_has_streams(const struct server *srv)
 {
 	int i;
 
@@ -6909,6 +6909,17 @@ out:
 	return 1;
 }
 
+/* Returns true if <srv> can be considered as active, i.e. there is active,
+ * pending and/or idle connections on it. Connections scheduled for purging are
+ * still accounted there.
+ */
+int srv_in_use(const struct server *srv)
+{
+	return !!(_HA_ATOMIC_LOAD(&srv->curr_used_conns) ||
+	          _HA_ATOMIC_LOAD(&srv->queueslength) || srv_has_streams(srv) ||
+	          _HA_ATOMIC_LOAD(&srv->curr_idle_conns) || _HA_ATOMIC_LOAD(&srv->curr_sess_idle_conns));
+}
+
 /* Checks if the server <bename>/<svname> exists and is ready for being
  * deleted. This means that the server is in maintenance with no streams
  * attached to it, no queue and no used idle conns. This is not supposed to
@@ -6973,12 +6984,8 @@ int srv_check_for_deletion(const char *bename, const char *svname, enum pr_del_m
 	/* Second, conditions that may change over time */
 	ret = 0;
 
-	/* Ensure that there is no active/pending/idle connection on the server.
-	 * Note that idle conns scheduled for purging are still accounted in idle counter.
-	 */
-	if (_HA_ATOMIC_LOAD(&srv->curr_used_conns) ||
-	    _HA_ATOMIC_LOAD(&srv->queueslength) || srv_has_streams(srv) ||
-	    _HA_ATOMIC_LOAD(&srv->curr_idle_conns) || _HA_ATOMIC_LOAD(&srv->curr_sess_idle_conns)) {
+	/* Ensure that there is no active/pending/idle connection on the server. */
+	if (srv_in_use(srv)) {
 		msg = "Server still has connections attached to it, cannot remove it.";
 		goto leave;
 	}
@@ -7337,6 +7344,10 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 	srv->tracknext = strack->trackers;
 	strack->trackers = srv;
 	strack->flags |= SRV_F_NAME_REFD;
+
+	/* Cancel background deletion on tracked server if activated. */
+	if (srv->flags & SRV_F_DYNAMIC)
+		srv_cancel_purge(strack);
 
 	ha_free(&srv->trackit);
 
