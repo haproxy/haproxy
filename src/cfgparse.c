@@ -791,8 +791,8 @@ cfg_parse_netns(const char *file, int linenum, char **args, int kwm)
 #endif
 }
 
-int
-cfg_parse_users(const char *file, int linenum, char **args, int kwm)
+/* parser for a "userlist" section */
+int cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 {
 
 	int err_code = 0;
@@ -851,7 +851,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		list_for_each_entry(kwl, &cfg_keywords.list, list) {
 			for (index = 0; kwl->kw[index].kw; index++) {
-				if ((kwl->kw[index].section & CFG_USERLIST) &&
+				if ((kwl->kw[index].section == CFG_USERLIST) &&
 					(strcmp(kwl->kw[index].kw, args[0]) == 0)) {
 						err_code |= kwl->kw[index].parse(args, CFG_USERLIST, NULL, NULL, file, linenum, &errmsg);
 						if (errmsg) {
