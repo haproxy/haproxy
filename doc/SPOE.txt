@@ -533,6 +533,7 @@ event <name> [ { if | unless } <condition> ]
     - on-client-session
     - on-server-session
     - on-frontend-tcp-request
+    - on-switching-rules
     - on-backend-tcp-request
     - on-tcp-response
     - on-frontend-http-request
@@ -1021,6 +1022,18 @@ Here is the list of supported events:
                               "tcp-request content" rules on the frontend side.
                               This event is only available for SPOE filters
                               declared in a frontend or a listen section.
+
+  * on-switching-rules        is triggered after the evaluation of
+                              "tcp-request content" rules on the frontend side,
+                              just before the "use_backend" switching rules. It
+                              allows an agent to influence the backend selection.
+                              This event is only available for SPOE filters
+                              declared in a frontend or a listen section. Note
+                              that, in TCP mode, request data is only guaranteed
+                              to be available if a "tcp-request content" rule
+                              (combined with a "tcp-request inspect-delay") waits
+                              for it; otherwise the event fires as soon as the
+                              connection is established.
 
   * on-backend-tcp-request    is triggered just before the evaluation of
                               "tcp-request content" rules on the backend side.

@@ -81,6 +81,7 @@ enum spoe_event {
 	/* Request events */
 	SPOE_EV_ON_CLIENT_SESS = 1,
 	SPOE_EV_ON_TCP_REQ_FE,
+	SPOE_EV_ON_SWITCHING_RULES,   /* after tcp-request content, before use_backend */
 	SPOE_EV_ON_TCP_REQ_BE,
 	SPOE_EV_ON_HTTP_REQ_FE,
 	SPOE_EV_ON_HTTP_REQ_BE,
@@ -328,8 +329,9 @@ static void spoe_release_agent(struct spoe_agent *agent)
 
 static const char *spoe_event_str[SPOE_EV_EVENTS] = {
 	[SPOE_EV_ON_CLIENT_SESS] = "on-client-session",
-	[SPOE_EV_ON_TCP_REQ_FE]  = "on-frontend-tcp-request",
-	[SPOE_EV_ON_TCP_REQ_BE]  = "on-backend-tcp-request",
+	[SPOE_EV_ON_TCP_REQ_FE] = "on-frontend-tcp-request",
+	[SPOE_EV_ON_SWITCHING_RULES] = "on-switching-rules",
+	[SPOE_EV_ON_TCP_REQ_BE] = "on-backend-tcp-request",
 	[SPOE_EV_ON_HTTP_REQ_FE] = "on-frontend-http-request",
 	[SPOE_EV_ON_HTTP_REQ_BE] = "on-backend-http-request",
 
@@ -1354,6 +1356,9 @@ static int spoe_start(struct stream *s, struct filter *filter)
 	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_TCP_REQ_FE]))
 		filter->pre_analyzers |= AN_REQ_INSPECT_FE;
 
+	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_SWITCHING_RULES]))
+		filter->pre_analyzers |= AN_REQ_SWITCHING_RULES;
+
 	if (!LIST_ISEMPTY(&ctx->events[SPOE_EV_ON_TCP_REQ_BE]))
 		filter->pre_analyzers |= AN_REQ_INSPECT_BE;
 
@@ -1403,6 +1408,8 @@ static int spoe_start_analyze(struct stream *s, struct filter *filter, struct ch
 	if (!(chn->flags & CF_ISRESP)) {
 		if (filter->pre_analyzers & AN_REQ_INSPECT_FE)
 			chn->analysers |= AN_REQ_INSPECT_FE;
+		if (filter->pre_analyzers & AN_REQ_SWITCHING_RULES)
+			chn->analysers |= AN_REQ_SWITCHING_RULES;
 		if (filter->pre_analyzers & AN_REQ_INSPECT_BE)
 			chn->analysers |= AN_REQ_INSPECT_BE;
 
@@ -1448,6 +1455,9 @@ static int spoe_chn_pre_analyze(struct stream *s, struct filter *filter,
 	switch (an_bit) {
 		case AN_REQ_INSPECT_FE:
 			ret = spoe_process_event(s, ctx, SPOE_EV_ON_TCP_REQ_FE);
+			break;
+		case AN_REQ_SWITCHING_RULES:
+			ret = spoe_process_event(s, ctx, SPOE_EV_ON_SWITCHING_RULES);
 			break;
 		case AN_REQ_INSPECT_BE:
 			ret = spoe_process_event(s, ctx, SPOE_EV_ON_TCP_REQ_BE);
@@ -2173,6 +2183,8 @@ static int cfg_parse_spoe_message(const char *file, int linenum, char **args, in
 
 		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_REQ_FE]) == 0)
 			curmsg->event = SPOE_EV_ON_TCP_REQ_FE;
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_SWITCHING_RULES]) == 0)
+			curmsg->event = SPOE_EV_ON_SWITCHING_RULES;
 		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_REQ_BE]) == 0)
 			curmsg->event = SPOE_EV_ON_TCP_REQ_BE;
 		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_RSP]) == 0)
@@ -2429,6 +2441,7 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 				}
 				if (!(px->cap & PR_CAP_FE) && (msg->event == SPOE_EV_ON_CLIENT_SESS ||
 							       msg->event == SPOE_EV_ON_TCP_REQ_FE ||
+							       msg->event == SPOE_EV_ON_SWITCHING_RULES ||
 							       msg->event == SPOE_EV_ON_HTTP_REQ_FE)) {
 					ha_warning("Proxy '%s': frontend event used on a backend proxy at %s:%d.\n",
 						   px->id, msg->conf.file, msg->conf.line);
@@ -2448,6 +2461,10 @@ static int parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
 					case SPOE_EV_ON_TCP_REQ_FE:
 						where |= SMP_VAL_FE_REQ_CNT;
+						break;
+
+					case SPOE_EV_ON_SWITCHING_RULES:
+						where |= SMP_VAL_FE_SET_BCK;
 						break;
 
 					case SPOE_EV_ON_HTTP_REQ_FE:

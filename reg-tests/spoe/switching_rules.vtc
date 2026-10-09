@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# This test checks the new "on-switching-rules" SPOE event end to
+# end. A real (minimal) SPOA agent is started as an external process. On the
+# frontend, the event fires after the "tcp-request content" rules and before
+# the "use_backend" switching rules; the agent replies with a set-var action
+# that populates sess.spoe.backend_name, which the "use_backend" rule then
+# uses to route the request to be_spoe instead of the default backend.
+#
+# Success therefore proves three things at once:
+#   - the event is parsed/accepted in a frontend,
+#   - it fires with request data available (the agent logs a non-zero reqlen),
+#   - its result is applied *before* backend selection (traffic lands on
+#     be_spoe, not be_default).
+
+varnishtest "SPOE: on-switching-rules drives backend selection"
+
+#REGTEST_TYPE=devel
+
+feature ignore_unknown_macro
+feature cmd "python3 --version"
+
+# Two distinguishable backends. be_spoe is the one the agent must select.
+server s_default {
+    rxreq
+    txresp -hdr "x-backend: default"
+} -start
+
+server s_spoe {
+    rxreq
+    txresp -hdr "x-backend: spoe"
+} -start
+
+# Reserve a random local port for the SPOA agent, then release the listener
+# so the Python agent can bind it (same trick as reg-tests/resolvers).
+server s_agent {} -start
+server s_agent -break
+
+process pagent "python3 ${testdir}/spoa_mock.py ${s_agent_port} ${tmpdir}/spoa.marker" -start
+process pagent -expect-text 0 0 "READY"
+
+shell {
+    cat > "${tmpdir}/spoe-engine.conf" << EOF
+[test-engine]
+spoe-agent test-agent
+    messages check-route
+    use-backend spoe-backend
+    option var-prefix spoe
+    timeout hello      1s
+    timeout idle       2s
+    timeout processing 1s
+
+spoe-message check-route
+    args sni=req.ssl_sni reqlen=req.len
+    event on-switching-rules
+EOF
+}
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode tcp
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        tcp-request inspect-delay 1s
+        # Wait until the full request is buffered so req.len is non-zero when
+        # the event fires (proves the event sees request data).
+        acl req_rdy req.len gt 0
+        tcp-request content accept if req_rdy
+        filter spoe engine test-engine config "${tmpdir}/spoe-engine.conf"
+        use_backend be_spoe if { var(sess.spoe.backend_name) -m found }
+        default_backend be_default
+
+    backend be_default
+        server s1 ${s_default_addr}:${s_default_port}
+
+    backend be_spoe
+        server s1 ${s_spoe_addr}:${s_spoe_port}
+
+    backend spoe-backend
+        mode spop
+        timeout connect 1s
+        timeout server  2s
+        server agent 127.0.0.1:${s_agent_port}
+} -start
+
+# The agent sets sess.spoe.backend_name, so use_backend routes to be_spoe.
+client c1 -connect ${h1_fe_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-backend == "spoe"
+} -run
+
+# The agent must have received a NOTIFY carrying request data (reqlen > 0),
+# which proves the event fired *after* content inspection buffered the body.
+shell "grep -Eq 'NOTIFY reqlen=[1-9][0-9]*' ${tmpdir}/spoa.marker"
