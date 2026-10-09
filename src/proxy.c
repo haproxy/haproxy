@@ -559,7 +559,6 @@ struct task *proxy_process_purge(struct task *t, void *context, unsigned int sta
 	struct proxy *px = context;
 	/* constant for max number of server delete before yield */
 	const int max_srv_delete = 50;
-	int ret = 0;
 
 	/* Must not dereference <px> before entering thread isolation and
 	 * checking task state, as proxy_drop() performed outside isolation
@@ -583,12 +582,10 @@ struct task *proxy_process_purge(struct task *t, void *context, unsigned int sta
 	}
 
 	if (LIST_ISEMPTY(&px->servers_purge) && (px->flags & PR_FL_TO_PURGE)) {
-		/* TODO unnecessary proxy lookup */
-		ret = be_check_for_deletion(px->id, PR_DEL_MODE_SYNC, NULL, NULL);
-		if (ret < 0) {
-			proxy_cancel_purge(px);
-		}
-		else if (ret > 0) {
+		/* If backend is published again, purge must be cancelled. */
+		BUG_ON(!(px->flags & PR_FL_BE_UNPUBLISHED));
+
+		if (!px->beconn) {
 			ha_notice("Backend '%s' purged.\n", px->id);
 			be_unregister(px);
 			proxy_drop(px);
