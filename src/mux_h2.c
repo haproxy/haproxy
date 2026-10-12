@@ -3053,6 +3053,12 @@ static int h2c_ack_settings(struct h2c *h2c)
  */
 static int h2c_handle_ping(struct h2c *h2c)
 {
+	/* process full frame only */
+	if (b_data(&h2c->dbuf) < h2c->dfl) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
+		return 0;
+	}
+
 	if (h2c->dff & H2_F_PING_ACK) {
 		TRACE_PROTO("receiving H2 PING ACK frame", H2_EV_RX_FRAME|H2_EV_RX_PING, h2c->conn);
 		if ((h2c->flags & (H2_CF_IDL_PING|H2_CF_IDL_PING_SENT)) == H2_CF_IDL_PING_SENT) {
