@@ -842,6 +842,38 @@ end:
 	return NULL;
 }
 
+/* Removes all occurrences of protocol <token> from the ALPN string <alpn>
+ * whose length is <*len>, in the binary format produced by
+ * ssl_sock_parse_alpn() (each name preceded by its length byte). The string
+ * is modified in place, remains zero-terminated and <*len> is updated. It may
+ * end up empty, which is then equivalent to "no-alpn". Returns the number of
+ * entries removed.
+ */
+int alpn_remove_token(char *alpn, int *len, const struct ist token)
+{
+	int pos = 0, removed = 0;
+	int next;
+
+	while (pos < *len) {
+		next = pos + 1 + (uchar)alpn[pos];
+
+		/* truncated entry, should never happen */
+		if (next > *len)
+			break;
+
+		if ((uchar)alpn[pos] == istlen(token) &&
+		    memcmp(alpn + pos + 1, istptr(token), istlen(token)) == 0) {
+			memmove(alpn + pos, alpn + next, *len - next);
+			*len -= next - pos;
+			alpn[*len] = '\0';
+			removed++;
+		}
+		else
+			pos = next;
+	}
+	return removed;
+}
+
 #ifdef HAVE_ASN1_TIME_TO_TM
 /* Takes a ASN1_TIME and converts it into a time_t */
 time_t ASN1_to_time_t(ASN1_TIME *asn1_time)
