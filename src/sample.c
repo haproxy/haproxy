@@ -5719,6 +5719,21 @@ smp_fetch_uptime(const struct arg *args, struct sample *smp, const char *kw, voi
 }
 
 
+/* Check if HTTP/2 support was compiled and was not disabled on frontends by
+ * the "tune.h2.fe.enabled" global option.
+ */
+static int smp_fetch_h2_enabled(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->data.type = SMP_T_BOOL;
+	smp->flags = 0;
+#ifdef USE_H2
+	smp->data.u.sint = !(global.tune.options2 & GTUNE2_DISABLE_H2_FE);
+#else
+	smp->data.u.sint = 0;
+#endif
+	return 1;
+}
+
 /* Check if QUIC support was compiled and was not disabled by "tune.quic.listen" global option */
 static int smp_fetch_quic_enabled(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -6024,6 +6039,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_STR,  SMP_USE_CONST },
 	{ "date",         smp_fetch_date,  ARG2(0,SINT,STR), smp_check_date_unit, SMP_T_SINT, SMP_USE_CONST },
 	{ "date_us",      smp_fetch_date_us,  0,         NULL, SMP_T_SINT, SMP_USE_CONST },
+	{ "h2_enabled",   smp_fetch_h2_enabled, 0,       NULL, SMP_T_BOOL, SMP_USE_CONST },
 	{ "hostname",     smp_fetch_hostname, 0,         NULL, SMP_T_STR,  SMP_USE_CONST },
 	{ "master_id",    smp_fetch_master_id, 0,        NULL, SMP_T_STR,  SMP_USE_CONST },
 	{ "nbproc",       smp_fetch_nbproc,0,            NULL, SMP_T_SINT, SMP_USE_CONST },

@@ -4876,7 +4876,8 @@ tune.h2.fe.enabled { on | off }
   adjusted when they are parsed, this setting must appear in the global
   section before the proxies, which is normally the case.
 
-  See also: "option disable-h2-upgrade", "alpn", "no-alpn", "proto"
+  See also: "option disable-h2-upgrade", "alpn", "no-alpn", "proto", and the
+            "h2_enabled" sample fetch.
 
 tune.h2.fe.glitches-threshold <number>
   Sets the threshold for the number of glitches on a frontend connection, where
@@ -24991,6 +24992,7 @@ env(<name>)                                        string
 fe_conn([<frontend>])                              integer
 fe_req_rate([<frontend>])                          integer
 fe_sess_rate([<frontend>])                         integer
+h2_enabled                                         boolean
 hostname                                           string
 int(<integer>)                                     signed
 ipv4(<ipv4>)                                       ipv4
@@ -25281,6 +25283,13 @@ fe_sess_rate([<frontend>]) : integer
             tcp-request inspect-delay 100ms
             tcp-request content accept if ! too_fast
             tcp-request content accept if WAIT_END
+
+h2_enabled : boolean
+  Returns true when the support for HTTP/2 was compiled and if HTTP/2 is not
+  disabled on frontends by the "tune.h2.fe.enabled" global option. This may be
+  used to adapt some rules depending on whether HTTP/2 may be served to
+  clients or not, such as filtering, headers, thresholds or redirects. See also
+  the "tune.h2.fe.enabled" global option.
 
 hostname : string
   Returns the system hostname.
