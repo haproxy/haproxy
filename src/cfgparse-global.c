@@ -714,6 +714,17 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			return -1;
 		}
 	}
+	else if (strcmp(args[0], "tune.h2.fe.enabled") == 0) {
+		/* parsed here so that it is accepted even without USE_H2 */
+		if (strcmp(args[1], "on") == 0)
+			global.tune.options2 &= ~GTUNE2_DISABLE_H2_FE;
+		else if (strcmp(args[1], "off") == 0)
+			global.tune.options2 |= GTUNE2_DISABLE_H2_FE;
+		else {
+			memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+			return -1;
+		}
+	}
 	else if (strcmp(args[0], "tune.glitches.kill.cpu-usage") == 0) {
 		if (*(args[1]) == 0) {
 			memprintf(err, "'%s' expects a numeric value between 0 and 100", args[0]);
@@ -2100,6 +2111,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.disable-zero-copy-forwarding", cfg_parse_global_tune_forward_opts },
 	{ CFG_GLOBAL, "tune.fd.tables", cfg_parse_global_tune_opts, KWF_EXPERIMENTAL },
 	{ CFG_GLOBAL, "tune.glitches.kill.cpu-usage", cfg_parse_global_tune_opts },
+	{ CFG_GLOBAL, "tune.h2.fe.enabled", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.http.cookielen", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.http.logurilen", cfg_parse_global_tune_opts },
 	{ CFG_GLOBAL, "tune.http.maxhdr", cfg_parse_global_tune_opts },

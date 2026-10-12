@@ -59,6 +59,7 @@
 #include <haproxy/quic_tune.h>
 #include <haproxy/server-t.h>
 #include <haproxy/signal.h>
+#include <haproxy/ssl_utils.h>
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
@@ -1845,6 +1846,11 @@ int proxy_finalize(struct proxy *px, int *err_code)
 	char *err = NULL;
 	int i;
 
+	/* "tune.h2.fe.enabled off" implies "option disable-h2-upgrade" */
+	if ((px->cap & PR_CAP_FE) && (px->mode == PR_MODE_HTTP) &&
+	    (global.tune.options2 & GTUNE2_DISABLE_H2_FE))
+		px->options2 |= PR_O2_NO_H2_UPGRADE;
+
 	/* check and reduce the bind-proc of each listener */
 	list_for_each_entry(bind_conf, &px->conf.bind, by_fe) {
 		int mode = conn_pr_mode_to_proto_mode(px->mode);
@@ -1950,6 +1956,8 @@ int proxy_finalize(struct proxy *px, int *err_code)
 		}
 #endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
 
+		if ((global.tune.options2 & GTUNE2_DISABLE_H2_FE) && px->mode == PR_MODE_HTTP && bind_conf->ssl_conf.alpn_str)
+			alpn_remove_token(bind_conf->ssl_conf.alpn_str, &bind_conf->ssl_conf.alpn_len, ist("h2"));
 
 		if (px->mode == PR_MODE_HTTP && global.tune.bufsize < 16384) {
 #ifdef OPENSSL_NPN_NEGOTIATED

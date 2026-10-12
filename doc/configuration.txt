@@ -1966,6 +1966,7 @@ The following keywords are supported in the "global" section :
    - tune.h2.be.max-concurrent-streams
    - tune.h2.be.max-frames-at-once
    - tune.h2.be.rxbuf
+   - tune.h2.fe.enabled
    - tune.h2.fe.glitches-threshold
    - tune.h2.fe.initial-window-size
    - tune.h2.fe.max-concurrent-streams
@@ -4851,6 +4852,31 @@ tune.h2.be.rxbuf <size>
   default value is about 1600k (100 streams with 16kB buffers each).
 
   See also: tune.h2.be.initial-window-size, tune.h2.fe.rxbuf, http-reuse.
+
+tune.h2.fe.enabled { on | off }
+  Enables ('on') or disables ('off') HTTP/2 on all frontends. The default is
+  'on'. This is meant as an emergency kill-switch to instantly stop serving
+  HTTP/2 to clients (e.g. in case of a problem in the HTTP/2 stack) without
+  having to modify every "bind" line. When set to 'off':
+    - "h2" is removed from the ALPN of "bind" lines and crt-list entries,
+      whether it comes from the default ALPN list or from an explicit "alpn"
+      setting. When "h2" was the only protocol listed, this is equivalent to
+      "no-alpn". Clients offering other protocols such as "http/1.1" will
+      negotiate them instead, and those offering only "h2" will get no ALPN
+      at all, hence will be processed as HTTP/1;
+    - "option disable-h2-upgrade" is implicitly set on all frontends, so that
+      HTTP/1 connections starting with the HTTP/2 preface are not upgraded to
+      HTTP/2 anymore and receive a 405 error;
+    - incoming connections which would still be processed by the HTTP/2
+      multiplexer (e.g. on "bind" lines forcing "proto h2", or an "h2" chosen
+      via NPN) are immediately closed.
+
+  Outgoing HTTP/2 connections to servers are not affected, since these are
+  only enabled by explicit configuration. Since explicit "alpn" settings are
+  adjusted when they are parsed, this setting must appear in the global
+  section before the proxies, which is normally the case.
+
+  See also: "option disable-h2-upgrade", "alpn", "no-alpn", "proto"
 
 tune.h2.fe.glitches-threshold <number>
   Sets the threshold for the number of glitches on a frontend connection, where

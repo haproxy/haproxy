@@ -1435,6 +1435,8 @@ static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struc
 	ret = ssl_sock_parse_alpn(args[cur_arg + 1], &conf->alpn_str, &conf->alpn_len, err);
 	if (ret)
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
+	else if (global.tune.options2 & GTUNE2_DISABLE_H2_FE)
+		alpn_remove_token(conf->alpn_str, &conf->alpn_len, ist("h2"));
 	return ret;
 #else
 	memprintf(err, "'%s' : library does not support TLS ALPN extension", args[cur_arg]);

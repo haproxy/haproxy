@@ -1434,6 +1434,15 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 
 	TRACE_ENTER(H2_EV_H2C_NEW);
 
+	/* "tune.h2.fe.enabled off" refuses any frontend H2 connection that
+	 * could still reach us (e.g. "proto h2", or "h2" negotiated via NPN).
+	 * Nothing was touched yet so we can leave without any cleanup.
+	 */
+	if (!conn_is_back(conn) && (global.tune.options2 & GTUNE2_DISABLE_H2_FE)) {
+		TRACE_ERROR("H2 disabled on frontends", H2_EV_H2C_NEW|H2_EV_H2C_END|H2_EV_H2C_ERR, conn);
+		return -1;
+	}
+
 	h2c = pool_alloc(pool_head_h2c);
 	if (!h2c)
 		goto fail_no_h2c;
