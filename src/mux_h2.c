@@ -6598,7 +6598,7 @@ try_again:
 	block = htx_free_data_space(htx);
 	if (!block) {
 		if (h2s_get_rxbuf(h2s))
-			goto next_buffer;
+			goto switch_buffer;
 
 		h2c->flags |= H2_CF_DEM_SFULL;
 		TRACE_STATE("h2s rxbuf is full", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
@@ -6635,7 +6635,7 @@ try_again:
 
 	if (sent < flen) {
 		if (h2s_get_rxbuf(h2s))
-			goto next_buffer;
+			goto switch_buffer;
 
 		h2c->flags |= H2_CF_DEM_SFULL;
 		TRACE_STATE("h2s rxbuf is full", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
@@ -6643,6 +6643,15 @@ try_again:
 	}
 
 	goto try_again;
+
+ switch_buffer:
+	/* the current rxbuf is full and a new slot was assigned to the
+	 * stream: release the current HTX message before switching to the
+	 * next buffer, whose allocation may fail.
+	 */
+	htx_to_buf(htx, scbuf);
+	htx = NULL;
+	goto next_buffer;
 
  end_transfer:
 	/* here we're done with the frame, all the payload (except padding) was
