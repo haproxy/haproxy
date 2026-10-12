@@ -89,6 +89,8 @@
 #define GTUNE_NO_MAX_COUNTER     (1<<30)
 #define GTUNE_NO_TG_FD_SHARING   (1U<<31)
 
+/* Global tuning options for tune.options2, since tune.options is full */
+
 /* subsystem-specific debugging options for tune.debug */
 #define GDBG_CPU_AFFINITY           (1U<< 0)
 #define GDBG_NO_ELF_SYMS            (1U<< 1)
@@ -181,6 +183,7 @@ struct global {
 		int max_rules_at_once; /* max number of rules executed in a single evaluation loop */
 		int maxaccept;     /* max number of consecutive accept() */
 		int options;       /* various tuning options */
+		uint options2;     /* more tuning options (GTUNE2_*) */
 		uint debug;        /* various debugging options (GDBG_*) */
 		int runqueue_depth;/* max number of tasks to run at once */
 		uint twork_budget; /* max number of cross-thread work items to run at once */
