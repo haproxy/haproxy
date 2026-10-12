@@ -343,6 +343,7 @@ enum stat_idx_info {
 	ST_I_INF_NBTGROUPS,
 	ST_I_INF_MASTER_ID,
 	ST_I_INF_WORKER_ID,
+	ST_I_INF_FIPS_MODE,
 
 	/* must always be the last one */
 	ST_I_INF_MAX
