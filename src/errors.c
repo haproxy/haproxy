@@ -459,6 +459,9 @@ static void deinit_errors_buffers()
 	ring_free(_HA_ATOMIC_XCHG(&startup_logs, NULL));
 	ha_free(&usermsgs_buf.area);
 	ha_free(&usermsgs_ctx.str.area);
+	/* Ensure b_is_null() recognizes the freed buffers. */
+	usermsgs_buf = BUF_NULL;
+	usermsgs_ctx.str = BUF_NULL;
 }
 
 /* errors might be used in threads and even before forking, thus 2 deinit */
