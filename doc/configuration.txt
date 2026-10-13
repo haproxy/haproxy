@@ -3609,6 +3609,8 @@ ssl-default-bind-ciphersuites <ciphersuites>
 
   Please check the "bind" keyword for more information.
 
+  Compatibility: OpenSSL >= 1.1.1, AWS-LC >= 1.22.0 (API >= 22).
+
   Example:
       global
           ssl-default-bind-ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256
@@ -3684,6 +3686,8 @@ ssl-default-server-ciphersuites <ciphersuites>
   cipher configuration for TLSv1.2 and earlier, please check the
   "ssl-default-server-ciphers" keyword. Please check the "server" keyword for
   more information.
+
+  Compatibility: OpenSSL >= 1.1.1, AWS-LC >= 1.22.0 (API >= 22).
 
 ssl-default-server-client-sigalgs <sigalgs>
   This setting is only available when support for OpenSSL was built in. It sets
@@ -5851,7 +5855,7 @@ tune.ssl.certificate-compression { auto | off }
 
   Configures both backend and frontend sides.
 
-  This keyword is supported by OpenSSL >= 3.2.0.
+  Compatibility: OpenSSL >= 3.2.0. Not supported with AWS-LC.
 
   The default value is auto.
 
@@ -5920,6 +5924,8 @@ tune.ssl.keylog { on | off }
   "fc" or "bc" to use the right side.
 
   This is only available with OpenSSL 1.1.1, and useful with TLS1.3 session.
+
+  Compatibility: OpenSSL >= 1.1.1, AWS-LC >= 1.22.0 (API >= 22).
 
   If you want to generate the content of a SSLKEYLOGFILE with TLS < 1.3, you
   only need this line:
@@ -18093,6 +18099,8 @@ ciphersuites <ciphersuites>
           ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256
           ciphersuites TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
 
+  Compatibility: OpenSSL >= 1.1.1, AWS-LC >= 1.22.0 (API >= 22).
+
 client-sigalgs <sigalgs>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of signature algorithms related to client
@@ -19522,6 +19530,8 @@ ciphersuites <ciphersuites>
   "man 1 ciphers" from OpenSSL man pages under the "ciphersuites" section.
   For cipher configuration for TLSv1.2 and earlier, please check the "ciphers"
   keyword.
+
+  Compatibility: OpenSSL >= 1.1.1, AWS-LC >= 1.22.0 (API >= 22).
 
 client-sigalgs <sigalgs>
   May be used in the following contexts: tcp, http, log, peers, ring
