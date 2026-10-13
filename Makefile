@@ -96,7 +96,7 @@
 #   SILENT_DEFINE may be used to specify other defines which will not be
 #     reported by "haproxy -vv".
 #   EXTRA   is used to force building or not building some extra tools.
-#   EXTRA_MAKE space-separated list of external addons using a Makefile.inc
+#   EXTRA_MAKE space-separated list of external addons using a Makefile.mk
 #   DESTDIR is not set by default and is used for installation only.
 #           It might be useful to set DESTDIR if you want to install haproxy
 #           in a sandbox.
