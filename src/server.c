@@ -7184,6 +7184,11 @@ static int cli_parse_purge_server(char **args, char *payload, struct appctx *app
 
 struct purge_all_servers_ctx {
 	char *bename;
+
+	struct server *srv;
+	struct watcher srv_watch;
+
+	int c0, c1, c2;
 };
 
 /* Parser for "purge all servers" CLI command. Prepare context for performing
@@ -7195,6 +7200,7 @@ struct purge_all_servers_ctx {
 static int cli_parse_purge_all_servers(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct purge_all_servers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+	struct proxy *be;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -7202,25 +7208,33 @@ static int cli_parse_purge_all_servers(char **args, char *payload, struct appctx
 	if (!*args[3])
 		return cli_err(appctx, "A backend name is expected.\n");
 
-	/* Perform a first lookup to immediately detect a non existing backend. */
-	if (!proxy_be_by_name(args[3]))
+	be = proxy_be_by_name(args[3]);
+	if (!be)
 		return cli_err(appctx, "No such backend.\n");
 
 	ctx->bename = strdup(args[3]);
 	if (!ctx->bename)
 		return cli_err(appctx, "Out of memory.\n");
 
+	watcher_init(&ctx->srv_watch, &ctx->srv,
+	             offsetof(struct server, watcher_list));
+	watcher_attach(&ctx->srv_watch, proxy_first_server(be));
+
 	return 0;
 }
 
-/* Handler for "purge all servers" CLI command. */
+/* Handler for "purge all servers" CLI command. Only runs over a fixed number
+ * of servers with yield in between.
+ *
+ * Returns 1 when all work is performed or 0 on yield.
+ */
 static int cli_io_handler_purge_all_server(struct appctx *appctx)
 {
 	struct purge_all_servers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	struct proxy *be;
-	struct server *srv, *srvtmp;
-	int c0 = 0, c1 = 0, c2 = 0;
-	int ret;
+	struct server *srv;
+	/* constant for max iterations before yield */
+	int ret, max_iter = 50;
 
 	chunk_reset(&trash);
 
@@ -7233,31 +7247,44 @@ static int cli_io_handler_purge_all_server(struct appctx *appctx)
 		goto out;
 	}
 
-	list_for_each_entry_safe(srv, srvtmp, &be->servers, el_px) {
-		if (srv->flags & (SRV_F_NON_PURGEABLE | SRV_F_NAME_REFD)) {
-			++c2;
-			continue;
+	while ((srv = ctx->srv)) {
+		if (!max_iter) {
+			applet_have_more_data(appctx);
+			ret = 0;
+			goto out;
 		}
 
-		if (!(srv->cur_admin & SRV_ADMF_MAINT))
-			srv_adm_set_maint(srv);
-
-		if (srv_in_use(srv)) {
-			if (!LIST_INLIST(&srv->el_alt))
-				LIST_APPEND(&be->servers_purge, &srv->el_alt);
-			srv->flags |= SRV_F_TO_PURGE;
-			ha_notice("Server '%s/%s' flagged for deletion.\n", be->id, srv->id);
-			++c1;
+		if (srv->flags & (SRV_F_NON_PURGEABLE | SRV_F_NAME_REFD)) {
+			++ctx->c2;
 		}
 		else {
-			srv_unregister(srv);
-			ha_notice("Server '%s/%s' deleted.\n", be->id, srv->id);
-			srv_drop(srv);
-			++c0;
+			if (!(srv->cur_admin & SRV_ADMF_MAINT))
+				srv_adm_set_maint(srv);
+
+			if (srv_in_use(srv)) {
+				if (!LIST_INLIST(&srv->el_alt))
+					LIST_APPEND(&be->servers_purge, &srv->el_alt);
+				srv->flags |= SRV_F_TO_PURGE;
+				ha_notice("Server '%s/%s' flagged for deletion.\n", be->id, srv->id);
+				++ctx->c1;
+			}
+			else {
+				srv_unregister(srv);
+				ha_notice("Server '%s/%s' deleted.\n", be->id, srv->id);
+				srv_drop(srv);
+				++ctx->c0;
+				srv = NULL;
+			}
 		}
+
+		--max_iter;
+
+		/* if srv_unregister() has been performed, watcher is already updated to next server */
+		if (srv)
+			watcher_next(&ctx->srv_watch, proxy_next_server(srv));
 	}
 
-	if (c1) {
+	if (ctx->c1) {
 		if (!tick_isset(be->purge_task->expire))
 			be->purge_task->expire = tick_add(now_ms, 1000);
 		task_queue(be->purge_task);
@@ -7265,12 +7292,12 @@ static int cli_io_handler_purge_all_server(struct appctx *appctx)
 
 	chunk_printf(&trash, "Servers backend iteration performed: "
 	                     "%d removed, %d scheduled, %d skipped.\n",
-	                     c0, c1, c2);
+	                     ctx->c0, ctx->c1, ctx->c2);
 	ret = 1;
 
  out:
-	if (applet_putchk(appctx, &trash) < 0)
-		ret = 0;
+	if (ret)
+		applet_putchk(appctx, &trash);
 	thread_release();
 	return ret;
 }
@@ -7279,6 +7306,7 @@ static void cli_release_purge_all_servers(struct appctx *appctx)
 {
 	struct purge_all_servers_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
 	ha_free(&ctx->bename);
+	watcher_detach(&ctx->srv_watch);
 }
 
 /* Reset the statistics counters of a single server, invoked from the
