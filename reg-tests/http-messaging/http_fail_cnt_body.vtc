@@ -36,6 +36,7 @@ haproxy h1 -conf {
         timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
         timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	option http-no-delay
 
     backend st
         stick-table type string size 10 store http_fail_cnt
@@ -69,9 +70,6 @@ client c2 -connect ${h1_fe_sock} {
     recv 100
     barrier b1 sync
 } -run
-
-# let the second stream see the client close
-delay 0.5
 
 haproxy h1 -cli {
     send "show table st"
