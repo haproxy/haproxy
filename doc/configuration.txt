@@ -3575,6 +3575,8 @@ ssl-dh-param-file <file>
   "openssl dhparam <size>", where size should be at least 2048, as 1024-bit DH
   parameters should not be considered secure anymore.
 
+  Compatibility: OpenSSL >= 1.1.1. Not supported with AWS-LC.
+
 ssl-passphrase-cmd <cmd> <args> ...
   This settings is only available when support for OpenSSL was built in. It
   allows to define a full command line that will be called when an encrypted
@@ -3598,6 +3600,8 @@ ssl-propquery <query>
   foo provider by default, and to fallback on the default provider's one if it
   was not found.
 
+  Compatibility: OpenSSL >= 3.0.0. Not supported with AWS-LC.
+
 ssl-provider <name>
   This setting is only available when support for OpenSSL was built in and when
   OpenSSL's version is at least 3.0. It allows to load a provider during init.
@@ -3620,6 +3624,8 @@ ssl-provider <name>
 
   See also "ssl-propquery" and "ssl-provider-path".
 
+  Compatibility: OpenSSL >= 3.0.0. Not supported with AWS-LC.
+
 ssl-provider-path <path>
   This setting is only available when support for OpenSSL was built in and when
   OpenSSL's version is at least 3.0. It allows to specify the search path that
@@ -3628,6 +3634,8 @@ ssl-provider-path <path>
   following 'ssl-provider' option or until a new 'ssl-provider-path' is
   defined.
   See also "ssl-provider".
+
+  Compatibility: OpenSSL >= 3.0.0. Not supported with AWS-LC.
 
 ssl-load-extra-del-ext
   This setting allows to configure the way HAProxy does the lookup for the
@@ -3732,6 +3740,8 @@ ssl-security-level <number>
   compiled the library.
 
   This directive requires at least OpenSSL 1.1.1.
+
+  Compatibility: OpenSSL >= 1.1.1. Not supported with AWS-LC.
 
 ssl-server-verify [none|required]
   The default behavior for SSL verify on servers side. If specified to 'none',
@@ -4241,6 +4251,8 @@ ssl-engine <name> [algo <comma-separated list of algorithms>]
   it.  In case the ssl-engine is required HAProxy can be rebuild with the
   USE_ENGINE=1 flag.
 
+  Compatibility: OpenSSL >= 1.1.1. Not supported with AWS-LC.
+
 ssl-mode-async
   Adds SSL_MODE_ASYNC mode to the SSL context. This enables asynchronous TLS
   I/O operations if asynchronous capable SSL engines are used. The current
@@ -4249,6 +4261,8 @@ ssl-mode-async
   HAProxy's buffer management. So the asynchronous mode is disabled on
   read/write  operations (it is only enabled during initial and renegotiation
   handshakes).
+
+  Compatibility: OpenSSL >= 1.1.1. Not supported with AWS-LC.
 
 tune.applet.zero-copy-forwarding { on | off }
   Enables ('on') of disabled ('off') the zero-copy forwarding of data for the
@@ -5686,6 +5700,8 @@ tune.ssl.default-dh-param <number>
   If there is neither a default-dh-param nor a ssl-dh-param-file defined, and
   if the server's PEM file of a given frontend does not specify its own DH
   parameters, then DHE ciphers will be unavailable for this frontend.
+
+  Compatibility: OpenSSL >= 1.1.1. Not supported with AWS-LC.
 
 tune.ssl.force-private-cache
   This option disables SSL session cache sharing between all processes. It
@@ -18495,6 +18511,8 @@ npn <protocols>
   at the time of writing this. It is possible to enable both NPN and ALPN
   though it probably doesn't make any sense out of testing.
 
+  Compatibility: OpenSSL >= 1.0.1. Not supported with AWS-LC.
+
 prefer-client-ciphers
   Use the client's preference when selecting the cipher suite, by default
   the server's preference is enforced. This option is also available on
@@ -20020,6 +20038,8 @@ npn <protocols>
   enabled (check with haproxy -vv). Note that the NPN extension has been
   replaced with the ALPN extension (see the "alpn" keyword), though this one is
   only available starting with OpenSSL 1.0.2.
+
+  Compatibility: OpenSSL >= 1.0.1. Not supported with AWS-LC.
 
 observe <mode>
   May be used in the following contexts: tcp, http
@@ -27085,6 +27105,8 @@ ssl_bc_npn : string
   the TLS NPN extension was replaced with ALPN. It can be used in a tcp-check
   or an http-check ruleset.
 
+  Compatibility: OpenSSL >= 1.0.1. Not supported with AWS-LC.
+
 ssl_bc_protocol : string
   Returns the name of the used protocol when the outgoing connection was made
   over an SSL/TLS transport layer. It can be used in a tcp-check or an
@@ -27659,6 +27681,8 @@ ssl_fc_npn : string
   "npn" keyword on the "bind" line specifies a protocol list. Also, nothing
   forces the client to pick a protocol from this list, any other one may be
   requested. Please note that the TLS NPN extension was replaced with ALPN.
+
+  Compatibility: OpenSSL >= 1.0.1. Not supported with AWS-LC.
 
 ssl_fc_protocol : string
   Returns the name of the used protocol when the incoming connection was made
