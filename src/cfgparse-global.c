@@ -1102,7 +1102,7 @@ static int cfg_parse_global_localpeer(char **args, int section_type, struct prox
 	if (global.localpeer_cmdline != 0) {
 		memprintf(err, "'%s' ignored since it is already set by using the '-L' "
 			 "command line argument.\n", args[0]);
-		return -1;
+		return 1;
 	}
 
 	free(localpeer);
