@@ -70,17 +70,17 @@
  * __always_inline to plain inline, but don't complain if the code
  * becomes slow.
  *
- * NOTE: System headers on GNU/Linux may #define this macro already,
- * so if you want to change it, you need to #undef it first.
+ * NOTE: System headers may #define this macro already, but at least
+ * NetBSD's definition lacks the inline keyword, while Linux
+ * FreeBSD provide it. So make sure it is always there.
  */
-#ifndef __always_inline
-#	ifdef __GNUC__
-#		define __always_inline \
-			inline __attribute__((__always_inline__))
-#	else
-#		define __always_inline inline
-#	endif
-#endif
+#undef __always_inline
+# ifdef __GNUC__
+#	define __always_inline \
+		inline __attribute__((__always_inline__))
+# else
+#	define __always_inline inline
+# endif
 
 /* Inline functions to access unaligned unsigned 32-bit integers */
 #ifndef get_unaligned_le32
