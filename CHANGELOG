@@ -1,6 +1,247 @@
 ChangeLog :
 ===========
 
+2026/10/14 : 3.5-dev9
+    - CLEANUP: sym: move symbol resolution out of tools.c
+    - MINOR: sym: add an in-process symbol table for backtraces
+    - MINOR: sym: collect the symbols known to the dynamic linker
+    - MINOR: sym: add helpers to collect the symbols of an ELF image
+    - IMPORT: xz: import the xz-embedded decoder
+    - MEDIUM: sym: store a compressed symbol table in a loadable section
+    - MINOR: sym: read local symbols and debug info from ELF files
+    - MINOR: sym: also read the compressed symbol tables from the ELF files
+    - OPTIM: sym: skip the embedded table when the file provided the symbols
+    - MINOR: makefile: add CROSS_TOOLCHAIN to prefix the target's tools
+    - BUG/MINOR: proxy: add PR_CAP_LB for dynamically added backend
+    - BUG/MINOR: server: fix "del server" description
+    - BUG/MINOR: cli: update wait help usage
+    - BUG/MEDIUM: server: remove immediately from GUID tree on delete server
+    - DOC: server: explicit refcount interaction in "del server"
+    - MINOR: ocsp: Remove free of main structure from ssl_sock_free_ocsp_data
+    - MINOR: ocsp: Send OCSP response status back to caller
+    - MINOR: ocsp: Raise specific ocsp error code in ocsp parsing/verifying functions
+    - MINOR: ocsp: Dup OCSP_CERTID in ssl_ocsp_create_request_details
+    - MEDIUM: ocsp: Create new do-ocsp-request action
+    - MINOR: ocsl: Add 'inapplicable' return code to client certificate ocsp check
+    - DOC: ocsp: Add doc for the new 'do-ocsp-request' action
+    - REGTESTS: ocsp: Add 'do-ocsp-request' tests
+    - BUILD: ssl: fix build without USE_OPENSSL + clear_ocsp_clt_check_ctx
+    - DEV: sse-latency: add a latency measuring tool for SSE response streams
+    - MINOR: http-ana: automatically enable http-no-delay for streaming events (SSE)
+    - REGTESTS: cli: don't check the HAProxy string
+    - BUILD: Hopefully fix build on FreeBSD
+    - BUILD: sym: Define HA_HAVE_DL_ITERATE_PHDR on FreeBSD
+    - BUG/MINOR: log: fix erroneous error message in log-steps parser
+    - MINOR: log: add "loggers" section
+    - MINOR: log: support 'to' parameter for "log" directive
+    - MINOR: log: support explicit <loggers> list for do_log_ctx()
+    - MINOR: log: support 'to' parameter fo do-log action
+    - DOC: config: document new "loggers" section and relevant uses
+    - MINOR: ssl: support curve fetches with AWS-LC API 30
+    - BUILD: ssl: avoid mixed declarations in the AWS-LC curve fetch
+    - DEBUG: support reading set-dumpable from HAPROXY_FORCE_DUMPABLE
+    - BUG/MINOR: hq-interop: prevent double EOM on request with standalone FIN
+    - BUG/MINOR: ssl: fix trace crash on FE conn release in io cb
+    - BUG/MINOR: ssl: fix trace crash on BE conn release in io cb
+    - BUG/MEDIUM: ssl: crt-list ciphers ignored with AWS-LC
+    - BUG/MEDIUM: ssl: crt-list curves ignored with AWS-LC
+    - CI: github: test AWS-LC 3.x and 4.x LTS branches
+    - CI: github: test the latest AWS-LC release on development branches
+    - CI: github: cache QuicTLS builds
+    - CI: github: move wolfSSL 5.7.0 testing to a nightly workflow
+    - BUG/MEDIUM: listener: Consider maxconn before waking listeners
+    - BUG/MINOR: ssl: don't uppercase the native group name
+    - DOC: ssl: clarify the NID-based curve fetch branch
+    - BUG/MINOR: ssl: use standard names for X25519 and X448 groups
+    - MINOR: ssl: split curve names into ANSI, IANA and NIST columns
+    - MINOR: ssl: skip unavailable NIDs in curves2nid lookup
+    - MINOR: ssl: complete registered group names and library NID mappings
+    - MINOR: ssl: add curve2name converter
+    - MINOR: ssl: accept integer group IDs in curve2name
+    - BUG/MAJOR: mux-quic: prevent crash on QCS already set for purging
+    - BUG/MINOR: mux_quic: prevent purgeable QCS lingering
+    - BUG/MINOR: mux_quic: extend FINAL_SIZE_ERROR detection on stream
+    - BUG/MINOR: mux_quic: report conn error on RESET_STREAM fctl violation
+    - BUG/MEDIUM: mux_quic: account discarded data in connection flow control
+    - BUG/MINOR: mux_quic: account data in conn fctl on early detach
+    - BUG/MINOR: h3: reject frames with truncated header
+    - BUG/MINOR: h3: close connection on GOAWAY frame too long
+    - BUG/MINOR: h3: reject RS/SS for QPACK uni streams
+    - BUG/MEDIUM: mux_quic: notify stream on RESET_STREAM reception
+    - BUG/MINOR: ssl: Fix potential NULL-deref in "dump ssl cert" with AWS-LC
+    - BUG/MEDIUM: h3: fix end-of-input report on DATA wrapping
+    - MEDIUM: h3: do not close conn on unaligned non DATA frame
+    - MINOR: doc: elaborate on diagnostic mode behavior
+    - BUG/MEDIUM: h3: fix incorrect DATA size block on DEM FULL
+    - BUG/MAJOR: cfgparse: properly check userlist section when scanning keywords
+    - BUG/MINOR: cfgparse-global: add missing gotos to error label in max-spread-checks
+    - BUG/MINOR: cfgparse-global: add missing calloc() check for the global description
+    - BUG/MINOR: cfgparse-listen: release the previous description of the proxy
+    - BUG/MINOR: cfgparse-listen: fix the argument checked by "email-alert"
+    - BUG/MINOR: cfgparse-listen: fix quoting of the condition conflict warning
+    - BUG/MINOR: cfgparse-global: reject extra arguments to numa-cpu-mapping and anonkey
+    - BUG/MINOR: cfgparse-listen: always reject extra arguments to "persist"
+    - BUG/MINOR: cfgparse-listen: don't lose the errors reported while creating a proxy
+    - BUG/MINOR: cfgparse-listen: properly reject extra args in a backend section
+    - BUG/MINOR: proxy: also look for the closest option among cfg_opts3
+    - BUG/MINOR: cfgparse-listen: complete the list of options for the suggestions
+    - CLEANUP: proxy: adapt the error message for removed "option transparent"
+    - MINOR: cfgparse: expose the keyword modifier to the keyword parsers
+    - CLEANUP: cfgparse-global: move the argument-less boolean options to a parser
+    - CLEANUP: cfgparse-global: move "set-dumpable" to its own parser
+    - CLEANUP: cfgparse-global: move "uid", "gid", "user" and "group" to its own parser
+    - CLEANUP: cfgparse-global: move "external-check" to its own parser
+    - CLEANUP: cfgparse-global: move "cluster-secret" to its own parser
+    - CLEANUP: cfgparse-global: move the process-wide limits to a single parser
+    - CLEANUP: cfgparse-global: move the compression limits to a single parser
+    - CLEANUP: cfgparse-global: move "ssl-server-verify" to its own parser
+    - CLEANUP: cfgparse-global: move "node" and "description" to their own parser
+    - CLEANUP: cfgparse-global: move "unix-bind" to its own parser
+    - CLEANUP: cfgparse-global: move the log keywords to a single parser
+    - CLEANUP: cfgparse-global: move the state file keywords to their own parser
+    - CLEANUP: cfgparse-global: move the spread-checks keywords to their own parser
+    - CLEANUP: cfgparse-global: move "cpu-map" to its own parser
+    - CLEANUP: cfgparse-global: move "anonkey" to its own parser
+    - CLEANUP: cfgparse-global: ask not to add new keywords in common_kw_list[]
+    - CLEANUP: cfgparse-global: simplify cfg_parse_global()
+    - MINOR: cfgparse-listen: introduce proxy_parse_removed_kw() and use it
+    - MEDIUM: cfgparse-listen: move removed keywords' help messages into an array
+    - CLEANUP: cfgparse-listen: move "disabled" and "enabled" to their own parser
+    - CLEANUP: cfgparse-listen: move the connection limits to thier own parser
+    - CLEANUP: cfgparse-listen: move the backend one-arg keywords to their own parser
+    - CLEANUP: cfgparse-listen: move "mode" to its own parser
+    - CLEANUP: cfgparse-listen: move "id" and "description" to their own parser
+    - CLEANUP: cfgparse-listen: move "acl" to its own parser
+    - CLEANUP: cfgparse-listen: move the monitor keywords to their own parser
+    - CLEANUP: cfgparse-listen: move the persistence keywords to their own parser
+    - CLEANUP: cfgparse-listen: move "capture" to its own parser
+    - CLEANUP: cfgparse-listen: move the log format keywords to their own parser
+    - CLEANUP: cfgparse-listen: add parser for "log", "log-tag" and "unique-id-header"
+    - CLEANUP: cfgparse-listen: move the load-balancing keywords to their own parser
+    - CLEANUP: cfgparse-listen: move "source" "usesrc" and "interface" to their own parser
+    - CLEANUP: cfgparse-listen: add parser for server/backend sekection keywords
+    - CLEANUP: cfgparse-listen: move the HTTP rule sets to their own parser
+    - CLEANUP: cfgparse-listen: move "redirect" to its own parser
+    - CLEANUP: cfgparse-listen: move "stick-table" to its own parser
+    - CLEANUP: cfgparse-listen: move "stick" to its own parser
+    - CLEANUP: cfgparse-listen: move "cookie" to its own parser
+    - CLENAUP: cfgparse-listen: move "email-alert" to its own parser
+    - CLEANUP: cfgparse-listen: move "stats" to its own parser
+    - CLENAUP: cfgparse-listen: move the "server" keywords to their own parser
+    - CLEANUP: cfgparse-listen: move "bind" to its own parser
+    - MINOR: log: add proxy_logformat_origin() to detect a proxy's log-format type
+    - CLEANUP: cfgparse-listen: move "option" to its own parser
+    - CLEANUP: cfgparse-listen: simplify the second half of cfg_parse_listen()
+    - MINOR: cfgparse: always suggest the section names on an unknown keyword
+    - CLEANUP: cfgparse: remove the unused common_kw_list[] definitions
+    - MEDIUM: spoe: add the "on-switching-rules" event
+    - BUG/MEDIUM: cli: fix the last command detection on a full command line
+    - REGTESTS: cli: test a command line of exactly tune.bufsize bytes
+    - BUG/MEDIUM: log: do not ignore the peer's shutdown in the syslog applet
+    - REGTESTS: log: check that a log-forward TCP session ends on client close
+    - BUG/MINOR: spoe: Fix the message list splice with an empty list
+    - BUG/MINOR: flt-decomp: Fix the decompression filter keyword list name
+    - MEDIUM: flt-http-comp: Enable compression directions from algorithms
+    - MINOR: flt-http-comp: Use compression options as filter config
+    - BUG/MINOR: flt-http-comp: Enable implicit filters independently per direction
+    - MINOR: flt-http-comp: Don't uselessly init a compression filter
+    - MINOR: flt-decomp: Don't instantiate a filter without applicable direction
+    - MINOR: bwlim: Use a different filter ID for in/out filters
+    - MINOR: fcgi: Move application validation to the post-check stages
+    - MINOR: filters: Introduce filter classes and per-side class ordering
+    - MINOR: filters: Add per-proxy filter instance storage and lookup
+    - MINOR: filters: Inherit filter instances from defaults sections
+    - MINOR: filters: Add instance parsers for the built-in classes
+    - MEDIUM: filters: Parse and finalize filter-config instances
+    - MINOR: filters: Add filter-enable and filter-disable directives
+    - MINOR: filters: Add per-side filter-sequence constraints
+    - MINOR: filters: Mirror implicit filters as filter instances
+    - MINOR: filters: Expose classes and instances through the CLI
+    - MINOR: filters: Reject filter-* directives in anonymous defaults
+    - MINOR: filters: Restrict defaults inheritance with explicit filter directives
+    - MINOR: filters: Reject mixing legacy and filter-* directives
+    - MINOR: filters: Maintain a global instance list per proxy
+    - MINOR: filters: Use global instance order for startup operations
+    - MINOR: filters: Support global instance sequencing
+    - MINOR: filters: Expose global filter ordering through the CLI
+    - MINOR: filters: Use a proxy flag to detect use of legacy 'filter' directive
+    - MINOR: filters: Don't finalize filter instances in legacy mode
+    - MINOR: filters: Add helpers to iterate and find filter configurations
+    - MINOR: filters: Add flt_has_filter() and use it in proxy_finalize()
+    - MINOR: filters: Select legacy or instance model in lifecycle callbacks
+    - MEDIUM: filters: Attach filter instances to streams
+    - MEDIUM: cache: Resolve cache rules during the check stage
+    - MINOR: cache: Use the filter helpers for cache checks and post-check
+    - MINOR: fcgi-app: Use the filter configuration helpers for lookups and checks
+    - MINOR: bwlim: Look up the bandwidth filter with the filter helpers
+    - MINOR: flt-decomp: Use the filter helpers for implicit decompression checks
+    - MINOR: flt-http-comp: Use the filter helpers for implicit compression checks
+    - MINOR: spoe: Use the filter configuration helpers for lookups and checks
+    - REGTESTS: filters: Add a test for per-proxy stream filter ordering
+    - REGTESTS: filters: Exercise Lua inheritance and state selection
+    - REGTESTS: filters: Exercise stream isolation across backend modes
+    - REGTESTS: filters: Exercise Lua callback resumption
+    - REGTESTS: filters: Exercise Lua filters across HTTP retries
+    - REGTESTS: filters: Exercise Lua probes around mixed built-in filters
+    - REGTESTS: filters: Exercise TCP Lua payload chains and sequencing
+    - REGTESTS: filters: Exercise per-thread Lua instance state
+    - REGTESTS: filters: Record Lua callback waits across backend EOF
+    - REGTESTS: filters: Check non-HTX Lua filters in HTTP chains
+    - MINOR: filters: Add a global option to enforce the legacy filter api
+    - DOC: filters: Document the filter instance mode and the legacy mode
+    - DOC: lua: Document the filter instance declaration of Lua filters
+    - CLEANUP: filters: Use the stream filter instance wording in comments
+    - MINOR: filters: List the filter classes in haproxy -vv
+    - DOC: config: Review "Supported filters" section
+    - MINOR: lua: Protect the common Lua state during a runtime filter deinit
+    - MEDIUM: stream: Hold a reference on the frontend during stream_free()
+    - MINOR: applet: Add a destroy callback to the applets
+    - BUG/MEDIUM: spoe: Let an agent outlive its applets during a backend deletion
+    - MEDIUM: filters: Activate the instances inherited by dynamic backends
+    - DOC: filters: Document how to port an existing filter
+    - BUG/MINOR: hlua: assume proxy_find_by_id() may return NULL on previously existing server
+    - MINOR: event_hdl: add PROXY family events
+    - MINOR: proxy: add e_sub proxy subscrition list
+    - MINOR: event_hdl/proxy: publish EVENT_HDL_SUB_PROXY_{ADD,DEL,PUB,UNPUB} events
+    - MINOR: hlua: expose PROXY event family through Lua
+    - BUG/MEDIUM: mux-h2: don't return a freed tasklet from h2_deferred_shut()
+    - BUG/MEDIUM: mux-fcgi: don't return a freed tasklet from fcgi_deferred_shut()
+    - BUG/MEDIUM: mux-h1: don't pass an upgraded connection to traces in h1s_destroy()
+    - BUG/MEDIUM: mux-h2: report a dead rhttp connection in h2_wake()
+    - BUG/MEDIUM: mux-h2: fix a possible crash on rxbuf allocation failure
+    - MINOR: cache: Remove a useless variable in http_action_req_cache_use
+    - BUG/MEDIUM: mux-h1: also release the embryonic stream when the error is empty
+    - BUG/MINOR: http-fetch: don't report pseudo-headers in TCP mode
+    - BUG/MEDIUM: mux-h1: only accept the H2 preface on the first request
+    - MINOR: stats: report the SSL library FIPS mode in "show info"
+    - REGTESTS: http-messaging: Fix http_fail_cnt_body to succeed with small timeouts
+    - REGTEST: ssl: require OpenSSL 1.1.1 for crt-list ciphersuites tests
+    - DOC: make: fix EXTRA_MAKE fragment filename
+    - BUG/MINOR: cfgparse-global: only warn when "localpeer" is set together with -L
+    - DOC: configuration: document AWS-LC compatibility restrictions
+    - OPTIM/MINOR: server: restrict <all_servers> list usage
+    - MINOR: server: rename <all_servers> list to <servers_to_init>
+    - MINOR: server: refactor cli_find_server()
+    - MINOR: server: extract unregistering from "delete server" CLI parser
+    - MINOR: proxy: define purge task and purge servers list
+    - MEDIUM: server: implement "purge server" CLI
+    - MINOR: server: set maintenance mode on "purge server"
+    - MINOR: proxy: yield during servers purge
+    - MINOR: cli: refactor CLI wait command parser
+    - MINOR: cli: implement wait srv-unknown
+    - OPTIM/MINOR: server: remove unnecessary server lookup during purge
+    - REGTESTS: server: test "purge server" CLI command
+    - MEDIUM: server: implement "purge all servers" CLI
+    - MINOR: server: yield during "purge all servers"
+    - REGTESTS: server: test "purge all servers" CLI command
+    - MINOR: proxy: extract proxy runtime deletion in a specific function
+    - MEDIUM: proxy: implement purge backend
+    - MINOR: cli: implement wait be-unknown
+    - OPTIM/MINOR: proxy: remove unnecessary lookup during purge
+    - REGTESTS: proxy: test "purge backend" CLI
+    - BUG/MAJOR: mux-h2: properly handle short reads on PING frames
+    - BUG/MAJOR: h1-htx: report an error on a too long chunk-size line
+
 2026/10/01 : 3.5-dev8
     - BUG/MEDIUM: task: Do not destroy a task that is not ours in task_destroy
     - BUG/MEDIUM: http-client: Don't use the httpclient context if it was released
