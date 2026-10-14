@@ -1,0 +1,142 @@
+varnishtest "Test CLI payloads with long lines and multiple input refills"
+
+# Two aspects of the CLI payload parsing are tested here, with a small
+# tune.bufsize (1024 bytes) to force the payload buffer to be dynamically
+# allocated and the input to be received in several refills:
+#
+# 1. A payload line may be longer than tune.bufsize. The part of the line
+#    already received must be moved into the payload buffer while waiting
+#    for the remaining part, and the peer must be unblocked, otherwise the
+#    CLI keeps looping on the same partial line forever, burning the CPU,
+#    and the command is never executed.
+#
+# 2. A payload made of several lines shorter than tune.bufsize, but bigger
+#    than the payload buffer, must keep being parsed line by line after the
+#    payload buffer was enlarged, so that the end of the payload is still
+#    detected and the command is executed (issue #3524).
+#
+# A third payload mixes lines shorter and longer than tune.bufsize, to be
+# sure the parsing resumes correctly after a line reassembled from
+# multiple input refills.
+#
+# A fourth payload uses a customized pattern to mark the end of the
+# payload, sent in several chunks: the end of the payload must be detected
+# in the line reassembled from the beginning of the pattern received as an
+# incomplete line and its end received later.
+
+feature ignore_unknown_macro
+
+shell {
+    echo "k0 v0" > ${tmpdir}/map
+}
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 1024
+    stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request set-header X-V %[req.hdr(x-t),map("${tmpdir}/map")]
+} -start
+
+# 1. A single payload line of 4003 bytes, longer than tune.bufsize, sent
+#    in chunks. If the line is not properly reassembled, the CLI is stuck
+#    and never closes the connection.
+client c1 -connect ${h1_cli_sock} {
+    send "add map ${tmpdir}/map <<"
+    send "\n"
+    send "k1 "
+    send_n 2000 "a"
+    send_n 2000 "b"
+    send "\n"
+    send "\n"
+    expect_close
+} -run
+
+# 2. A payload made of 4 lines of 250 bytes, bigger than the initial
+#    payload buffer: the end of the payload is received after the payload
+#    buffer was enlarged and must still be detected.
+client c2 -connect ${h1_cli_sock} {
+    send "add map ${tmpdir}/map <<"
+    send "\n"
+    send "k2 a"
+    send_n 246 "a"
+    send "\n"
+    send "k3 b"
+    send_n 246 "b"
+    send "\n"
+    send "k4 c"
+    send_n 246 "c"
+    send "\n"
+    send "k5 d"
+    send_n 246 "d"
+    send "\n"
+    send "\n"
+    expect_close
+} -run
+
+# 3. A payload mixing lines shorter and longer than tune.bufsize. The
+#    parsing must resume correctly after a reassembled line.
+client c3 -connect ${h1_cli_sock} {
+    send "add map ${tmpdir}/map <<"
+    send "\n"
+    send "k6 "
+    send_n 1500 "e"
+    send_n 1500 "f"
+    send "\n"
+    send "k7 g"
+    send_n 246 "g"
+    send "\n"
+    send "k8 "
+    send_n 1500 "h"
+    send_n 1500 "i"
+    send "\n"
+    send "\n"
+    expect_close
+} -run
+
+# 4. A payload with a customized end pattern, split across two input
+#    refills: the CLI first receives "12", an incomplete line, then "3\n"
+#    completing the end pattern. The end of the payload must be detected.
+#    If it is not, the command is never executed and the CLI is stuck.
+client c4 -connect ${h1_cli_sock} {
+    send "add map ${tmpdir}/map <<123"
+    send "\n"
+    send "k9 v9"
+    send "\n"
+    send "12"
+    delay 0.5
+    send "3"
+    send "\n"
+    expect_close
+} -run
+
+
+haproxy h1 -cli {
+    # The value of the long lines cannot be displayed, the output is
+    # truncated by the trash chunk size. But the entry must be found,
+    # which proves the payload line was properly reassembled, the end of
+    # the payload detected and the command executed.
+    send "get map ${tmpdir}/map k1"
+    expect ~ "type=str, case=sensitive, found=yes,.*key=\"k1\"[^,]*"
+    send "get map ${tmpdir}/map k2"
+    expect ~ "type=str, case=sensitive, found=yes,.*key=\"k2\", value=\"aaa.*"
+    send "get map ${tmpdir}/map k5"
+    expect ~ "type=str, case=sensitive, found=yes,.*key=\"k5\", value=\"ddd.*"
+    send "get map ${tmpdir}/map k6"
+    expect ~ "type=str, case=sensitive, found=yes,.*key=\"k6\"[^,]*"
+    send "get map ${tmpdir}/map k7"
+    expect ~ "type=str, case=sensitive, found=yes,.*key=\"k7\", value=\"ggg.*"
+    send "get map ${tmpdir}/map k8"
+    expect ~ "type=str, case=sensitive, found=yes,.*key=\"k8\"[^,]*"
+    send "get map ${tmpdir}/map k9"
+    expect ~ "type=str, case=sensitive, found=yes,.*key=\"k9\", value=\"v9\", type=\"str\""
+}

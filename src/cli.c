@@ -1002,6 +1002,7 @@ int cli_init(struct appctx *appctx)
 	appctx->st0 = CLI_ST_PARSE_CMDLINE;
 	appctx->cli_ctx.level = bind_conf->level;
 	appctx->cli_ctx.payload_pat = NULL;
+	appctx->cli_ctx.payload_line = NULL;
 	appctx->cli_ctx.cmdline = NULL;
 	appctx->cli_ctx.payload = BUF_NULL;
 	appctx->cli_ctx.max_payload_sz = global.tune.cli_max_payload_sz;
@@ -1015,11 +1016,15 @@ int cli_init(struct appctx *appctx)
 int cli_try_realloc_payload(struct appctx *appctx, struct buffer *buf, size_t new_size)
 {
 	char *old, *new;
+	unsigned int payload_line_offset = 0;
 
 	BUG_ON(new_size == 0);
 
 	if (new_size > appctx->cli_ctx.max_payload_sz)
 		new_size = appctx->cli_ctx.max_payload_sz;
+
+	if (appctx->cli_ctx.payload_line)
+		payload_line_offset = appctx->cli_ctx.payload_line - b_orig(buf);
 
 	old = (appctx->st1 & APPCTX_CLI_ST1_DYN_PAYLOAD) ? b_orig(buf) : NULL;
 	new = my_realloc2(old, new_size);
@@ -1033,6 +1038,12 @@ int cli_try_realloc_payload(struct appctx *appctx, struct buffer *buf, size_t ne
 		memcpy(new, b_orig(buf), b_data(buf));
 		appctx->st1 |= APPCTX_CLI_ST1_DYN_PAYLOAD;
 	}
+
+	/* The payload buffer may have been reallocated, the beginning of the
+	 * current payload line, if any, must be updated accordingly.
+	 */
+	if (appctx->cli_ctx.payload_line)
+		appctx->cli_ctx.payload_line = new + payload_line_offset;
 	*buf = b_make(new, new_size, 0, b_data(buf));
 	return 0;
 }
@@ -1061,6 +1072,7 @@ int cli_parse_cmdline(struct appctx *appctx)
 		if (!b_data(&appctx->inbuf))
 			break;
 
+	retry:
 		/* payload doesn't take escapes nor does it end on semi-colons,
 		 * so we use the regular getline. Normal mode however must stop
 		 * on LFs and semi-colons that are not prefixed by a backslash.
@@ -1076,7 +1088,6 @@ int cli_parse_cmdline(struct appctx *appctx)
 			else
 				len = b_getline(&appctx->inbuf, 0, b_data(&appctx->inbuf), str, b_room(buf) - 1);
 		}
-
 		if (!len) {
 			if (!b_room(buf) || (b_data(&appctx->inbuf) > b_room(buf) - 1)) {
 				if (!(appctx->st1 & APPCTX_CLI_ST1_PAYLOAD)) {
@@ -1096,7 +1107,17 @@ int cli_parse_cmdline(struct appctx *appctx)
 					goto error;
 				}
 
-				/* A bigger payload buffer was allocated, wait for more data */
+				/* A bigger payload buffer was allocated, retry to parse input buffer */
+				goto retry;
+			}
+			/* The input buffer contains the part of a payload line
+			 * and the remaining part is still to be received. Copy
+			 * it to make some space.
+			 */
+			if (appctx->st1 & APPCTX_CLI_ST1_PAYLOAD) {
+				/* save the beginning of the current payload line */
+				if (!appctx->cli_ctx.payload_line)
+					appctx->cli_ctx.payload_line = b_tail(buf);
 				b_xfer(buf, &appctx->inbuf, b_data(&appctx->inbuf));
 				applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 			}
@@ -1191,7 +1212,17 @@ int cli_parse_cmdline(struct appctx *appctx)
 
 			/* look for a pattern at the end of the payload
 			 * (take care to exclude the last character because it is a \n)
+			 *
+			 * <str> may be the end of a line received in several part.
+			 * If the beginning of the current payload line was remembered,
+			 * the pattern is searched in the whole assembled line.
 			 */
+			if (appctx->cli_ctx.payload_line) {
+				str = appctx->cli_ctx.payload_line;
+				len = b_tail(buf) - str;
+				appctx->cli_ctx.payload_line = NULL;
+			}
+
 			if (len-1 == strlen(appctx->cli_ctx.payload_pat)) {
 				if (strncmp(str, appctx->cli_ctx.payload_pat, len-1) == 0) {
 					/* end of payload was reached, rewind before the previous \n, if any, and replace it by a \0
@@ -1423,6 +1454,7 @@ void cli_io_handler(struct appctx *appctx)
 				if (appctx->st1 & APPCTX_CLI_ST1_DYN_PAYLOAD)
 					free(b_orig(&appctx->cli_ctx.payload));
 				appctx->cli_ctx.payload_pat = NULL;
+				appctx->cli_ctx.payload_line = NULL;
 				appctx->cli_ctx.cmdline = NULL;
 				appctx->cli_ctx.payload = BUF_NULL;
 				appctx->st1 &= ~(APPCTX_CLI_ST1_LASTCMD|APPCTX_CLI_ST1_DYN_PAYLOAD);
