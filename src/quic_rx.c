@@ -1387,6 +1387,7 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 	int64_t largest_pn = -1;
 	unsigned int largest_pn_time_received = 0;
 	struct quic_enc_level *qel, *qelbak;
+	int arm_ack_timer;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
 
@@ -1434,16 +1435,17 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 						HA_ATOMIC_DEC(&qc->prx_counters->half_open_conn);
 					}
 
+					arm_ack_timer = 0;
+
 					/* Update the list of ranges to acknowledge. */
 					if (quic_update_ack_ranges_list(qc, &qel->pktns->rx.arngs, &ar)) {
 						if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
-							int arm_ack_timer =
-								qc->state >= QUIC_HS_ST_COMPLETE &&
-								qel->pktns == qc->apktns;
+							arm_ack_timer =
+							  qc->state >= QUIC_HS_ST_COMPLETE &&
+							  qel->pktns == qc->apktns;
 
 							qel->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
 							qel->pktns->rx.nb_aepkts_since_last_ack++;
-							qc_idle_timer_rearm(qc, 1, arm_ack_timer);
 						}
 
 						if (pkt->pn > largest_pn) {
@@ -1455,6 +1457,13 @@ int qc_treat_rx_pkts(struct quic_conn *qc)
 						TRACE_ERROR("Could not update ack range list",
 						            QUIC_EV_CONN_RXPKT, qc);
 					}
+
+					/* RFC 9000 10.1. Idle Timeout
+					 *
+					 * An endpoint restarts its idle timer when a packet from its peer is
+					 * received and processed successfully.
+					 */
+					qc_idle_timer_rearm(qc, 1, arm_ack_timer);
 				}
 			}
 			node = eb64_next(node);
