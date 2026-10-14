@@ -1,0 +1,54 @@
+varnishtest "Legacy 'filter compression' declared before the compression options"
+
+# Regression test for the legacy "filter compression" declaration placed
+# before the "compression" options. The filter used to capture a NULL
+# pointer on the proxy compression options, parsed later by the "compression"
+# directives, silently disabling the compression. The options are now
+# allocated when the filter is declared.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -hdr "Content-Type: text/plain" -bodylen 500
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # the filter is declared before the options
+    listen li1
+        bind "fd@${li1}"
+        filter compression
+        compression algo gzip
+        compression type text/plain
+        server s1 ${s1_addr}:${s1_port}
+
+    # the filter is declared after the options
+    listen li2
+        bind "fd@${li2}"
+        compression algo gzip
+        compression type text/plain
+        filter compression
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+    txreq -url /a -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-encoding == gzip
+    gunzip
+} -run
+
+client c2 -connect ${h1_li2_sock} {
+    txreq -url /b -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-encoding == gzip
+    gunzip
+} -run

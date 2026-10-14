@@ -1073,6 +1073,7 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 {
 	struct flt_conf *fc, *back;
 	struct flt_conf *fconf_res;
+	struct comp *comp;
 
 	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
 		if (fc->id == http_comp_req_flt_id || fc->id == http_comp_res_flt_id) {
@@ -1081,9 +1082,20 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 		}
 	}
 
+	/* Allocate the compression options now, they will be filled by the
+	 * "compression" directives, which may be parsed after this filter
+	 * declaration. The filter config keeps a pointer on them, so they
+	 * must not be reallocated later.
+	 */
+	comp = proxy_get_comp(px, 0);
+	if (!comp) {
+		memprintf(err, "'%s' : out of memory", args[*cur_arg]);
+		return -1;
+	}
+
 	fconf->id   = http_comp_req_flt_id;
 	fconf->name = "comp-req";
-	fconf->conf = px->comp;
+	fconf->conf = comp;
 	fconf->ops  = &comp_req_ops;
 
 	/* FILTER API prepared a single filter_conf struct as it is meant to
@@ -1099,7 +1111,7 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 	fconf_res->id = http_comp_res_flt_id;
 	fconf_res->name = "comp-res";
-	fconf_res->conf = px->comp;
+	fconf_res->conf = comp;
 	fconf_res->ops = &comp_res_ops;
 
 	/* manually add the fconf_res to the list because filter API doesn't
