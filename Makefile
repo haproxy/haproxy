@@ -581,8 +581,20 @@ EXTRA_OBJS =
 # compiler produces ELF objects, as the placeholders are ELF-specific. That
 # script appends the table to the program just linked, which moves nothing, so
 # it needs neither reserved room nor a second link.
+# Try to get something that works with most version of nm, objcopy and readelf.
+# This should work with GNU binutils, LLVM tools, elftoolchain, and OpenBSD's
+# nm.
 ifeq ($(origin USE_MINIDEBUG),undefined)
-USE_MINIDEBUG := $(if $(and $(shell command -v $(NM)),$(shell command -v $(OBJCOPY)),$(shell command -v $(READELF)),$(shell command -v $(XZ)),$(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep -F __ELF__)),1,)
+USE_MINIDEBUG := $(if $(and $(shell command -v $(XZ)),$(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep __ELF__),$(shell \
+	printf 'static int _probe_local;\nint _probe_global;\nint main(void){ return _probe_local + _probe_global; }\n' > .minidbg_probe.c && \
+	$(CC) -rdynamic .minidbg_probe.c -o .minidbg_probe >/dev/null 2>&1 && \
+	$(NM) -P .minidbg_probe 2>/dev/null | grep -q '^_probe_local ' && \
+	$(NM) -D -P .minidbg_probe 2>/dev/null | grep -q '^_probe_global ' && \
+	printf '_probe_global\n' > .minidbg_probe.syms && \
+	$(OBJCOPY) --only-keep-debug .minidbg_probe .minidbg_probe.dbg 2>/dev/null && \
+	$(OBJCOPY) -S --remove-section .comment --keep-symbols=.minidbg_probe.syms .minidbg_probe.dbg .minidbg_probe.mini 2>/dev/null && \
+	$(READELF) -hW -SW -lW .minidbg_probe >/dev/null 2>&1 && echo 1; \
+	rm -f .minidbg_probe.c .minidbg_probe .minidbg_probe.syms .minidbg_probe.dbg .minidbg_probe.mini)),1,)
 endif
 
 # This variable collects all USE_* values except those set to "implicit". This
@@ -1023,7 +1035,7 @@ endif
 # must not carry the decoder for nothing.
 # CRC64 support must be enabled as this is the integrity check that the "xz"
 # tool uses by default, and it also gates declarations in the public header.
-ifneq ($(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep -F __ELF__),)
+ifneq ($(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep __ELF__),)
 OPTIONS_CFLAGS += -DXZ_USE_CRC64
 OBJS += src/xz_dec_stream.o src/xz_dec_lzma2.o src/xz_crc32.o		\
         src/xz_crc64.o
@@ -1088,10 +1100,13 @@ endif # non-empty target
 # Only the last step can leave the program half-written, so it is the only one
 # whose failure is fatal; not being able to produce the table just leaves the
 # program without one, as happens when the tools do not know the target.
+# The nm options are spelled with their portable short forms (-P, -D) as some
+# implementations lack the long ones, and undefined symbols are told by their
+# type in awk instead of --defined-only, which these implementations lack too.
 define make_minidebug
 	$(call qinfo,  MINIDBG)if ! ( \
-	    $(NM) -D $@ --format=posix --defined-only | awk '{ print $$1 }' | sort > $@.dsyms && \
-	    $(NM) $@ --format=posix --defined-only | awk '$$2 == "T" || $$2 == "t" { print $$1 }' | sort > $@.fsyms && \
+	    $(NM) -D -P $@ | awk '$$2 != "U" && $$2 != "w" { print $$1 }' | sort > $@.dsyms && \
+	    $(NM) -P $@ | awk '$$2 == "T" || $$2 == "t" { print $$1 }' | sort > $@.fsyms && \
 	    comm -13 $@.dsyms $@.fsyms > $@.ksyms && \
 	    $(OBJCOPY) --only-keep-debug $@ $@.dbg && \
 	    $(OBJCOPY) -S --remove-section .gdb_index --remove-section .comment --keep-symbols=$@.ksyms $@.dbg $@.mini && \
