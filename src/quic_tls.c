@@ -6,6 +6,13 @@
 #include <openssl/kdf.h>
 #include <openssl/ssl.h>
 
+#if defined(OPENSSL_IS_AWSLC) || defined(OPENSSL_IS_BORINGSSL)
+#include <openssl/hkdf.h>
+#elif OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+#include <openssl/core_names.h>
+#include <openssl/params.h>
+#endif
+
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/pool.h>
@@ -314,58 +321,148 @@ void qc_enc_level_free(struct quic_conn *qc, struct quic_enc_level **qel)
 	*qel = NULL;
 }
 
-int quic_hkdf_extract(const EVP_MD *md,
-                      unsigned char *buf, size_t buflen,
-                      const unsigned char *key, size_t keylen,
-                      const unsigned char *salt, size_t saltlen)
-{
-    EVP_PKEY_CTX *ctx;
+enum quic_hkdf_mode {
+	QUIC_HKDF_EXTRACT,
+	QUIC_HKDF_EXPAND,
+	QUIC_HKDF_EXTRACT_AND_EXPAND,
+};
 
-    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
-    if (!ctx)
-        return 0;
-
-    if (EVP_PKEY_derive_init(ctx) <= 0 ||
-        EVP_PKEY_CTX_hkdf_mode(ctx, EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY) <= 0 ||
-        EVP_PKEY_CTX_set_hkdf_md(ctx, md) <= 0 ||
-        EVP_PKEY_CTX_set1_hkdf_salt(ctx, salt, saltlen) <= 0 ||
-        EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
-        EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
-        goto err;
-
-    EVP_PKEY_CTX_free(ctx);
-    return 1;
-
- err:
-    EVP_PKEY_CTX_free(ctx);
-    return 0;
-}
-
-int quic_hkdf_expand(const EVP_MD *md,
+/* Run the HKDF operation <mode> with <md> as hash function and <key> as input
+ * key. Extract uses <salt>, expand uses <label>, extract and expand use both.
+ * The result is written to <buf> with <buflen> as length.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int quic_hkdf(enum quic_hkdf_mode mode, const EVP_MD *md,
                      unsigned char *buf, size_t buflen,
                      const unsigned char *key, size_t keylen,
+                     const unsigned char *salt, size_t saltlen,
                      const unsigned char *label, size_t labellen)
 {
-    EVP_PKEY_CTX *ctx;
+#if defined(OPENSSL_IS_AWSLC) || defined(OPENSSL_IS_BORINGSSL)
+	switch (mode) {
+	case QUIC_HKDF_EXTRACT:
+		/* HKDF_extract() writes the hash length and ignores <buflen>. */
+		if (buflen < (size_t)EVP_MD_size(md))
+			return 0;
 
-    ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
-    if (!ctx)
-        return 0;
+		return HKDF_extract(buf, &buflen, md, key, keylen, salt, saltlen);
 
-    if (EVP_PKEY_derive_init(ctx) <= 0 ||
-        EVP_PKEY_CTX_hkdf_mode(ctx, EVP_PKEY_HKDEF_MODE_EXPAND_ONLY) <= 0 ||
-        EVP_PKEY_CTX_set_hkdf_md(ctx, md) <= 0 ||
-        EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
-        EVP_PKEY_CTX_add1_hkdf_info(ctx, label, labellen) <= 0 ||
-        EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
-        goto err;
+	case QUIC_HKDF_EXPAND:
+		return HKDF_expand(buf, buflen, md, key, keylen, label, labellen);
 
-    EVP_PKEY_CTX_free(ctx);
-    return 1;
+	case QUIC_HKDF_EXTRACT_AND_EXPAND:
+		return HKDF(buf, buflen, md, key, keylen, salt, saltlen,
+		            label, labellen);
+	}
 
- err:
-    EVP_PKEY_CTX_free(ctx);
-    return 0;
+	return 0;
+
+#elif OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(LIBRESSL_VERSION_NUMBER)
+	OSSL_PARAM params[6], *p = params;
+	EVP_KDF_CTX *kctx;
+	EVP_KDF *kdf;
+	int kdf_mode;
+	int ret;
+
+	switch (mode) {
+	case QUIC_HKDF_EXTRACT:
+		kdf_mode = EVP_KDF_HKDF_MODE_EXTRACT_ONLY;
+		break;
+	case QUIC_HKDF_EXPAND:
+		kdf_mode = EVP_KDF_HKDF_MODE_EXPAND_ONLY;
+		break;
+	default:
+		kdf_mode = EVP_KDF_HKDF_MODE_EXTRACT_AND_EXPAND;
+		break;
+	}
+
+	kdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
+	if (!kdf)
+		return 0;
+
+	kctx = EVP_KDF_CTX_new(kdf);
+	EVP_KDF_free(kdf);
+	if (!kctx)
+		return 0;
+
+	*p++ = OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &kdf_mode);
+	*p++ = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
+	                                        (char *)EVP_MD_get0_name(md), 0);
+	*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY,
+	                                         (void *)key, keylen);
+	if (salt)
+		*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT,
+		                                         (void *)salt, saltlen);
+
+	if (label)
+		*p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO,
+		                                         (void *)label, labellen);
+
+	*p = OSSL_PARAM_construct_end();
+
+	ret = EVP_KDF_derive(kctx, buf, buflen, params) > 0;
+	EVP_KDF_CTX_free(kctx);
+	return ret;
+
+#else
+	EVP_PKEY_CTX *ctx;
+	int pkey_mode;
+	int ret = 0;
+
+	switch (mode) {
+	case QUIC_HKDF_EXTRACT:
+		pkey_mode = EVP_PKEY_HKDEF_MODE_EXTRACT_ONLY;
+		break;
+	case QUIC_HKDF_EXPAND:
+		pkey_mode = EVP_PKEY_HKDEF_MODE_EXPAND_ONLY;
+		break;
+	default:
+		pkey_mode = EVP_PKEY_HKDEF_MODE_EXTRACT_AND_EXPAND;
+		break;
+	}
+
+	ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+	if (!ctx)
+		return 0;
+
+	if (EVP_PKEY_derive_init(ctx) <= 0 ||
+	    EVP_PKEY_CTX_hkdf_mode(ctx, pkey_mode) <= 0 ||
+	    EVP_PKEY_CTX_set_hkdf_md(ctx, md) <= 0 ||
+	    EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0)
+		goto leave;
+
+	if (salt && EVP_PKEY_CTX_set1_hkdf_salt(ctx, salt, saltlen) <= 0)
+		goto leave;
+
+	if (label && EVP_PKEY_CTX_add1_hkdf_info(ctx, label, labellen) <= 0)
+		goto leave;
+
+	if (EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
+		goto leave;
+
+	ret = 1;
+ leave:
+	EVP_PKEY_CTX_free(ctx);
+	return ret;
+#endif
+}
+
+static int quic_hkdf_extract(const EVP_MD *md,
+                             unsigned char *buf, size_t buflen,
+                             const unsigned char *key, size_t keylen,
+                             const unsigned char *salt, size_t saltlen)
+{
+	return quic_hkdf(QUIC_HKDF_EXTRACT, md, buf, buflen,
+	                 key, keylen, salt, saltlen, NULL, 0);
+}
+
+static int quic_hkdf_expand(const EVP_MD *md,
+                            unsigned char *buf, size_t buflen,
+                            const unsigned char *key, size_t keylen,
+                            const unsigned char *label, size_t labellen)
+{
+	return quic_hkdf(QUIC_HKDF_EXPAND, md, buf, buflen,
+	                 key, keylen, NULL, 0, label, labellen);
 }
 
 /* Extracts a peudo-random secret key from <key> which is eventually not
@@ -382,27 +479,8 @@ int quic_hkdf_extract_and_expand(const EVP_MD *md,
                                  const unsigned char *salt, size_t saltlen,
                                  const unsigned char *label, size_t labellen)
 {
-	EVP_PKEY_CTX *ctx;
-
-	ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
-	if (!ctx)
-		return 0;
-
-	if (EVP_PKEY_derive_init(ctx) <= 0 ||
-	    EVP_PKEY_CTX_hkdf_mode(ctx, EVP_PKEY_HKDEF_MODE_EXTRACT_AND_EXPAND) <= 0 ||
-	    EVP_PKEY_CTX_set_hkdf_md(ctx, md) <= 0 ||
-	    EVP_PKEY_CTX_set1_hkdf_salt(ctx, salt, saltlen) <= 0 ||
-	    EVP_PKEY_CTX_set1_hkdf_key(ctx, key, keylen) <= 0 ||
-	    EVP_PKEY_CTX_add1_hkdf_info(ctx, label, labellen) <= 0 ||
-	    EVP_PKEY_derive(ctx, buf, &buflen) <= 0)
-		goto err;
-
-	EVP_PKEY_CTX_free(ctx);
-	return 1;
-
- err:
-	EVP_PKEY_CTX_free(ctx);
-	return 0;
+	return quic_hkdf(QUIC_HKDF_EXTRACT_AND_EXPAND, md, buf, buflen,
+	                 key, keylen, salt, saltlen, label, labellen);
 }
 
 /* https://quicwg.org/base-drafts/draft-ietf-quic-tls.html#protection-keys
