@@ -155,6 +155,7 @@ struct sym_build {
 	struct sym_obj **objs;     /* objects created this build, handed to the snapshot */
 	unsigned int nobjs, oalloc;
 	int oom;                   /* set on any allocation failure */
+	int seen_exe;              /* set once the executable was passed to phdr_cb */
 };
 
 /* records an object created this build; returns 0 on success, -1 on OOM */
@@ -278,6 +279,14 @@ int sym_add_debug_dir(const char *dir)
 #include <haproxy/net_helper.h>
 #include <import/xz.h>
 
+/* Some ELF platforms (e.g. Solaris) do not define GNU extensions. */
+#ifndef NT_GNU_BUILD_ID
+#define NT_GNU_BUILD_ID 3
+#endif
+#ifndef STT_GNU_IFUNC
+#define STT_GNU_IFUNC 10
+#endif
+
 /* Largest decompressed symbol table we accept, and largest LZMA2 dictionary we
  * let the decoder allocate for it.
  */
@@ -305,9 +314,15 @@ static const struct {
  * toolchain since glibc doesn't provide *_NATIVE convenience macros.
  */
 #if __WORDSIZE == 64
+# ifndef ElfW
+#  define ElfW(type) Elf64_##type
+# endif
 # define SYM_ELFCLASS    ELFCLASS64
 # define SYM_ST_TYPE(i)  ELF64_ST_TYPE(i)
 #else
+# ifndef ElfW
+#  define ElfW(type) Elf32_##type
+# endif
 # define SYM_ELFCLASS    ELFCLASS32
 # define SYM_ST_TYPE(i)  ELF32_ST_TYPE(i)
 #endif
@@ -786,6 +801,8 @@ static const unsigned char *mem_build_id(const ElfW(Phdr) *phdr, unsigned int ph
 		/* entries are padded to the segment's alignment, 4 or 8 */
 		align = phdr[i].p_align == 8 ? 8 : 4;
 		p = (const unsigned char *)(base + phdr[i].p_vaddr);
+		if (!may_access(p))
+			continue;
 		rem = phdr[i].p_filesz;
 		off = 0;
 		while (rem - off >= sizeof(ElfW(Nhdr))) {
@@ -1057,13 +1074,18 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 	const char *path = NULL, *name = info->dlpi_name;
 	struct sym_obj *obj;
 	unsigned int before;
-	int is_exe = 0;
+	int is_exe = !b->seen_exe;
 	int idx, seen = 0, ret = 0;
+
+	/* The main executable is always the first object reported, but not
+	 * every loader gives it an empty name (NetBSD passes the path the
+	 * program was started with).
+	 */
+	b->seen_exe = 1;
 
 	if (!name || !*name) {
 		/* the main executable has an empty name */
 		path = name = get_exec_path();
-		is_exe = 1;
 	}
 	else if (strchr(name, '/')) {
 		path = name;
@@ -1130,6 +1152,8 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 		    info->dlpi_phdr[idx].p_filesz < sizeof(sym_xz_magic))
 			continue;
 		p = (const unsigned char *)(info->dlpi_addr + info->dlpi_phdr[idx].p_vaddr);
+		if (!may_access(p))
+			continue;
 		if (memcmp(p, sym_xz_magic, sizeof(sym_xz_magic)) == 0) {
 			b->debugdata = p;
 			b->debugdata_size = info->dlpi_phdr[idx].p_filesz;
