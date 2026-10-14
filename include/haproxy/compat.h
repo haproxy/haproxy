@@ -287,8 +287,26 @@ typedef struct { } empty_t;
 #endif
 #endif
 
-/* dl_iterate_phdr() is available in FreeBSD 7.0+ and glibc 2.3+. */
-#if defined(__FreeBSD__) || \
+/* The compiler does not tell the OS version on Solaris, and dl_iterate_phdr()
+ * is missing from Solaris 10, but <err.h> appeared with Solaris 11 and is
+ * used there as the witness of a system new enough for it. Note that the
+ * __has_include() test must stay nested, as a single expression is a syntax
+ * error on the compilers that lack the builtin.
+ */
+#if defined(__sun) && defined(__has_include)
+#if __has_include(<err.h>)
+#define HA_SOLARIS_11
+#endif
+#endif
+
+/* dl_iterate_phdr() first appeared in glibc 2.2.4, FreeBSD 7.0, NetBSD 6.0
+ * and OpenBSD 3.7; the Solaris gate got it in early 2010 (PSARC 2010/015),
+ * before the illumos fork, so every Solaris 11 and illumos release has it.
+ * The glibc test below still requires 2.3 as the patch level of 2.2 is not
+ * visible to the preprocessor.
+ */
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
+    defined(HA_SOLARIS_11) || \
     (defined(USE_DL) && defined(__GNU_LIBRARY__) && \
      (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)))
 #define HA_HAVE_DL_ITERATE_PHDR
