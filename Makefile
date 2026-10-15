@@ -1148,15 +1148,9 @@ endif
 
 haterm: $(OPTIONS_OBJS) $(HATERM_OBJS)
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
-ifneq ($(USE_MINIDEBUG:0=),)
-	$(make_minidebug)
-endif
 
 haload: $(OPTIONS_OBJS) $(HALOAD_OBJS)
 	$(cmd_LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@ $^ $(LDOPTS)
-ifneq ($(USE_MINIDEBUG:0=),)
-	$(make_minidebug)
-endif
 
 objsize: haproxy
 	$(Q)$(OBJDUMP) -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
@@ -1263,8 +1257,8 @@ uninstall:
 
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy haterm test .build_opts .build_opts.new
-	$(Q)rm -f haproxy.noxz haterm.noxz haload.noxz
-	$(Q)for p in haproxy haterm haload; do rm -f $$p.dsyms $$p.fsyms $$p.ksyms $$p.dbg $$p.mini $$p.mini.xz; done
+	$(Q)rm -f haproxy.noxz
+	$(Q)for p in haproxy; do rm -f $$p.dsyms $$p.fsyms $$p.ksyms $$p.dbg $$p.mini $$p.mini.xz; done
 	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
