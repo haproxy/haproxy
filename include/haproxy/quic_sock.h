@@ -48,6 +48,9 @@ void quic_lstnr_sock_fd_iocb(int fd);
 int quic_dgram_requeue(struct quic_dgram *dgram, int cid_tid);
 int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t count,
                int flags, uint16_t gso_size);
+ssize_t quic_lstnr_sock_send(struct listener *l, const void *buf, size_t len,
+                             struct sockaddr_storage *src,
+                             struct sockaddr_storage *dst);
 int qc_rcv_buf(struct quic_conn *qc);
 void quic_conn_sock_fd_iocb(int fd);
 void quic_conn_closed_sock_fd_iocb(int fd);

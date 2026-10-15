@@ -673,6 +673,18 @@ static void cmsg_set_gso(struct msghdr *msg, struct cmsghdr **cmsg,
 #endif
 }
 
+/* Returns true if <addr> may be explicitly set as source address for a
+ * datagram emitted through <l> listener socket. This is only useful if the
+ * socket is bound on a wildcard address, as the kernel is then free to select
+ * any local address, possibly not the one targeted by the peer. It is even
+ * prohibited on FreeBSD if the socket is bound on a specific address.
+ */
+static inline int quic_lstnr_may_set_src(const struct listener *l,
+                                         const struct sockaddr_storage *addr)
+{
+	return !is_addr(&l->rx.addr) && is_addr(addr);
+}
+
 /* Return 1 if the source address may be used, 0 if not. */
 static int qc_may_use_saddr(struct quic_conn *qc)
 {
@@ -681,13 +693,8 @@ static int qc_may_use_saddr(struct quic_conn *qc)
 	if (qc_test_fd(qc))
 		return 0;
 
-	/* Connection to a listener from here.
-	 * The source address may be used when using listener socket (fd=-1) if
-	 * possible. This is not useful if the listening socket is bound to
-	 * a specific address. It is even prohibited on FreeBSD.
-	 */
-	return (!is_addr(&qc->li->rx.addr) &&
-	        is_addr(&qc->local_addr));
+	/* Connection to a listener from here, using the listener socket (fd=-1). */
+	return quic_lstnr_may_set_src(qc->li, &qc->local_addr);
 }
 
 /* Send a datagram stored into <buf> buffer with <sz> as size. The caller must
@@ -811,6 +818,60 @@ int qc_snd_buf(struct quic_conn *qc, const struct buffer *buf, size_t sz,
 		return 0;
 
 	return ret;
+}
+
+/* Send <len> bytes from <buf> as a single datagram through <l> listener socket
+ * to <dst> address. This is reserved to datagrams emitted without connection.
+ * <src> is the local address targeted by the peer, as retrieved on reception.
+ * It is used as datagram source address if possible (see
+ * quic_lstnr_may_set_src()), else the kernel selects it.
+ *
+ * Note that the listener socket is non-blocking. Contrary to qc_snd_buf(),
+ * there is no connection to retry the emission later if the socket buffer is
+ * full: the datagram is then lost, and a new one will only be emitted in
+ * response to a further packet from the peer.
+ *
+ * Returns the sendmsg() result.
+ */
+ssize_t quic_lstnr_sock_send(struct listener *l, const void *buf, size_t len,
+                             struct sockaddr_storage *src,
+                             struct sockaddr_storage *dst)
+{
+	struct msghdr msg;
+	struct iovec vec;
+	struct cmsghdr *cmsg = NULL;
+
+	union {
+#ifdef IP_PKTINFO
+		char buf[CMSG_SPACE(sizeof(struct in_pktinfo))];
+#endif /* IP_PKTINFO */
+#ifdef IPV6_RECVPKTINFO
+		char buf6[CMSG_SPACE(sizeof(struct in6_pktinfo))];
+#endif /* IPV6_RECVPKTINFO */
+		char bufaddr[CMSG_SPACE(sizeof(struct in_addr))];
+		struct cmsghdr align;
+	} ancillary_data;
+
+	/* Must be zero-initialized for CMSG_NXTHDR(), see qc_snd_buf(). */
+	memset(&ancillary_data, 0, sizeof(ancillary_data));
+
+	vec.iov_base = (void *)buf;
+	vec.iov_len = len;
+
+	msg.msg_name = dst;
+	msg.msg_namelen = get_addr_len(dst);
+	msg.msg_iov = &vec;
+	msg.msg_iovlen = 1;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+
+	if (quic_lstnr_may_set_src(l, src)) {
+		msg.msg_control = ancillary_data.bufaddr;
+		cmsg_set_saddr(&msg, &cmsg, src);
+	}
+
+	return sendmsg(l->rx.fd, &msg, 0);
 }
 
 /* Receive datagram on <qc> FD-owned socket.
