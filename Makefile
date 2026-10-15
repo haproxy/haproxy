@@ -1107,7 +1107,8 @@ endif # non-empty target
 # implementations lack the long ones, and undefined symbols are told by their
 # type in awk instead of --defined-only, which these implementations lack too.
 define make_minidebug
-	$(call qinfo,  MINIDBG)if ! ( \
+	$(call qinfo,  MINIDBG)cp -f $@ $@.noxz; \
+	if ! ( \
 	    $(NM) -D -P $@ | awk '$$2 != "U" && $$2 != "w" { print $$1 }' | sort > $@.dsyms && \
 	    $(NM) -P $@ | awk '$$2 == "T" || $$2 == "t" { print $$1 }' | sort > $@.fsyms && \
 	    $(NM) -P $@ | awk '$$2 == "T" || $$2 == "t" { print $$1, $$3 }' | sort > $@.symaddrs && \
@@ -1262,6 +1263,7 @@ uninstall:
 
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy haterm test .build_opts .build_opts.new
+	$(Q)rm -f haproxy.noxz haterm.noxz haload.noxz
 	$(Q)for p in haproxy haterm haload; do rm -f $$p.dsyms $$p.fsyms $$p.ksyms $$p.dbg $$p.mini $$p.mini.xz; done
 	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
