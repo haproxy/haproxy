@@ -47,7 +47,8 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 int qc_dgrams_retransmit(struct quic_conn *qc);
 void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
                                 struct list *ifrms, struct list *hfrms);
-int send_retry(struct listener *l, struct sockaddr_storage *dst,
+int send_retry(struct listener *l, struct sockaddr_storage *src,
+               struct sockaddr_storage *dst,
                struct quic_rx_packet *pkt, const struct quic_version *qv);
 int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
                          struct quic_rx_packet *rxpkt);

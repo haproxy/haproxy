@@ -1306,17 +1306,18 @@ static inline int quic_pkt_type(int type, uint32_t version)
 
 
 /* Generate a Retry packet and send it on <l> listener socket to <dst> in
- * response to the Initial <pkt> packet.
+ * response to the Initial <pkt> packet. <src> is the local address targeted by
+ * the peer, used as datagram source if possible (see quic_lstnr_sock_send()).
  *
  * Returns 0 on success else non-zero.
  */
-int send_retry(struct listener *l, struct sockaddr_storage *dst,
+int send_retry(struct listener *l, struct sockaddr_storage *src,
+               struct sockaddr_storage *dst,
                struct quic_rx_packet *pkt, const struct quic_version *qv)
 {
 	int ret = 0;
 	unsigned char buf[128];
 	int i = 0, token_len;
-	const socklen_t addrlen = get_addr_len(dst);
 	struct quic_cid scid;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
@@ -1365,8 +1366,8 @@ int send_retry(struct listener *l, struct sockaddr_storage *dst,
 
 	i += QUIC_TLS_TAG_LEN;
 
-	if (sendto(l->rx.fd, buf, i, 0, (struct sockaddr *)dst, addrlen) < 0) {
-		TRACE_ERROR("quic_tls_generate_retry_integrity_tag() failed", QUIC_EV_CONN_TXPKT);
+	if (quic_lstnr_sock_send(l, buf, i, src, dst) < 0) {
+		TRACE_ERROR("Retry emission failed", QUIC_EV_CONN_TXPKT);
 		goto out;
 	}
 
