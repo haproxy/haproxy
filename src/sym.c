@@ -310,6 +310,15 @@ static const struct {
 } sym_debugdata_note = { 7, 4, 1, "HAPDBG", 0 };
 #endif
 
+/* The table may also be linked in by a second linkage of the program, used
+ * as a fallback by the build when the linker gives the note no segment of
+ * its own and the table cannot be appended instead (e.g. gold merges the
+ * notes). It is then located through these symbols, wherever the linker
+ * placed it; they are weak so that a build without it simply has no table.
+ */
+extern const unsigned char __symtab_xz[] __attribute__((weak));
+extern const unsigned char __symtab_xz_end[] __attribute__((weak));
+
 /* native ELF class / endianness / symbol-type accessor, derived from the
  * toolchain since glibc doesn't provide *_NATIVE convenience macros.
  */
@@ -1140,6 +1149,14 @@ static int phdr_cb(struct dl_phdr_info *info, size_t size, void *data)
 		goto fail;
 
 	collect_dynsym_mem(b, info, obj);
+
+	/* the executable's own table, embedded by the second linkage, is
+	 * located through its symbols, wherever the linker placed it.
+	 */
+	if (is_exe && __symtab_xz) {
+		b->debugdata = __symtab_xz;
+		b->debugdata_size = __symtab_xz_end - __symtab_xz;
+	}
 
 	/* a table stored by the build is covered by a segment of its own, whose
 	 * contents identify it.

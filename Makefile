@@ -1100,6 +1100,9 @@ endif # non-empty target
 # Only the last step can leave the program half-written, so it is the only one
 # whose failure is fatal; not being able to produce the table just leaves the
 # program without one, as happens when the tools do not know the target.
+# If the linker was not being cooperative, and did not create our own special
+# note in its own segment, then revert to try to link the binary a second time,
+# once we know the size of .gnu_debugdata, to include it.
 # The nm options are spelled with their portable short forms (-P, -D) as some
 # implementations lack the long ones, and undefined symbols are told by their
 # type in awk instead of --defined-only, which these implementations lack too.
@@ -1107,6 +1110,7 @@ define make_minidebug
 	$(call qinfo,  MINIDBG)if ! ( \
 	    $(NM) -D -P $@ | awk '$$2 != "U" && $$2 != "w" { print $$1 }' | sort > $@.dsyms && \
 	    $(NM) -P $@ | awk '$$2 == "T" || $$2 == "t" { print $$1 }' | sort > $@.fsyms && \
+	    $(NM) -P $@ | awk '$$2 == "T" || $$2 == "t" { print $$1, $$3 }' | sort > $@.symaddrs && \
 	    comm -13 $@.dsyms $@.fsyms > $@.ksyms && \
 	    $(OBJCOPY) --only-keep-debug $@ $@.dbg && \
 	    $(OBJCOPY) -S --remove-section .gdb_index --remove-section .comment --keep-symbols=$@.ksyms $@.dbg $@.mini && \
@@ -1115,11 +1119,24 @@ define make_minidebug
 	    echo "$@: cannot build the symbol table, see the error above; the program is" >&2; \
 	    echo "$@: left without one. Cross-builds need NM, OBJCOPY and READELF pointed at" >&2; \
 	    echo "$@: the target's tools, and USE_MINIDEBUG=0 skips this step altogether." >&2; \
-	  elif ! READELF='$(READELF)' $(MINIDEBUG_TOOL) $@ $@.mini.xz; then \
-	    rm -f $@ $@.dsyms $@.fsyms $@.ksyms $@.dbg $@.mini $@.mini.xz; \
+	  elif READELF='$(READELF)' $(MINIDEBUG_TOOL) $@ $@.mini.xz; then \
+	    :; \
+	  elif [ $$? -ne 2 ]; then \
+	    rm -f $@ $@.dsyms $@.fsyms $@.symaddrs $@.ksyms $@.dbg $@.mini $@.mini.xz; \
 	    exit 1; \
+	  elif ! { echo "  LD      $@ (relinked with the symbol table)" >&2 && \
+	    printf '.section .gnu_debugdata,"a"\n\t.hidden __symtab_xz\n\t.global __symtab_xz\n__symtab_xz:\n\t.incbin "%s"\n\t.hidden __symtab_xz_end\n\t.global __symtab_xz_end\n__symtab_xz_end:\n\t.section .note.GNU-stack,"",@progbits\n' "$@.mini.xz" > $@.mini.S && \
+	    $(CC) $(ARCH_FLAGS) -c -o $@.mini.raw.o $@.mini.S && \
+	    $(OBJCOPY) --remove-section .note.gnu.property $@.mini.raw.o $@.mini.o && \
+	    $(LD) $(ARCH_FLAGS) $(LDFLAGS) -o $@.minidbg $@.mini.o $^ $(LDOPTS) && \
+	    $(NM) -P $@.minidbg 2>/dev/null | awk '$$2 == "T" || $$2 == "t" { print $$1, $$3 }' | sort | cmp -s - $@.symaddrs; }; then \
+	    echo "$@: the second linkage could not embed the symbol table either; the" >&2; \
+	    echo "$@: program is left without one. USE_MINIDEBUG=0 skips this step" >&2; \
+	    echo "$@: altogether." >&2; \
+	  else \
+	    mv -f $@.minidbg $@; \
 	  fi; \
-	  rm -f $@.dsyms $@.fsyms $@.ksyms $@.dbg $@.mini $@.mini.xz
+	  rm -f $@.dsyms $@.fsyms $@.symaddrs $@.ksyms $@.dbg $@.mini $@.mini.xz $@.mini.S $@.mini.raw.o $@.mini.o $@.minidbg
 endef
 
 haproxy: $(OPTIONS_OBJS) $(OBJS)

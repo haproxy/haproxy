@@ -31,14 +31,20 @@ pay="$2"
 PAGE=65536
 
 die() { echo "minidbg: $1" >&2; exit 1; }
+# die2() is only used strictly before anything is written, and tells the
+# caller with its status of 2 that the program may be kept as is, just
+# without the table; this is how a linker that leaves no segment of its
+# own to the note (e.g. gold merges the notes) is told apart from a failure
+# that may have half-written the program.
+die2() { echo "minidbg: $1" >&2; exit 2; }
 
-[ $# = 2 ] || die "usage: $0 <elf> <table>"
+[ $# = 2 ] || die2 "usage: $0 <elf> <table>"
 
-hdr=$(LC_ALL=C "$READELF" -hW "$elf") || die "cannot read $elf"
+hdr=$(LC_ALL=C "$READELF" -hW "$elf") || die2 "cannot read $elf"
 case "$hdr" in
 	*ELF64*) w=8 ;;
 	*ELF32*) w=4 ;;
-	*)       die "unknown ELF class" ;;
+	*)       die2 "unknown ELF class" ;;
 esac
 case "$hdr" in
 	*"big endian"*) be=1 ;;
@@ -48,7 +54,7 @@ esac
 # everything read from the listings is checked before being used
 num() {
 	case "$2" in
-		'' | *[!0-9]*) die "cannot read the $1 of $elf from $READELF" ;;
+		'' | *[!0-9]*) die2 "cannot read the $1 of $elf from $READELF" ;;
 	esac
 }
 
@@ -64,19 +70,19 @@ num "section header size"   "$shentsize"
 # the two placeholders: the section gives the name, the note gives the segment.
 # Their index in the listing is not their index in the table, so the section is
 # located by the number readelf prints, and the note by where it starts.
-secs=$(LC_ALL=C "$READELF" -SW "$elf") || die "cannot read the sections of $elf"
+secs=$(LC_ALL=C "$READELF" -SW "$elf") || die2 "cannot read the sections of $elf"
 sec=$(echo "$secs" | awk '{ for (i = 1; i < NF; i++) if ($i == ".gnu_debugdata") {
 				n = (i == 2) ? $1 : $(i - 1); gsub(/[][]/, "", n); print n; exit } }')
-[ -n "$sec" ] || die "no .gnu_debugdata section in $elf, was it reserved at link time?"
+[ -n "$sec" ] || die2 "no .gnu_debugdata section in $elf, was it reserved at link time?"
 num "section index" "$sec"
 note=$(echo "$secs" | awk '{ for (i = 1; i < NF; i++) if ($i == ".note.hapdbg") {
 				o = $(i + 3); z = $(i + 4); sub(/^0*/, "", o); sub(/^0*/, "", z)
 				print o " " z; exit } }')
-[ -n "$note" ] || die "no .note.hapdbg section in $elf, was it reserved at link time?"
+[ -n "$note" ] || die2 "no .note.hapdbg section in $elf, was it reserved at link time?"
 
 # the note's own segment is the one that starts where the note does and holds
 # nothing else, so that turning it into a loadable one loses no other note
-segs=$(LC_ALL=C "$READELF" -lW "$elf") || die "cannot read the segments of $elf"
+segs=$(LC_ALL=C "$READELF" -lW "$elf") || die2 "cannot read the segments of $elf"
 seg=$(echo "$segs" | awk -v want="$note" '
 	$2 ~ /^0x/ && $3 ~ /^0x/ && $4 ~ /^0x/ {
 		if ($1 == "NOTE") {
@@ -85,7 +91,7 @@ seg=$(echo "$segs" | awk -v want="$note" '
 		}
 		idx++
 	}')
-[ -n "$seg" ] || die "the note of $elf has no segment of its own"
+[ -n "$seg" ] || die2 "the note of $elf has no segment of its own"
 num "segment index" "$seg"
 
 # the table is mapped past everything the file already maps
@@ -94,10 +100,10 @@ for e in $(echo "$segs" | awk '$1 == "LOAD" && $3 ~ /^0x/ { print $3 "+" $6 }');
 	e=$(( $e ))
 	[ $e -gt $maxva ] && maxva=$e
 done
-[ $maxva -gt 0 ] || die "$elf has no loadable segment"
+[ $maxva -gt 0 ] || die2 "$elf has no loadable segment"
 
-paylen=$(wc -c < "$pay") || die "cannot read $pay"
-[ "$paylen" -gt 0 ] || die "$pay is empty"
+paylen=$(wc -c < "$pay") || die2 "cannot read $pay"
+[ "$paylen" -gt 0 ] || die2 "$pay is empty"
 elflen=$(wc -c < "$elf")
 off=$(( (elflen + PAGE - 1) / PAGE * PAGE ))
 vaddr=$(( (maxva + PAGE - 1) / PAGE * PAGE ))
