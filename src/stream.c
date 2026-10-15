@@ -624,6 +624,7 @@ void stream_free(struct stream *s)
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
 	int i;
+	int flush_pools = 0;
 
 	DBG_TRACE_POINT(STRM_EV_STRM_FREE, s);
 
@@ -739,14 +740,14 @@ void stream_free(struct stream *s)
 			pool_free(fe->rsp_cap_pool, s->res_cap);
 		}
 
-		/* Hold a reference on the frontend for the rest of the stream
-		 * teardown. The stream connectors are destroyed below. An
-		 * client applet attached to the stream will be released there,
-		 * and it may free an internal frontend (created and owned by an
-		 * applet), leaving the end of the function with a dangling
-		 * frontend. The reference is dropped at the very end.
+		/* Flush frontend capture pools if it is stopping. Global pools
+		 * will be too flushed at the end.
 		 */
-		proxy_take(fe);
+		if (unlikely(fe->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
+			flush_pools = 1;
+			pool_flush(fe->req_cap_pool);
+			pool_flush(fe->rsp_cap_pool);
+		}
 	}
 
 	/* Cleanup all variable contexts. */
@@ -794,7 +795,7 @@ void stream_free(struct stream *s)
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
-	if (fe && unlikely(fe->flags & (PR_FL_DISABLED|PR_FL_STOPPED))) {
+	if (flush_pools) {
 		pool_flush(pool_head_buffer);
 		pool_flush(pool_head_large_buffer);
 		pool_flush(pool_head_http_txn);
@@ -805,11 +806,8 @@ void stream_free(struct stream *s)
 		pool_flush(pool_head_session);
 		pool_flush(pool_head_connection);
 		pool_flush(pool_head_pendconn);
-		pool_flush(fe->req_cap_pool);
-		pool_flush(fe->rsp_cap_pool);
 	}
 
-	proxy_drop(fe);
 }
 
 
