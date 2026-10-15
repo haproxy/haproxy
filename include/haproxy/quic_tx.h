@@ -50,7 +50,8 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 int send_retry(struct listener *l, struct sockaddr_storage *src,
                struct sockaddr_storage *dst,
                struct quic_rx_packet *pkt, const struct quic_version *qv);
-int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
+int send_stateless_reset(struct listener *l, struct sockaddr_storage *srcaddr,
+                         struct sockaddr_storage *dstaddr,
                          struct quic_rx_packet *rxpkt);
 int send_version_negotiation(struct listener *l, struct sockaddr_storage *dst,
                              struct quic_rx_packet *pkt);

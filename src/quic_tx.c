@@ -1204,15 +1204,17 @@ static THREAD_LOCAL struct freq_ctr quic_stateless_reset_freq_ctr;
 static THREAD_LOCAL uint quic_stateless_reset_rate;
 
 /* Send a stateless reset packet depending on <rxpkt> RX packet information
- * from <l> listener socket to <dstaddr>
+ * from <l> listener socket to <dstaddr>. <srcaddr> is the local address
+ * targeted by the peer, used as datagram source if possible (see
+ * quic_lstnr_sock_send()).
  * Return 1 if succeeded, 0 if not.
  */
-int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
+int send_stateless_reset(struct listener *l, struct sockaddr_storage *srcaddr,
+                         struct sockaddr_storage *dstaddr,
                          struct quic_rx_packet *rxpkt)
 {
 	int ret = 0, pktlen, rndlen;
 	unsigned char pkt[64];
-	const socklen_t addrlen = get_addr_len(dstaddr);
 	struct proxy *prx;
 	struct quic_counters *prx_counters;
 
@@ -1271,7 +1273,7 @@ int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
 	                                    rxpkt->dcid.data, rxpkt->dcid.len))
 		goto leave;
 
-	if (sendto(l->rx.fd, pkt, pktlen, 0, (struct sockaddr *)dstaddr, addrlen) < 0)
+	if (quic_lstnr_sock_send(l, pkt, pktlen, srcaddr, dstaddr) < 0)
 		goto leave;
 
     ret = 1;
