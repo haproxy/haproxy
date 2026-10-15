@@ -31523,6 +31523,16 @@ A filter is declared on a proxy in one of two modes:
     "filter-sequence" directive. The instances are disabled by default and
     are activated with the "enabled" token or the "filter-enable" directive.
 
+Each filter class is placed in three independent orders: a global one, used
+for the side-independent operations (configuration checks, initialization and
+destruction), and a request and a response one, used for the evaluation order
+of the instances on the corresponding channel. The request and the response
+orders are independent, so a class may be evaluated at a different position
+depending on the direction, and the global order may be changed without
+affecting them. The resulting orders of a proxy may be inspected with the
+"show filter classes" CLI command, and the "show filter instances" one reports
+the resulting order of the instances.
+
 The mode is selected by the configuration itself: as soon as a legacy "filter"
 directive is used in a proxy, the proxy works in legacy mode and the
 "filter-*" directives must not be used in the same proxy, including when they

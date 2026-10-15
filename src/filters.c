@@ -55,10 +55,16 @@ struct filter_class flt_bwlim_out_cls;
 struct filter_class flt_fcgi_cls;
 #endif
 
-/* Global list of all filter classes */
+/* Global registry of all filter classes, in registration order. Used for the
+ * class lookup and by "haproxy -vv".
+ */
 static struct list filter_classes = LIST_HEAD_INIT(filter_classes);
 
-/* Ordered list of filter classes dedicated to the request/response processing */
+/* Ordered lists of the filter classes, one per evaluation order. The global
+ * order follows the registration order until a class is explicitly placed, the
+ * request and the response orders only contain the placed classes.
+ */
+static struct list global_filter_classes = LIST_HEAD_INIT(global_filter_classes);
 static struct list req_filter_classes = LIST_HEAD_INIT(req_filter_classes);
 static struct list res_filter_classes = LIST_HEAD_INIT(res_filter_classes);
 
@@ -131,13 +137,38 @@ static struct filter_instance *flt_inst_from_list(struct list *entry, unsigned i
 	return LIST_ELEM(entry, struct filter_instance *, global.list);
 }
 
+/* Returns the anchor of <cls> in the evaluation order of <side>, one of
+ * FLT_SIDE_GLOBAL, FLT_SIDE_REQ or FLT_SIDE_RES.
+ */
+static struct filter_class_side *flt_class_side(struct filter_class *cls, unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return &cls->req;
+	if (side == FLT_SIDE_RES)
+		return &cls->res;
+	return &cls->global;
+}
+
+/* Returns the head of the class order of <side>. The global order is its own
+ * list, distinct from the registry of the registered classes.
+ */
+static struct list *flt_class_order(unsigned int side)
+{
+	if (side == FLT_SIDE_REQ)
+		return &req_filter_classes;
+	if (side == FLT_SIDE_RES)
+		return &res_filter_classes;
+	return &global_filter_classes;
+}
+
+/* Returns the class linked in <entry>, in the order of <side>. */
 static struct filter_class *flt_class_from_list(struct list *entry, unsigned int side)
 {
 	if (side == FLT_SIDE_REQ)
 		return LIST_ELEM(entry, struct filter_class *, req.list);
 	if (side == FLT_SIDE_RES)
 		return LIST_ELEM(entry, struct filter_class *, res.list);
-	return LIST_ELEM(entry, struct filter_class *, list);
+	return LIST_ELEM(entry, struct filter_class *, global.list);
 }
 
 /* Initialize all links before any fallible operation, so error cleanup can
@@ -3137,24 +3168,23 @@ void flt_deinit_new_proxy(struct proxy *px)
 	}
 }
 
-/* Dump classes in global registration order or in a channel's placement tree. */
+/* Dump classes walking the placement tree of <side>. The classes placed
+ * before the current one are dumped first, then the class itself, then the
+ * ones placed after it.
+ */
 static void cli_dump_flt_classes(struct buffer *out, struct list *classes, unsigned int side, int *first)
 {
 	struct filter_class *cls;
+	struct filter_class_side *cs;
 	struct list *entry;
 
 	for (entry = classes->n; entry != classes; entry = entry->n) {
 		cls = flt_class_from_list(entry, side);
-		if (side == FLT_SIDE_REQ)
-			cli_dump_flt_classes(out, &cls->req.before, side, first);
-		else if (side == FLT_SIDE_RES)
-			cli_dump_flt_classes(out, &cls->res.before, side, first);
+		cs = flt_class_side(cls, side);
+		cli_dump_flt_classes(out, &cs->before, side, first);
 		chunk_appendf(out, "%s%s", *first ? "" : " > ", cls->name);
 		*first = 0;
-		if (side == FLT_SIDE_REQ)
-			cli_dump_flt_classes(out, &cls->req.after, side, first);
-		else if (side == FLT_SIDE_RES)
-			cli_dump_flt_classes(out, &cls->res.after, side, first);
+		cli_dump_flt_classes(out, &cs->after, side, first);
 	}
 }
 
@@ -3176,8 +3206,7 @@ static int cli_parse_show_flt_classes(char **args, char *payload, struct appctx 
 	for (i = 0; i < sizeof(sides) / sizeof(sides[0]); i++) {
 		if (selected && selected != sides[i])
 			continue;
-		classes = (sides[i] == FLT_SIDE_REQ ? &req_filter_classes :
-			   sides[i] == FLT_SIDE_RES ? &res_filter_classes : &filter_classes);
+		classes = flt_class_order(sides[i]);
 		first = 1;
 		chunk_appendf(&trash, "%s: ", flt_side_name(sides[i]));
 		cli_dump_flt_classes(&trash, classes, sides[i], &first);
@@ -3358,18 +3387,23 @@ static inline void flt_init_class(struct filter_class *cls, const char *name, un
 	cls->name = name;
 	cls->flags = flags;
 	cls->parse = parse;
+	LIST_INIT(&cls->global.before);
+	LIST_INIT(&cls->global.after);
+	LIST_INIT(&cls->global.list);
+	cls->global.placed = 0;
+
 	LIST_INIT(&cls->req.before);
 	LIST_INIT(&cls->req.after);
 	LIST_INIT(&cls->req.list);
+	cls->req.placed = 0;
 
 	LIST_INIT(&cls->res.before);
 	LIST_INIT(&cls->res.after);
 	LIST_INIT(&cls->res.list);
-
-	LIST_INIT(&cls->list);
+	cls->res.placed = 0;
 }
 
-/* Finds a filter class by name in the global list, NULL if unknown. */
+/* Finds a filter class by name in the global registry, NULL if unknown. */
 struct filter_class *filter_find_class(const char *name)
 {
 	struct filter_class *cls;
@@ -3381,27 +3415,20 @@ struct filter_class *filter_find_class(const char *name)
 	return NULL;
 }
 
-/* Create class references in global registration order, or following a
- * side's class placement tree. Returns 0 on success, -1 on error.
+/* Create class references in the class order of <side>, following the class
+ * placement tree. Returns 0 on success, -1 on error.
  */
 static int flt_init_class_refs_side(struct proxy *px, struct list *classes, unsigned int side)
 {
 	struct filter_class *cls;
+	struct filter_class_side *cs;
 	struct filter_class_ref *ref;
-	struct list *entry, *before, *after;
+	struct list *entry;
 
 	for (entry = classes->n; entry != classes; entry = entry->n) {
 		cls = flt_class_from_list(entry, side);
-		before = after = NULL;
-		if (side == FLT_SIDE_REQ) {
-			before = &cls->req.before;
-			after = &cls->req.after;
-		}
-		else if (side == FLT_SIDE_RES) {
-			before = &cls->res.before;
-			after = &cls->res.after;
-		}
-		if (before && flt_init_class_refs_side(px, before, side) < 0)
+		cs = flt_class_side(cls, side);
+		if (flt_init_class_refs_side(px, &cs->before, side) < 0)
 			return -1;
 
 		ref = calloc(1, sizeof(*ref));
@@ -3413,29 +3440,28 @@ static int flt_init_class_refs_side(struct proxy *px, struct list *classes, unsi
 		LIST_INIT(&ref->reordered_after);
 		LIST_APPEND(flt_class_refs(px, side), &ref->list);
 
-		if (after && flt_init_class_refs_side(px, after, side) < 0)
+		if (flt_init_class_refs_side(px, &cs->after, side) < 0)
 			return -1;
 	}
 	return 0;
 }
 
 /* Creates the filter class references of the proxy <px>: one global reference
- * per registered class, plus references on each side it is placed on.
- * The global order follows filter_classes, independently of the side placement.
+ * per registered class, plus references on each side the class is placed on.
+ * The order of each side follows the class placement tree of that side.
  * It is called during the proxy initialization, so all filter classes must be
  * registered first.
  * Returns 0 on success, -1 on error.
  */
 int flt_init_class_refs(struct proxy *px)
 {
-	if (flt_init_class_refs_side(px, &filter_classes, FLT_SIDE_GLOBAL) < 0)
+	if (flt_init_class_refs_side(px, &global_filter_classes, FLT_SIDE_GLOBAL) < 0)
 		goto error;
 	if (flt_init_class_refs_side(px, &req_filter_classes, FLT_SIDE_REQ) < 0)
 		goto error;
 	if (flt_init_class_refs_side(px, &res_filter_classes, FLT_SIDE_RES) < 0)
 		goto error;
 	return 0;
-
   error:
 	flt_free_instances(px);
 	return -1;
@@ -3480,9 +3506,9 @@ int flt_parse_instance_legacy(struct proxy *px, struct filter_instance *inst, ch
 /* Registers a new filter class, with the parsing function <parse> used to
  * finalize the filter instances of this class (may be NULL if the class does
  * not support the "filter-config" directive). The class is initialized and
- * added to the global "filter_classes" list only — it is not usable on any side
- * until placed with filter_place_class(). Must be called after
- * filter_init_classes().
+ * added to the global registry of the known classes, and appended at the end
+ * of the global order. It is not usable on any channel side until placed with
+ * filter_place_class(). Must be called after filter_init_classes().
  * Returns 0 on success, -1 on error (too early call, duplicate name).
  */
 int filter_register_class(struct filter_class *cls, const char *name,
@@ -3508,16 +3534,21 @@ int filter_register_class(struct filter_class *cls, const char *name,
 
 	flt_init_class(cls, name, 0, parse);
 	LIST_APPEND(&filter_classes, &cls->list);
+	LIST_APPEND(&global_filter_classes, &cls->global.list);
 	ret = 0;
   out:
 	return ret;
 }
-
-/* Places <cls> on <side> (FLT_SIDE_REQ or FLT_SIDE_RES), before or after the
- * reference class <ref_name>. The class is appended in the reference class'
- * req/res .before or .after constraint list; the final evaluation order is
- * resolved later. The global ordered lists are never touched here.  Call it
- * once per side; the positions may differ per side.
+/* Places <cls> in the order of <side> (FLT_SIDE_GLOBAL, FLT_SIDE_REQ or
+ * FLT_SIDE_RES), before or after the reference class <ref_name>. The class is
+ * appended in the reference class' .before or .after constraint list of that
+ * side; the final evaluation order is resolved later.
+ *
+ * The global side is the order used for the side-independent operations
+ * (configuration checks, initialization and destruction), while the request
+ * and the response sides drive the stream evaluation order.
+ *
+ * Call it once per side; the positions may differ per side.
  * Returns 0 on success, -1 on error (unknown ref, ref not present on that side,
  * class already placed on that side).
  */
@@ -3525,14 +3556,15 @@ int filter_place_class(struct filter_class *cls, unsigned int side,
 		       const char *ref_name, enum flt_pos pos)
 {
 	struct filter_class *ref;
+	struct filter_class_side *cs, *ref_cs;
 	int ret = -1;
 
 	if (!filter_classes_initialized) {
 		ha_alert("filters: class '%s' placed before internal classes were initialized\n", cls->name);
 		goto out;
 	}
-	if (side != FLT_SIDE_REQ && side != FLT_SIDE_RES) {
-		ha_alert("filters: class '%s' placement requires a request or response side\n", cls->name);
+	if (side != FLT_SIDE_GLOBAL && side != FLT_SIDE_REQ && side != FLT_SIDE_RES) {
+		ha_alert("filters: class '%s' placement requires a global, request or response side\n", cls->name);
 		goto out;
 	}
 	ref = filter_find_class(ref_name);
@@ -3540,40 +3572,66 @@ int filter_place_class(struct filter_class *cls, unsigned int side,
 		ha_alert("filters: unknown reference class '%s' for class '%s'\n", ref_name, cls->name);
 		goto out;
 	}
+	if (ref == cls) {
+		ha_alert("filters: class '%s' cannot be placed relative to itself\n", cls->name);
+		goto out;
+	}
 
-	if (side == FLT_SIDE_REQ) {
-		if (LIST_INLIST(&cls->req.list)) {
-			ha_alert("filters: class '%s' already placed on request side\n", cls->name);
-			goto out;
-		}
-		if (!LIST_INLIST(&ref->req.list)) {
-			ha_alert("filters: reference class '%s' has no request side\n", ref_name);
-			goto out;
-		}
-		LIST_APPEND((pos == FLT_POS_BEFORE) ? &ref->req.before : &ref->req.after,
-			    &cls->req.list);
+	cs = flt_class_side(cls, side);
+	ref_cs = flt_class_side(ref, side);
+
+	if (cs->placed) {
+		ha_alert("filters: class '%s' already placed on the %s side\n",
+			 cls->name, flt_side_name(side));
+		goto out;
 	}
-	else {
-		if (LIST_INLIST(&cls->res.list)) {
-			ha_alert("filters: class '%s' already placed on response side\n", cls->name);
-			goto out;
-		}
-		if (!LIST_INLIST(&ref->res.list)) {
-			ha_alert("filters: reference class '%s' has no response side\n", ref_name);
-			goto out;
-		}
-		LIST_APPEND((pos == FLT_POS_BEFORE) ? &ref->res.before : &ref->res.after,
-			    &cls->res.list);
+
+	if (side == FLT_SIDE_GLOBAL) {
+		/* The class is already linked in the global order, it was
+		 * appended there at registration. Move it to the requested
+		 * position, relative to the reference class.
+		 */
+		LIST_DEL_INIT(&cs->list);
 	}
+	else if (!LIST_INLIST(&ref_cs->list)) {
+		/* A channel order only contains the classes used on that
+		 * channel, so the reference must be placed on it. The global
+		 * order accepts any registered class as a reference, since it
+		 * contains all of them.
+		 */
+		ha_alert("filters: reference class '%s' has no %s side\n",
+			 ref_name, flt_side_name(side));
+		goto out;
+	}
+
+	LIST_APPEND((pos == FLT_POS_BEFORE) ? &ref_cs->before : &ref_cs->after, &cs->list);
+	cs->placed = 1;
 	ret = 0;
   out:
 	return ret;
 }
 
-/* Registers a new filter class named <name> and places it on both sides,
- * before or after the reference class <ref_name>. Convenience function for
- * the common symmetric case, equivalent to filter_register_class() followed
- * by filter_place_class() on FLT_SIDE_REQ and FLT_SIDE_RES.
+/* Detaches <cls> from the three class orders. Used by the registration
+ * cleanup path, when the class is about to be dropped.
+ */
+static void flt_unplace_class(struct filter_class *cls)
+{
+	unsigned int side;
+
+	for (side = FLT_SIDE_REQ; side <= FLT_SIDE_GLOBAL; side <<= 1) {
+		struct filter_class_side *cs = flt_class_side(cls, side);
+
+		if (LIST_INLIST(&cs->list))
+			LIST_DEL_INIT(&cs->list);
+		cs->placed = 0;
+	}
+}
+
+/* Registers a new filter class named <name> and places it on the global side
+ * and on both channel sides, before or after the reference class <ref_name>.
+ * Convenience function for the common symmetric case, equivalent to
+ * filter_register_class() followed by filter_place_class() on
+ * FLT_SIDE_GLOBAL, FLT_SIDE_REQ and FLT_SIDE_RES.
  * Returns 0 on success, -1 on error. */
 int filter_register_class_full(struct filter_class *cls, const char *name,
 			       int (*parse)(char **args, struct proxy *px,
@@ -3582,6 +3640,8 @@ int filter_register_class_full(struct filter_class *cls, const char *name,
 {
 	if (filter_register_class(cls, name, parse) < 0)
 		goto err;
+	if (filter_place_class(cls, FLT_SIDE_GLOBAL, ref_name, pos) < 0)
+		goto cleanup_on_err;
 	if (filter_place_class(cls, FLT_SIDE_REQ, ref_name, pos) < 0)
 		goto cleanup_on_err;
 	if (filter_place_class(cls, FLT_SIDE_RES, ref_name, pos) < 0)
@@ -3590,8 +3650,9 @@ int filter_register_class_full(struct filter_class *cls, const char *name,
 	return 0;
 
   cleanup_on_err:
-	LIST_DELETE(&cls->list);
-	LIST_INIT(&cls->list);
+	/* detach the class from the class orders and from the registry */
+	flt_unplace_class(cls);
+	LIST_DEL_INIT(&cls->list);
 	/* fallthrough */
   err:
 	return -1;
@@ -3610,7 +3671,10 @@ int filter_register_class_full(struct filter_class *cls, const char *name,
  *    if (filter_register_class(&flt_myfilter_cls, "myfilter", myfilter_parse_def) < 0)
  *       return -1;
  *
- *    // before spoe on request, after lua on response
+ *    // before spoe on request, after lua on response, before cache-store
+ *    // for the global order
+ *     if (filter_place_class(&flt_myfilter_cls, FLT_SIDE_GLOBAL, "cache-store", FLT_POS_BEFORE) < 0)
+ *       return -1;
  *     if (filter_place_class(&flt_myfilter_cls, FLT_SIDE_REQ, "spoe", FLT_POS_BEFORE) < 0)
  *       return -1;
  *    if (filter_place_class(&flt_myfilter_cls, FLT_SIDE_RES, "lua", FLT_POS_AFTER) < 0)
@@ -3640,6 +3704,10 @@ static void filter_init_classes(void)
 	flt_init_class(&flt_fcgi_cls,          fcgi_filter_cls_name,          0,                fcgi_flt_parse_instance);
 #endif
 
+	/* Registry: all the known classes, in registration order. It is a flat
+	 * list, and it stays flat whatever the placements are, so that
+	 * filter_find_class() always finds every registered class.
+	 */
 	LIST_APPEND(&filter_classes, &flt_trace_cls.list);
 	LIST_APPEND(&filter_classes, &flt_cache_store_cls.list);
 	LIST_APPEND(&filter_classes, &flt_decomp_req_cls.list);
@@ -3656,6 +3724,28 @@ static void filter_init_classes(void)
 	LIST_APPEND(&filter_classes, &flt_bwlim_out_cls.list);
 #if defined(USE_FCGI)
 	LIST_APPEND(&filter_classes, &flt_fcgi_cls.list);
+#endif
+
+	/* Global order: the same classes, in the global evaluation order. It
+	 * is a placement tree, the classes are re-parented by
+	 * filter_place_class() on FLT_SIDE_GLOBAL.
+	 */
+	LIST_APPEND(&global_filter_classes, &flt_trace_cls.global.list);
+	LIST_APPEND(&global_filter_classes, &flt_cache_store_cls.global.list);
+	LIST_APPEND(&global_filter_classes, &flt_decomp_req_cls.global.list);
+	LIST_APPEND(&global_filter_classes, &flt_decomp_res_cls.global.list);
+#if defined(USE_SPOE)
+	LIST_APPEND(&global_filter_classes, &flt_spoe_cls.global.list);
+#endif
+#if defined(USE_LUA)
+	LIST_APPEND(&global_filter_classes, &flt_lua_cls.global.list);
+#endif
+	LIST_APPEND(&global_filter_classes, &flt_http_comp_req_cls.global.list);
+	LIST_APPEND(&global_filter_classes, &flt_http_comp_res_cls.global.list);
+	LIST_APPEND(&global_filter_classes, &flt_bwlim_in_cls.global.list);
+	LIST_APPEND(&global_filter_classes, &flt_bwlim_out_cls.global.list);
+#if defined(USE_FCGI)
+	LIST_APPEND(&global_filter_classes, &flt_fcgi_cls.global.list);
 #endif
 
 	LIST_APPEND(&req_filter_classes, &flt_trace_cls.req.list);

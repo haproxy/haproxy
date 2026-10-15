@@ -275,6 +275,18 @@ enum flt_pos {
 /* filter class flags */
 #define FLT_CLS_FL_MULTI  0x01   /* Set if several class instances are allowed per proxy */
 
+/* Anchor of a filter class in one of the three class orders. The classes moved
+ * before or after all the instances of this class are linked in the 'before'
+ * and 'after' constraint lists, while the class itself is linked in the order
+ * list once it was placed.
+ */
+struct filter_class_side {
+	struct list before;  /* classes moved before all instances of this class */
+	struct list after;   /* classes moved after all instances of this class */
+	struct list list;    /* link in the order list, once the class is placed */
+	unsigned int placed; /* != 0 once the class was explicitly placed */
+};
+
 struct filter_class {
 	const char *name;           /* The filter class name, must be unique */
 	unsigned int flags;         /* FLT_CLS_FL_* */
@@ -283,18 +295,11 @@ struct filter_class {
 	 * the filter configuration (inst->fconf).
 	 */
 	int (*parse)(char **args, struct proxy *px, struct filter_instance *inst, char **err);
-	struct {
-		struct list before; /* classes moved before current class for request */
-		struct list after;  /* classes moved after current class for request */
-		struct list list;   /* classes registered on request analysis */
-	} req;
-	struct {
-		struct list before; /* classes moved before current class on response */
-		struct list after;  /* classes moved after current class on response */
-		struct list list;   /* classes registered on response analysis */
-	} res;
+	struct filter_class_side global; /* placement in the global order */
+	struct filter_class_side req;    /* placement in the request order */
+	struct filter_class_side res;    /* placement in the response order */
 
-	struct list list; /* Link in global list of filter classes */
+	struct list list; /* Link in the global registry of filter classes */
 };
 
 /* Per-proxy reference to a filter class, in the global, request or response

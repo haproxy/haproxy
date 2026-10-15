@@ -483,6 +483,14 @@ working, a keyword parser must also be registered (see section 3.2.2).
 
 The filter class is described by the following structure :
 
+    /* Anchor of a class in one of the three class orders */
+    struct filter_class_side {
+        struct list before;  /* classes moved before all instances of this class */
+        struct list after;   /* classes moved after all instances of this class */
+        struct list list;    /* link in the order list, once the class is placed */
+        unsigned int placed; /* != 0 once the class was explicitly placed */
+    };
+
     struct filter_class {
         const char *name;           /* The filter class name, must be uniq */
         unsigned int flags;         /* FLT_CLS_FL_* */
@@ -493,18 +501,11 @@ The filter class is described by the following structure :
         int (*parse)(char **args, struct proxy *px,
                      struct filter_instance *inst, char **err);
 
-        struct {
-            struct list before; /* classes moved before current class for request */
-            struct list after;  /* classes moved after current class for request */
-            struct list list;   /* classes registered on request analysis */
-        } req;
-        struct {
-            struct list before; /* classes moved before current class on response */
-            struct list after;  /* classes moved after current class on response */
-            struct list list;   /* classes registered on response analysis */
-        } res;
+        struct filter_class_side global; /* placement in the global order */
+        struct filter_class_side req;    /* placement in the request order */
+        struct filter_class_side res;    /* placement in the response order */
 
-        struct list list; /* Link in global list of filter classes */
+        struct list list; /* Link in the global registry of filter classes */
     };
 
   * 'filter_class.name' is the name used by the "filter-config" directive and
@@ -520,14 +521,14 @@ The filter class is described by the following structure :
     section 3.2.1). It may be NULL, but in this case the class cannot be used
     with "filter-config" at all.
 
-  * 'filter_class.req' and 'filter_class.res' anchor the class in the request
-    and response class orders (see below).
+  * 'filter_class.global', 'filter_class.req' and 'filter_class.res' anchor the
+    class in the three class orders (see below).
 
   * 'filter_class.list' links the class in the global registry.
 
-The class is registered with filter_register_class(). It must then be placed,
-on each side it supports, relative to an already placed class, with
-filter_place_class() :
+The class is registered with filter_register_class(). At this point it is
+appended at the end of the global order. It must then be placed, on each side
+it supports, relative to an already placed class, with filter_place_class() :
 
     static struct filter_class flt_my_filter_cls;
 
@@ -536,8 +537,10 @@ filter_place_class() :
         if (filter_register_class(&flt_my_filter_cls, "my-filter", my_filter_parse_instance) < 0)
             return -1;
 
-        /* Evaluate the filter before SPOE on the request path and after the Lua
-         * filters on the response path. */
+        /* Evaluate the filter before cache-store globally, before SPOE on the
+         * request path and after the Lua filters on the response path. */
+        if (filter_place_class(&flt_my_filter_cls, FLT_SIDE_GLOBAL, "cache-store", FLT_POS_BEFORE) < 0)
+            return -1;
         if (filter_place_class(&flt_my_filter_cls, FLT_SIDE_REQ, "spoe", FLT_POS_BEFORE) < 0)
             return -1;
         if (filter_place_class(&flt_my_filter_cls, FLT_SIDE_RES, "lua", FLT_POS_AFTER) < 0)
@@ -546,14 +549,31 @@ filter_place_class() :
     }
     INITCALL1(STG_INIT, my_filter_register_class);
 
-filter_register_class_full() is a helper for the common case where the class is
-placed on both sides at the same position relative to the same class.
+filter_place_class() accepts the three sides, FLT_SIDE_GLOBAL, FLT_SIDE_REQ
+and FLT_SIDE_RES, and may be called once per side :
 
-A class placed on neither side is rejected at startup because it would be
-useless. A class may be placed on both sides with different positions. The
-placement defines the default evaluation order of the instances of the class
-relative to the other classes. The global order follows the class registration
-order.
+  * FLT_SIDE_REQ and FLT_SIDE_RES define the evaluation order of the instances
+    of the class on the corresponding channel. The reference class must be
+    placed on the same side, because a channel order only contains the classes
+    used on that channel. The order of the request and the response sides may
+    differ, it is common for a class to sit at two different positions.
+
+  * FLT_SIDE_GLOBAL defines the order of the side-independent operations: the
+    configuration checks, the initialization and the destruction. It follows
+    the class registration order until a class is explicitly placed, and it is
+    independent of the channel placements. Any registered class may be used as
+    a reference on this side, since the global order contains all of them.
+    Moving a class in the global order does not change its request or response
+    positions.
+
+filter_register_class_full() is a helper for the common case where the class is
+placed at the same position relative to the same class, on the global side and
+on both channel sides.
+
+A class placed on neither the request nor the response side is rejected at
+startup because it would be useless. The placements define the default
+evaluation order of the instances of the class relative to the other classes,
+which may then be refined per proxy with "filter-sequence" (section 2.2).
 
 WARNING : filter_register_class() must be called after the built-in classes
           were initialized, so from an initcall of the STG_INIT stage or a later
@@ -1843,9 +1863,10 @@ enabled by another directive, or is referenced by other directives.
     side, but the user may change it per proxy with "filter-sequence". A
     filter must not assume a fixed position relative to the other filters
     unless it owns the placement of the classes involved and knows that the
-    sequences cannot change it. The global order, which follows the class
-    registration order, only drives the side-independent operations
-    (configuration checks, initialization and destruction).
+    sequences cannot change it. The global order, which is the class
+    registration order refined by the placements on the FLT_SIDE_GLOBAL side,
+    only drives the side-independent operations (configuration checks,
+    initialization and destruction).
 
   * A class must be registered after the built-in classes were initialized,
     from a STG_INIT initcall or a later stage, otherwise the registration
@@ -1935,8 +1956,9 @@ enabled by another directive, or is referenced by other directives.
     In the new mode, by the class placement on the request and response sides
     (section 3.2) and, possibly, by the "filter-sequence" directive on a per
     proxy basis (section 2.2). The global order follows the class registration
-    order. A filter must not assume a fixed order relative to other filters
-    unless it owns the corresponding placements or sequences.
+    order, refined by the placements on the FLT_SIDE_GLOBAL side. A filter must
+    not assume a fixed order relative to other filters unless it owns the
+    corresponding placements or sequences.
 
     In legacy mode, the declaration order of the "filter" directives is used.
 
