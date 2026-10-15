@@ -5072,7 +5072,7 @@ static int sample_conv_jwt_member_query(const struct arg *args, struct sample *s
 
 	ret = base64urldec(items[member].start, items[member].length,
 	                   decoded_header->area, decoded_header->size);
-	if (ret == -1)
+	if (ret < 0)
 		goto end;
 
 	/* mjson might return an embedded \0 that is not valid as a string */
