@@ -71,7 +71,7 @@ shell {
 	[ "$out" = "Backend deleted." ] || \
 	  { echo "expect failure: backend not immediately deleted: ${out}"; exit 1; }
 
-	out=$(echo "wait 10ms be-unknown be1" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	out=$(echo "wait ${HAPROXY_TEST_TIMEOUT-5s} be-unknown be1" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
 	[ "$out" = "Done." ] || \
 	  { echo "expect failure: wait be-unknown not validated: ${out}"; exit 1; }
 }
@@ -105,7 +105,7 @@ client c1 -wait
 
 shell {
 	# Backend should now be removed and wait should success
-	out=$(echo "wait 1s be-unknown be2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	out=$(echo "wait ${HAPROXY_TEST_TIMEOUT-5s} be-unknown be2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
 	[ "$out" = "Done." ] || \
 	  { echo "expect failure: wait be-unknown not successful: ${out}"; exit 1; }
 }

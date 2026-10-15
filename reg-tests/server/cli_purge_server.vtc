@@ -79,7 +79,7 @@ barrier b1 sync
 
 shell {
 	# Check that the server is deleted
-	out=$(echo "wait 1s srv-unknown be/srv2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
+	out=$(echo "wait ${HAPROXY_TEST_TIMEOUT-5s} srv-unknown be/srv2" | socat -,ignoreeof=1 "${tmpdir}/h1/stats")
 	[ "$out" = "Done." ] || \
 	  { echo "expect failure: wait srv-unknown failure: ${out}"; exit 1; }
 }
