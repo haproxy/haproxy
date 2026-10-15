@@ -1137,20 +1137,21 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 
 /*
  * Send a Version Negotiation packet on response to <pkt> on <l> listener
- * socket to <dst> address.
+ * socket to <dst> address. <src> is the local address targeted by the peer,
+ * used as datagram source if possible (see quic_lstnr_sock_send()).
  * Implementation of RFC9000 6. Version Negotiation
  *
  * TODO implement a rate-limiting sending of Version Negotiation packets
  *
  * Returns 0 on success else non-zero
  */
-int send_version_negotiation(struct listener *l, struct sockaddr_storage *dst,
+int send_version_negotiation(struct listener *l, struct sockaddr_storage *src,
+                             struct sockaddr_storage *dst,
                              struct quic_rx_packet *pkt)
 {
 	char buf[256];
 	int ret = 0, i = 0, j;
 	uint32_t version;
-	const socklen_t addrlen = get_addr_len(dst);
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 	/*
@@ -1187,7 +1188,7 @@ int send_version_negotiation(struct listener *l, struct sockaddr_storage *dst,
 		i += sizeof(version);
 	}
 
-	if (sendto(l->rx.fd, buf, i, 0, (struct sockaddr *)dst, addrlen) < 0)
+	if (quic_lstnr_sock_send(l, buf, i, src, dst) < 0)
 		goto out;
 
 	ret = 1;

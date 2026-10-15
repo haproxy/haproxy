@@ -53,7 +53,8 @@ int send_retry(struct listener *l, struct sockaddr_storage *src,
 int send_stateless_reset(struct listener *l, struct sockaddr_storage *srcaddr,
                          struct sockaddr_storage *dstaddr,
                          struct quic_rx_packet *rxpkt);
-int send_version_negotiation(struct listener *l, struct sockaddr_storage *dst,
+int send_version_negotiation(struct listener *l, struct sockaddr_storage *src,
+                             struct sockaddr_storage *dst,
                              struct quic_rx_packet *pkt);
 
 /* The TX packets sent in the same datagram are linked to each others in
