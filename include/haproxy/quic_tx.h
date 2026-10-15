@@ -47,11 +47,11 @@ int qc_send(struct quic_conn *qc, int old_data, struct list *send_list,
 int qc_dgrams_retransmit(struct quic_conn *qc);
 void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
                                 struct list *ifrms, struct list *hfrms);
-int send_retry(int fd, struct sockaddr_storage *addr,
+int send_retry(struct listener *l, struct sockaddr_storage *dst,
                struct quic_rx_packet *pkt, const struct quic_version *qv);
 int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
                          struct quic_rx_packet *rxpkt);
-int send_version_negotiation(int fd, struct sockaddr_storage *addr,
+int send_version_negotiation(struct listener *l, struct sockaddr_storage *dst,
                              struct quic_rx_packet *pkt);
 
 /* The TX packets sent in the same datagram are linked to each others in

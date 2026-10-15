@@ -1136,21 +1136,21 @@ int qc_dgrams_retransmit(struct quic_conn *qc)
 }
 
 /*
- * Send a Version Negotiation packet on response to <pkt> on socket <fd> to
- * address <addr>.
+ * Send a Version Negotiation packet on response to <pkt> on <l> listener
+ * socket to <dst> address.
  * Implementation of RFC9000 6. Version Negotiation
  *
  * TODO implement a rate-limiting sending of Version Negotiation packets
  *
  * Returns 0 on success else non-zero
  */
-int send_version_negotiation(int fd, struct sockaddr_storage *addr,
+int send_version_negotiation(struct listener *l, struct sockaddr_storage *dst,
                              struct quic_rx_packet *pkt)
 {
 	char buf[256];
 	int ret = 0, i = 0, j;
 	uint32_t version;
-	const socklen_t addrlen = get_addr_len(addr);
+	const socklen_t addrlen = get_addr_len(dst);
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
 	/*
@@ -1187,7 +1187,7 @@ int send_version_negotiation(int fd, struct sockaddr_storage *addr,
 		i += sizeof(version);
 	}
 
-	if (sendto(fd, buf, i, 0, (struct sockaddr *)addr, addrlen) < 0)
+	if (sendto(l->rx.fd, buf, i, 0, (struct sockaddr *)dst, addrlen) < 0)
 		goto out;
 
 	ret = 1;
@@ -1203,8 +1203,8 @@ int send_version_negotiation(int fd, struct sockaddr_storage *addr,
 static THREAD_LOCAL struct freq_ctr quic_stateless_reset_freq_ctr;
 static THREAD_LOCAL uint quic_stateless_reset_rate;
 
-/* Send a stateless reset packet depending on <pkt> RX packet information
- * from <fd> UDP socket to <dst>
+/* Send a stateless reset packet depending on <rxpkt> RX packet information
+ * from <l> listener socket to <dstaddr>
  * Return 1 if succeeded, 0 if not.
  */
 int send_stateless_reset(struct listener *l, struct sockaddr_storage *dstaddr,
@@ -1305,18 +1305,18 @@ static inline int quic_pkt_type(int type, uint32_t version)
 }
 
 
-/* Generate a Retry packet and send it on <fd> socket to <addr> in response to
- * the Initial <pkt> packet.
+/* Generate a Retry packet and send it on <l> listener socket to <dst> in
+ * response to the Initial <pkt> packet.
  *
  * Returns 0 on success else non-zero.
  */
-int send_retry(int fd, struct sockaddr_storage *addr,
+int send_retry(struct listener *l, struct sockaddr_storage *dst,
                struct quic_rx_packet *pkt, const struct quic_version *qv)
 {
 	int ret = 0;
 	unsigned char buf[128];
 	int i = 0, token_len;
-	const socklen_t addrlen = get_addr_len(addr);
+	const socklen_t addrlen = get_addr_len(dst);
 	struct quic_cid scid;
 
 	TRACE_ENTER(QUIC_EV_CONN_TXPKT);
@@ -1348,7 +1348,7 @@ int send_retry(int fd, struct sockaddr_storage *addr,
 
 	/* token */
 	if (!(token_len = quic_generate_retry_token(&buf[i], sizeof(buf) - i, qv->num,
-	                                            &pkt->dcid, &pkt->scid, addr))) {
+	                                            &pkt->dcid, &pkt->scid, dst))) {
 		TRACE_ERROR("quic_generate_retry_token() failed", QUIC_EV_CONN_TXPKT);
 		goto out;
 	}
@@ -1365,7 +1365,7 @@ int send_retry(int fd, struct sockaddr_storage *addr,
 
 	i += QUIC_TLS_TAG_LEN;
 
-	if (sendto(fd, buf, i, 0, (struct sockaddr *)addr, addrlen) < 0) {
+	if (sendto(l->rx.fd, buf, i, 0, (struct sockaddr *)dst, addrlen) < 0) {
 		TRACE_ERROR("quic_tls_generate_retry_integrity_tag() failed", QUIC_EV_CONN_TXPKT);
 		goto out;
 	}
