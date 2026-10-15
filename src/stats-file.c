@@ -813,7 +813,7 @@ static void shm_stats_file_preload(void)
 					} else if (curr_obj->type == SHM_STATS_FILE_OBJECT_TYPE_BE) {
 						if (!px->be_counters.shared.tg)
 							px->be_counters.shared.tg = calloc(global.nbtgroups, sizeof(*px->be_counters.shared.tg));
-						if (px->fe_counters.shared.tg == NULL)
+						if (px->be_counters.shared.tg == NULL)
 							goto release;
 						px->be_counters.shared.tg[obj_tgid - 1] = &curr_obj->data.be;
 					} else
