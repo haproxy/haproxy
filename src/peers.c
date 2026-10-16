@@ -3724,7 +3724,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 							 * come back to send heartbeat messages or to reconnect.
 							 */
 							TRACE_DEVEL("wakeup peer session to send update", PEERS_EV_SESS_WAKE, NULL, peer);
-							task->expire = tick_first(peer->reconnect, peer->heartbeat);
+							task->expire = tick_first(task->expire, tick_first(peer->reconnect, peer->heartbeat));
 							appctx_wakeup(peer->appctx);
 							break;
 						}
@@ -3757,7 +3757,7 @@ static void __process_running_peer_sync(struct task *task, struct peers *peers, 
 							TRACE_DEVEL("wakeup peer session to send heartbeat message", PEERS_EV_SESS_WAKE, NULL, peer);
 							appctx_wakeup(peer->appctx);
 						}
-						task->expire = tick_first(peer->reconnect, peer->heartbeat);
+						task->expire = tick_first(task->expire, tick_first(peer->reconnect, peer->heartbeat));
 					}
 				}
 				/* else do nothing */
