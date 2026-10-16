@@ -540,7 +540,7 @@ endif
 # holding the same names in the current directory.
 
 ifeq ($(IGNOREGIT),)
-  VERSION := $(shell [ -d .git/. ] && (git describe --tags --match 'v*' --abbrev=0 | cut -c 2-) 2>/dev/null)
+  VERSION := $(shell [ -e .git ] && (git describe --tags --match 'v*' --abbrev=0 | cut -c 2-) 2>/dev/null)
   ifneq ($(VERSION),)
     # OK git is there and works.
     SUBVERS := $(shell comms=`git log --format=oneline --no-merges v$(VERSION).. 2>/dev/null | wc -l | tr -d '[:space:]'`; commit=`(git log -1 --pretty=%h --abbrev=6) 2>/dev/null`; [ $$comms -gt 0 ] && echo "-$$commit-$$comms")
@@ -1409,7 +1409,7 @@ unit-tests:
 # failure.
 
 range:
-	$(Q)[ -d .git/. ] || { echo "## Fatal: \"make $@\" may only be used inside a Git repository."; exit 1; }
+	$(Q)[ -e .git ] || { echo "## Fatal: \"make $@\" may only be used inside a Git repository."; exit 1; }
 
 	$(Q)if git diff-index --name-only HEAD 2>/dev/null | grep -q ^; then \
 		echo "Fatal: \"make $@\" requires a clean working tree."; exit 1; fi
