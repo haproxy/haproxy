@@ -2161,8 +2161,15 @@ int connect_server(struct stream *s)
 				break;
 			}
 
-			if (!conn_update_alpn(srv_conn, ist(alpn), force))
+			if (!conn_update_alpn(srv_conn, ist(alpn), force)) {
+				/*
+				 * Possibly the ALPN will be different,
+				 * so don't use any cached value.
+				 */
+				may_start_mux_now = 0;
+				srv_conn->flags |= CO_FL_SSL_NO_CACHED_INFO;
 				DBG_TRACE_STATE("update alpn for websocket", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			}
 		}
 #endif
 	}
