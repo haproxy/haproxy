@@ -1252,7 +1252,7 @@ struct quic_conn *qc_new_conn(void *target,
 	 * already checked token, consider the peer address as validated.
 	 */
 	if (l) {
-		if (token_odcid->len) {
+		if (initial_pkt->token_len) {
 			TRACE_STATE("validate peer address due to initial token",
 						QUIC_EV_CONN_INIT, qc);
 			qc->flags |= QUIC_FL_CONN_PEER_VALIDATED_ADDR;
