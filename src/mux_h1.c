@@ -5003,7 +5003,8 @@ static size_t h1_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_fastfwd)", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
 	else {
-		if (((flags & CO_RFL_KEEP_RECV) || (h1m->state != H1_MSG_DONE)) && !(h1c->wait_event.events & SUB_RETRY_RECV))
+		if (((flags & CO_RFL_KEEP_RECV) || (h1m->state != H1_MSG_DONE)) && !(h1c->wait_event.events & SUB_RETRY_RECV) &&
+		    !(h1c->flags & (H1C_F_EOS|H1C_F_ERROR)))
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 	}
 
