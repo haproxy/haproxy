@@ -696,7 +696,9 @@ int quic_tls_rx_ctx_init(QUIC_AEAD_CTX **rx_ctx,
 	return 0;
 }
 
-/* Initialize <*hp_ctx> cipher context with <key> as key for header protection encryption */
+/* Initialize <*hp_ctx> with <key> for header protection mask generation,
+ * both when applying (TX) and removing (RX) header protection.
+ */
 int quic_tls_enc_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
                               const EVP_CIPHER *hp, unsigned char *key)
 {
@@ -725,9 +727,9 @@ int quic_tls_enc_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
 	return 0;
 }
 
-/* Encrypt <inlen> bytes from <in> buffer into <out> with <ctx> as
- * cipher context. This is the responsibility of the caller to check there
- * is at least <inlen> bytes of available space in <out> buffer.
+/* Generate the header protection mask in <out> using <in> as the sample.
+ * The caller must provide <inlen> zero bytes in <out>.
+ * The same operation is used for TX and RX, with their respective keys.
  * Return 1 if succeeded, 0 if not.
  */
 int quic_tls_hp_encrypt(unsigned char *out,
@@ -758,73 +760,6 @@ int quic_tls_hp_encrypt(unsigned char *out,
 	if (!EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, in) ||
 	    !EVP_EncryptUpdate(ctx, out, &ret, out, inlen) ||
 	    !EVP_EncryptFinal_ex(ctx, out, &ret))
-		return 0;
-
-	return 1;
-}
-
-/* Initialize <*hp_ctx> cipher context with <key> as key for header protection decryption */
-int quic_tls_dec_hp_ctx_init(EVP_CIPHER_CTX **hp_ctx,
-                              const EVP_CIPHER *hp, unsigned char *key)
-{
-	EVP_CIPHER_CTX *ctx;
-
-#ifdef QUIC_AEAD_API
-
-	if (hp == EVP_CIPHER_CHACHA20) {
-		*hp_ctx = EVP_CIPHER_CTX_CHACHA20;
-		return 1;
-	}
-#endif
-
-	ctx = EVP_CIPHER_CTX_new();
-	if (!ctx)
-		return 0;
-
-	if (!EVP_DecryptInit_ex(ctx, hp, NULL, key, NULL))
-		goto err;
-
-	*hp_ctx = ctx;
-	return 1;
-
- err:
-	EVP_CIPHER_CTX_free(ctx);
-	return 0;
-}
-
-/* Decrypt <in> data into <out> with <ctx> as cipher context.
- * This is the responsibility of the caller to check there is at least
- * <outlen> bytes into <in> buffer.
- * Return 1 if succeeded, 0 if not.
- */
-int quic_tls_hp_decrypt(unsigned char *out,
-                         const unsigned char *in, size_t inlen,
-                         EVP_CIPHER_CTX *ctx, unsigned char *key)
-{
-	int ret = 0;
-
-#ifdef QUIC_AEAD_API
-	if (ctx == EVP_CIPHER_CTX_CHACHA20) {
-		uint32_t counter;
-
-		/* According to RFC 9001, 5.4.4. ChaCha20-Based Header Protection:
-		 * The first 4 bytes of the sampled ciphertext are the block counter.
-		 * The remaining 12 bytes are used as the nonce.
-		 */
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-		counter = (uint32_t)in[0] + (uint32_t)(in[1] << 8) + (uint32_t)(in[2] << 16) + (uint32_t)(in[3] << 24);
-#else
-		memcpy(&counter, in, sizeof(counter));
-#endif
-		CRYPTO_chacha_20(out, out, inlen, key, in + sizeof(counter), counter);
-		return 1;
-	}
-
-#endif
-
-	if (!EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, in) ||
-	    !EVP_DecryptUpdate(ctx, out, &ret, out, inlen) ||
-	    !EVP_DecryptFinal_ex(ctx, out, &ret))
 		return 0;
 
 	return 1;
