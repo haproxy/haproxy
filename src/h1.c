@@ -1115,7 +1115,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (!(h1m->flags & (H1_MF_HDRS_ONLY|H1_MF_RESP))) {
 			struct http_uri_parser parser = http_uri_parser_init(sl.rq.u);
 			struct ist scheme, authority = IST_NULL;
-			int ret;
+			int ret = 0;
+			int bad_authority = 0;
 
 			/* WT: gcc seems to see a path where sl.rq.u.ptr was used
 			 * uninitialized, but it doesn't know that the function is
@@ -1141,7 +1142,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			case URI_PARSER_FORMAT_ABSURI_OR_AUTHORITY:
 				scheme = http_parse_scheme(&parser);
 				authority = http_parse_authority(&parser, 1);
-				if (http_authority_has_forbidden_char(authority)) {
+				bad_authority = http_authority_has_forbidden_char(authority);
+				if (bad_authority) {
 					if (h1m->err_pos < -1) {
 						state = H1_MSG_LAST_LF;
 						/* WT: gcc seems to see a path where sl.rq.u.ptr was used
@@ -1215,6 +1217,26 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 								h1m->err_pos = host.ptr - start + skip; /* >= 0 now */
 						}
 					}
+				}
+
+				/* No Host header: the authority of the request target is
+				 * the host (RFC9112#3.2.2 and 3.2.3). Add a Host header
+				 * with its value A default port is removed.
+				 */
+				if (!ret && host_idx == -1 && istlen(authority) && hdr && !skip_update &&
+				    !bad_authority) {
+					struct ist new_host = authority;
+					struct ist port = http_get_host_port(authority);
+
+					if (unlikely(hdr_count >= hdr_num)) {
+						state = H1_MSG_LAST_LF;
+						goto http_output_full;
+					}
+					if (isttest(port) && http_is_default_port(scheme, port))
+						new_host.len -= istlen(port) + 1;
+					hdr[hdr_count] = hdr[hdr_count - 1];
+					http_set_hdr(&hdr[hdr_count - 1], ist("host"), new_host);
+					hdr_count++;
 				}
 				break;
 

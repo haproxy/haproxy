@@ -1,0 +1,39 @@
+varnishtest "H1 CONNECT requests without Host header"
+
+# A CONNECT request without Host header must get a Host header built from its
+# authority so that host-based rules apply to it.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request deny if { req.hdr(host) -i -m beg admin.internal }
+        http-request return status 200 hdr x-host "%[req.hdr(host)]"
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+	txreq -req CONNECT -url "admin.internal:22" -nohost
+	rxresp
+	expect resp.status == 403
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+	txreq -req CONNECT -url "www.example.com:443" -nohost
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-host == "www.example.com"
+} -run
+
+client c6 -connect ${h1_fe1_sock} {
+	txreq -req CONNECT -url "www.example.com:8443" -nohost
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-host == "www.example.com:8443"
+} -run

@@ -1,0 +1,40 @@
+varnishtest "H1 absolute-form request without Host header"
+
+# When an absolute-form request has no Host header, the authority of the URI
+# is the target. A Host header must be built from it so that host-based rules
+# apply to the actual target, like for H2/H3.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen li1
+        bind "fd@${li1}"
+        http-request deny if { req.hdr(host) -m str admin.internal }
+        http-request return status 200 hdr x-host "%[req.hdr(host)]"
+} -start
+
+client c1 -connect ${h1_li1_sock} {
+	txreq -url "http://admin.internal/secret" -nohost
+	rxresp
+	expect resp.status == 403
+} -run
+
+client c2 -connect ${h1_li1_sock} {
+	txreq -url "http://u@public.example:8080/" -nohost
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-host == "public.example:8080"
+} -run
+
+client c3 -connect ${h1_li1_sock} {
+	txreq -url "/" -hdr "Host: public.example"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-host == "public.example"
+} -run
