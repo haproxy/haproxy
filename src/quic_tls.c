@@ -1360,3 +1360,93 @@ int quic_tls_finalize(struct quic_conn *qc, int server)
 	quic_tls_ctx_free(&qc->nictx);
 	goto out;
 }
+
+#ifdef DEBUG_UNIT
+/* RFC 5869 cases 1 and 3, then case 1 again. Check extract, expand and
+ * combined operations with non-empty and empty salt/info.
+ */
+static int quic_hkdf_unittest(int argc, char **argv)
+{
+	enum {
+		HKDF_TEST_SALTED,
+		HKDF_TEST_EMPTY_SALT_AND_INFO,
+		HKDF_TEST_MAX,
+	};
+	const struct {
+		unsigned char prk[32];
+		unsigned char okm[42];
+	} vectors[HKDF_TEST_MAX] = {
+		[HKDF_TEST_SALTED] = {
+			.prk = {
+				0x07, 0x77, 0x09, 0x36, 0x2c, 0x2e, 0x32, 0xdf,
+				0x0d, 0xdc, 0x3f, 0x0d, 0xc4, 0x7b, 0xba, 0x63,
+				0x90, 0xb6, 0xc7, 0x3b, 0xb5, 0x0f, 0x9c, 0x31,
+				0x22, 0xec, 0x84, 0x4a, 0xd7, 0xc2, 0xb3, 0xe5,
+			},
+			.okm = {
+				0x3c, 0xb2, 0x5f, 0x25, 0xfa, 0xac, 0xd5, 0x7a,
+				0x90, 0x43, 0x4f, 0x64, 0xd0, 0x36, 0x2f, 0x2a,
+				0x2d, 0x2d, 0x0a, 0x90, 0xcf, 0x1a, 0x5a, 0x4c,
+				0x5d, 0xb0, 0x2d, 0x56, 0xec, 0xc4, 0xc5, 0xbf,
+				0x34, 0x00, 0x72, 0x08, 0xd5, 0xb8, 0x87, 0x18,
+				0x58, 0x65,
+			},
+		},
+		[HKDF_TEST_EMPTY_SALT_AND_INFO] = {
+			.prk = {
+				0x19, 0xef, 0x24, 0xa3, 0x2c, 0x71, 0x7b, 0x16,
+				0x7f, 0x33, 0xa9, 0x1d, 0x6f, 0x64, 0x8b, 0xdf,
+				0x96, 0x59, 0x67, 0x76, 0xaf, 0xdb, 0x63, 0x77,
+				0xac, 0x43, 0x4c, 0x1c, 0x29, 0x3c, 0xcb, 0x04,
+			},
+			.okm = {
+				0x8d, 0xa4, 0xe7, 0x75, 0xa5, 0x63, 0xc1, 0x8f,
+				0x71, 0x5f, 0x80, 0x2a, 0x06, 0x3c, 0x5a, 0x31,
+				0xb8, 0xa1, 0x1f, 0x5c, 0x5e, 0xe1, 0x87, 0x9e,
+				0xc3, 0x45, 0x4e, 0x5f, 0x3c, 0x73, 0x8d, 0x2d,
+				0x9d, 0x20, 0x13, 0x95, 0xfa, 0xa4, 0xb6, 0x1a,
+				0x96, 0xc8,
+			},
+		},
+	};
+	const unsigned int sequence[] = {
+		HKDF_TEST_SALTED, HKDF_TEST_EMPTY_SALT_AND_INFO, HKDF_TEST_SALTED,
+	};
+	unsigned char key[22], salt[13], info[10], out[42];
+	unsigned int i, test;
+	int empty;
+
+	memset(key, 0x0b, sizeof(key));
+	for (i = 0; i < sizeof(salt); i++)
+		salt[i] = i;
+	for (i = 0; i < sizeof(info); i++)
+		info[i] = 0xf0 + i;
+
+	for (i = 0; i < sizeof(sequence) / sizeof(sequence[0]); i++) {
+		test = sequence[i];
+		empty = test == HKDF_TEST_EMPTY_SALT_AND_INFO;
+
+		if (!quic_hkdf_extract(EVP_sha256(), out, sizeof(vectors[test].prk),
+		                       key, sizeof(key),
+		                       empty ? NULL : salt, empty ? 0 : sizeof(salt)) ||
+		    memcmp(out, vectors[test].prk, sizeof(vectors[test].prk)))
+			return 1;
+
+		if (!quic_hkdf_expand(EVP_sha256(), out, sizeof(out),
+		                      vectors[test].prk, sizeof(vectors[test].prk),
+		                      empty ? NULL : info, empty ? 0 : sizeof(info)) ||
+		    memcmp(out, vectors[test].okm, sizeof(out)))
+			return 1;
+
+		if (!quic_hkdf_extract_and_expand(EVP_sha256(), out, sizeof(out),
+		                                  key, sizeof(key),
+		                                  empty ? NULL : salt, empty ? 0 : sizeof(salt),
+		                                  empty ? NULL : info, empty ? 0 : sizeof(info)) ||
+		    memcmp(out, vectors[test].okm, sizeof(out)))
+			return 1;
+	}
+
+	return 0;
+}
+REGISTER_UNITTEST("quic_hkdf", quic_hkdf_unittest);
+#endif
