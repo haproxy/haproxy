@@ -149,7 +149,9 @@ Note that additional parameters on the filter line must be parsed by the filter
 itself. The "filter" directive is only supported by filters registering a
 keyword with flt_register_keywords() (see section 3.2.2).
 
-The list of available filter classes is reported by 'haproxy -vv' :
+The list of available filter classes is reported by 'haproxy -vv'. It contains
+the built-in classes and the ones other modules register from the STG_REGISTER
+stage (see section 3.2) :
 
     $> haproxy -vv
     HAProxy version 1.7-dev2-3a1d4a-33 2016/03/21
@@ -547,7 +549,7 @@ it supports, relative to an already placed class, with filter_place_class() :
             return -1;
         return 0;
     }
-    INITCALL1(STG_INIT, my_filter_register_class);
+    INITCALL0(STG_REGISTER, my_filter_register_class);
 
 filter_place_class() accepts the three sides, FLT_SIDE_GLOBAL, FLT_SIDE_REQ
 and FLT_SIDE_RES, and may be called once per side :
@@ -575,9 +577,14 @@ startup because it would be useless. The placements define the default
 evaluation order of the instances of the class relative to the other classes,
 which may then be refined per proxy with "filter-sequence" (section 2.2).
 
-WARNING : filter_register_class() must be called after the built-in classes
-          were initialized, so from an initcall of the STG_INIT stage or a later
-          one. Otherwise the class registration fails.
+WARNING : filter_register_class() and filter_place_class() must be called after
+          the built-in classes were initialized at the STG_PREPARE stage. Call
+          them from an STG_REGISTER initcall. From STG_PREPARE, the result
+          depends on the link order, and an addon is linked first, so its
+          registration always fails. 'haproxy -vv' is handled right after the
+          STG_REGISTER stage and only lists the classes registered so far. A
+          class registered from a later stage still works and is listed by the
+          "show filter classes" CLI command, but not by 'haproxy -vv'.
 
 
 Then the filter internal configuration must be defined. For instance :
@@ -1717,9 +1724,10 @@ are left untouched.
    directive uses the keyword name.
 
 2. Register the class and place it on each side it supports, relative to an
-   already placed class. For a filter maintained out of the HAProxy tree,
-   use the public API from an initcall, because the registration must happen
-   after the built-in classes were initialized :
+   already placed class. For a filter maintained out of the HAProxy tree, use
+   the public API from an STG_REGISTER initcall. The built-in classes are
+   initialized before this stage, and 'haproxy -vv' only lists the classes
+   registered by its end (see section 3.2) :
 
     static int my_filter_register_class(void)
     {
@@ -1736,7 +1744,7 @@ are left untouched.
             return -1;
         return 0;
     }
-    INITCALL1(STG_INIT, my_filter_register_class);
+    INITCALL0(STG_REGISTER, my_filter_register_class);
 
    filter_register_class_full() registers the class and places it at the
    same position on both sides in a single call, which is enough for most
@@ -1868,11 +1876,12 @@ enabled by another directive, or is referenced by other directives.
     only drives the side-independent operations (configuration checks,
     initialization and destruction).
 
-  * A class must be registered after the built-in classes were initialized,
-    from a STG_INIT initcall or a later stage, otherwise the registration
-    fails. For a filter inside the HAProxy tree, the class is registered in
-    filter_init_classes() to explicitly define its default order with the
-    other internal classes.
+  * A class must be registered after the built-in classes were initialized, from
+    a STG_REGISTER initcall. From STG_PREPARE, the registration fails or
+    succeeds depending on the link order. A class registered after STG_REGISTER
+    works, but 'haproxy -vv' does not list it. For a filter inside the HAProxy
+    tree, the class is registered in filter_init_classes() to explicitly define
+    its default order with the other internal classes.
 
   * The instance id is optional for a class that does not set
     FLT_CLS_FL_MULTI: the parse callback may receive a NULL 'inst->id'. A

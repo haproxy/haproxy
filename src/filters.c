@@ -3510,7 +3510,10 @@ int flt_parse_instance_legacy(struct proxy *px, struct filter_instance *inst, ch
  * not support the "filter-config" directive). The class is initialized and
  * added to the global registry of the known classes, and appended at the end
  * of the global order. It is not usable on any channel side until placed with
- * filter_place_class(). Must be called after filter_init_classes().
+ * filter_place_class(). Must be called after filter_init_classes(), which
+ * runs at the prepare stage: a class registered from the register stage on
+ * is added in time for "haproxy -vv" to list it, a class registered later
+ * is reported by the CLI alone.
  * Returns 0 on success, -1 on error (too early call, duplicate name).
  */
 int filter_register_class(struct filter_class *cls, const char *name,
@@ -3662,7 +3665,10 @@ int filter_register_class_full(struct filter_class *cls, const char *name,
 
 /* Init function responsible to initialize all intenral filter classes and to
  * insert them is global list above. The default evaluation order of all
- * internal filters is defined in this function.
+ * internal filters is defined in this function. It runs from the prepare stage
+ * so that a class registered by another module from the register stage is
+ * initialized in time: "haproxy -vv" reports the available filter classes from
+ * the argument parsing, which happens between the two.
  *
  * Exemple to register a new filter class:
  *
@@ -3683,7 +3689,7 @@ int filter_register_class_full(struct filter_class *cls, const char *name,
  *       return -1;
  *    return 0;
  * }
- * INITCALL1(STG_INIT, myfilter_register_class);
+ * INITCALL1(STG_REGISTER, myfilter_register_class);
  */
 static void filter_init_classes(void)
 {
@@ -3794,7 +3800,7 @@ REGISTER_POST_CHECK(flt_init_all);
 REGISTER_PER_THREAD_INIT(flt_init_all_per_thread);
 REGISTER_PER_THREAD_DEINIT(flt_deinit_all_per_thread);
 
-INITCALL0(STG_REGISTER, filter_init_classes);
+INITCALL0(STG_PREPARE, filter_init_classes);
 
 /*
  * Local variables:

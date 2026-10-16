@@ -31514,7 +31514,8 @@ reading. Their sole purpose is to explain how to decipher them.
 
 Here are listed officially supported filters with the list of parameters they
 accept. Depending on compile options, some of these filters might be
-unavailable. The list of available filter classes is reported in haproxy -vv.
+unavailable. The list of available filter classes, including the ones added by
+the addons built into the binary, is reported in haproxy -vv.
 
 A filter is declared on a proxy in one of two modes:
 
