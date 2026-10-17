@@ -2869,8 +2869,10 @@ static int flt_precheck_instance(struct proxy *proxy, struct filter_instance *in
 			 proxy_type_str(proxy), proxy->id, inst->class->name,
 			 inst->conf.file, inst->conf.line,
 			 err && *err ? err : "unknown error");
+		free(err);
 		return ERR_ALERT | ERR_FATAL;
 	}
+	free(err);
 	if (!inst->fconf->ops) {
 		ha_alert("config: %s '%s' : filter class '%s' defined no callbacks for the instance from %s:%d.\n",
 			 proxy_type_str(proxy), proxy->id, inst->class->name,
