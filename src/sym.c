@@ -966,6 +966,20 @@ static int parse_object(struct sym_build *b, const char *path, const struct sym_
  */
 static const unsigned char sym_xz_magic[6] = { 0xfd, '7', 'z', 'X', 'Z', 0x00 };
 
+static unsigned long inmem_addr(unsigned long ptr, unsigned long base,
+			        unsigned long vmin, size_t span)
+{
+	unsigned long lo = base + vmin;
+
+	if (ptr >= lo && ptr - lo < span)
+		/* already relocated in place, within the loaded image */
+		return ptr;
+	if (ptr >= vmin && ptr - vmin < span)
+		/* link-time vaddr, biased by the load address */
+		return base + ptr;
+	return 0;
+}
+
 /*
  * Collects the exported symbols of the object as provided by the dynamic
  * linker.
@@ -979,35 +993,38 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 	const ElfW(Word) *hash = NULL;
 	const uint32_t *gnu = NULL;
 	unsigned long base = info->dlpi_addr;
-	size_t strsz = 0, nsyms = 0, i;
+	unsigned long vmin = ~0UL, vmax = 0;
+	size_t strsz = 0, nsyms = 0, span, i;
 
 	b->debugdata = NULL;
 	b->debugdata_size = 0;
 
 	for (i = 0; i < info->dlpi_phnum; i++) {
+		if (info->dlpi_phdr[i].p_type == PT_LOAD) {
+			unsigned long p1 = info->dlpi_phdr[i].p_vaddr;
+			unsigned long p2 = p1 + info->dlpi_phdr[i].p_memsz;
+
+			if (p1 < vmin)
+				vmin = p1;
+			if (p2 > vmax)
+				vmax = p2;
+		}
 		if (info->dlpi_phdr[i].p_type == PT_DYNAMIC) {
 			dyn = (const ElfW(Dyn) *)(base + info->dlpi_phdr[i].p_vaddr);
 			break;
 		}
 	}
-	if (!dyn)
+	if (!dyn || !vmax)
 		return;
+	span = vmax - vmin;
 
 	for (; dyn->d_tag != DT_NULL; dyn++) {
-		unsigned long ptr = dyn->d_un.d_ptr;
-
-		/* glibc relocates these pointers in place, other loaders leave
-		 * the link-time vaddr which is then below the load address.
-		 */
-		if (ptr < base)
-			ptr += base;
-
 		switch (dyn->d_tag) {
-		case DT_SYMTAB:   sym  = (const ElfW(Sym) *)ptr; break;
-		case DT_STRTAB:   str  = (const char *)ptr; break;
+		case DT_SYMTAB:   sym  = (const ElfW(Sym) *)inmem_addr(dyn->d_un.d_ptr, base, vmin, span); break;
+		case DT_STRTAB:   str  = (const char *)inmem_addr(dyn->d_un.d_ptr, base, vmin, span); break;
 		case DT_STRSZ:    strsz = dyn->d_un.d_val; break;
-		case DT_HASH:     hash = (const ElfW(Word) *)ptr; break;
-		case DT_GNU_HASH: gnu  = (const uint32_t *)ptr; break;
+		case DT_HASH:     hash = (const ElfW(Word) *)inmem_addr(dyn->d_un.d_ptr, base, vmin, span); break;
+		case DT_GNU_HASH: gnu  = (const uint32_t *)inmem_addr(dyn->d_un.d_ptr, base, vmin, span); break;
 		}
 	}
 	if (!sym || !str || !strsz)
@@ -1015,6 +1032,9 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 
 	if (hash) {
 		nsyms = hash[1]; /* nchain */
+		if (str > (const char *)sym &&
+		    ((const char *)str - (const char *)sym) / sizeof(*sym) < nsyms)
+			nsyms = ((const char *)str - (const char *)sym) / sizeof(*sym);
 	}
 	else if (gnu) {
 		uint32_t nbuckets = gnu[0], symoff = gnu[1], bloomsz = gnu[2];
@@ -1038,6 +1058,7 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 
 	for (i = 0; i < nsyms && !b->oom; i++) {
 		unsigned char type = SYM_ST_TYPE(sym[i].st_info);
+		unsigned long val;
 
 		if (sym[i].st_shndx == SHN_UNDEF || sym[i].st_shndx >= SHN_LORESERVE)
 			continue;
@@ -1047,7 +1068,10 @@ static void collect_dynsym_mem(struct sym_build *b, const struct dl_phdr_info *i
 		if (type != STT_FUNC && type != STT_GNU_IFUNC)
 			continue;
 
-		build_add_sym(b, base + sym[i].st_value, sym[i].st_size, str + sym[i].st_name, obj);
+		val = inmem_addr(sym[i].st_value, base, vmin, span);
+		if (!val)
+			continue;
+		build_add_sym(b, val, sym[i].st_size, str + sym[i].st_name, obj);
 	}
 }
 
