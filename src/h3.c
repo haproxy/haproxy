@@ -1563,8 +1563,6 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		/* Ensure EOM is reported when an empty frame is handled. */
 		if (!htx_set_eom(htx)) {
 			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
-			              muxc_tevt_type_internal_err);
 			len = -1;
 			goto out;
 		}
@@ -1681,8 +1679,6 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 		/* Ensure EOM is reported when an empty frame is handled. */
 		if (!htx_set_eom(htx)) {
 			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
-			              muxc_tevt_type_internal_err);
 			goto err;
 		}
 
