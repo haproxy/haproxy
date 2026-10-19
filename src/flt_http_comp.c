@@ -1113,11 +1113,12 @@ parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
 	fconf_res->name = "comp-res";
 	fconf_res->conf = comp;
 	fconf_res->ops = &comp_res_ops;
+	fconf_res->flags = FLT_CFG_FL_EXPLICIT;
 
 	/* manually add the fconf_res to the list because filter API doesn't
 	 * know about it
 	 */
-	LIST_APPEND(&px->filter_configs, &fconf_res->list);
+	flt_conf_add(px, fconf_res);
 
 
 	(*cur_arg)++;
@@ -1247,10 +1248,13 @@ struct http_comp_check_ctx {
 	struct proxy *px;
 	int comp_req_seen;
 	int comp_res_seen;
-	int explicit;
 };
 
-/* Checks the filter <f> against the compression filter being checked: ...
+/* Checks the filter <f> against the compression filters being checked. It
+ * is used to know if a compression filter is already declared and to report
+ * an explicitly declared cache filter placed after a compression filter on
+ * the response. Implicit filters are automatically ordered, so no error is
+ * reported for them.
  * Returns non-zero to stop the iteration on error, 0 otherwise.
  */
 static int http_comp_check_order(struct flt_conf *f, void *data)
@@ -1265,35 +1269,21 @@ static int http_comp_check_order(struct flt_conf *f, void *data)
 		ctx->comp_res_seen = 1;
 		return 0;
 	}
-	/* Legacy filters not used for this proxy, we can return */
-	if (!flt_use_legacy_filter(ctx->px))
-		return 0;
-
-	if (f->id == cache_store_flt_id) {
-		if (ctx->comp_res_seen) {
-			ha_alert("config: %s '%s': unable to enable the compression filter on response "
-				 "before any cache filter.\n",
-				 proxy_type_str(ctx->px), ctx->px->id);
-			return 1;
-		}
-		return 0;
+	if (flt_use_legacy_filter(ctx->px) && f->id == cache_store_flt_id &&
+	    ctx->comp_res_seen) {
+		ha_alert("config: %s '%s': unable to enable the compression filter on response "
+			 "before any cache filter.\n",
+			 proxy_type_str(ctx->px), ctx->px->id);
+		return 1;
 	}
-	if (f->id == decomp_req_flt_id || f->id == decomp_res_flt_id)
-		return 0;
-#if defined(USE_FCGI)
-	if (f->id == fcgi_flt_id)
-		return 0;
-#endif
-	ctx->explicit = 1;
 	return 0;
-
 }
 
 int
 check_implicit_http_comp_flt(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
-	struct http_comp_check_ctx ctx = { .px = proxy, .comp_req_seen = 0, .comp_res_seen = 0, .explicit = 0};
+	struct http_comp_check_ctx ctx = { .px = proxy, .comp_req_seen = 0, .comp_res_seen = 0};
 	int err = 0;
 
 	if (proxy->comp == NULL)
@@ -1305,38 +1295,30 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 	}
 
 	if ((proxy->comp->flags & COMP_FL_DIR_REQ) && !ctx.comp_req_seen) {
-		if (ctx.explicit) {
-			ha_alert("config: %s '%s': require an explicit filter declaration to use "
-				 "HTTP request compression\n", proxy_type_str(proxy), proxy->id);
-			err++;
-			goto end;
-		}
-		/* Implicit declaration of the request compression filter is always the last
-		 * one */
+		/* Implicit declaration of the request compression filter is always the
+		 * last one. Its final position is forced by
+		 * flt_reorder_implicit_conf().
+		 */
 		fconf = calloc(1, sizeof(*fconf));
 		if (!fconf)
 			goto out_of_memory;
 		fconf->id   = http_comp_req_flt_id;
 		fconf->conf = proxy->comp;
 		fconf->ops  = &comp_req_ops;
-		LIST_APPEND(&proxy->filter_configs, &fconf->list);
+		flt_conf_add(proxy, fconf);
 	}
 	if ((proxy->comp->flags & COMP_FL_DIR_RES) && !ctx.comp_res_seen) {
-		if (ctx.explicit) {
-			ha_alert("config: %s '%s': require an explicit filter declaration to use "
-				 "HTTP response compression\n", proxy_type_str(proxy), proxy->id);
-			err++;
-			goto end;
-		}
-		/* Implicit declaration of the response compression filter is always the last
-		 * one */
+		/* Implicit declaration of the response compression filter is always the
+		 * last one. Its final position is forced by
+		 * flt_reorder_implicit_conf().
+		 */
 		fconf = calloc(1, sizeof(*fconf));
 		if (!fconf)
 			goto out_of_memory;
 		fconf->id   = http_comp_res_flt_id;
 		fconf->conf = proxy->comp;
 		fconf->ops  = &comp_res_ops;
-		LIST_APPEND(&proxy->filter_configs, &fconf->list);
+		flt_conf_add(proxy, fconf);
 	}
  end:
 	return err;

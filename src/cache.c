@@ -670,8 +670,8 @@ struct cache_store_check_ctx {
 };
 
 /* Checks the filter <f> against the cache filter being checked: the
- * compression must be evaluated after the cache, and an implicit cache
- * declaration is only allowed with the compression and fcgi filters.
+ * compression must be evaluated after the cache. Implicit filters are
+ * automatically ordered, so no error is reported for them.
  * Returns non-zero to stop the iteration on error, 0 otherwise.
  */
 static int cache_store_check_order(struct flt_conf *f, void *data)
@@ -709,14 +709,6 @@ static int cache_store_check_order(struct flt_conf *f, void *data)
 	else if (f->id == fcgi_flt_id)
 		return 0;
 #endif
-	else if ((f->id != ctx->fconf->id) && ctx->cconf->flags & CACHE_FLT_F_IMPLICIT_DECL) {
-		/* Implicit declaration is only allowed with the compression,
-		 * decompression, fcgi and other cache filter. For other
-		 * filters, an implicit declaration is required. */
-		ha_alert("config: %s '%s': require an explicit filter declaration "
-			 "to use the cache '%s'.\n", proxy_type_str(ctx->px), ctx->px->id, ctx->cache->id);
-		return 1;
-	}
 	return 0;
 }
 
@@ -2403,8 +2395,7 @@ static int check_cache_rule(struct act_rule *rule, struct proxy *proxy, char **e
 	fconf->id = cache_store_flt_id;
 	fconf->conf = cconf;
 	fconf->ops  = &cache_ops;
-
-	LIST_APPEND(&proxy->filter_configs, &fconf->list);
+	flt_conf_add(proxy, fconf);
 
 	rule->arg.act.p[0] = cconf;
 	return 1;
@@ -3657,6 +3648,8 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 
 		/* Remove the implicit filter. <cconf> is kept for the explicit one */
 		LIST_DELETE(&f->list);
+		LIST_DELETE(&f->by_req);
+		LIST_DELETE(&f->by_res);
 		free(f);
 		free(name);
 		break;

@@ -206,6 +206,29 @@ static inline int flt_use_legacy_filter(const struct proxy *px)
 	return px->flags & PR_FL_FILTER_LEGACY;
 }
 
+/* Appends the legacy filter config <fconf> to the three configuration
+ * lists of the proxy <px>: the global order and the request and response
+ * orders, in declaration order. flt_check() later reorders the three
+ * lists with flt_reorder_implicit_conf(). The 'list', 'by_req' and
+ * 'by_res' members of <fconf> must not be linked yet.
+ */
+static inline void flt_conf_add(struct proxy *px, struct flt_conf *fconf)
+{
+	LIST_APPEND(&px->filter_configs, &fconf->list);
+	LIST_APPEND(&px->filters_req_configs, &fconf->by_req);
+	LIST_APPEND(&px->filters_res_configs, &fconf->by_res);
+}
+
+/* Same as flt_conf_add() but inserts <fconf> at the beginning of the
+ * three configuration lists of the proxy <px>.
+ */
+static inline void flt_conf_insert(struct proxy *px, struct flt_conf *fconf)
+{
+	LIST_INSERT(&px->filter_configs, &fconf->list);
+	LIST_INSERT(&px->filters_req_configs, &fconf->by_req);
+	LIST_INSERT(&px->filters_res_configs, &fconf->by_res);
+}
+
 /* Helper function that returns the "global" state of filters attached to a
  * stream. */
 static inline struct strm_flt *

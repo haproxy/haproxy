@@ -216,8 +216,8 @@ struct fcgi_flt_check_ctx {
 };
 
 /* Checks the fcgi filter <f> against the fcgi filter being checked. There must
- * be only one fcgi-app per backend, and in legacy mode, an implicit fcgi
- * declaration is only allowed with the compression and cache filters.
+ * be only one fcgi-app per backend. The position of implicitly declared
+ * filters is automatically ordered, no error is reported for them.
  * Returns -1 on error, 0 otherwise.
  */
 static int fcgi_flt_check_one(struct flt_conf *f, void *data)
@@ -232,23 +232,6 @@ static int fcgi_flt_check_one(struct flt_conf *f, void *data)
 	if (f->id == ctx->fconf->id) {
 		ha_alert("proxy '%s' : only one fcgi-app supported per backend.\n",
 			 ctx->px->id);
-		return -1;
-	}
-
-	/* Legacy filters not used for this proxy, we can continue */
-	if (!flt_use_legacy_filter(ctx->px))
-		return 0;
-
-	/* In legacy mode, implicit declaration is only allowed with the
-	 * compression, decompression and cache. For other filters, an explicit
-	 * declaration is required. */
-	if (f->id == http_comp_req_flt_id  || f->id == http_comp_res_flt_id ||
-	    f->id == decomp_req_flt_id  || f->id == decomp_res_flt_id ||
-	    f->id == cache_store_flt_id)
-		return 0;
-	if (ctx->fcgi_conf->flags & FCGI_FLT_F_IMPLICIT_DECL) {
-		ha_alert("proxy '%s': require an explicit filter declaration "
-			 "to use the fcgi-app '%s'.\n", ctx->px->id, ctx->fcgi_conf->name);
 		return -1;
 	}
 
@@ -559,6 +542,8 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 
 		/* Place the filter at its right position */
 		LIST_DELETE(&f->list);
+		LIST_DELETE(&f->by_req);
+		LIST_DELETE(&f->by_res);
 		free(f);
 		ha_free(&name);
 		break;
@@ -691,7 +676,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 		goto err;
 	}
 
-	LIST_APPEND(&curpx->filter_configs, &fconf->list);
+	flt_conf_add(curpx, fconf);
 
   end:
 	return retval;

@@ -1759,6 +1759,8 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->conf.args.list);
 	LIST_INIT(&p->conf.lf_checks);
 	LIST_INIT(&p->filter_configs);
+	LIST_INIT(&p->filters_req_configs);
+	LIST_INIT(&p->filters_res_configs);
 	LIST_INIT(&p->filter_instances);
 	LIST_INIT(&p->filter_req_instances);
 	LIST_INIT(&p->filter_res_instances);

@@ -1,0 +1,78 @@
+varnishtest "Automatically order implicitly declared filters in the legacy mode"
+
+# Regression test for the automatic ordering of the implicitly declared
+# filters in the legacy filter mode. When an explicit filter (here "trace")
+# is declared together with implicitly declared core filters, the implicit
+# filters are automatically placed at their canonical position instead of
+# reporting a configuration error: the decompression filters come first,
+# then the cache filters, then the other filters in their declaration order,
+# then the compression filters and finally the fcgi filter.
+#
+# Before the automatic ordering, this configuration was rejected:
+#   proxy 'li1': require an explicit filter declaration to use HTTP response
+#                compression
+#   proxy 'li1': require an explicit filter declaration to use the cache
+# The ordering is validated functionally: the first response is stored
+# uncompressed in the cache (before the compression filter) and the second
+# one is served from the cache.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -hdr "Content-Type: text/plain" -hdr "Cache-Control: max-age=20" \
+           -bodylen 500
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    global
+        filter-api downgrade-to-legacy
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    cache my_cache
+        total-max-size 1
+        max-age 20
+
+    listen li1
+        bind "fd@${li1}"
+        # Explicit filter mixed with implicitly declared core filters:
+        # previously a configuration error, now automatically ordered with
+        # the cache filter before the trace filter and the compression
+        # filter after it.
+        filter trace quiet
+        compression algo gzip
+        compression type text/plain
+        http-request cache-use my_cache
+        http-response cache-store my_cache
+        http-response set-header X-Hit %[res.cache_hit]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# First request: the response is stored in the cache then compressed for the
+# client. The cache filter must be evaluated before the compression filter,
+# otherwise the compressed body would be stored.
+client c1 -connect ${h1_li1_sock} {
+    txreq -url /a -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-encoding == gzip
+    expect resp.http.x-hit == 0
+    gunzip
+} -run
+
+# Second request: served from the cache. A cache hit is only possible if the
+# uncompressed body was stored, proving the cache filter was evaluated
+# before the compression filter. And the body is still delivered
+# uncompressed, confirming the stored body was not the compressed one.
+client c2 -connect ${h1_li1_sock} {
+    txreq -url /a -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-hit == 1
+    expect resp.bodylen == 500
+} -run

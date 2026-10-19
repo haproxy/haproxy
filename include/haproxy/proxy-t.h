@@ -534,6 +534,9 @@ struct proxy {
 						 * name is used
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
+	struct list filters_req_configs;	/* legacy: filter configs in request evaluation order */
+	struct list filters_res_configs;	/* legacy: filter configs in response evaluation order */
+
 	struct list filter_instances;		/* flat list of all filter instances, in global order */
 	struct list filter_req_instances;	/* flat list of the filter instances evaluated on the request side */
 	struct list filter_res_instances;	/* flat list of the filter instances evaluated on the response side */

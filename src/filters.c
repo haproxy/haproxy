@@ -568,7 +568,8 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 		}
 
 		curpx->flags |= PR_FL_FILTER_LEGACY;
-		LIST_APPEND(&curpx->filter_configs, &fconf->list);
+		fconf->flags |= FLT_CFG_FL_EXPLICIT;
+		flt_conf_add(curpx, fconf);
 	}
 	return 0;
 
@@ -687,6 +688,182 @@ flt_init_all_per_thread()
 	return 1;
 }
 
+/* Returns 1 if the filter config <fconf> is one of the core filters whose
+ * position is automatically ordered when they are implicitly declared on
+ * a proxy (the decompression, cache, compression and fcgi filters), 0
+ * otherwise.
+ */
+static int flt_is_core_flt(const struct flt_conf *fconf)
+{
+	return (fconf->id == decomp_req_flt_id || fconf->id == decomp_res_flt_id ||
+	        fconf->id == cache_store_flt_id ||
+	        fconf->id == http_comp_req_flt_id || fconf->id == http_comp_res_flt_id
+#if defined(USE_FCGI)
+	        || fconf->id == fcgi_flt_id
+#endif
+	       );
+}
+
+/* Returns the ordering class of the filter config <fconf> for the order
+ * <side>: the implicit core filters are ordered as follows
+ *
+ *   global:   decomp-req > decomp-res > cache-store > any other filter >
+ *             http-comp-req > http-comp-res > fcgi
+ *
+ *   request:  decomp-req > any other filter > http-comp-res > decomp-res >
+ *             http-comp-req > fcgi
+ *
+ *   response: fcgi > decomp-res > cache-store > any other filter >
+ *             decomp-req > http-comp-res
+ *
+ * Explicitly declared core filters are never moved and act as segment
+ * boundaries (see flt_reorder_implicit_conf()).
+ */
+static int flt_order_class(const struct flt_conf *fconf, unsigned int side)
+{
+	int is_comp_req = (fconf->id == http_comp_req_flt_id);
+	int is_comp_res = (fconf->id == http_comp_res_flt_id);
+	int is_decomp_req = (fconf->id == decomp_req_flt_id);
+	int is_decomp_res = (fconf->id == decomp_res_flt_id);
+	int is_cache = (fconf->id == cache_store_flt_id);
+#if defined(USE_FCGI)
+	int is_fcgi = (fconf->id == fcgi_flt_id);
+#endif
+
+	switch (side) {
+	case FLT_SIDE_REQ:
+		if (is_decomp_req)
+			return 0;
+		if (is_comp_res)
+			return 2;
+		if (is_decomp_res)
+			return 3;
+		if (is_comp_req)
+			return 4;
+#if defined(USE_FCGI)
+		if (is_fcgi)
+			return 5;
+#endif
+		return 1; /* any other filter */
+
+	case FLT_SIDE_RES:
+#if defined(USE_FCGI)
+		if (is_fcgi)
+			return 0;
+#endif
+		if (is_decomp_res)
+			return 1;
+		if (is_cache)
+			return 2;
+		if (is_decomp_req)
+			return 4;
+		if (is_comp_res)
+			return 5;
+		return 3; /* any other filter */
+
+	default:
+		/* global order */
+		if (is_decomp_req || is_decomp_res)
+			return 0;
+		if (is_cache)
+			return 1;
+		if (is_comp_req || is_comp_res)
+			return 3;
+#if defined(USE_FCGI)
+		if (is_fcgi)
+			return 4;
+#endif
+		return 2; /* any other filter */
+	}
+}
+
+/* Appends at the end of <out> all the filter configs pending in the ordering
+ * buckets <seg>, in class order, and empties the buckets.
+ */
+static void flt_flush_order_segs(struct list *out, struct list seg[], int nb_seg)
+{
+	int i;
+
+	for (i = 0; i < nb_seg; i++) {
+		while (!LIST_ISEMPTY(&seg[i])) {
+			struct list *el = seg[i].n;
+
+			LIST_DEL_INIT(el);
+			LIST_APPEND(out, el);
+		}
+	}
+}
+
+/* Reorders the implicitly declared core filter configs of the legacy proxy <px>
+ * to force the canonical filter orders. Three independent orders are filled,
+ * respectively with the 'list', 'by_req' and 'by_res' members of the filter
+ * configs
+ *
+ * The global order (px->filter_configs) is used for the side-independent
+ * operations (configuration checks, initialization and destruction). The
+ * request and response orders (px->filters_req_configs and
+ * px->filters_res_configs) are used to fill the stream's request and response
+ * filter lists.
+ *
+ * Explicitly declared core filters are never moved, they keep their declaration
+ * order. They delimit segments of filters inside which the implicitly declared
+ * core filters are sorted, so that an implicit filter never crosses an
+ * explicitly declared one.
+ */
+static void flt_reorder_implicit_conf(struct proxy *px)
+{
+	struct flt_conf *fconf, *back;
+	struct list out, seg[3][6];
+	int i, s;
+
+	for (s = 0; s < 3; s++) {
+		for (i = 0; i < 6; i++)
+			LIST_INIT(&seg[s][i]);
+	}
+
+	/* First, the global order, with the 'list' member. */
+	LIST_INIT(&out);
+	list_for_each_entry_safe(fconf, back, &px->filter_configs, list) {
+		if ((fconf->flags & FLT_CFG_FL_EXPLICIT) && flt_is_core_flt(fconf)) {
+			/* Explicitly declared core filter: flush the current
+			 * segment before it and keep the filter in place.
+			 */
+			flt_flush_order_segs(&out, seg[0], 6);
+			LIST_DEL_INIT(&fconf->list);
+			LIST_APPEND(&out, &fconf->list);
+			continue;
+		}
+		LIST_DEL_INIT(&fconf->list);
+		LIST_APPEND(&seg[0][flt_order_class(fconf, FLT_SIDE_GLOBAL)], &fconf->list);
+	}
+	flt_flush_order_segs(&out, seg[0], 6);
+	LIST_SPLICE(&px->filter_configs, &out);
+
+	/* Then the request and response orders, from the final global order,
+	 * with the 'by_req' and 'by_res' members. Both lists are rebuilt from
+	 * scratch: reset their heads, all the links were initialized by
+	 * flt_conf_add()/flt_conf_insert() or above.
+	 */
+	LIST_INIT(&px->filters_req_configs);
+	LIST_INIT(&px->filters_res_configs);
+	list_for_each_entry_safe(fconf, back, &px->filter_configs, list) {
+		if ((fconf->flags & FLT_CFG_FL_EXPLICIT) && flt_is_core_flt(fconf)) {
+			/* Explicitly declared core filter: flush the current
+			 * segments before it and keep the filter in place.
+			 */
+			flt_flush_order_segs(&px->filters_req_configs, seg[1], 6);
+			flt_flush_order_segs(&px->filters_res_configs, seg[2], 6);
+			LIST_APPEND(&px->filters_req_configs, &fconf->by_req);
+			LIST_APPEND(&px->filters_res_configs, &fconf->by_res);
+			continue;
+		}
+		LIST_APPEND(&seg[1][flt_order_class(fconf, FLT_SIDE_REQ)], &fconf->by_req);
+		LIST_APPEND(&seg[2][flt_order_class(fconf, FLT_SIDE_RES)], &fconf->by_res);
+	}
+	flt_flush_order_segs(&px->filters_req_configs, seg[1], 6);
+	flt_flush_order_segs(&px->filters_res_configs, seg[2], 6);
+}
+
 /*
  * Calls 'check' callback for all filters attached to a proxy. This happens
  * after the configuration parsing but before filters initialization. Returns
@@ -703,6 +880,7 @@ flt_check(struct proxy *proxy)
 
 	err += check_implicit_decomp_flt(proxy);
 	err += check_implicit_http_comp_flt(proxy);
+	flt_reorder_implicit_conf(proxy);
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
 		if (fconf->ops->check)
 			err += fconf->ops->check(proxy, fconf);
@@ -755,6 +933,8 @@ flt_deinit(struct proxy *proxy)
 		if (fconf->ops->deinit)
 			fconf->ops->deinit(proxy, fconf);
 		LIST_DELETE(&fconf->list);
+		LIST_DELETE(&fconf->by_req);
+		LIST_DELETE(&fconf->by_res);
 		free(fconf);
 	}
 	list_for_each_entry(inst, &proxy->filter_instances, global.list) {
@@ -806,12 +986,12 @@ flt_deinit_all_per_thread()
 		flt_deinit_per_thread(px);
 }
 
-/* Attach a filter in global stream order. In legacy mode, also append both
- * channel links immediately. Instance mode fills them in independent passes.
+/* Attach a filter in global stream order. The channel lists are filled by
+ * the caller, from the proxy's per-side orders.
  * Returns -1 on error, 0 on success (including filters declining attachment).
  */
 static int
-flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int flags, int legacy)
+flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int flags)
 {
 	struct filter *f;
 
@@ -838,11 +1018,6 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 
 	LIST_APPEND(&strm_flt(s)->filters, &f->list);
 
-	if (legacy) {
-		LIST_APPEND(&s->req.flt.filters, &f->req_list);
-		LIST_APPEND(&s->res.flt.filters, &f->res_list);
-	}
-
 	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
 	return 0;
 }
@@ -861,9 +1036,29 @@ static int flt_stream_add_proxy_filters(struct stream *s, struct proxy *px, unsi
 	struct filter *filter;
 
 	if (flt_use_legacy_filter(px)) {
+		/* The attach callbacks are called in the global order, then
+		 * the stream's request and response filter lists are filled
+		 * with the proxy's request and response orders.
+		 */
 		list_for_each_entry(fconf, &px->filter_configs, list) {
-			if (flt_stream_add_filter(s, fconf, flags, 1) < 0)
+			if (flt_stream_add_filter(s, fconf, flags) < 0)
 				return -1;
+		}
+		list_for_each_entry(fconf, &px->filters_req_configs, by_req) {
+			list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+				if (filter->config == fconf) {
+					LIST_APPEND(&s->req.flt.filters, &filter->req_list);
+					break;
+				}
+			}
+		}
+		list_for_each_entry(fconf, &px->filters_res_configs, by_res) {
+			list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+				if (filter->config == fconf) {
+					LIST_APPEND(&s->res.flt.filters, &filter->res_list);
+					break;
+				}
+			}
 		}
 		return 0;
 	}
@@ -871,7 +1066,7 @@ static int flt_stream_add_proxy_filters(struct stream *s, struct proxy *px, unsi
 	list_for_each_entry(inst, &px->filter_instances, global.list) {
 		if (!inst->enabled || !inst->fconf)
 			continue;
-		if (flt_stream_add_filter(s, inst->fconf, flags, 0) < 0)
+		if (flt_stream_add_filter(s, inst->fconf, flags) < 0)
 			return -1;
 	}
 
@@ -1807,8 +2002,9 @@ struct filter_instance *flt_find_instance(struct proxy *px, struct filter_class 
 }
 
 /* Calls <fct> for each filter configuration of the proxy <px> in the evaluation
- * order of side <side> (FLT_SIDE_GLOBAL, FLT_SIDE_REQ or FLT_SIDE_RES). if the
- * proxy is in legacy mode (PR_FL_FILTER_LEGACY) the filter_configs list is used.
+ * order of side <side> (FLT_SIDE_GLOBAL, FLT_SIDE_REQ or FLT_SIDE_RES). In
+ * legacy mode (PR_FL_FILTER_LEGACY), the matching filter_configs,
+ * filters_req_configs or filters_res_configs list is used.
  * <fct> must return 0 to continue, any other value to stop immediately; that
  * value is then returned.
  */
@@ -1820,6 +2016,22 @@ int flt_foreach_conf(struct proxy *px, unsigned int side,
 	int ret = 0;
 
 	if (flt_use_legacy_filter(px)) {
+		if (side == FLT_SIDE_REQ) {
+			list_for_each_entry(fconf, &px->filters_req_configs, by_req) {
+				ret = fct(fconf, data);
+				if (ret)
+					break;
+			}
+			return ret;
+		}
+		if (side == FLT_SIDE_RES) {
+			list_for_each_entry(fconf, &px->filters_res_configs, by_res) {
+				ret = fct(fconf, data);
+				if (ret)
+					break;
+			}
+			return ret;
+		}
 		list_for_each_entry(fconf, &px->filter_configs, list) {
 			ret = fct(fconf, data);
 			if (ret)

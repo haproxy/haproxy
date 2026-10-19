@@ -1348,10 +1348,13 @@ struct decomp_check_ctx {
 	int decomp_req_seen;
 	int decomp_res_seen;
 	int cache_seen;
-	int explicit;
 };
 
-/* Checks the filter <f> against the decomp filter being checked: ...
+/* Checks the filter <f> against the decomp filter being checked. It is used
+ * to know if a decompression filter is already declared and to report an
+ * explicitly declared decompression filter on the response placed after a
+ * cache filter. Implicit filters are automatically ordered, so no error
+ * is reported for them.
  * Returns non-zero to stop the iteration on error, 0 otherwise.
  */
 static int decomp_check_order(struct flt_conf *f, void *data)
@@ -1371,23 +1374,9 @@ static int decomp_check_order(struct flt_conf *f, void *data)
 		ctx->decomp_res_seen = 1;
 		return 0;
 	}
-	/* Legacy filters not used for this proxy, we can return */
-	if (!flt_use_legacy_filter(ctx->px))
-		return 0;
-
-	if (f->id == cache_store_flt_id) {
+	if (flt_use_legacy_filter(ctx->px) && f->id == cache_store_flt_id)
 		ctx->cache_seen = 1;
-		return 0;
-	}
-	if (f->id == http_comp_req_flt_id || f->id == http_comp_res_flt_id)
-		return 0;
-#if defined(USE_FCGI)
-	if (f->id == fcgi_flt_id)
-		return 0;
-#endif
-	ctx->explicit = 1;
 	return 0;
-
 }
 
 int
@@ -1395,7 +1384,7 @@ check_implicit_decomp_flt(struct proxy *proxy)
 {
 	struct flt_conf *fconf;
 	struct decomp_check_ctx ctx = { .px = proxy, .decomp_req_seen = 0, .decomp_res_seen = 0,
-					.cache_seen = 0, .explicit = 0};
+					.cache_seen = 0};
 	int err = 0;
 
 	if (proxy->decomp == NULL)
@@ -1407,14 +1396,9 @@ check_implicit_decomp_flt(struct proxy *proxy)
 	}
 
 	if ((proxy->cap & PR_CAP_FE) && proxy->decomp->req.algos && !ctx.decomp_req_seen) {
-		if (ctx.explicit) {
-			ha_alert("config: %s '%s': require an explicit 'filter decomp-req' declaration to use "
-				 "decompression.\n", proxy_type_str(proxy), proxy->id);
-			err++;
-			goto end;
-		}
 		/* Implicit declaration of the decomp-req filter should be at
-		 * the beginning of the filter list.
+		 * the beginning of the filter list. It will be placed at its
+		 * final position by flt_reorder_implicit_conf().
 		 */
 		fconf = calloc(1, sizeof(*fconf));
 		if (!fconf)
@@ -1422,17 +1406,12 @@ check_implicit_decomp_flt(struct proxy *proxy)
 		fconf->id   = decomp_req_flt_id;
 		fconf->conf = &proxy->decomp->req;
 		fconf->ops  = &decomp_req_ops;
-		LIST_INSERT(&proxy->filter_configs, &fconf->list);
+		flt_conf_insert(proxy, fconf);
 	}
 	if ((proxy->cap & PR_CAP_BE) && proxy->decomp->res.algos && !ctx.decomp_res_seen) {
-		if (ctx.explicit) {
-			ha_alert("config: %s '%s': require an explicit 'filter decomp-res' declaration to use "
-				 "decompression.\n", proxy_type_str(proxy), proxy->id);
-			err++;
-			goto end;
-		}
 		/* Implicit declaration of the decomp-res filter should be at
-		 * the beginning of the filter list.
+		 * the beginning of the filter list. It will be placed at its
+		 * final position by flt_reorder_implicit_conf().
 		 */
 		fconf = calloc(1, sizeof(*fconf));
 		if (!fconf)
@@ -1440,7 +1419,7 @@ check_implicit_decomp_flt(struct proxy *proxy)
 		fconf->id   = decomp_res_flt_id;
 		fconf->conf = &proxy->decomp->res;
 		fconf->ops  = &decomp_res_ops;
-		LIST_INSERT(&proxy->filter_configs, &fconf->list);
+		flt_conf_insert(proxy, fconf);
 	}
  end:
 	return err;
