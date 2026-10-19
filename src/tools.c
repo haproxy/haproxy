@@ -7011,6 +7011,62 @@ struct ist env_suggest(struct ist word)
 	return best_name;
 }
 
+/* Look up word <word> among array of words <array>, made of elements of size
+ * <item_sz>. The pointer to the word to find in the array must be at offset
+ * <ofs> in the element. If <nbelem> is >= 0, no word will be looked up past
+ * this number of elements. In any case, a NULL pointer to a word marks the
+ * end of the list. On return, if <idx> is not NULL, it will be set to the
+ * index of the element found, the closest one, or won't be touched if no
+ * element is found. The return value is:
+ *   0 : no element found
+ *   1 : approximate match at position <idx>
+ *   2 : exact match at position <idx>
+ */
+int find_word_index_in_array(const void *array, size_t item_sz, size_t nbelem,
+                             size_t ofs, const char *word, size_t *idx)
+{
+	uint8_t word_sig[1024];
+	uint8_t list_sig[1024];
+	const char *best_ptr = NULL;
+	int dist, best_dist = INT_MAX;
+	const char **match;
+	size_t elem, best_elem = 0;
+
+	make_word_fingerprint(word_sig, word);
+
+	for (elem = 0; elem < nbelem; elem++) {
+		match = (const char **)((const char *)array + ofs + elem * item_sz);
+		if (!*match)
+			break;
+
+		if (strcmp(word, *match) == 0) {
+			/* found exact match */
+			if (idx)
+				*idx = elem;
+			return 2;
+		}
+		make_word_fingerprint(list_sig, *match);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_ptr = *match;
+			best_elem = elem;
+		}
+	}
+
+	if (best_dist > 2 * strlen(word) || (best_ptr && best_dist > 2 * strlen(best_ptr)))
+		best_ptr = NULL;
+
+	if (best_ptr) {
+		/* found approximate match */
+		if (idx)
+			*idx = best_elem;
+		return 1;
+	}
+
+	/* not found */
+	return 0;
+}
 
 /* This function hashes a word, scramble is the anonymizing key, returns
  * the hashed word when the key (scramble) != 0, else returns the word.

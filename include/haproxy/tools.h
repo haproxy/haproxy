@@ -1020,6 +1020,8 @@ void update_word_fingerprint(uint8_t *fp, const char *word);
 void make_word_fingerprint_with_len(uint8_t *fp, struct ist word);
 void make_word_fingerprint(uint8_t *fp, const char *word);
 int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2);
+int find_word_index_in_array(const void *array, size_t item_sz, size_t nbelem,
+                             size_t ofs, const char *word, size_t *idx);
 
 /* debugging macro to emit messages using write() on fd #-1 so that strace sees
  * them. It relies on variadic macros with optional arguments so that any
