@@ -160,9 +160,8 @@ static int bwlim_apply_limit(struct filter *filter, struct channel *chn, unsigne
 		 */
 		ret = tokens;
 		if (tokens < conf->min_size) {
-			ret = (chn_prod(chn)->flags & (SC_FL_EOI|SC_FL_EOS|SC_FL_ABRT_DONE))
-				? MIN(len, conf->min_size)
-				: conf->min_size;
+			/* The burst must never exceed the amount of pending data (<len>) */
+			ret = MIN(len, conf->min_size);
 
 			if (ret <= remain)
 				wait = div64_32((uint64_t)(ret - tokens) * period * users + limit * factor - 1, limit * factor);
