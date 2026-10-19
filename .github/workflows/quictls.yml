@@ -1,12 +1,12 @@
 #
-# weekly run against modern QuicTLS branch, i.e. https://github.com/quictls/quictls
+# daily run against modern QuicTLS branch, i.e. https://github.com/quictls/quictls
 #
 
 name: QuicTLS
 
 on:
   schedule:
-    - cron: "0 0 * * 4"
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:

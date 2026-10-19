@@ -2,7 +2,7 @@ name: NetBSD
 
 on:
   schedule:
-    - cron: "0 0 25 * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:
