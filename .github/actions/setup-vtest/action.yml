@@ -21,24 +21,39 @@ runs:
         ulimit -n 65536
         ulimit -c unlimited
 
+    - name: Get the build environment ID
+      id: env-id
+      shell: sh
+      run: |
+        environment_id=$( (. /etc/os-release 2>/dev/null && echo "${ID:-unknown}${VERSION_ID:+-${VERSION_ID}}") || uname -s )
+        echo "id=${environment_id}" >> "$GITHUB_OUTPUT"
+
     - name: Get VTest latest commit SHA
       id: vtest-sha
       shell: sh
       run: |
         echo "sha=$(git ls-remote https://code.vinyl-cache.org/vtest/VTest2 HEAD | cut -f1)" >> $GITHUB_OUTPUT
 
-    - name: Cache VTest
+    - name: Restore VTest cache
       id: cache-vtest
-      uses: actions/cache@v5
+      uses: actions/cache/restore@v5
       with:
-        path: ${{ github.workspace }}/vtest
-        key: vtest-${{ runner.os }}-${{ runner.arch }}-${{ steps.vtest-sha.outputs.sha }}
+        path: vtest
+        key: vtest-${{ runner.os }}-${{ runner.arch }}-${{ steps.env-id.outputs.id }}-${{ steps.vtest-sha.outputs.sha }}
 
     - name: Install VTest
       if: ${{ steps.cache-vtest.outputs.cache-hit != 'true' }}
       shell: sh
       run: |
-        DESTDIR=${{ github.workspace }}/vtest scripts/build-vtest.sh
+        # Use the runtime workspace, not the host-side github.workspace path.
+        DESTDIR="$GITHUB_WORKSPACE/vtest" scripts/build-vtest.sh
+
+    - name: Save VTest cache
+      if: ${{ steps.cache-vtest.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v5
+      with:
+        path: vtest
+        key: ${{ steps.cache-vtest.outputs.cache-primary-key }}
 
     - name: Install problem matcher for VTest
       shell: sh
