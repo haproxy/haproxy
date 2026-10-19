@@ -3739,9 +3739,9 @@ static void filter_init_classes(void)
 	 * filter_place_class() on FLT_SIDE_GLOBAL.
 	 */
 	LIST_APPEND(&global_filter_classes, &flt_trace_cls.global.list);
-	LIST_APPEND(&global_filter_classes, &flt_cache_store_cls.global.list);
 	LIST_APPEND(&global_filter_classes, &flt_decomp_req_cls.global.list);
 	LIST_APPEND(&global_filter_classes, &flt_decomp_res_cls.global.list);
+	LIST_APPEND(&global_filter_classes, &flt_cache_store_cls.global.list);
 #if defined(USE_SPOE)
 	LIST_APPEND(&global_filter_classes, &flt_spoe_cls.global.list);
 #endif
