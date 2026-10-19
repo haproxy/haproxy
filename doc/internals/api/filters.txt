@@ -121,12 +121,15 @@ by a single stream.
 Filters are designed to be chained. It is possible to declare several filters in
 the same proxy section. The evaluation order is the declaration order in legacy
 mode, and the class order - possibly refined with "filter-sequence" - in the
-new mode. Frontend and backend filters are also chained, frontend ones called
-first. Even if the filters processing is serialized, each filter will behave
-as it was alone (unless it was developed to be aware of other filters). For
-all that, some constraints are imposed to filters, especially when data
-exchanged between the client and the server are processed. We will discuss
-again these constraints when we will tackle the subject of writing a filter.
+new mode. Frontend and backend filters are also chained: on the request
+path the frontend ones are called first, and on the response path the
+backend ones are called first. Even if the filters processing is
+serialized, each filter will behave as it was alone (unless it was
+developed to be aware of other filters). For all that, some constraints
+are imposed to filters, especially when data exchanged between the
+client and the server are processed. We will discuss again these
+constraints when we will tackle the subject of writing a filter.
+
 
 
 

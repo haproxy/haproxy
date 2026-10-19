@@ -1043,7 +1043,10 @@ static int flt_stream_add_proxy_filters(struct stream *s, struct proxy *px, unsi
 	if (flt_use_legacy_filter(px)) {
 		/* The attach callbacks are called in the global order, then
 		 * the stream's request and response filter lists are filled
-		 * with the proxy's request and response orders.
+		 * with the proxy's request and response orders. The backend
+		 * filters are prepended to the response list, so they are
+		 * evaluated before the frontend filters: a response reaches
+		 * the backend filters first.
 		 */
 		list_for_each_entry(fconf, &px->filter_configs, list) {
 			if (flt_stream_add_filter(s, fconf, flags) < 0)
@@ -1057,11 +1060,23 @@ static int flt_stream_add_proxy_filters(struct stream *s, struct proxy *px, unsi
 				}
 			}
 		}
-		list_for_each_entry(fconf, &px->filters_res_configs, by_res) {
-			list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-				if (filter->config == fconf) {
-					LIST_APPEND(&s->res.flt.filters, &filter->res_list);
-					break;
+		if (flags & FLT_FL_IS_BACKEND_FILTER) {
+			list_for_each_entry_rev(fconf, &px->filters_res_configs, by_res) {
+				list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+					if (filter->config == fconf) {
+						LIST_INSERT(&s->res.flt.filters, &filter->res_list);
+						break;
+					}
+				}
+			}
+		}
+		else {
+			list_for_each_entry(fconf, &px->filters_res_configs, by_res) {
+				list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+					if (filter->config == fconf) {
+						LIST_APPEND(&s->res.flt.filters, &filter->res_list);
+						break;
+					}
 				}
 			}
 		}

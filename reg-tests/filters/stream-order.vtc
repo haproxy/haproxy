@@ -142,7 +142,7 @@ client c3 -connect ${h3_fe_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-filter-order == "Fa:2;Fb:1;Ba:1;Bb:2;"
+    expect resp.http.x-filter-order == "Ba:1;Bb:2;Fa:2;Fb:1;"
     expect resp.http.x-filter-start == <undef>
 } -run
 

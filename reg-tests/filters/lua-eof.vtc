@@ -51,7 +51,7 @@ client c1 -connect ${h1_fe_sock} {
     chunked ""
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.a;F.b;B.a;B.b;"
+    expect resp.http.x-probe-order == "B.a;B.b;F.a;F.b;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "complete response"
 } -run
@@ -98,7 +98,7 @@ client c2 -connect ${h2_fe_sock} {
     chunked ""
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.a;F.b;B.a;B.b;"
+    expect resp.http.x-probe-order == "B.a;B.b;F.a;F.b;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "complete response"
 } -run

@@ -106,9 +106,9 @@ client c1 -connect ${h1_fe_sock} {
     txreq -req POST -url /legacy -body "second"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.b;F.a;L.a;L.c;"
-    expect resp.http.x-probe-instances == "F.b:3;F.a:4;L.a:1;L.c:2;"
-    expect resp.http.x-probe-request-bytes == "F.a:6;L.a:6;"
+    expect resp.http.x-probe-order == "L.a;L.c;F.b;F.a;"
+    expect resp.http.x-probe-instances == "L.a:1;L.c:2;F.b:3;F.a:4;"
+    expect resp.http.x-probe-request-bytes == "L.a:6;F.a:6;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "legacy response"
 
