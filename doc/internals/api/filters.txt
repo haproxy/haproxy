@@ -370,6 +370,22 @@ the field 'filter_configs' of the 'proxy' structure, each one of type
 separately and the core builds the evaluation orders from them, but a filter
 still only deals with 'struct flt_conf' once its filter instance is finalized.
 
+In legacy mode, the implicitly declared core filters (the decompression,
+compression, cache and fcgi filters) are automatically ordered by the core,
+instead of relying on the user to declare them in a valid position. Three
+independent orders are maintained with the 'list', 'by_req' and 'by_res' links
+of the filter configurations, respectively stored in 'px->filter_configs',
+'px->filters_req_configs' and 'px->filters_res_configs'. Explicitly declared
+core filters are never moved and act as segment boundaries: implicitly
+declared filters are sorted inside the segment they appear in, so they never
+cross an explicitly declared one. The stream's request and response filter
+lists are filled with the request and response orders respectively. The
+resulting default orders, for both the legacy and the new mode, are documented
+in the configuration manual, next to the "filter-config" documentation. Like
+any default order, they are informational only: only the position of an
+implicitly declared filter relative to the explicitly declared ones is
+guaranteed.
+
     /*
      * Structure representing the filter configuration, attached to a proxy and
      * accessible from a filter when instantiated in a stream
@@ -1603,7 +1619,8 @@ The following helpers work in both modes and must be used for that purpose :
     configurations of the proxy, in the evaluation order of the given side
     (FLT_SIDE_GLOBAL, FLT_SIDE_REQ or FLT_SIDE_RES). The '<fct>' callback is
     called with each 'struct flt_conf *' and must return 0 to continue. In
-    legacy mode, the declaration order is used.
+    legacy mode, the global order is the reordered declaration order and the
+    request and response orders are filled from it (see below).
 
   * 'flt_find_conf(px, flt_id, side, match, data)' returns the first filter
     configuration matching the id '<flt_id>' (any id if NULL) and the optional
@@ -1969,7 +1986,16 @@ enabled by another directive, or is referenced by other directives.
     not assume a fixed order relative to other filters unless it owns the
     corresponding placements or sequences.
 
-    In legacy mode, the declaration order of the "filter" directives is used.
+    In legacy mode, the declaration order of the "filter" directives is used
+    for the explicitly declared filters, and the implicitly declared core
+    filters are automatically ordered (see section 3.1).
+
+    For both modes, the default orders of the built-in filters are
+    informational only and may be changed by the build options or by a future
+    version: only the placements explicitly requested by a filter, and the
+    position of an implicitly declared legacy filter relative to the
+    explicitly declared ones, should be relied upon. They are listed in the
+    configuration manual, next to the "filter-config" documentation.
 
 5.6. Can a filter instance be shared between proxies?
 

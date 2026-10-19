@@ -7571,10 +7571,10 @@ decompression algo-req <algorithms> ...
 decompression algo-res <algorithms> ...
   Configures the decompression algorithms supported by the proxy.  It will
   implicitly enable decompression filter ("decomp-req" or "decomp-res" whether
-  the decompression option targets request, response) automatically. However to
-  prevent misconfiguration, it is recommended to explicitly declare filters
-  when multiple filters are involved on the proxy, because filters are
-  evaluated in their declaration order.
+  the decompression option targets request, response) automatically. When
+  implicitly enabled in the legacy filter mode, the decompression filter is
+  automatically placed at the beginning of the filter list, before the cache
+  and compression filters.
 
   May be used in the following contexts: http, tcp
 
@@ -7679,9 +7679,9 @@ decompression mode-res { none | auto | always }
   When decompression is set to a mode other than "none" in a direction, the
   associated decompression filter is automatically enabled. For requests, the
   filter is called "decomp-req", and for responses, the filter is "decomp-res".
-  In order to prevent misconfigurations, particularly when combining multiple
-  filters, it is highly recommended to explicitly declare the filters, because
-  they are evaluated in their declaration order.
+  When implicitly enabled in the legacy filter mode, the decompression filter
+  is automatically placed at the beginning of the filter list, before the
+  cache and compression filters.
 
   Mode "auto", which is only available for HTTP, means haproxy will try to find
   a compatible algorithms in algo-req or algo-res list to be able to decompress
@@ -31521,8 +31521,13 @@ A filter is declared on a proxy in one of two modes:
 
   * The legacy mode relies on the "filter" directive. Each "filter" line
     declares an independent filter configuration and the declaration order
-    defines the evaluation order. This mode is kept for backward
-    compatibility.
+    defines the evaluation order. However, the filters implicitly declared
+    by other directives (the decompression options, the compression options,
+    the "cache-store" rules and "use-fcgi-app") are automatically ordered,
+    independently on each direction, and an explicitly declared filter is
+    never moved: it keeps its declared position and the implicitly declared
+    ones are ordered inside the segments it delimits (see the default orders
+    below). This mode is kept for backward compatibility.
 
   * The new mode relies on the "filter-config" directive. Each declaration is
     a filter instance, attached to its filter class. The evaluation order is
@@ -31530,15 +31535,49 @@ A filter is declared on a proxy in one of two modes:
     "filter-sequence" directive. The instances are disabled by default and
     are activated with the "enabled" token or the "filter-enable" directive.
 
-Each filter class is placed in three independent orders: a global one, used
-for the side-independent operations (configuration checks, initialization and
+For each mode, three orders exist: a global one, used for the
+side-independent operations (configuration checks, initialization and
 destruction), and a request and a response one, used for the evaluation order
-of the instances on the corresponding channel. The request and the response
-orders are independent, so a class may be evaluated at a different position
+of the filters on the corresponding channel. The request and the response
+orders are independent, so a filter may be evaluated at a different position
 depending on the direction, and the global order may be changed without
 affecting them. The resulting orders of a proxy may be inspected with the
 "show filter classes" CLI command, and the "show filter instances" one reports
 the resulting order of the instances.
+
+The default orders are informational only: they describe the current placement
+of the classes and of the implicitly declared filters, and they may be changed
+by the build options or by a future version. Only the placements explicitly
+requested by a filter, and the position of an implicitly declared legacy filter
+relative to the explicitly declared ones, should be relied upon.
+
+In the new mode, the orders follow the class placement, which can be adjusted
+per proxy with the "filter-sequence" directive. The built-in classes are
+placed, when no explicit placement is requested, as follows:
+
+  * global order: trace > decomp-req > decomp-res > cache-store > spoe >
+    lua > http-comp-req > http-comp-res > bwlim-in > bwlim-out > fcgi
+
+  * request order: trace > decomp-req > lua > spoe > http-comp-res >
+    decomp-res > http-comp-req > bwlim-in > fcgi
+
+  * response order: fcgi > trace > decomp-res > cache-store > spoe > lua >
+    http-comp-res > decomp-req > bwlim-out
+
+In the legacy mode, the automatically ordered filters are the implicit core
+filters: the decompression filters, the cache filters, the compression
+filters and the fcgi filter. They are placed, when implicitly declared, as
+follows, where "any other filter" stands for the explicitly declared filters
+and the other legacy filters in their declaration order:
+
+  * global order: decomp-req > decomp-res > cache-store > any other filter >
+    http-comp-req > http-comp-res > fcgi
+
+  * request order: decomp-req > any other filter > http-comp-res > decomp-res >
+    http-comp-req > fcgi
+
+  * response order: fcgi > decomp-res > cache-store > any other filter >
+    decomp-req > http-comp-res
 
 The mode is selected by the configuration itself: as soon as a legacy "filter"
 directive is used in a proxy, the proxy works in legacy mode and the
