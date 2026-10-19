@@ -2899,7 +2899,7 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 {
 	int err;
-	struct buffer headers_buf = BUF_NULL;
+	struct buffer headers_buf;
 	struct buffer *res;
 	struct http_hdr list[global.tune.max_http_hdr];
 	struct htx_blk *blk;
@@ -2959,8 +2959,21 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 		goto end;
 	}
 
-	/* At least 9 bytes to store frame type + length as a varint max size */
-	if (b_room(res) < 9) {
+	while (1) {
+		b_reset(&headers_buf);
+		headers_buf = b_make(b_tail(res), b_contig_space(res), 0, 0);
+		/* At least 9 bytes to store frame type + length as a varint max size */
+		if (b_size(&headers_buf) > 9 || !b_space_wraps(res))
+			break;
+		if (qcc_realign_stream_txbuf(qcs, res))
+			break;
+	}
+
+	/* Not enough room for headers and at least one trailers byte, try to
+	 * release the current buffer and allocate a new one. If not possible,
+	 * stconn layer will subscribe on SEND.
+	 */
+	if (b_size(&headers_buf) <= 9) {
 		TRACE_STATE("not enough room for trailers frame", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 		if (qcc_release_stream_txbuf(qcs))
 			goto end;
@@ -2969,9 +2982,6 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 		goto start;
 	}
 
-	/* Force buffer realignment as size required to encode headers is unknown. */
-	if (b_space_wraps(res))
-		b_slow_realign(res, trash.area, b_data(res));
 	/* Start the headers after frame type + length */
 	headers_buf = b_make(b_peek(res, b_data(res) + 9), b_contig_space(res) - 9, 0, 0);
 
