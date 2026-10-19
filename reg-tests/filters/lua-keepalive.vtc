@@ -97,9 +97,9 @@ client c1 -connect ${h1_fe_sock} {
     txreq -req POST -url /instances -body "first"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.b;F.a;D.c;D.a;"
-    expect resp.http.x-probe-instances == "F.b:1;F.a:2;D.c:1;D.a:2;"
-    expect resp.http.x-probe-request-bytes == "F.a:5;D.c:5;"
+    expect resp.http.x-probe-order == "D.c;D.a;F.b;F.a;"
+    expect resp.http.x-probe-instances == "D.c:1;D.a:2;F.b:1;F.a:2;"
+    expect resp.http.x-probe-request-bytes == "D.c:5;F.a:5;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "first response"
 
@@ -127,9 +127,9 @@ client c1 -connect ${h1_fe_sock} {
     txreq -req POST -url /instances -body "fourth"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.b;F.a;D.c;D.a;"
-    expect resp.http.x-probe-instances == "F.b:7;F.a:8;D.c:3;D.a:4;"
-    expect resp.http.x-probe-request-bytes == "F.a:6;D.c:6;"
+    expect resp.http.x-probe-order == "D.c;D.a;F.b;F.a;"
+    expect resp.http.x-probe-instances == "D.c:3;D.a:4;F.b:7;F.a:8;"
+    expect resp.http.x-probe-request-bytes == "D.c:6;F.a:6;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "fourth response"
 } -run
@@ -138,8 +138,8 @@ client c2 -connect ${h1_fe_sock} {
     txreq -req POST -url /instances -body "new"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-instances == "F.b:9;F.a:10;D.c:5;D.a:6;"
-    expect resp.http.x-probe-request-bytes == "F.a:3;D.c:3;"
+    expect resp.http.x-probe-instances == "D.c:5;D.a:6;F.b:9;F.a:10;"
+    expect resp.http.x-probe-request-bytes == "D.c:3;F.a:3;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "new connection"
 } -run

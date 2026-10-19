@@ -108,7 +108,7 @@ client c1 -connect ${h1_first_sock} {
     txreq -req POST -body "ping"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.base-b;F1.local-c;F1.local-a;BA.local-c;BA.local-d;"
+    expect resp.http.x-probe-order == "BA.local-c;BA.local-d;F.base-b;F1.local-c;F1.local-a;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "pong"
 } -run
@@ -119,7 +119,7 @@ client c2 -connect ${h1_sibling_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.base-a;B.base-b;B.base-c;"
+    expect resp.http.x-probe-order == "B.base-b;B.base-c;F.base-a;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "sibling"
 } -run

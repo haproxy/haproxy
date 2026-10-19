@@ -1028,6 +1028,11 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
  * configuration pointers to build the channel lists; disabled, incompatible
  * or declined filters have no stream filter instance to link. Never store
  * per-stream pointers in shared filter instances.
+ *
+ * The request list is always filled in the proxy's request order. The
+ * response list is filled in the proxy's response order for the frontend
+ * filters, but the backend filters are prepended, so a response reaches the
+ * backend filters before the frontend ones.
  */
 static int flt_stream_add_proxy_filters(struct stream *s, struct proxy *px, unsigned int flags)
 {
@@ -1080,13 +1085,27 @@ static int flt_stream_add_proxy_filters(struct stream *s, struct proxy *px, unsi
 			}
 		}
 	}
-	list_for_each_entry(inst, &px->filter_res_instances, res.list) {
-		if (!inst->enabled || !inst->fconf)
-			continue;
-		list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-			if (filter->config == inst->fconf) {
-				LIST_APPEND(&s->res.flt.filters, &filter->res_list);
-				break;
+	if (flags & FLT_FL_IS_BACKEND_FILTER) {
+		list_for_each_entry_rev(inst, &px->filter_res_instances, res.list) {
+			if (!inst->enabled || !inst->fconf)
+				continue;
+			list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+				if (filter->config == inst->fconf) {
+					LIST_INSERT(&s->res.flt.filters, &filter->res_list);
+					break;
+				}
+			}
+		}
+	}
+	else {
+		list_for_each_entry(inst, &px->filter_res_instances, res.list) {
+			if (!inst->enabled || !inst->fconf)
+				continue;
+			list_for_each_entry(filter, &strm_flt(s)->filters, list) {
+				if (filter->config == inst->fconf) {
+					LIST_APPEND(&s->res.flt.filters, &filter->res_list);
+					break;
+				}
 			}
 		}
 	}

@@ -72,9 +72,9 @@ client c1 -connect ${h1_one_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.b;F.a;B.c;B.a;"
-    expect resp.http.x-probe-threads == "F.b:1;F.a:1;B.c:1;B.a:1;"
-    expect resp.http.x-probe-instances == "F.b:1;F.a:2;B.c:2;B.a:1;"
+    expect resp.http.x-probe-order == "B.c;B.a;F.b;F.a;"
+    expect resp.http.x-probe-threads == "B.c:1;B.a:1;F.b:1;F.a:1;"
+    expect resp.http.x-probe-instances == "B.c:2;B.a:1;F.b:1;F.a:2;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "thread one"
 } -run
@@ -83,9 +83,9 @@ client c2 -connect ${h1_two_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.b;F.a;B.c;B.a;"
-    expect resp.http.x-probe-threads == "F.b:2;F.a:2;B.c:2;B.a:2;"
-    expect resp.http.x-probe-instances == "F.b:1;F.a:2;B.c:2;B.a:1;"
+    expect resp.http.x-probe-order == "B.c;B.a;F.b;F.a;"
+    expect resp.http.x-probe-threads == "B.c:2;B.a:2;F.b:2;F.a:2;"
+    expect resp.http.x-probe-instances == "B.c:2;B.a:1;F.b:1;F.a:2;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "thread two"
 } -run
@@ -94,8 +94,8 @@ client c3 -connect ${h1_one_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-threads == "F.b:1;F.a:1;B.c:1;B.a:1;"
-    expect resp.http.x-probe-instances == "F.b:3;F.a:4;B.c:4;B.a:3;"
+    expect resp.http.x-probe-threads == "B.c:1;B.a:1;F.b:1;F.a:1;"
+    expect resp.http.x-probe-instances == "B.c:4;B.a:3;F.b:3;F.a:4;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "thread one again"
 } -run
@@ -104,8 +104,8 @@ client c4 -connect ${h1_two_sock} {
     txreq
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-threads == "F.b:2;F.a:2;B.c:2;B.a:2;"
-    expect resp.http.x-probe-instances == "F.b:3;F.a:4;B.c:4;B.a:3;"
+    expect resp.http.x-probe-threads == "B.c:2;B.a:2;F.b:2;F.a:2;"
+    expect resp.http.x-probe-instances == "B.c:4;B.a:3;F.b:3;F.a:4;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "thread two again"
 } -run

@@ -66,8 +66,8 @@ client c1 -connect ${h1_fe_sock} {
     expect resp.status == 200
     expect resp.http.x-retries == "1"
     expect resp.http.x-redispatched == "1"
-    expect resp.http.x-probe-order == "F.b;F.a;B.a;B.c;"
-    expect resp.http.x-probe-instances == "F.b:1;F.a:2;B.a:2;B.c:1;"
+    expect resp.http.x-probe-order == "B.a;B.c;F.b;F.a;"
+    expect resp.http.x-probe-instances == "B.a:2;B.c:1;F.b:1;F.a:2;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "successful retry"
     barrier b_drained sync

@@ -64,9 +64,9 @@ client c1 -connect ${h1_fe_sock} {
     txreq -req POST -body "abcdefgh"
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.c;F.a;F.b;B.a;B.c;B.b;"
-    expect resp.http.x-probe-instances == "F.c:2;F.a:1;F.b:3;B.a:2;B.c:1;B.b:3;"
-    expect resp.http.x-probe-request-bytes == "F.b:8;B.a:8;B.c:8;"
+    expect resp.http.x-probe-order == "B.a;B.c;B.b;F.c;F.a;F.b;"
+    expect resp.http.x-probe-instances == "B.a:2;B.c:1;B.b:3;F.c:2;F.a:1;F.b:3;"
+    expect resp.http.x-probe-request-bytes == "B.a:8;B.c:8;F.b:8;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "response after waits"
 
@@ -76,9 +76,9 @@ client c1 -connect ${h1_fe_sock} {
     chunked ""
     rxresp
     expect resp.status == 200
-    expect resp.http.x-probe-order == "F.c;F.a;F.b;B.a;B.c;B.b;"
-    expect resp.http.x-probe-instances == "F.c:5;F.a:4;F.b:6;B.a:5;B.c:4;B.b:6;"
-    expect resp.http.x-probe-request-bytes == "F.b:8;B.a:8;B.c:8;"
+    expect resp.http.x-probe-order == "B.a;B.c;B.b;F.c;F.a;F.b;"
+    expect resp.http.x-probe-instances == "B.a:5;B.c:4;B.b:6;F.c:5;F.a:4;F.b:6;"
+    expect resp.http.x-probe-request-bytes == "B.a:8;B.c:8;F.b:8;"
     expect resp.http.x-probe-errors == <undef>
     expect resp.body == "another response"
     barrier b_drained sync
