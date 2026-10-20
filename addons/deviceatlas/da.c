@@ -286,7 +286,7 @@ static void da_haproxy_checkinst(void)
             char *base;
             base = (char *)global_deviceatlas.atlasmap;
 
-            if (base[0] != 0) {
+            if (base[0] != 0 && base[0] != '0') {
             FILE *jsonp;
             void *cnew, *cold;
             da_status_t status;
@@ -297,7 +297,7 @@ static void da_haproxy_checkinst(void)
 #ifdef USE_THREAD
             if (HA_SPIN_TRYLOCK(OTHER_LOCK, &dadwsch_lock) != 0)
                 return;
-            if (base[0] == 0) {
+            if (base[0] == 0 || base[0] == '0') {
                 HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
                 return;
             }
