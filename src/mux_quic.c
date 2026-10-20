@@ -3599,11 +3599,11 @@ static int qcc_io_process(struct qcc *qcc)
 			qcc_app_shutdown(qcc);
 	}
 
+ out:
 	/* Report error if set on stream endpoint layer. */
 	if (qcc->flags & (QC_CF_ERR_CONN|QC_CF_ERRL))
 		qcc_wake_streams(qcc);
 
- out:
 	if (qcc_is_dead(qcc))
 		return 1;
 
