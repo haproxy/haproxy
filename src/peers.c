@@ -1840,12 +1840,13 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 
 		memcpy(&update, *msg_cur, sizeof(update));
 		*msg_cur += sizeof(update);
+		update = ntohl(update);
 	}
 	else
 		update = st->last_get + 1;
 
 	if (p->learnstate != PEER_LR_ST_PROCESSING)
-		st->last_get = htonl(update);
+		st->last_get = update;
 
 	if (exp) {
 		size_t expire_sz = sizeof expire;
