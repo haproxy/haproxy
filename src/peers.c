@@ -153,6 +153,7 @@ struct peer_prep_params {
 		int use_identifier;
 		int use_timed;
 		struct peer *peer;
+		struct ebpt_node *new_de; /* dict entry newly cached, if any */
 	} updt;
 	struct {
 		struct shared_table *shared_table;
@@ -265,6 +266,7 @@ static void peer_session_forceshutdown(struct peer *peer);
 
 static struct ebpt_node *dcache_tx_insert(struct dcache *dc,
                                           struct dcache_tx_entry *i);
+static inline void dcache_tx_cancel(struct dcache *dc, struct ebpt_node *o);
 static inline void flush_dcache(struct peer *peer);
 
 static const char *statuscode_str(int statuscode);
@@ -880,6 +882,8 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 						intencode(cde.id + 1, &cursor);
 					}
 					else {
+						/* new entry in the cache, to be removed if the message is not sent */
+						p->updt.new_de = cached_de;
 						/* Leave enough room to encode the remaining data length. */
 						end = beg = cursor + PEER_MSG_ENC_LENGTH_MAXLEN;
 						/* Encode the dictionary entry key */
@@ -1384,9 +1388,19 @@ static inline int peer_send_updatemsg(struct shared_table *st, struct appctx *ap
 			.peer = appctx->svcctx,
 		},
 	};
+	int ret;
 
 	TRACE_PROTO("send update message", PEERS_EV_SESS_IO|PEERS_EV_TX_MSG|PEERS_EV_PROTO_UPDATE, appctx, NULL, st);
-	return peer_send_msg(appctx, peer_prepare_updatemsg, &p);
+	ret = peer_send_msg(appctx, peer_prepare_updatemsg, &p);
+
+	/* If the message was not emitted, a dictionary entry which was newly
+	 * inserted in the TX cache while building it must be removed from
+	 * there, otherwise the next attempt would only send its ID and the
+	 * peer would never learn its value.
+	 */
+	if (ret <= 0 && p.updt.new_de)
+		dcache_tx_cancel(p.updt.peer->dcache, p.updt.new_de);
+	return ret;
 }
 
 /*
@@ -4088,6 +4102,19 @@ static struct ebpt_node *dcache_tx_insert(struct dcache *dc, struct dcache_tx_en
 	dc_tx->lru_key = (dc_tx->lru_key + 1) & (dc->max_entries - 1);
 
 	return o;
+}
+
+/*
+ * Remove from <dc> cache part used upon transmission the <o> entry which was
+ * just returned by dcache_tx_insert() as a new entry, because the message
+ * carrying its value could not be sent. The slot is simply left empty.
+ */
+static inline void dcache_tx_cancel(struct dcache *dc, struct ebpt_node *o)
+{
+	ebpt_delete(o);
+	o->key = NULL;
+	if (dc->tx->prev_lookup == o)
+		dc->tx->prev_lookup = NULL;
 }
 
 /*
