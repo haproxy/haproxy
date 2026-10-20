@@ -1586,7 +1586,7 @@ static int promex_dump_module_metrics(struct appctx *appctx, struct promex_modul
 
 			ret = mod->fill_ts(ctx->p[1], ctx->p[2], ctx->mod_field_num, labels, &val);
 			if (!ret)
-				continue;
+				goto next;
 			if (ret < 0)
 				goto error;
 
