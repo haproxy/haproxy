@@ -1312,6 +1312,13 @@ static int qcs_transfer_rx_data(struct qcs *qcs, struct qc_stream_rxbuf *rxbuf)
 			bdata_ctr_bdec(&qcs->rx.data);
 		}
 
+		/* Close QCS remotely if all data with FIN already stored in
+		 * current buf. Similar to what qcc_decode_qcs() already does
+		 * after consume.
+		 */
+		if ((qcs->flags & QC_SF_SIZE_KNOWN) && qcs->rx.offset_max == rxbuf->off_end)
+			qcs_close_remote(qcs);
+
 		ret = 0;
 	}
 
