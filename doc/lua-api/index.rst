@@ -4485,10 +4485,13 @@ HTTPMessage class
 .. js:function:: HTTPMessage.eom(http_msg)
 
   This function returns true if the end of message is reached for the HTTP
-  message **http_msg**.
+  message **http_msg**. When called by a filter, the result is relative to the
+  data visible by this filter: if an earlier filter holds back some data, the
+  function always returns false, even if the end of the message was received,
+  because the held data may still carry it.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
-  :returns: an integer containing the amount of available bytes.
+  :returns: a boolean
 
 .. js:function:: HTTPMessage.del_header(http_msg, name)
 
@@ -4590,7 +4593,10 @@ HTTPMessage class
 .. js:function:: HTTPMessage.may_recv(http_msg)
 
   This function returns true if the HTTP message **http_msg** may still receive
-  data.
+  data. When called by a filter, the result is relative to the data visible by
+  this filter: if an earlier filter holds back some data, the function always
+  returns true, because the held data may still be exposed to the current
+  filter, even if nothing will be received anymore.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
   :returns: a boolean

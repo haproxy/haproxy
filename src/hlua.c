@@ -6915,6 +6915,17 @@ static struct filter *hlua_http_msg_filter(lua_State *L, int ud, struct http_msg
 	return filter;
 }
 
+/* Helper function to know if all data in an HTX message are visible.
+ * Returns 1 if no filter are attached to the HTTP message or if all HTX data are
+ * visible by the filter Otherwise 0 is returned. */
+static int hlua_http_msg_fully_visible(lua_State *L, struct http_msg *msg, struct htx *htx)
+{
+	size_t offset, len;
+
+	hlua_http_msg_filter(L, 1, msg, &offset, &len);
+	return (offset + len == htx->data);
+}
+
 /* Returns true if the channel attached to the HTTP message is the response
  * channel.
  */
@@ -7263,11 +7274,16 @@ __LJMP static int hlua_http_msg_may_recv(lua_State *L)
 {
 	struct http_msg *msg;
 	struct htx *htx;
+	int may_recv;
 
 	MAY_LJMP(check_args(L, 1, "may_recv"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
-	lua_pushboolean(L, (htx_expect_more(htx) && !channel_input_closed(msg->chn) && channel_may_recv(msg->chn)));
+	may_recv = !hlua_http_msg_fully_visible(L, msg, htx) || (htx_expect_more(htx) &&
+								 !channel_input_closed(msg->chn) &&
+								 channel_may_recv(msg->chn));
+
+	lua_pushboolean(L, may_recv);
 	return 1;
 }
 
@@ -7276,11 +7292,13 @@ __LJMP static int hlua_http_msg_is_eom(lua_State *L)
 {
 	struct http_msg *msg;
 	struct htx *htx;
+	int eom;
 
-	MAY_LJMP(check_args(L, 1, "may_recv"));
+	MAY_LJMP(check_args(L, 1, "eom"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
-	lua_pushboolean(L, !htx_expect_more(htx));
+	eom = hlua_http_msg_fully_visible(L, msg, htx) && htx_msg_ended(htx);
+	lua_pushboolean(L, eom);
 	return 1;
 }
 
