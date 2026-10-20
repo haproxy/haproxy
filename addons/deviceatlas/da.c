@@ -335,6 +335,8 @@ static void da_haproxy_checkinst(void)
                     cold = global_deviceatlas.atlasimgptr;
                     global_deviceatlas.atlasimgptr = cnew;
                     global_deviceatlas.atlas = inst;
+                    global_deviceatlas.useragentid = da_atlas_header_evidence_id(&global_deviceatlas.atlas,
+                        "user-agent");
                     global_deviceatlas.maxhdrlen = maxhdrlen;
                     thread_release();
                     free(cold);
