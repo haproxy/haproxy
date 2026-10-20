@@ -60,7 +60,7 @@ haproxy h1 -conf {
 
 haproxy h1 -cli {
     send "show filter classes global"
-    expect ~ "^global: trace > cache-store > decomp-req > decomp-res > spoe > lua > http-comp-req > http-comp-res > bwlim-in > bwlim-out > fcgi\n"
+    expect ~ "^global: trace > decomp-req > decomp-res > cache-store > spoe > lua > http-comp-req > http-comp-res > bwlim-in > bwlim-out > fcgi\n"
 
     send "show filter classes request"
     expect ~ "^request: trace > decomp-req > lua > spoe > http-comp-res > decomp-res > http-comp-req > bwlim-in > fcgi\n"
