@@ -380,7 +380,7 @@ static int da_haproxy(const struct arg *args, struct sample *smp, da_deviceinfo_
 			chunk_appendf(tmp, "%c", global_deviceatlas.separator);
 			continue;
 		}
-		if (unlikely(da_atlas_getproptype(&global_deviceatlas.atlas, prop, &proptype) != DA_OK)) {
+		if (unlikely(da_getproptype(devinfo, prop, &proptype) != DA_OK)) {
 			chunk_appendf(tmp, "%c", global_deviceatlas.separator);
 			continue;
 		}
