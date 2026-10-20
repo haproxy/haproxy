@@ -159,6 +159,8 @@ struct global {
 	int spread_checks;
 	int max_spread_checks;
 	int max_syslog_len;
+	uint acc_hreq_vio;
+	uint acc_hres_vio;
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */

@@ -198,6 +198,29 @@ struct http_uri_parser {
 	enum http_uri_parser_format format; /* rfc 7230 5.3 HTTP URI format */
 };
 
+/* supported HTTP directions for various processings */
+enum http_dir {
+	HTTP_DIR_NONE = 0,  // never applies
+	HTTP_DIR_REQ  = 1,  // applies to request
+	HTTP_DIR_RES  = 2,  // applies to response
+	HTTP_DIR_BOTH = HTTP_DIR_REQ | HTTP_DIR_RES,  // applies to both
+};
+
+/* known configurable HTTP violations */
+enum http_violation_idx {
+	/* insert new violations above this line */
+	HTTP_VIO_TOTAL_COUNT = 32, // end marker
+	HTTP_VIO_NONE,             // special code for none
+	HTTP_VIO_ALL               // special code for all
+};
+
+struct http_violation {
+	const char *name;
+	enum http_violation_idx index;
+	enum http_dir dir;
+};
+
+
 #endif /* _HAPROXY_HTTP_T_H */
 
 /*

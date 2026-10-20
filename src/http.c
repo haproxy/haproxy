@@ -1627,6 +1627,127 @@ struct ist http_trim_trailing_spht(struct ist value)
 	return ret;
 }
 
+/* list of known HTTP configurable violations */
+const struct http_violation http_violations[] = {
+	{ "none",                           HTTP_VIO_NONE,             HTTP_DIR_BOTH },
+	/* insert new violations below this line */
+	/* insert new violations above this line */
+	{ "all",                            HTTP_VIO_ALL,              HTTP_DIR_BOTH },
+	{ NULL, 0 }
+};
+
+/* parses a global "acceptable-http-request-violations" and
+ * "acceptable-http-request-violations" directive.
+ */
+static int http_parse_acceptable_http_violations(char **args, int section_type, struct proxy *curpx,
+                                                 const struct proxy *defpx, const char *file, int line,
+                                                 char **err)
+{
+	char *cmd = args[0];
+	char *p, *b, *e;
+	size_t idx = 0;
+	uint *target, bits;
+	enum http_dir dir;
+	int queued = 0;
+	int ret = -1;
+	int match;
+	int op;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(cmd, "acceptable-http-request-violations") == 0) {
+		dir = HTTP_DIR_REQ;
+		target = &global.acc_hreq_vio;
+	}
+	else if (strcmp(cmd, "acceptable-http-response-violations") == 0) {
+		dir = HTTP_DIR_RES;
+		target = &global.acc_hres_vio;
+	}
+	else
+		ABORT_NOW();
+
+	p = args[1];
+	if (!*p) {
+		memprintf(err, "Missing violation names for '%s'.", cmd);
+		goto end;
+	}
+
+	e = p + strlen(p);
+
+	/* operation: <0 = remove, 0 = replace, >0 = add. */
+	op = 0; // assignment by default
+	bits = 0;
+	queued = 0;
+
+	while (*p) {
+		if (*p == '+' || *p == '-') {
+			/* must first commit what we already have */
+			goto commit;
+		}
+
+		/* not an operator, thus real keyword */
+		b = p;
+		p = strchr(p, ',');
+		if (p)
+			*(p++) = 0; // points to next word
+		else
+			p = e; // points to trailing zero
+
+		/* we have a delimited word at <b> */
+		match = find_word_index_in_array(http_violations, sizeof(http_violations[0]), -1,
+		                                 offsetof(struct http_violation, name), b, &idx);
+		if (match != 2) {
+			memprintf(err, "Invalid http-violation type '%s' in '%s' at position %lu.",
+			          b, cmd, (ulong)(b - *args));
+			if (match == 1)
+				memprintf(err, "%s Maybe you meant '%s' ?", *err, http_violations[idx].name);
+			goto end;
+		}
+
+		/* OK the keyword exists */
+		if (!(http_violations[idx].dir & dir)) {
+			memprintf(err, "http-violation '%s' is not compatible with '%s'.",
+			          b, cmd);
+			goto end;
+		}
+
+		/* set relevant bit(s) */
+		if (http_violations[idx].index == HTTP_VIO_NONE)
+			bits = 0;
+		else if (http_violations[idx].index == HTTP_VIO_ALL)
+			bits = ~0U;
+		else
+			bits |= 1U << http_violations[idx].index;
+		queued++;
+
+		/* do not commit yet */
+		if (*p)
+			continue;
+	commit:
+		if (queued) {
+			/* end reached or new operator, must commit */
+			if (op < 0)
+				*target &= ~bits;
+			else if (op > 0)
+				*target |= bits;
+			else
+				*target = bits;
+			bits = 0;
+			queued = 0;
+		}
+
+		/* now we can change the operator if needed */
+		if (*p == '+' || *p == '-') {
+			op =  (*p == '+') ? 1 : -1;
+			p++;
+		}
+	}
+	ret = 0;
+ end:
+	return ret;
+}
+
 /* initialize the required structures and arrays */
 static void _http_init()
 {
@@ -1730,6 +1851,8 @@ static int http_parse_http_err_fail_codes(char **args, int section_type, struct 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "http-err-codes",      http_parse_http_err_fail_codes },
 	{ CFG_GLOBAL, "http-fail-codes",     http_parse_http_err_fail_codes },
+	{ CFG_GLOBAL, "acceptable-http-request-violations",  http_parse_acceptable_http_violations },
+	{ CFG_GLOBAL, "acceptable-http-response-violations", http_parse_acceptable_http_violations },
 	{ /* END */ }
 }};
 
