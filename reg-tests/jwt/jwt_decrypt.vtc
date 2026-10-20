@@ -67,6 +67,11 @@ haproxy h1 -conf {
         use_backend jwk if { path_beg /jwk }
         default_backend dflt
 
+    # frontend used only to check that jwt_decrypt_secret does not accept
+    # truncated alg/enc names
+    frontend algenc_fe
+        bind "fd@${algencfe}"
+        http-request return status 200 hdr x-res "<%[req.hdr(x-tok),jwt_decrypt_secret(\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\")]>"
 
     backend secret_based_alg
 
@@ -322,4 +327,25 @@ client c10 -connect ${h1_mainfe_sock} {
     rxresp
     expect resp.http.x-decrypted == "Random test message for ECDH-ES+A256KW encrypted tokens"
 
+} -run
+
+# Check that truncated alg/enc names are not accepted
+client c11 -connect ${h1_algencfe_sock} {
+    # "alg":"dir", "enc":"A128CBC-HS256"
+    txreq -hdr "x-tok: eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..IzbGkbjTnQ839myrKPqMSQ.-XHg1kkrtAMxn8RC3hBDFw.a0Z1SGUgL06ah5-dKFOFRA"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-res == "<hello>"
+
+    # "alg":"d"
+    txreq -hdr "x-tok: eyJhbGciOiJkIiwiZW5jIjoiQTEyOENCQy1IUzI1NiJ9..ASTxW817QnC0JsyBUQLrew.kn-7BbRJ2nJtIA-C72snQQ.XrzQz7Ovvge_tCy72HJSkg"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-res == "<>"
+
+    # "enc":"A1"
+    txreq -hdr "x-tok: eyJhbGciOiJkaXIiLCJlbmMiOiJBMSJ9..ZekK-JnLX3_C5uH0YVh7HQ.i9_XPL7jzAat-TgvEU9Csg.dRT33If2uzWh7mgvWYk6wA"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-res == "<>"
 } -run

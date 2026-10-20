@@ -142,7 +142,8 @@ static inline int parse_alg_enc(struct buffer *buf, struct alg_enc *array)
 	int val = -1;
 
 	while (item->name) {
-		if (strncmp(item->name, b_orig(buf), (int)b_data(buf)) == 0) {
+		if (strlen(item->name) == b_data(buf) &&
+		    memcmp(item->name, b_orig(buf), b_data(buf)) == 0) {
 			if (item->enabled == ALG_ENC_DISABLED)
 				return -1;
 			val = item->value;
