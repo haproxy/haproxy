@@ -4972,11 +4972,27 @@ static int sample_conv_jwt_verify(const struct arg *args, struct sample *smp, vo
 	if (chunk_printf(alg, "%.*s", (int)b_data(&alg_smp.data.u.str), b_orig(&alg_smp.data.u.str)) <= 0)
 		goto end;
 
+	/* The key may be a binary HMAC secret, which must be retrieved and
+	 * copied as-is since both a cast to string and printf() would stop at
+	 * the first NUL byte. Variables of other types are still converted to
+	 * strings. The key may also be a public key path, hence the trailing
+	 * zero.
+	 */
 	smp_set_owner(&key_smp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (!sample_conv_var2smp_str(&args[1], &key_smp))
+	if (args[1].type == ARGT_VAR) {
+		if (!vars_get_by_desc(&args[1].data.var, &key_smp, NULL))
+			goto end;
+		if (key_smp.data.type != SMP_T_BIN &&
+		    (!sample_casts[key_smp.data.type][SMP_T_STR] ||
+		     !sample_casts[key_smp.data.type][SMP_T_STR](&key_smp)))
+			goto end;
+	}
+	else if (!sample_conv_var2smp_str(&args[1], &key_smp))
 		goto end;
-	if (chunk_printf(key, "%.*s", (int)b_data(&key_smp.data.u.str), b_orig(&key_smp.data.u.str)) <= 0)
+	if (!b_data(&key_smp.data.u.str) || b_data(&key_smp.data.u.str) >= b_size(key) ||
+	    !chunk_cpy(key, &key_smp.data.u.str))
 		goto end;
+	key->area[key->data] = 0;
 
 	ret = jwt_verify(input, alg, key, 0);
 

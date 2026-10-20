@@ -50,6 +50,13 @@ haproxy h1 -conf {
         use_backend auth_bearer_be if { path /auth_bearer }
         default_backend dflt_be
 
+    # Frontend used only to check binary HMAC secrets containing '\0' characters
+    frontend bin_hmac_fe
+        bind "fd@${binhmacfe}"
+        http-request set-var(txn.key) str(YQBiY2RlZg==),b64dec
+        http-request set-var(txn.ikey) int(12345)
+        http-request return status 200 hdr x-res "%[req.hdr(x-tok),jwt_verify(HS256,txn.key)]" hdr x-int "%[req.hdr(x-tok),jwt_verify(HS256,txn.ikey)]"
+
     crt-store named_store
         load crt "${testdir}/cert.rsa.pem" jwt on
 
@@ -600,3 +607,23 @@ client c29 -connect ${h1_mainfe_sock} {
     expect resp.http.x-jwt-verify == "-3"
 } -run
 
+# Check binary HMAC secrets
+client c30 -connect ${h1_binhmacfe_sock} {
+    # signed with the full secret "a\0bcdef"
+    txreq -hdr "x-tok: eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJzdWIiOiJ4In0.x8ao0qtdSK7Gp8GOzciqyucdsYIupoT46NutNBuvnsk"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-res == "1"
+
+    # signed with the truncated secret "a"
+    txreq -hdr "x-tok: eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJzdWIiOiJ4In0.rtjwa3Fd19oC-izY5CrSva-VlzmxyLsYDVy0gtkWqkQ"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-res == "0"
+
+    # signed with "12345", the integer variable's string form
+    txreq -hdr "x-tok: eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJzdWIiOiJ4In0.uigQcqlOQfXIx6y3FZoQiyA_vnvq6jCU0DKT33UXW1Q"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-int == "1"
+} -run
