@@ -847,7 +847,7 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 				goto out;
 			}
 
-			if (!relaxed) {
+			if (!(relaxed && (global.acc_hreq_vio & (1U << HTTP_VIO_URL_FRAG)))) { /* !fragment-in-url */
 				/* we need to reject any control chars or '#' from the path,
 				 * unless option accept-unsafe-violations-in-http-request is set.
 				 */

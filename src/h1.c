@@ -562,7 +562,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	http_msg_rquri2:
 		if (likely((unsigned char)(*ptr - 33) <= 93)) { /* 33 to 126 included */
 			if (*ptr == '#') {
-				if (h1m->err_pos < -1) /* PR_O2_REQBUG_OK not set */
+				if (h1m->err_pos < -1 || /* PR_O2_REQBUG_OK not set */
+				    !(global.acc_hreq_vio & (1U << HTTP_VIO_URL_FRAG))) /* !fragment-in-url */
 					goto invalid_char;
 				if (h1m->err_pos == -1) /* PR_O2_REQBUG_OK set: just log */
 					h1m->err_pos = ptr - start + skip;
@@ -579,7 +580,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			 * accept-unsafe-violations-in-http-request is enabled in the frontend.
 			 * In any case, we capture the faulty char.
 			 */
-			if (h1m->err_pos < -1)
+			if (h1m->err_pos < -1 || !(global.acc_hreq_vio & (1U << HTTP_VIO_URL_NON_ASCII)))
 				goto invalid_char;
 			if (h1m->err_pos == -1)
 				h1m->err_pos = ptr - start + skip;
@@ -743,12 +744,14 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		if (likely(HTTP_IS_DIGIT(*ptr))) {
 			if (!restarting && ptr - sl.st.c.ptr >= 3) {
 				/* more than 3 digits (checked again after a restart) */
-				if (h1m->err_pos == -1) /* only capture the error pointer */
-					h1m->err_pos = ptr - start + skip;
-				else if (h1m->err_pos < -1 || sl.st.status >= ((uint16_t)~0 - 9) / 10) {
+				if (sl.st.status >= ((uint16_t)~0 - 9) / 10 || h1m->err_pos < -1 ||
+				    !(global.acc_hres_vio & (1U << HTTP_VIO_STATUS_LONG))) {
 					/* strict checks or risk of overflow */
 					state = H1_MSG_RPCODE;
 					goto http_msg_invalid;
+				} else if (h1m->err_pos == -1) {
+					/* only capture the error pointer */
+					h1m->err_pos = ptr - start + skip;
 				}
 			}
 			sl.st.status = sl.st.status * 10 + *ptr - '0';
@@ -849,7 +852,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l1_sp, http_msg_ood, state, H1_MSG_HDR_L1_SP);
 		}
 
-		if (likely(h1m->err_pos < -1) || *ptr == '\n') {
+		if (likely(h1m->err_pos < -1) || *ptr == '\n' ||
+		    (!(h1m->flags & H1_MF_RESP) && !(global.acc_hreq_vio & (1U << HTTP_VIO_HDR_NAME_NON_TOK))) ||
+		    ((h1m->flags & H1_MF_RESP) && !(global.acc_hres_vio & (1U << HTTP_VIO_HDR_NAME_NON_TOK)))) {
 			state = H1_MSG_HDR_NAME;
 			goto http_msg_invalid;
 		}
@@ -930,7 +935,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			/* RFC9110 clarified that NUL is explicitly forbidden in header values
 			 * (like CR and LF).
 			 */
-			if (h1m->err_pos < -1) { /* PR_O2_REQBUG_OK not set */
+			if (h1m->err_pos < -1 || /* PR_O2_R*BUG_OK not set */
+			    (!(h1m->flags & H1_MF_RESP) && !(global.acc_hreq_vio & HTTP_VIO_HDR_VALUE_NUL)) ||
+			    ((h1m->flags & H1_MF_RESP) && !(global.acc_hres_vio & HTTP_VIO_HDR_VALUE_NUL))) {
 				state = H1_MSG_HDR_VAL;
 				goto http_msg_invalid;
 			}
@@ -1010,9 +1017,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				if (isteqi(n, ist("transfer-encoding"))) {
 					ret = h1_parse_xfer_enc_header(h1m, v);
 					if (ret < 0) {
-						/* For the response only, don't report error if PR_O2_RSPBUG_OK is set
-						 * and the error can be hidden */
-						if (ret == -2 || !(h1m->flags & H1_MF_RESP) || (h1m->err_pos < -1)) {
+						/* Unparsable transfer-encoding. For the response only, don't report
+						 * error if PR_O2_RSPBUG_OK is set and the error can be hidden.
+						 */
+						if (ret == -2 || !(h1m->flags & H1_MF_RESP) || (h1m->err_pos < -1) ||
+						    !(global.acc_hres_vio & (1U << HTTP_VIO_TE_BAD))) {
 							state = H1_MSG_HDR_L2_LWS;
 							ptr = v.ptr; /* Set ptr on the error */
 							goto http_msg_invalid;
@@ -1147,7 +1156,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				authority = http_parse_authority(&parser, 1);
 				bad_authority = http_authority_has_forbidden_char(authority);
 				if (bad_authority) {
-					if (h1m->err_pos < -1) {
+					if (h1m->err_pos < -1 || !(global.acc_hreq_vio & (1U << HTTP_VIO_AUTH_UNPARSABLE))) {
 						state = H1_MSG_LAST_LF;
 						/* WT: gcc seems to see a path where sl.rq.u.ptr was used
 						 * uninitialized, but it doesn't know that the function is
@@ -1183,7 +1192,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 						ret = -1;
 
 					if (ret < 0) {
-						if (h1m->err_pos < -1) {
+						if (h1m->err_pos < -1 || !(global.acc_hreq_vio & (1U << HTTP_VIO_AUTH_CONNECT_INV))) {
 							state = H1_MSG_LAST_LF;
 							/* WT: gcc seems to see a path where sl.rq.u.ptr was used
 							 * uninitialized, but it doesn't know that the function is
@@ -1216,7 +1225,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 						uri_host.len -= istlen(uri_port) + 1;
 					if (!istlen(uri_host) &&
 					    (isteqi(scheme, ist("http://")) || isteqi(scheme, ist("https://")))) {
-						if (h1m->err_pos < -1) {
+						if (h1m->err_pos < -1 || !(global.acc_hreq_vio & (1U << HTTP_VIO_AUTH_EMPTY_HOST))) {
 							state = H1_MSG_LAST_LF;
 							ptr = sl.rq.u.ptr; /* Set ptr on the error */
 							goto http_msg_invalid;
@@ -1231,7 +1240,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					if (isttest(host) && !isteqi(authority, host)) {
 						ret = h1_validate_mismatch_authority(scheme, authority, host);
 						if (ret < 0) {
-							if (h1m->err_pos < -1) {
+							if (h1m->err_pos < -1 || !(global.acc_hreq_vio & (1U << HTTP_VIO_AUTH_HOST_DIFF))) {
 								state = H1_MSG_LAST_LF;
 								ptr = host.ptr; /* Set ptr on the error */
 								goto http_msg_invalid;

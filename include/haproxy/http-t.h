@@ -208,6 +208,18 @@ enum http_dir {
 
 /* known configurable HTTP violations */
 enum http_violation_idx {
+	HTTP_VIO_URL_FRAG = 0,     // fragment in url ('#')
+	HTTP_VIO_URL_NON_ASCII,    // non-ASCII (>=128) in URL
+	HTTP_VIO_STATUS_LONG,      // status longer than 3 characters
+	HTTP_VIO_HDR_NAME_NON_TOK, // non-token in header name
+	HTTP_VIO_HDR_VALUE_NUL,    // NUL byte in header value
+	HTTP_VIO_TE_BAD,           // inconsistent transfer encoding
+	HTTP_VIO_AUTH_UNPARSABLE,  // unparsable authority
+	HTTP_VIO_AUTH_CONNECT_INV, // invalid authority with CONNECT
+	HTTP_VIO_AUTH_EMPTY_HOST,  // empty host component in authority
+	HTTP_VIO_AUTH_HOST_DIFF,   // authority and host field mismatch
+	HTTP_VIO_VERSION_STRING,   // unsupported version string
+	HTTP_VIO_WEBSOCKET_KEY,    // invalid or missing websocket-key header
 	/* insert new violations above this line */
 	HTTP_VIO_TOTAL_COUNT = 32, // end marker
 	HTTP_VIO_NONE,             // special code for none

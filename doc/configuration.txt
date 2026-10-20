@@ -1793,6 +1793,8 @@ The following keywords are supported in the "global" section :
    - 51degrees-property-separator
    - 51degrees-use-performance-graph
    - 51degrees-use-predictive-graph
+   - acceptable-http-request-violations
+   - acceptable-http-response-violations
    - acme.scheduler
    - ca-base
    - chroot
@@ -2140,6 +2142,166 @@ The following keywords are supported in the "global" section :
 
   Please note that this option is only available when HAProxy has been
   compiled with USE_51DEGREES and 51DEGREES_VER=4.
+
+acceptable-http-request-violations  { [-+]<http-violation>[,...] }
+acceptable-http-response-violations { [-+]<http-violation>[,...] }
+  Finely tune which HTTP violations are acceptable when explicitly requested
+
+  Proxy options "accept-unsafe-violations-in-http-request" and
+  "accept-unsafe-violations-in-http-response" allow to relax some controles in
+  the HTTP parsers to explicitly accept certain violations of the protocol
+  specification that may be needed to integrate into some environments where a
+  non-compliant (and possibly vulnerable) component resides, for the time it
+  takes to fix it. However, by default these options relax all controls, which
+  can become particularly dangerous when only a specific one is needed.
+
+  These two global directives permit to refine exactly which of the violations
+  are permitted when the aformentioned options are used. Note that these rules
+  apply to all frontends and backends that use the options above, because these
+  options are meant to only be used under exceptional circumstances and not to
+  be widely deployed all over a configuration. When a frontend rejects a
+  request based on such a violation, a "400 Bad Request" response is sent to
+  the client. When a backend rejects such a response, a "502 Bad Gateway"
+  status is returned.
+
+  Both directives adopt the same syntax: the argument is a comma-delimited list
+  of names, each designating a specific violation to act on. There are 3 ways
+  to use these directives:
+    - set the list of acceptable violations: the existing list is replaced with
+      the new one. This is the recommended way to use the options, guaranteeing
+      that the minimal set of required exceptions is allowed.
+
+    - remove some violations from the existing list: after a '-' sign, all
+      designated violations will be removed from the currently permitted set.
+      This may be used to work around a non-recurring problem in emergency, by
+      accepting all violations except the most dangerous ones.
+
+    - add some violations to the existing list: after a '+' sign, all
+      designated violations will be added to the currently permitted set. This
+      may be used when cumulating multiple statements that need to be commented
+      out once in a while for example.
+
+  Special violation names "none" and "all" designate and empty and a full set,
+  respectively, and are usable both in the request list and in the response
+  list.
+
+  The currently defined list of configurable violations is listed below, with
+  the direction they each apply to (request, response, both). Unless otherwise
+  noted, they apply to HTTP/1 only.
+
+    - "fragment-in-url" (request) : this controls the acceptance of character
+      '#' in the path component of a request, which designates a fragment
+      identifier and is not permitted in HTTP URIs transiting over the network.
+      The risk is moderate (improper suffix match leading to bad routing). This
+      exception applies to HTTP/1, HTTP/2 and HTTP/3.
+
+    - "non-ascii-in-url" (request): this controls the acceptance of non-ASCII
+      characters in the URI (characters of code 128 to 255 included). These may
+      stem from accentuated letters or emojis leaked directly into the request
+      without the mandatory URL-encoding. The risk is somewhat low.
+
+    - "long-status-code" (response): this controls acceptance of status codes
+      longer than 3 characters (e.g. "0200" or "9999"). In any case, status
+      codes greater than 65535 will always be blocked, but below this, they are
+      controled by this setting. A lazy parser in a client may get confused and
+      even confuse "2040" with "204" for example and get desynchronized, so the
+      risk is moderate. Only ever enable this with known clients if absolutely
+      needed.
+
+    - "non-token-in-header-name" (both): this controls the acceptance of
+      forbidden characters in header field names. It is often used to adapt to
+      internally developed non-standard applications which use forbidden
+      characters in header names (e.g. '/'). The risk is low on responses but
+      can be moderate on requests.
+
+    - "nul-in-header-value" (both): this controls the acceptance of the NUL
+      character (0x00) in header field values. The risk is high in both
+      directions and this option must never be used outside of two fully
+      trusted endpoints.
+
+    - "inconsistent-transfer-encoding" (response): transfer codings must
+      respect a strict ordering and always be finished by "chunked" which may
+      only appear once. This setting allows to relax strict controls on the
+      response only, offering tolerance for empty values and duplicate
+      "chunked", which may occasionally appear in responses from very old
+      poorly implemented servers or caches where compression is enabled. These
+      are never allowed on the request and it is never allowed to have anything
+      other token after "chunked" though. The risk is low for trusted servers
+      but moderate with untrusted ones.
+
+    - "unparsable-authority" (request): this controls the acceptance of
+      characters outside the list of permitted ones in the authority component
+      of the URI, or uneven brackets in IPv6 addresses. The risk is high as
+      certain characters may be used to confuse a URI parser on a backend
+      server.
+
+    - "invalid-connect-authority" (request): this controls the acceptance of a
+      URL that isn't strictly in the "host[:port]" format in a CONNECT request.
+      The risk is moderate, and this should never be needed.
+
+    - "empty-authority-host" (request): this controls the acceptance of a
+      request having a scheme but no authority. The risk is moderate and this
+      should never be needed.
+
+    - "mismatch-authority-host" (request): this controls the acceptance of a
+      request whose host and authority component are both present and differ.
+      This is common in environments playing URL rewriting games, and may be
+      used to work around failures to do it properly, but only if the request
+      is also fixed in the configuration via "http-request set-header host" or
+      "http-request set-uri". The risk is high, particularly for requests
+      originating from untrusted clients.
+
+    - "invalid-version-string" (both): this controls the acceptance of an HTTP
+      version that is not strictly made of one digit, a dot, and another digit.
+      It should not be needed but might help to work around scripts emittng a
+      version based on an improperly rounded floating point number, such as
+      "HTTP/1.099999875" or "HTTP/0.9999999". This should never be needed, but
+      the risk is low (the string is rebuilt on output).
+
+    - "invalid-websocket-key" (both): this controls the acceptance of WebSocket
+      protocol Upgrade requests lacking a valid "sec-websocket-key" header, or
+      upgrade responses lacking a valid "sec-websocket-accept" header. This
+      should only be used between trusted WebSocket endpoints, and the risk is
+      moderate.
+
+  By default, for backward compatibility, all violations above are flagged as
+  acceptable, meaning that a proxy having "option accept-unsafe-http-*" will
+  accept them all. It may be a good practice to explicitly reset them to "none"
+  before redefining them so that commenting their definition clears all of
+  them. It is also important to systematically indicate in a comment why it is
+  being used and for how long.
+
+  Examples:
+
+     # Below we add one exception per bogus application
+     global
+         acceptable-http-request-violations none
+         acceptable-http-response-violations none
+
+         # application "marketplace" has a problem with redirects that some
+         # browsers follow without encoding. Fix planned for 2026Q4, remove
+         # option accept-unsafe-... from their frontend.
+         acceptable-http-request-violations +non-ascii-in-url
+
+         # the SMS gateway client is unable to set the port in the host header,
+         # this requires "option accept-unsafe-..." in their frontend
+         acceptable-http-request-violations +mismatch-authority-host
+
+     # Below we allow all request exceptions except the most dangerous ones.
+     # Anything after a "-" is removed from the set.
+     global
+         # customer complains the site is broken, relax most controls
+         acceptable-http-request-violations all,-nul-in-header-value,unparsable-authority
+         # also try to without this one
+         acceptable-http-request-violations -unparsable-authority
+
+     # Below we preset the exact list of what is acceptable in the response so
+     # that hosted customers can provide their own options in the backend to
+     # enable or disable these.
+     global
+         # acceptable violations that may be enabled per frontend/backend
+         acceptable-http-request-violations non-ascii-in-url
+         acceptable-http-response-violations inconsistent-transfer-encoding
 
 acme.scheduler { auto | off }
   Enable or disable the ACME scheduler.

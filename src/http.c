@@ -1631,6 +1631,18 @@ struct ist http_trim_trailing_spht(struct ist value)
 const struct http_violation http_violations[] = {
 	{ "none",                           HTTP_VIO_NONE,             HTTP_DIR_BOTH },
 	/* insert new violations below this line */
+	{ "fragment-in-url",                HTTP_VIO_URL_FRAG,         HTTP_DIR_REQ  },
+	{ "non-ascii-in-url",               HTTP_VIO_URL_NON_ASCII,    HTTP_DIR_REQ  },
+	{ "long-status-code",               HTTP_VIO_STATUS_LONG,      HTTP_DIR_RES  },
+	{ "non-token-in-header-name",       HTTP_VIO_HDR_NAME_NON_TOK, HTTP_DIR_BOTH },
+	{ "nul-in-header-value",            HTTP_VIO_HDR_VALUE_NUL,    HTTP_DIR_BOTH },
+	{ "inconsistent-transfer-encoding", HTTP_VIO_TE_BAD,           HTTP_DIR_RES  },
+	{ "unparsable-authority",           HTTP_VIO_AUTH_UNPARSABLE,  HTTP_DIR_REQ  },
+	{ "invalid-connect-authority",      HTTP_VIO_AUTH_CONNECT_INV, HTTP_DIR_REQ  },
+	{ "empty-authority-host",           HTTP_VIO_AUTH_EMPTY_HOST,  HTTP_DIR_REQ  },
+	{ "mismatch-authority-host",        HTTP_VIO_AUTH_HOST_DIFF,   HTTP_DIR_REQ  },
+	{ "invalid-version-string",         HTTP_VIO_VERSION_STRING,   HTTP_DIR_BOTH },
+	{ "invalid-websocket-key",          HTTP_VIO_WEBSOCKET_KEY,    HTTP_DIR_BOTH },
 	/* insert new violations above this line */
 	{ "all",                            HTTP_VIO_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }

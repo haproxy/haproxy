@@ -2086,8 +2086,12 @@ static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *ht
 		if (!ws_ret) {
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 
-			if ((!(h1m->flags & H1_MF_RESP) && !(h1s->h1c->px->options2 & PR_O2_REQBUG_OK)) ||
-			    ((h1m->flags & H1_MF_RESP) && !(h1s->h1c->px->options2 & PR_O2_RSPBUG_OK))) {
+			if ((!(h1m->flags & H1_MF_RESP) &&
+			     (!(h1s->h1c->px->options2 & PR_O2_REQBUG_OK) ||
+			      !(global.acc_hreq_vio & (1U << HTTP_VIO_WEBSOCKET_KEY)))) ||
+			    ((h1m->flags & H1_MF_RESP) &&
+			     (!(h1s->h1c->px->options2 & PR_O2_RSPBUG_OK) ||
+			      !(global.acc_hres_vio & (1U << HTTP_VIO_WEBSOCKET_KEY))))) {
 				htx->flags |= HTX_FL_PARSING_ERROR;
 				h1s->flags |= H1S_F_PARSING_ERROR;
 				TRACE_ERROR("missing/invalid websocket key, reject H1 message",

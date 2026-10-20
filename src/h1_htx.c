@@ -54,7 +54,7 @@ static int h1_process_req_vsn(struct h1m *h1m, union h1_sl *sl)
 	 * exactly one digit "." one digit. This check may be disabled using
 	 * option accept-unsafe-violations-in-http-request.
 	 */
-	if (h1m->err_pos == -2) { /* PR_O2_REQBUG_OK not set */
+	if (h1m->err_pos < -1 || !(global.acc_hreq_vio & (1U << HTTP_VIO_VERSION_STRING))) { /* PR_O2_REQBUG_OK not set */
 		if (sl->rq.v.len != 8)
 			return 0;
 
@@ -106,7 +106,7 @@ static int h1_process_res_vsn(struct h1m *h1m, union h1_sl *sl)
 	 * exactly one digit "." one digit. This check may be disabled using
 	 * option accept-unsafe-violations-in-http-response.
 	 */
-	if (h1m->err_pos == -2) { /* PR_O2_RSPBUG_OK not set */
+	if (h1m->err_pos < -1 || !(global.acc_hreq_vio & (1U << HTTP_VIO_VERSION_STRING))) { /* PR_O2_RSPBUG_OK not set */
 		if (sl->st.v.len != 8)
 			return 0;
 

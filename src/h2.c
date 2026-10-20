@@ -361,7 +361,8 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		 * rejecting NUL, CR and LF characters. For :path we reject all CTL
 		 * chars, spaces, and '#'.
 		 */
-		if (phdr == H2_PHDR_IDX_PATH && !relaxed) {
+		if (phdr == H2_PHDR_IDX_PATH &&
+		    !(relaxed && (global.acc_hreq_vio & (1U << HTTP_VIO_URL_FRAG)))) { /* !fragment-in-url */
 			ctl = ist_find_range(list[idx].v, 0, '#');
 			if (unlikely(ctl) && http_path_has_forbidden_char(list[idx].v, ctl))
 				goto fail;
