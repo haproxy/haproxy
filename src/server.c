@@ -4191,6 +4191,7 @@ static int _srv_parse_finalize(char **args, int cur_arg,
                                int parse_flags)
 {
 	int ret;
+	int retval = 0;
 	char *errmsg = NULL;
 	struct srv_pp_tlv_list *srv_tlv = NULL;
 
@@ -4281,6 +4282,20 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 		}
 	}
 
+	if (srv->use_ssl && (srv->ssl_ctx.options & SRV_SSL_O_PHA)) {
+		if (srv->ssl_ctx.alpn_str &&
+		     strcmp(srv->ssl_ctx.alpn_str, "\010http/1.1") != 0) {
+			ha_warning("Post Handshake Authentication can only be used "
+				   "with 'http/1.1' protocol (wrong 'alpn' value).\n");
+			retval |= ERR_WARN;
+		} else if (srv->mux_proto &&
+		     !isteq(srv->mux_proto->mux_proto, ist("h1"))) {
+			ha_warning("Post Handshake Authentication can only be used "
+				   "with 'http/1.1' protocol (wrong 'proto' value).\n");
+			retval |= ERR_WARN;
+		}
+	}
+
 	if (!(srv->proxy->cap & PR_CAP_LB)) {
 		/* No need to wait for effective proxy mode, it is already known:
 		 * Only general purpose user-declared proxies ("listen", "frontend", "backend")
@@ -4292,7 +4307,7 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 
 	srv_lb_commit_status(srv);
 
-	return 0;
+	return retval;
 }
 
 int parse_server(const char *file, int linenum, char **args,

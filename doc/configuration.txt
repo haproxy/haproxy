@@ -19858,6 +19858,15 @@ no-check-ssl
   It may also be used as "default-server" setting to reset any previous
   "default-server" "check-ssl" setting.
 
+no-pha
+  May be used in the following contexts: tcp, http, log, peers, ring
+
+  This option may be used as "server" setting to reset any "pha" setting
+  which would have been inherited from "default-server" directive as default
+  value.
+  It may also be used as "default-server" setting to reset any previous
+  "default-server" "pha" setting.
+
 no-renegotiate
   May be used in the following contexts: tcp, http, log
 
@@ -20104,6 +20113,31 @@ on-marked-up <action>
     with an 'U' termination code (for "Up").
 
   Actions are disabled by default
+
+pha
+  May be used in the following contexts: tcp, http, log, peers, ring
+
+  This setting is only available when support for OpenSSL was built in. It is
+  not supported by AWS-LC nor by WolfSSL. It enables post handshake
+  authentication (RFC 8446) for the given backend. It is a TLS1.3 feature that
+  consists in advertising the "post_handshake_auth" extension in the
+  ClientHello sent to the server, telling it that post handshake authentication
+  is supported. The certificate provided via the server's "crt" parameter is
+  then used to answer the "CertificateRequest" messages sent by the server
+  after the handshake completes, so this option requires that a certificate be
+  explicitly provided on the server line.
+  Considering the limited support of this option, it is advised to enable it
+  only when strictly necessary (to communicate with Windows Server 2022 IIS web
+  site for instance)
+
+  Post handshake authentication is not supported by HTTP/2 nor HTTP/3, so a
+  warning will be raised if an alpn containing other protocols than "http/1.1"
+  is specified, or if a "proto" option different than "h1" is used.
+  This warning also applies to QUIC servers using the default "h3" ALPN.
+
+  This option is disabled by default.
+
+  See also "no-pha", "crt", "alpn" and "proto".
 
 pool-conn-name <expr>
   May be used in the following contexts: http

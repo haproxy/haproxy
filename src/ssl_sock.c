@@ -5722,6 +5722,16 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 #endif
 #endif /* defined(SSL_CTX_set1_curves_list) */
 
+#if !defined(OPENSSL_IS_AWSLC) && !defined(USE_OPENSSL_WOLFSSL)
+	if (srv->ssl_ctx.options & SRV_SSL_O_PHA) {
+		if (!srv->ssl_ctx.client_crt) {
+			ha_alert("Proxy '%s': 'pha' option requires a 'crt' parameter.\n", curproxy->id);
+			cfgerr++;
+		} else
+			SSL_CTX_set_post_handshake_auth(ctx, 1);
+	}
+#endif
+
 	return cfgerr;
 }
 
