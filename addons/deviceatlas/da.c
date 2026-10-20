@@ -6,6 +6,7 @@
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/clock.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
@@ -287,14 +288,15 @@ static void da_haproxy_checkinst(void)
 
             if (base[0] != 0) {
             FILE *jsonp;
-            void *cnew;
+            void *cnew, *cold;
             da_status_t status;
             size_t atlassz;
             char atlasp[ATLASTOKSZ] = {0};
             da_atlas_t inst;
             da_property_decl_t extraprops[1] = {{NULL, 0}};
 #ifdef USE_THREAD
-            HA_SPIN_LOCK(OTHER_LOCK, &dadwsch_lock);
+            if (HA_SPIN_TRYLOCK(OTHER_LOCK, &dadwsch_lock) != 0)
+                return;
             if (base[0] == 0) {
                 HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
                 return;
@@ -316,23 +318,29 @@ static void da_haproxy_checkinst(void)
             fclose(jsonp);
             if (status == DA_OK) {
                 if (da_atlas_open(&inst, extraprops, cnew, atlassz) == DA_OK) {
+                    size_t hi, maxhdrlen = 16;
+
                     inst.config.cache_size = global_deviceatlas.cachesize;
-                    da_atlas_close(&global_deviceatlas.atlas);
-                    free(global_deviceatlas.atlasimgptr);
-                    global_deviceatlas.atlasimgptr = cnew;
-                    global_deviceatlas.atlas = inst;
-                    {
-                        size_t hi;
-                        global_deviceatlas.maxhdrlen = 16;
-                        for (hi = 0; hi < inst.header_evidence_count; hi++) {
-                            size_t nl = strlen(inst.header_priorities[hi].name);
-                            if (nl > global_deviceatlas.maxhdrlen)
-                                global_deviceatlas.maxhdrlen = nl;
-                        }
+                    for (hi = 0; hi < inst.header_evidence_count; hi++) {
+                        size_t nl = strlen(inst.header_priorities[hi].name);
+                        if (nl > maxhdrlen)
+                            maxhdrlen = nl;
                     }
                     base[0] = 0;
+#ifdef USE_THREAD
+                    HA_SPIN_UNLOCK(OTHER_LOCK, &dadwsch_lock);
+#endif
+                    thread_isolate();
+                    da_atlas_close(&global_deviceatlas.atlas);
+                    cold = global_deviceatlas.atlasimgptr;
+                    global_deviceatlas.atlasimgptr = cnew;
+                    global_deviceatlas.atlas = inst;
+                    global_deviceatlas.maxhdrlen = maxhdrlen;
+                    thread_release();
+                    free(cold);
                     ha_notice("deviceatlas : new instance, data file date `%s`.\n",
                         da_getdatacreationiso8601(&global_deviceatlas.atlas));
+                    return;
                 } else {
                     ha_alert("deviceatlas : instance update failed.\n");
                     free(cnew);
