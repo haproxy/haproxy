@@ -823,14 +823,14 @@ void qcc_notify_buf(struct qcc *qcc, uint64_t free_size)
 
 /* A fatal error is detected locally for <qcc> connection. It should be closed
  * with a CONNECTION_CLOSE using <err> code. Set <app> to true to indicate that
- * the code must be considered as an application level error.
+ * the code must be considered as an application level error. This function
+ * must not be called more than once by connection. If <tevt> is non null, it
+ * is used as a connection level termination event code.
  */
 void qcc_set_error(struct qcc *qcc, int err, int app, int tevt)
 {
-	if (qcc->flags & QC_CF_ERRL) {
-		TRACE_STATE("connection already on error", QMUX_EV_QCC_ERR, qcc->conn);
-		return;
-	}
+	/* This must not be called multiple times per connection. */
+	BUG_ON(qcc->flags & QC_CF_ERRL);
 
 	TRACE_STATE("connection on error", QMUX_EV_QCC_ERR, qcc->conn);
 
