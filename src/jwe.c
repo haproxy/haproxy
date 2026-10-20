@@ -1259,6 +1259,12 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 		}
 		(*cek)->data = size;
 	}
+	else if (items[JWE_ELT_CEK].length) {
+		/* With direct key agreement the JWE Encrypted Key must be
+		 * empty (RFC 7516 section 5.2 step 10).
+		 */
+		goto end;
+	}
 
 	decrypted_cek = alloc_trash_chunk();
 	if (!decrypted_cek) {
@@ -2028,6 +2034,12 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 		goto end;
 
 	if (dir) {
+		/* With direct encryption the JWE Encrypted Key must be empty
+		 * (RFC 7516 section 5.2 step 10).
+		 */
+		if (items[JWE_ELT_CEK].length)
+			goto end;
+
 		/* The secret given as parameter should be used directly to
 		 * decode the encrypted content. */
 		decrypted_cek = alloc_trash_chunk();
@@ -2053,6 +2065,12 @@ static int sample_conv_jwt_decrypt_jwk(const struct arg *args, struct sample *sm
 				goto end;
 			}
 			(*cek)->data = size;
+		}
+		else if (items[JWE_ELT_CEK].length) {
+			/* With direct key agreement the JWE Encrypted Key must
+			 * be empty (RFC 7516 section 5.2 step 10).
+			 */
+			goto end;
 		}
 
 		decrypted_cek = alloc_trash_chunk();

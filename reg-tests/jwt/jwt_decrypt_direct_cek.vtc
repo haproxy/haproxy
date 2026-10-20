@@ -1,0 +1,59 @@
+#REGTEST_TYPE=devel
+
+# This reg-test checks that the jwt_decrypt_* converters reject the tokens
+# using direct encryption ("dir") or direct key agreement ("ECDH-ES") when
+# their JWE Encrypted Key part is not empty, as required by RFC 7516 section
+# 5.2. Each token is sent once with an empty encrypted key, which must work,
+# and once with "AAAA" as encrypted key, which must fail.
+
+varnishtest "jwt_decrypt_* must reject a non-empty CEK with dir and ECDH-ES"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.4-dev2)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && openssl_version_atleast(1.1.1)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        default-path origin ${testdir}
+
+    crt-store
+        load crt ec_decrypt.crt key ec_decrypt.key jwt on
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request set-var(txn.ecjwk) str(\'{\"crv\":\"P-256\",\"d\":\"6qbbYYII1zqqmlDHhTwJt-JYBe-ELI02yAecAx-nD4w\",\"kty\":\"EC\",\"x\":\"bASil7YpthReLltIsaJCaRrE7XtLCRVtOpGtdPO0jH0\",\"y\":\"9xj9qfSrVKFqN3lnaNDXAclGGnfmU_j7xsEocZdYmPs\"}\')
+        http-request return status 200 hdr x-cert "<%[req.hdr(x-tok),jwt_decrypt_cert(ec_decrypt.crt)]>" hdr x-ecjwk "<%[req.hdr(x-tok),jwt_decrypt_jwk(txn.ecjwk)]>" hdr x-jwk "<%[req.hdr(x-tok),jwt_decrypt_jwk(\"{\\\"kty\\\":\\\"oct\\\",\\\"k\\\":\\\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8\\\"}\")]>"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    # ECDH-ES / A128GCM, empty encrypted key
+    txreq -hdr "x-tok: eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOEdDTSIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6Ilp3em9vVE5HN0Jfa0NVN0Jkak5vMExOZHB4UVo4SDZGOWVrSmhYNW1WbkEiLCJ5IjoiYV9FbjBTVGd6SVBnNjZFbWFJb1Zld29wNzBoMlQ3bDRab1JLSWp3NUdxUSJ9fQ..C9HBoxhiu52PdOqC.5Fvtusw.Hgn6sU8b93RBvduMRmDnlg"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-cert == "<hello>"
+    expect resp.http.x-ecjwk == "<hello>"
+
+    # ECDH-ES / A128GCM, "AAAA" as encrypted key
+    txreq -hdr "x-tok: eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOEdDTSIsImVwayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IkxFMHRtS2ZuWmF0MGRTZFRhTmk2VWhkOWRVWnVoZFJTNGpjYzZpSkpoNFkiLCJ5IjoiSWh3M3E0VVlUeDZTZnQ4ck5NMHR1aGotSWVDNWZ6UFhtUFFNLUFHNW9SNCJ9fQ.AAAA.blpaPC2Y3wpYnnw4.p6c6-z4.M-9pACPwUJJ2cJ20bJocpQ"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-cert == "<>"
+    expect resp.http.x-ecjwk == "<>"
+
+    # dir / A128CBC-HS256, empty encrypted key
+    txreq -hdr "x-tok: eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..YmqbQtva9WepQg4Jcji6XQ.xsCwNV4GeKnD2L0rUbH4NQ.ehXYmfIcyFHS8gqwzjSG_g"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwk == "<hello>"
+
+    # dir / A128CBC-HS256, "AAAA" as encrypted key
+    txreq -hdr "x-tok: eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0.AAAA.Br5udDsTCGqjxzf5hrSzGg.ri6059VlVV_YqabFbEZjJQ.AJuYGKhitajXsM5G0aB7vQ"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwk == "<>"
+} -run
