@@ -354,6 +354,7 @@ size_t jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, c
 {
 	EVP_MD_CTX *ctx = NULL;
 	const EVP_MD *evp_md = NULL;
+	ECDSA_SIG *sig = NULL;
 	int ret = 0;
 	struct buffer *sign = NULL;
 	size_t out_sign_len = 0;
@@ -416,7 +417,6 @@ size_t jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, c
 		/* Convert the DigestSign output to an ECDSA_SIG (R and S parameters concatenated,
 		 * see section 3.4 of RFC7518), and output R and S padded.
 		 */
-		ECDSA_SIG *sig = NULL;
 		const BIGNUM *r = NULL, *s = NULL;
 		int bignum_len;
 
@@ -448,6 +448,7 @@ size_t jws_b64_signature(EVP_PKEY *pkey, enum jwt_alg alg, char *b64protected, c
 out:
 	EVP_MD_CTX_free(ctx);
 	free_trash_chunk(sign);
+	ECDSA_SIG_free(sig);
 
 	if (ret > 0)
 		return ret;
