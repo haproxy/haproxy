@@ -1,0 +1,44 @@
+#REGTEST_TYPE=devel
+
+# This reg-test checks that ECDSA signatures are only accepted by jwt_verify
+# and jwt_verify_cert when they are made of R and S each having exactly the
+# size of the curve's order (RFC 7518 section 3.4). The second token carries
+# the same signature as the first one, except that R and S were each prefixed
+# with a zero byte.
+
+varnishtest "jwt_verify_cert must enforce the ECDSA signature length"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.3-dev10)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        default-path origin ${testdir}
+
+    crt-store
+        load crt ec_decrypt.crt key ec_decrypt.key jwt on
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request return status 200 hdr x-res "%[req.hdr(x-tok),jwt_verify_cert(ES256,ec_decrypt.crt)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    # 64-byte R||S signature
+    txreq -hdr "x-tok: eyJhbGciOiAiRVMyNTYifQ.eA.kTlGlMaCikEC5eAybI3xcORLlwVSkJQBy0ZUYywMsTOGArNCX3pdP2FyYFrhXfmUs1D1Dt6q38F8wkPVtr10QA"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-res == "1"
+
+    # same signature with R and S prefixed with a zero (66 bytes)
+    txreq -hdr "x-tok: eyJhbGciOiAiRVMyNTYifQ.eA.AJDh42BizW1dIN3dlGtvXe9IH1asyB_FRQiv4ZL3GEJaAAcreGRqSSFFla9Xl83efThZp63HbyX6gLKMg7tbxV7Z"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-res == "-3"
+} -run

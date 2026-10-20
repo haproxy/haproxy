@@ -315,12 +315,20 @@ static int convert_ecdsa_sig(const struct jwt_ctx *ctx, struct buffer *signature
 		goto end;
 	}
 
-	if (b_data(signature) % 2) {
+	/* The signature must be made of R and S, each of them being exactly
+	 * the size of the curve's order (see section 3.4 of RFC7518).
+	 */
+	switch (ctx->alg) {
+	case JWS_ALG_ES256: bignum_len = 32; break;
+	case JWS_ALG_ES384: bignum_len = 48; break;
+	case JWS_ALG_ES512: bignum_len = 66; break;
+	default:            bignum_len = 0;  break;
+	}
+
+	if (!bignum_len || b_data(signature) != 2 * bignum_len) {
 		retval = JWT_VRFY_INVALID_TOKEN;
 		goto end;
 	}
-
-	bignum_len = b_data(signature) / 2;
 
 	ec_R = BN_bin2bn((unsigned char*)b_orig(signature), bignum_len, NULL);
 	ec_S = BN_bin2bn((unsigned char *)(b_orig(signature) + bignum_len), bignum_len, NULL);
