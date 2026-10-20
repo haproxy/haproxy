@@ -2274,7 +2274,7 @@ static int jwe_parse_global_alg_enc_list(char **args, int section_type, struct p
 
 		/* If "ALL" is used all previously disabled algo will be
 		 * reenabled */
-		if (strncmp(alg, "ALL", alg_end - alg) == 0) {
+		if (alg_end - alg == 3 && strncmp(alg, "ALL", alg_end - alg) == 0) {
 			set_all_alg_enc_flags(arr, ALG_ENC_ENABLED);
 		} else {
 			if (set_alg_enc_flag(arr, alg, alg_end-alg, value) != 0) {
