@@ -210,6 +210,45 @@ static inline void proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 			     update_freq_ctr(&fe->fe_counters._sess_per_sec, 1));
 }
 
+/* Returns the total number of sessions accepted by frontend <fe> over the
+ * current and last one-second periods, summed over all thread groups. Dividing
+ * it by the period gives the frontend-wide session rate.
+ */
+static inline ullong proxy_fe_sess_total(const struct proxy *fe)
+{
+	return COUNTERS_SHARED_TOTAL_ARG2(fe->fe_counters.shared.tg, sess_per_sec,
+	                                  freq_ctr_total, MS_TO_TICKS(1000), 0);
+}
+
+/* Returns the number of new sessions frontend <fe> may still accept while
+ * respecting its "rate-limit sessions" setting across all thread groups, or 0
+ * if the limit was reached. <fe>->fe_sps_lim must not be zero.
+ */
+static inline uint proxy_fe_sess_remain(const struct proxy *fe)
+{
+	uint avg = div64_32(proxy_fe_sess_total(fe), MS_TO_TICKS(1000));
+
+	return (avg < fe->fe_sps_lim) ? fe->fe_sps_lim - avg : 0;
+}
+
+/* Returns the wait time in ms before frontend <fe> may accept a new session
+ * while respecting its "rate-limit sessions" setting across all thread groups.
+ * It returns zero if it can accept immediately, otherwise at least one ms.
+ * <fe>->fe_sps_lim must not be zero.
+ */
+static inline uint proxy_fe_sess_delay(const struct proxy *fe)
+{
+	ullong total = proxy_fe_sess_total(fe);
+	ullong limit = (ullong)fe->fe_sps_lim * MS_TO_TICKS(1000);
+	uint wait;
+
+	if (total < limit)
+		return 0;
+
+	wait = div64_32(total - limit, fe->fe_sps_lim);
+	return MAX(wait, 1);
+}
+
 /* increase the number of cumulated HTTP sessions on the designated frontend.
  * <http_ver> must be the HTTP version for such requests.
  */

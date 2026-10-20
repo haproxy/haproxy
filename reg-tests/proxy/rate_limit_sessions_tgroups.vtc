@@ -1,0 +1,43 @@
+varnishtest "rate-limit sessions with multiple thread groups"
+
+# The session rate limit of a frontend must apply to the frontend as a whole
+# even when its sessions are accounted over several thread groups. Here the
+# listener only runs on the first of two thread groups, so with a per-group
+# check the idle second group would let the second session in immediately and
+# fe_sess_rate would report 2. With a frontend-wide check, the second session
+# waits in the backlog until the rate drops below 1 and sees a rate of 1.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(THREAD)'"
+feature cmd "command -v nproc && [ $(nproc) -ge 2 ]"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        nbthread 2
+        thread-groups 2
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}" thread 1/all
+        rate-limit sessions 1
+        http-request return status 200 hdr x-sess-rate %[fe_sess_rate]
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-sess-rate == 1
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-sess-rate == 1
+} -run

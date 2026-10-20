@@ -3955,7 +3955,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 		goto out;
 
 	if (p->fe_sps_lim &&
-	    (wait = COUNTERS_SHARED_TOTAL_ARG2(p->fe_counters.shared.tg, sess_per_sec, next_event_delay, p->fe_sps_lim, 0))) {
+	    (wait = proxy_fe_sess_delay(p))) {
 
 		/* we're blocking because a limit was reached on the number of
 		 * requests/s on the frontend. We want to re-check ASAP, which

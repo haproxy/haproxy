@@ -1400,23 +1400,11 @@ void listener_accept(struct listener *l)
 	}
 #endif
 	if (p && p->fe_sps_lim) {
-		int max = 0;
-		int it;
-
-		for (it = 0; (it < global.nbtgroups && p->fe_counters.shared.tg && p->fe_counters.shared.tg[it]); it++)
-			max += freq_ctr_remain(&p->fe_counters.shared.tg[it]->sess_per_sec, p->fe_sps_lim, 0);
+		int max = proxy_fe_sess_remain(p);
 
 		if (unlikely(!max)) {
-			unsigned int min_wait = 0;
-
-			for (it = 0; it < global.nbtgroups; it++) {
-				unsigned int cur_wait = next_event_delay(&p->fe_counters.shared.tg[it]->sess_per_sec, p->fe_sps_lim, 0);
-				if (!it || cur_wait < min_wait)
-					min_wait = cur_wait;
-			}
-
 			/* frontend accept rate limit was reached */
-			expire = tick_add(now_ms, min_wait);
+			expire = tick_add(now_ms, proxy_fe_sess_delay(p));
 			goto limit_proxy;
 		}
 
@@ -1904,7 +1892,7 @@ void listener_accept(struct listener *l)
 		dequeue_all_listeners();
 
 		if (p && !MT_LIST_ISEMPTY(&p->listener_queue) &&
-		    (!p->fe_sps_lim || COUNTERS_SHARED_TOTAL_ARG2(p->fe_counters.shared.tg, sess_per_sec, freq_ctr_remain, p->fe_sps_lim, 0) > 0))
+		    (!p->fe_sps_lim || proxy_fe_sess_remain(p) > 0))
 			dequeue_proxy_listeners(p, 0);
 	}
 	return;
@@ -1963,14 +1951,14 @@ void listener_release(struct listener *l)
 	dequeue_all_listeners();
 
 	if (fe && !MT_LIST_ISEMPTY(&fe->listener_queue) &&
-	    (!fe->fe_sps_lim || COUNTERS_SHARED_TOTAL_ARG2(fe->fe_counters.shared.tg, sess_per_sec, freq_ctr_remain, fe->fe_sps_lim, 0) > 0))
+	    (!fe->fe_sps_lim || proxy_fe_sess_remain(fe) > 0))
 		dequeue_proxy_listeners(fe, 0);
 	else if (fe) {
 		unsigned int wait;
 		int expire = TICK_ETERNITY;
 
 		if (fe->task && fe->fe_sps_lim &&
-		    (wait = COUNTERS_SHARED_TOTAL_ARG2(fe->fe_counters.shared.tg, sess_per_sec, next_event_delay, fe->fe_sps_lim, 0))) {
+		    (wait = proxy_fe_sess_delay(fe))) {
 			/* we're blocking because a limit was reached on the number of
 			 * requests/s on the frontend. We want to re-check ASAP, which
 			 * means in 1 ms before estimated expiration date, because the
