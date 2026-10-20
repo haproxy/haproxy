@@ -105,6 +105,7 @@ static struct fdtab *_fdtab;
 static size_t fdtab_alloc_size;  /* size of the mmap() area backing _fdtab, for munmap() */
 THREAD_LOCAL struct polled_mask *polled_mask = NULL;  /* Array for the polled_mask of each fd */
 static struct polled_mask *_polled_mask;
+static size_t polled_mask_alloc_size;  /* size of the mmap() area backing _polled_mask, for munmap() */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
 
@@ -1219,6 +1220,7 @@ static void free_pollers_per_thread()
 int init_pollers()
 {
 	size_t fdtab_stride;
+	size_t pm_stride;
 	int p;
 	struct poller *bp;
 	int nbfdtab;
@@ -1267,7 +1269,16 @@ int init_pollers()
 	thread_bind_to_cpu_map(0, 0);
 	vma_set_name(_fdtab, fdtab_alloc_size, "fd", "fdtab");
 
-	if ((_polled_mask = calloc(global.maxsock, nbfdtab * sizeof(*polled_mask))) == NULL) {
+	/* as the fdtab, allocate the polled_mask with mmap() and slice it
+	 * at the page size, so that each page is only accessed by the
+	 * thread group that owns it.
+	 */
+	pm_stride = (array_size_or_fail(global.maxsock, sizeof(*polled_mask)) + page_size - 1) & ~(page_size - 1);
+	polled_mask_alloc_size = array_size_or_fail(nbfdtab, pm_stride);
+	_polled_mask = mmap(NULL, polled_mask_alloc_size, PROT_READ | PROT_WRITE,
+	                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (_polled_mask == MAP_FAILED) {
+		_polled_mask = NULL;
 		ha_alert("Not enough memory to allocate %d entries for polled_mask!\n", global.maxsock);
 		goto fail_polledmask;
 	}
@@ -1277,13 +1288,13 @@ int init_pollers()
 	 */
 	for (p = 0; p < global.nbtgroups; p++) {
 		if (global.tune.options & GTUNE_NO_TG_FD_SHARING)
-			ha_tgroup_ctx[p].polled_mask = _polled_mask + p * global.maxsock;
+			ha_tgroup_ctx[p].polled_mask = (struct polled_mask *)((char *)_polled_mask + p * pm_stride);
 		else
 			ha_tgroup_ctx[p].polled_mask = _polled_mask;
 	}
 	/* immediately set it for the boot thread as well */
 	polled_mask = ha_tgroup_ctx[0].polled_mask;
-	vma_set_name(_polled_mask, global.maxsock * sizeof(*polled_mask) * nbfdtab, "fd", "polled_mask");
+	vma_set_name(_polled_mask, polled_mask_alloc_size, "fd", "polled_mask");
 
 	for (p = 0; p < MAX_TGROUPS; p++)
 		update_list[p].first = update_list[p].last = -1;
@@ -1317,7 +1328,7 @@ redo:
 	} while (!bp || bp->pref == 0);
 
  fail_info:
-	free(_polled_mask);
+	munmap(_polled_mask, polled_mask_alloc_size);
 	_polled_mask = polled_mask = NULL;
  fail_polledmask:
 	munmap(_fdtab, fdtab_alloc_size);
@@ -1346,8 +1357,8 @@ void deinit_pollers() {
 	 */
 	munmap(_fdtab, fdtab_alloc_size);
 	_fdtab = fdtab = NULL;
-	ha_free(&_polled_mask);
-	polled_mask = NULL;
+	munmap(_polled_mask, polled_mask_alloc_size);
+	_polled_mask = polled_mask = NULL;
 }
 
 /*
