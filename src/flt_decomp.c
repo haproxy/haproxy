@@ -1363,19 +1363,19 @@ static int decomp_check_order(struct flt_conf *f, void *data)
 
 	if ((ctx->px->cap & PR_CAP_FE) && f->id == decomp_req_flt_id) {
 		ctx->decomp_req_seen = 1;
-		return 0;
 	}
-	if ((ctx->px->cap & PR_CAP_BE) && f->id == decomp_res_flt_id) {
-		if (ctx->cache_seen) {
-			ha_alert("config: %s '%s': cache filter declared before a decompression filter on the response is invalid.\n",
-				 proxy_type_str(ctx->px), ctx->px->id);
-			return 1;
+	else if (flt_use_legacy_filter(ctx->px)) {
+		if ((ctx->px->cap & PR_CAP_BE) && f->id == decomp_res_flt_id) {
+			if (ctx->cache_seen) {
+				ha_alert("config: %s '%s': cache filter declared before a decompression filter on the response is invalid.\n",
+					 proxy_type_str(ctx->px), ctx->px->id);
+				return 1;
+			}
+			ctx->decomp_res_seen = 1;
 		}
-		ctx->decomp_res_seen = 1;
-		return 0;
+		if (f->id == cache_store_flt_id)
+			ctx->cache_seen = 1;
 	}
-	if (flt_use_legacy_filter(ctx->px) && f->id == cache_store_flt_id)
-		ctx->cache_seen = 1;
 	return 0;
 }
 
