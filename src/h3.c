@@ -1467,6 +1467,13 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	if (fin)
 		htx_set_eom(htx);
 
+	/* Check that at least reserved space remains after headers decoding. */
+	if (htx_free_space(htx) < global.tune.maxrewrite) {
+		/* TODO should be a stream level error instead of a connection one. */
+		len = -1;
+		goto out;
+	}
+
 	/* Detect if an interim or final response was handled. */
 	if (sl->info.res.status >= 100 && sl->info.res.status < 200) {
 		TRACE_USER("receiving interim response", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
