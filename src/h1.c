@@ -765,6 +765,16 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			sl.st.c.len = ptr - sl.st.c.ptr;
+			if (sl.st.c.len < 3) {
+				/* less than 3 digits */
+				if (h1m->err_pos < -1 || !(global.acc_hres_vio & (1U << HTTP_VIO_STATUS_SHORT))) {
+					state = H1_MSG_RPCODE;
+					goto http_msg_invalid;
+				} else if (h1m->err_pos == -1) {
+					/* only capture the error pointer */
+					h1m->err_pos = ptr - start + skip;
+				}
+			}
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rpcode_sp, http_msg_ood, state, H1_MSG_RPCODE_SP);
 		}
 

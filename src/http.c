@@ -1634,6 +1634,7 @@ const struct http_violation http_violations[] = {
 	{ "fragment-in-url",                HTTP_VIO_URL_FRAG,         HTTP_DIR_REQ  },
 	{ "non-ascii-in-url",               HTTP_VIO_URL_NON_ASCII,    HTTP_DIR_REQ  },
 	{ "long-status-code",               HTTP_VIO_STATUS_LONG,      HTTP_DIR_RES  },
+	{ "short-status-code",              HTTP_VIO_STATUS_SHORT,     HTTP_DIR_RES  },
 	{ "non-token-in-header-name",       HTTP_VIO_HDR_NAME_NON_TOK, HTTP_DIR_BOTH },
 	{ "nul-in-header-value",            HTTP_VIO_HDR_VALUE_NUL,    HTTP_DIR_BOTH },
 	{ "inconsistent-transfer-encoding", HTTP_VIO_TE_BAD,           HTTP_DIR_RES  },

@@ -2208,6 +2208,11 @@ acceptable-http-response-violations { [-+]<http-violation>[,...] }
       risk is moderate. Only ever enable this with known clients if absolutely
       needed.
 
+    - "short-status-code" (response): this controls acceptance of status codes
+      shorter than 3 characters (e.g. "0" or "99"). A lazy regex-based parser
+      in a client may get confused. The risk is low. Only ever enable this with
+      known clients if really needed.
+
     - "non-token-in-header-name" (both): this controls the acceptance of
       forbidden characters in header field names. It is often used to adapt to
       internally developed non-standard applications which use forbidden

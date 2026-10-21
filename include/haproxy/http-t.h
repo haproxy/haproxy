@@ -211,6 +211,7 @@ enum http_violation_idx {
 	HTTP_VIO_URL_FRAG = 0,     // fragment in url ('#')
 	HTTP_VIO_URL_NON_ASCII,    // non-ASCII (>=128) in URL
 	HTTP_VIO_STATUS_LONG,      // status longer than 3 characters
+	HTTP_VIO_STATUS_SHORT,     // status shorter than 3 characters
 	HTTP_VIO_HDR_NAME_NON_TOK, // non-token in header name
 	HTTP_VIO_HDR_VALUE_NUL,    // NUL byte in header value
 	HTTP_VIO_TE_BAD,           // inconsistent transfer encoding
