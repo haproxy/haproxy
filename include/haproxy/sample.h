@@ -64,6 +64,9 @@ int c_none(struct sample *smp);
 int c_pseudo(struct sample *smp);
 int smp_dup(struct sample *smp);
 int smp_prepare_out(struct sample *smp);
+void tr_set_init(struct tr_set_ctx *ctx, const struct buffer *set);
+int tr_read_char(struct tr_set_ctx *ctx);
+int tr_set_next(struct tr_set_ctx *ctx, char **err);
 int sample_check_arg_base64(struct arg *arg, char **err);
 
 /*

@@ -22423,6 +22423,7 @@ tcp.options_list                                   binary       binary
 tcp.seq                                            binary       integer
 tcp.src                                            binary       integer
 tcp.win                                            binary       integer
+tr([-flags,]set1[,set2])                           binary       binary
 ub64dec                                            string       string
 ub64enc                                            string       string
 ungrpc(field_number[,field_type])                  binary       binary / int
@@ -24632,6 +24633,70 @@ tcp.win
   advertised by the peer in the TCP header. The value is provided as-is, as a
   16-bit unsigned quantity, without applying the window scaling factor. See
   also "fc_saved_syn", "tcp-ss", and "ip.data".
+
+tr([-<flags>,]<set1>[,<set2>])
+  Translates or deletes characters from the input sample, similarly to the
+  unix "tr" utility. It works on binary contents (e.g. a request body) as well
+  as strings, and preserves the input sample's type. The sets are resolved
+  once at configuration parsing time, so that the processing is very fast.
+  As on the unix command line, the flags are optional and come first, and
+  are distinguished from <set1> by their leading '-'.
+
+  <flags>  is a '-' followed by one or more of the following letters:
+           - 'd': delete the characters from <set1> instead of translating
+                  them. <set2> must not be set in this case.
+           - 'c': use the complement of <set1>, i.e. all the characters that
+                  are not in <set1>, in ascending order.
+
+  <set1>   is the set of characters to translate or delete. Since a first
+           argument starting with '-' designates flags, a <set1> starting
+           with '-' must be written with a backslash (e.g. '\-a'), unless it
+           is only "-" and flags are not used.
+
+  <set2>   is the set of replacement characters, which is mandatory when the
+           'd' flag is not set. Each character from <set1> is replaced with
+           the character at the same position in <set2>. If <set2> is shorter
+           than <set1>, its last character is repeated as needed. If a
+           character appears multiple times in <set1>, the last mapping wins.
+
+  As with the unix "tr" utility, a set is a list of characters which may
+  contain:
+    - ranges of characters in ascending order, such as "a-z" or "0-9".
+      A '-' at the beginning or at the end of a set is a regular character ;
+
+    - character classes "[:alnum:]", "[:alpha:]", "[:blank:]", "[:cntrl:]",
+      "[:digit:]", "[:graph:]", "[:lower:]", "[:print:]", "[:punct:]",
+      "[:space:]", "[:upper:]", "[:xdigit:]", which only cover ASCII
+      characters, and whose characters are enumerated in ascending order
+      (e.g. "[:lower:]" may be translated to "[:upper:]") ;
+
+    - backslash-escaped characters: "\NNN" for the character whose octal
+      value is NNN (1 to 3 digits), "\a", "\b", "\f", "\n", "\r", "\t",
+      "\v", and "\" followed by any other character stands for this
+      character (e.g. "\\" for a backslash, or "\-" for a dash).
+
+  Note that, contrary to regular expressions, brackets do not enclose sets:
+  "[a-z]" designates the 28 characters '[', 'a' to 'z', and ']'. It only
+  works when translating to "[A-Z]" because '[' and ']' are then mapped to
+  themselves.
+
+  Since backslashes and some characters such as commas are also processed by
+  the configuration and argument parsers, it is recommended to enclose sets
+  within single quotes, and to double the backslashes when the whole
+  expression is enclosed in double quotes, as in the examples below.
+
+  Example:
+    # upper-case the "user" query string parameter
+    http-request set-var(txn.user) "url_param(user),tr('a-z','A-Z')"
+
+    # replace all non-alphanumeric chars with underscores
+    http-request set-var(txn.id) "req.hdr(x-id),tr(-c,'[:alnum:]',_)"
+
+    # only keep digits and spaces from the request body
+    http-request set-var(txn.digits) "req.body,tr(-dc,'[:digit:] ')"
+
+    # delete control characters (0 to 31 and 127)
+    http-request set-var(txn.text) "req.body,tr(-d,'\\0-\\37\\177')"
 
 ub64dec
   This converter is the base64url variant of b64dec converter. base64url

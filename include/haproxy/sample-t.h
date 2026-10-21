@@ -279,6 +279,16 @@ struct sample_conv {
 	struct thread_exec_ctx exec_ctx;          /* execution context */
 };
 
+/* context used to walk over the characters of a set definition using the
+ * syntax of the "tr" converter (see tr_set_init()).
+ */
+struct tr_set_ctx {
+	const char *ptr;     /* next char to parse */
+	const char *end;     /* end of the set definition */
+	int (*cls)(int c);   /* non-NULL when walking over a character class */
+	int cur, last;       /* next and last chars of the current range/class */
+};
+
 /* sample conversion expression */
 struct sample_conv_expr {
 	struct list list;                         /* member of a sample_expr */

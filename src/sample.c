@@ -4817,6 +4817,303 @@ static int sample_conv_rtrim(const struct arg *arg_p, struct sample *smp, void *
 	return 1;
 }
 
+/* flags for the "tr" converter, stored as an integer in its first argument */
+#define TR_F_DELETE     0x01 /* 'd': delete chars from the set */
+#define TR_F_COMPLEMENT 0x02 /* 'c': use the complement of the set */
+
+/* character classes supported by the "tr" converter, ASCII only */
+static const struct {
+	const char *name;
+	int (*fct)(int c);
+} tr_classes[] = {
+	{ "alnum",  isalnum  }, { "alpha",  isalpha  }, { "blank",  isblank  },
+	{ "cntrl",  iscntrl  }, { "digit",  isdigit  }, { "graph",  isgraph  },
+	{ "lower",  islower  }, { "print",  isprint  }, { "punct",  ispunct  },
+	{ "space",  isspace  }, { "upper",  isupper  }, { "xdigit", isxdigit },
+};
+
+/* Prepares <ctx> to walk over the characters of the "tr" set definition
+ * <set> using tr_set_next().
+ */
+void tr_set_init(struct tr_set_ctx *ctx, const struct buffer *set)
+{
+	ctx->ptr = set->area;
+	ctx->end = set->area + set->data;
+	ctx->cls = NULL;
+	ctx->cur = 1;
+	ctx->last = 0;
+}
+
+/* Reads one possibly escaped character from <ctx>, which must not be empty,
+ * and returns it. Supported escapes are the same as for the unix "tr" utility:
+ * octal values of up to 3 digits (\NNN), \a, \b, \f, \n, \r, \t, \v, and any
+ * other char preceded by a backslash stands for itself (e.g. "\\" or "\-").
+ */
+int tr_read_char(struct tr_set_ctx *ctx)
+{
+	const char *p = ctx->ptr;
+	int c = (uchar)*p++;
+	int i;
+
+	if (c == '\\' && p < ctx->end) {
+		c = (uchar)*p++;
+		if (c >= '0' && c <= '7') {
+			c -= '0';
+			for (i = 1; i < 3 && p < ctx->end && *p >= '0' && *p <= '7' &&
+			     c * 8 + (*p - '0') <= 255; i++)
+				c = c * 8 + (*p++ - '0');
+		}
+		else switch (c) {
+		case 'a': c = '\a'; break;
+		case 'b': c = '\b'; break;
+		case 'f': c = '\f'; break;
+		case 'n': c = '\n'; break;
+		case 'r': c = '\r'; break;
+		case 't': c = '\t'; break;
+		case 'v': c = '\v'; break;
+		}
+	}
+	ctx->ptr = p;
+	return c;
+}
+
+/* Returns the next character of the "tr" set being walked over in <ctx>, in
+ * the order they appear, with ranges ("a-z") and classes ("[:alpha:]")
+ * expanded in ascending order. Returns -1 once the end is reached, or -2 on
+ * error with <err> filled.
+ */
+int tr_set_next(struct tr_set_ctx *ctx, char **err)
+{
+	const char *p;
+	uint i;
+	int c;
+
+	while (1) {
+		/* continue to walk over the current range or class first */
+		while (ctx->cur <= ctx->last) {
+			c = ctx->cur++;
+			if (!ctx->cls || (c < 0x80 && ctx->cls(c)))
+				return c;
+		}
+
+		if (ctx->ptr >= ctx->end)
+			return -1;
+
+		if (ctx->end - ctx->ptr >= 4 && ctx->ptr[0] == '[' && ctx->ptr[1] == ':') {
+			/* possibly a "[:class:]" */
+			for (p = ctx->ptr + 2; p + 1 < ctx->end; p++)
+				if (p[0] == ':' && p[1] == ']')
+					break;
+
+			if (p + 1 < ctx->end) {
+				for (i = 0; i < sizeof(tr_classes) / sizeof(*tr_classes); i++) {
+					if (strlen(tr_classes[i].name) == (size_t)(p - (ctx->ptr + 2)) &&
+					    memcmp(tr_classes[i].name, ctx->ptr + 2, p - (ctx->ptr + 2)) == 0)
+						break;
+				}
+
+				if (i == sizeof(tr_classes) / sizeof(*tr_classes)) {
+					memprintf(err, "unknown character class '%.*s'",
+					          (int)(p + 2 - ctx->ptr), ctx->ptr);
+					return -2;
+				}
+				ctx->cls = tr_classes[i].fct;
+				ctx->cur = 0;
+				ctx->last = 0x7f;
+				ctx->ptr = p + 2;
+				continue;
+			}
+		}
+
+		p = ctx->ptr;
+		c = tr_read_char(ctx);
+		if (ctx->end - ctx->ptr >= 2 && *ctx->ptr == '-') {
+			/* range: "-" is not the last char */
+			ctx->ptr++;
+			ctx->last = tr_read_char(ctx);
+			if (ctx->last < c) {
+				memprintf(err, "range '%.*s' is in reverse order",
+				          (int)(ctx->ptr - p), p);
+				return -2;
+			}
+			ctx->cls = NULL;
+			ctx->cur = c + 1;
+		}
+		return c;
+	}
+}
+
+/* Checks the "tr" converter's arguments and turns them into their final form.
+ * As with the unix "tr" utility, the arguments are an optional string of flags
+ * starting with '-', the set of chars to match, and the replacement set, which
+ * is mandatory unless the 'd' flag is set. A lone '-' as the first argument
+ * is a set. Upon success, arg[0] becomes an integer carrying the TR_F_* flags,
+ * arg[1] becomes a 256-byte table indexed by input chars, and arg[2] is
+ * released. In delete mode, the table indicates which chars to keep (1) or
+ * delete (0), otherwise it indicates the output char.
+ */
+static int sample_conv_tr_check(struct arg *args, struct sample_conv *conv,
+                                const char *file, int line, char **err)
+{
+	struct tr_set_ctx set1, set2;
+	const struct buffer *s1, *s2;
+	uchar in_set1[256];
+	uchar *table = NULL;
+	int flags = 0;
+	int c, r, last_r;
+	size_t i;
+
+	if (args[0].data.str.data > 1 && args[0].data.str.area[0] == '-') {
+		for (i = 1; i < args[0].data.str.data; i++) {
+			if (args[0].data.str.area[i] == 'd')
+				flags |= TR_F_DELETE;
+			else if (args[0].data.str.area[i] == 'c')
+				flags |= TR_F_COMPLEMENT;
+			else {
+				memprintf(err, "invalid flag '%c' in '%.*s', only 'c' and 'd' are supported"
+				          " (a set starting with '-' must be written '\\-...')",
+				          args[0].data.str.area[i], (int)args[0].data.str.data,
+				          args[0].data.str.area);
+				goto fail;
+			}
+		}
+		s1 = &args[1].data.str;
+		s2 = (args[2].type == ARGT_STR) ? &args[2].data.str : NULL;
+	}
+	else if (args[2].type == ARGT_STR) {
+		memprintf(err, "too many sets, flags must start with '-' (e.g. '-d')");
+		goto fail;
+	}
+	else {
+		s1 = &args[0].data.str;
+		s2 = &args[1].data.str;
+	}
+
+	if (flags & TR_F_DELETE) {
+		if (s2 && s2->data) {
+			memprintf(err, "a replacement set is not supported with flag 'd'");
+			goto fail;
+		}
+	}
+	else if (!s2 || !s2->data) {
+		memprintf(err, "a non-empty replacement set is required without flag 'd'");
+		goto fail;
+	}
+
+	table = malloc(256);
+	if (!table) {
+		memprintf(err, "out of memory");
+		goto fail;
+	}
+
+	memset(in_set1, 0, sizeof(in_set1));
+	tr_set_init(&set1, s1);
+	while ((c = tr_set_next(&set1, err)) >= 0)
+		in_set1[c] = 1;
+
+	if (c == -2)
+		goto fail;
+
+	if (flags & TR_F_DELETE) {
+		for (c = 0; c < 256; c++)
+			table[c] = !(in_set1[c] ^ !!(flags & TR_F_COMPLEMENT));
+	}
+	else {
+		/* chars from set1 are mapped to the char at the same position
+		 * in set2, whose last char is repeated as needed. The set1 chars
+		 * are walked over in ascending order when complemented.
+		 */
+		for (c = 0; c < 256; c++)
+			table[c] = c;
+
+		tr_set_init(&set1, s1);
+		tr_set_init(&set2, s2);
+		last_r = -1;
+		c = -1;
+		while (1) {
+			if (flags & TR_F_COMPLEMENT) {
+				while (++c < 256 && in_set1[c])
+					;
+				if (c == 256)
+					break;
+			}
+			else if ((c = tr_set_next(&set1, err)) < 0)
+				break; /* no error possible, it was already parsed */
+
+			r = tr_set_next(&set2, err);
+			if (r == -2)
+				goto fail;
+			if (r == -1)
+				r = last_r; /* set2 is not empty, last_r is valid */
+			last_r = r;
+			table[c] = r;
+		}
+
+		/* check the remaining part of set2 for errors */
+		while ((r = tr_set_next(&set2, err)) >= 0)
+			;
+		if (r == -2)
+			goto fail;
+	}
+
+	chunk_destroy(&args[0].data.str);
+	args[0].type = ARGT_SINT;
+	args[0].data.sint = flags;
+
+	if (args[2].type == ARGT_STR) {
+		chunk_destroy(&args[2].data.str);
+		args[2].type = ARGT_STOP;
+	}
+
+	chunk_destroy(&args[1].data.str);
+	args[1].data.str.area = (char *)table;
+	args[1].data.str.size = 256;
+	args[1].data.str.data = 256;
+	return 1;
+
+ fail:
+	free(table);
+	return 0;
+}
+
+/* This sample function works like the unix "tr" utility: depending on the
+ * flags in arg[0], it either deletes chars or translates them, using the
+ * 256-byte table prepared in arg[1] by sample_conv_tr_check(). The sample
+ * type is preserved.
+ */
+static int sample_conv_tr(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	const uchar *table = (const uchar *)arg_p[1].data.str.area;
+	const uchar *src = (const uchar *)smp->data.u.str.area;
+	uchar *dst;
+	size_t in, out, len;
+	uchar c;
+
+	/* <dst> may alias <src>, we never write ahead of where we read */
+	if (!smp_prepare_out(smp))
+		return 0;
+
+	dst = (uchar *)smp->data.u.str.area;
+	len = smp->data.u.str.data;
+
+	if (arg_p[0].data.sint & TR_F_DELETE) {
+		/* always copy the char but only advance over kept ones, this
+		 * avoids unpredictable branches.
+		 */
+		for (in = out = 0; in < len; in++) {
+			c = src[in];
+			dst[out] = c;
+			out += table[c];
+		}
+		smp->data.u.str.data = out;
+	}
+	else {
+		for (in = 0; in < len; in++)
+			dst[in] = table[src[in]];
+	}
+	return 1;
+}
+
 /* This function checks the "json_query" converter's arguments. */
 static int sample_check_json_query(struct arg *arg, struct sample_conv *conv,
                            const char *file, int line, char **err)
@@ -6218,6 +6515,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "cut_crlf", sample_conv_cut_crlf,           0, NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "ltrim",    sample_conv_ltrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "rtrim",    sample_conv_rtrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "tr",       sample_conv_tr,       ARG3(2,STR,STR,STR), sample_conv_tr_check, SMP_T_BIN, SMP_T_BIN },
 	{ "json_query", sample_conv_json_query, ARG2(1,STR,STR),  sample_check_json_query , SMP_T_STR, SMP_T_ANY },
 
 #ifdef USE_OPENSSL

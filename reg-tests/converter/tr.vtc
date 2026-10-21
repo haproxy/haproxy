@@ -1,0 +1,89 @@
+varnishtest "tr converter test"
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request set-var(txn.in) str('Hello World 123')
+	http-request set-var(txn.bin) bin(78310032ff33e979)
+	http-request return status 200
+	http-after-response set-header x-upper "%[var(txn.in),tr(a-z,A-Z)]"
+	http-after-response set-header x-class "%[var(txn.in),tr('[:lower:]','[:upper:]')]"
+	http-after-response set-header x-del "%[var(txn.in),tr(-d,aeiou)]"
+	http-after-response set-header x-delc "%[var(txn.in),tr(-dc,a-z)]"
+	http-after-response set-header x-compl "%[var(txn.in),tr(-c,a-zA-Z,_)]"
+	http-after-response set-header x-short "%[str(aabbcc),tr(abc,xy)]"
+	http-after-response set-header x-dash "%[str(a-1-b),tr(-d,0-9-)]"
+	http-after-response set-header x-oct "%[var(txn.in),tr(-d,'\\040')]"
+	http-after-response set-header x-bksl "%[str('a\\\\b'),tr(-d,'\\\\')]"
+	http-after-response set-header x-octr "%[str(abc),tr(a-c,'\\101-C')]"
+	http-after-response set-header x-empty "%[var(txn.in),tr(-dc,'')]"
+	http-after-response set-header x-bin1 "%[var(txn.bin),tr(-dc,'[:digit:]')]"
+	http-after-response set-header x-bin2 "%[var(txn.bin),tr(-cd,'\\0-\\177'),hex]"
+	http-after-response set-header x-bin3 "%[var(txn.bin),tr(-c,'\\1-\\177',.),hex]"
+	http-after-response set-header x-rw1 "%[var(txn.in),tr(a-z,A-Z),tr(-d,'O ')]"
+	http-after-response set-header x-rw2 "%[var(txn.in),lower,tr(a-z0-9,A-Z.)]"
+	http-after-response set-header x-dash1 "%[str(a-b-c),tr(-,_)]"
+	http-after-response set-header x-dash2 "%[str(a-b-c),tr('\\-a',+A)]"
+	http-after-response set-header x-dash3 "%[str(a-b-c),tr(-d,'\\-a')]"
+	http-after-response set-header x-rw3 "%[var(txn.bin),tr(-c,'\\1-\\177',.),tr(-d,.),hex]"
+} -start
+
+# flags must start with '-', so that a third set is rejected
+haproxy h2 -conf-BAD {too many sets} {
+    defaults
+	mode http
+
+    frontend fe
+	bind "fd@${fe2}"
+	http-request set-var(txn.x) str(abc),tr(d,a-z,A-Z)
+}
+
+# unknown flag
+haproxy h3 -conf-BAD {invalid flag 'a'} {
+    defaults
+	mode http
+
+    frontend fe
+	bind "fd@${fe3}"
+	http-request set-var(txn.x) str(abc),tr(-a,b)
+}
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-upper == "HELLO WORLD 123"
+	expect resp.http.x-class == "HELLO WORLD 123"
+	expect resp.http.x-del   == "Hll Wrld 123"
+	expect resp.http.x-delc  == "elloorld"
+	expect resp.http.x-compl == "Hello_World____"
+	expect resp.http.x-short == "xxyyyy"
+	expect resp.http.x-dash  == "ab"
+	expect resp.http.x-oct   == "HelloWorld123"
+	expect resp.http.x-bksl  == "ab"
+	expect resp.http.x-octr  == "ABC"
+	expect resp.http.x-empty == ""
+	expect resp.http.x-bin1  == "123"
+	expect resp.http.x-bin2  == "783100323379"
+	expect resp.http.x-bin3  == "78312E322E332E79"
+	expect resp.http.x-rw1   == "HELLWRLD123"
+	expect resp.http.x-rw2   == "HELLO WORLD ..."
+	expect resp.http.x-dash1 == "a_b_c"
+	expect resp.http.x-dash2 == "A+b+c"
+	expect resp.http.x-dash3 == "bc"
+	expect resp.http.x-rw3   == "7831323379"
+} -run
