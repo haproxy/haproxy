@@ -1040,7 +1040,10 @@ char *directive_value(const char *sample, int slen, const char *word, int wlen)
  * The returned value will always take the cache's configuration into account
  * (cache->maxage) but the actual max age of the response will be set in the
  * true_maxage parameter. It will be used to determine if a response is already
- * stale or not.
+ * stale or not. If <age_relative> is not NULL, it is set to 1 when the true max
+ * age comes from a s-maxage or max-age directive, which is relative to the
+ * generation of the response and must thus be reduced by its Age, or 0 when it
+ * comes from an absolute date or the cache's configuration.
  * Compute the maxage using either:
  *  - the assigned max-age of the cache
  *  - the s-maxage directive
@@ -1049,7 +1052,7 @@ char *directive_value(const char *sample, int slen, const char *word, int wlen)
  *  - the default-max-age of the cache
  *
  */
-int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
+int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage, int *age_relative)
 {
 	struct htx *htx = htxbuf(&s->res.buf);
 	struct http_hdr_ctx ctx = { .blk = NULL };
@@ -1116,6 +1119,9 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 		}
 	}
 
+
+	if (age_relative)
+		*age_relative = (smaxage > 0 || maxage > 0);
 
 	if (smaxage > 0) {
 		if (true_maxage)
@@ -1641,6 +1647,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 {
 	int effective_maxage = 0;
 	int true_maxage = 0;
+	int age_relative = 0;
 	struct http_txn *txn = s->txn.http;
 	struct http_msg *msg = &txn->rsp;
 	struct filter *filter;
@@ -1809,7 +1816,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	/* Determine the entry's maximum age (taking into account the cache's
 	 * configuration) as well as the response's explicit max age (extracted
 	 * from cache-control directives or the expires header). */
-	effective_maxage = http_calc_maxage(s, cache, &true_maxage);
+	effective_maxage = http_calc_maxage(s, cache, &true_maxage, &age_relative);
 
 	ctx.blk = NULL;
 	if (http_find_header(htx, ist("Age"), &ctx, 0)) {
@@ -1822,6 +1829,13 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			object->age = hdr_age;
 			if (unlikely(object->age > true_maxage))
 				goto out;
+
+			/* The response already spent <age> seconds of a
+			 * lifetime given by max-age or s-maxage in caches
+			 * before reaching us.
+			 */
+			if (age_relative && effective_maxage > true_maxage - (int)object->age)
+				effective_maxage = true_maxage - object->age;
 		}
 		else
 			goto out;
