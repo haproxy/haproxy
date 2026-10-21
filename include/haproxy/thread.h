@@ -167,6 +167,10 @@ static inline void set_thread_cpu_affinity()
 {
 }
 
+static inline void thread_bind_to_cpu_map(uint tgrp, uint ltid)
+{
+}
+
 static inline unsigned long long ha_get_pthread_id(unsigned int thr)
 {
 	return 0;
