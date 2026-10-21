@@ -4062,6 +4062,8 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 	int has_validator = 0;
 	int has_null_maxage = 0;
 	int has_smaxage = 0;
+	int forbidden = 0;
+	int cookie_forbidden = 0;
 
 	if (txn->status < 200) {
 		/* do not try to cache interim responses! */
@@ -4078,8 +4080,10 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 		}
 	}
 
-	/* Look for "cache-control" header and iterate over all the values
-	 * until we find one that specifies that caching is possible or not. */
+	/* Look for "cache-control" header and iterate over all the values. The
+	 * directives forbidding storage are only applied at the end so that a
+	 * "public" directive, wherever it is, cannot cancel them.
+	 */
 	ctx.blk = NULL;
 	while (http_find_header(htx, ist("cache-control"), &ctx, 0)) {
 		if (isteqi(ctx.value, ist("public"))) {
@@ -4095,7 +4099,7 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 
 		/* We might have a no-cache="set-cookie" form. */
 		if (isteqi(ctx.value, ist("no-cache=\"set-cookie\""))) {
-			txn->flags &= ~TX_CACHE_COOK;
+			cookie_forbidden = 1;
 			continue;
 		}
 
@@ -4103,7 +4107,7 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 		    isteqi(ctx.value, ist("no-cache")) || istmatchi(ctx.value, ist("no-cache=")) ||
 		    isteqi(ctx.value, ist("no-store")) || istmatchi(ctx.value, ist("no-store=")) ||
 		    isteqi(ctx.value, ist("s-maxage=0"))) {
-			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+			forbidden = 1;
 			continue;
 		}
 		if (istmatchi(ctx.value, ist("s-maxage"))) {
@@ -4119,9 +4123,12 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 
 	/* We had a 'max-age=0' directive but no extra s-maxage, do not cache
 	 * the response. */
-	if (has_null_maxage && !has_smaxage) {
+	if ((has_null_maxage && !has_smaxage) || forbidden) {
 		txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 	}
+
+	if (cookie_forbidden)
+		txn->flags &= ~TX_CACHE_COOK;
 
 	/* If no freshness information could be found in Cache-Control values,
 	 * look for an Expires header. */
