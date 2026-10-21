@@ -1,0 +1,83 @@
+varnishtest "s-maxage overrides a null max-age whatever their order"
+
+# RFC 9111#5.2.2.10: for a shared cache, s-maxage overrides max-age. A response
+# with "max-age=0" and a non-null "s-maxage" is thus cacheable, whatever the
+# order of the two directives.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.url == "/a"
+    txresp -hdr "Cache-Control: max-age=0, s-maxage=60" -bodylen 10
+
+    rxreq
+    expect req.url == "/b"
+    txresp -hdr "Cache-Control: s-maxage=60, max-age=0" -bodylen 20
+
+    rxreq
+    expect req.url == "/c"
+    txresp -hdr "Cache-Control: s-maxage=60" -hdr "Cache-Control: max-age=0" -bodylen 30
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request cache-use c1
+        http-response cache-store c1
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+    cache c1
+        total-max-size 4
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.X-Cache-Hit == 0
+
+    txreq -url "/b"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.X-Cache-Hit == 0
+
+    txreq -url "/c"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.X-Cache-Hit == 0
+
+    # all of them must have been cached
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 10
+    expect resp.http.X-Cache-Hit == 1
+
+    txreq -url "/b"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 20
+    expect resp.http.X-Cache-Hit == 1
+
+    txreq -url "/c"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 30
+    expect resp.http.X-Cache-Hit == 1
+} -run
