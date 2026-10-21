@@ -1578,6 +1578,9 @@ Then, to finish, there are 2 informational callbacks :
     By checking s->txn.http->status, it is possible to know why this callback is
     called. If it's a 1xx, we're called because of an informational
     message. Otherwise, it is a L7 retry.
+    On a L7 retry, it is only called for the response, once the retry is
+    certain, while the failed response, if any, is still in the channel buffer.
+    The request is sent again as is, so its callbacks are not called again.
 
   * 'flt_ops.http_reply' : This callback is called when, at any time, HAProxy
     decides to stop the processing on a HTTP message and to send an internal

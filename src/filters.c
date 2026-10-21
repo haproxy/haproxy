@@ -1331,7 +1331,8 @@ end:
 
 /*
  * Calls 'http_reset' callback for all filters attached to a stream. This
- * happens when a 100-continue response is received.
+ * happens when a 1xx informational response is received, and on the response
+ * when the request is sent again for a L7 retry.
  */
 void
 flt_http_reset(struct stream *s, struct http_msg *msg)

@@ -1225,6 +1225,12 @@ static __inline int do_l7_retry(struct stream *s, struct stconn *sc)
 		return -1;
 	}
 
+	/* The retry is now certain: notify the filters that the response is
+	 * reset, while the failed one is still in the buffer. The request is
+	 * sent again as is from the L7 buffer, so it is not reset.
+	 */
+	FLT_STRM_CB(s, flt_http_reset(s, &s->txn.http->rsp));
+
 	b_free(&req->buf);
 
 	/* Swap the L7 buffer with the channel buffer */
