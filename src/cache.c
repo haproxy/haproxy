@@ -1121,15 +1121,16 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage, in
 
 
 	if (age_relative)
-		*age_relative = (smaxage > 0 || maxage > 0 || expires < 0);
+		*age_relative = (smaxage >= 0 || maxage >= 0 || expires < 0);
 
-	if (smaxage > 0) {
+	/* note: a null value is a valid lifetime, it must not be ignored */
+	if (smaxage >= 0) {
 		if (true_maxage)
 			*true_maxage = smaxage;
 		return MIN(smaxage, cache->maxage);
 	}
 
-	if (maxage > 0) {
+	if (maxage >= 0) {
 		if (true_maxage)
 			*true_maxage = maxage;
 		return MIN(maxage, cache->maxage);
@@ -1845,6 +1846,10 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		else
 			goto out;
 	}
+
+	/* Do not store a response which would already be expired */
+	if (effective_maxage <= 0)
+		goto out;
 
 	/* Build a last-modified time that will be stored in the cache_entry and
 	 * compared to a future If-Modified-Since client header. */
