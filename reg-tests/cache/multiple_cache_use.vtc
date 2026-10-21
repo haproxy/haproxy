@@ -1,0 +1,69 @@
+varnishtest "Two cache-use rules hitting the same request"
+
+# A hit on a first cache-use rule attaches the cache applet to the stream. A
+# hit on a second cache-use rule must not create another applet, which would
+# replace the first one and leak it with its retained cache row: the row's
+# refcount would never drop back to zero.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -hdr "Cache-Control: max-age=60" -bodylen 3000
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request cache-use c1
+        http-request cache-use c2
+        http-response cache-store c1
+        http-response cache-store c2
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+    cache c1
+        total-max-size 4
+
+    cache c2
+        total-max-size 4
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 3000
+    expect resp.http.X-Cache-Hit == 0
+} -run
+
+# both caches hold the object now, every request hits both rules
+client c2 -connect ${h1_fe_sock} -repeat 3 {
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 3000
+    expect resp.http.X-Cache-Hit == 1
+} -run
+
+delay 0.2
+
+# the applets were all released, so the row of c1 is not retained anymore
+haproxy h1 -cli {
+    send "show cache"
+    expect ~ "c1 .*\n.*type:full size:[0-9]+ \\([0-9]+ blocks\\), refcount:0,"
+}

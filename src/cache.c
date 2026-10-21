@@ -2661,6 +2661,13 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 	struct cache_tree *cache_tree = NULL;
 
+	/* The response is already produced by an applet, e.g. after a hit on
+	 * a previous cache-use rule. Creating another one would replace it on
+	 * the back stream connector, leaking it with its retained cache row.
+	 */
+	if (s->target)
+		return ACT_RET_CONT;
+
 	/* Ignore cache for HTTP/1.0 requests and for requests other than GET
 	 * and HEAD */
 	if (!(txn->req.flags & HTTP_MSGF_VER_11) ||
