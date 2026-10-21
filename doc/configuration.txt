@@ -1793,6 +1793,7 @@ The following keywords are supported in the "global" section :
    - 51degrees-property-separator
    - 51degrees-use-performance-graph
    - 51degrees-use-predictive-graph
+   - acme.scheduler
    - ca-base
    - chroot
    - cluster-secret
