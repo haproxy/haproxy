@@ -184,10 +184,14 @@ int stksess_kill(struct stktable *t, struct stksess *ts)
 
 /*
  * Initialize or update the key in the sticky session <ts> present in table <t>
- * from the value present in <key>.
+ * from the value present in <key>. The length of the key as it is stored is
+ * returned, which is the entry's identity in the table and over the peers
+ * protocol.
  */
-void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key)
+size_t stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key)
 {
+	size_t keylen = t->key_size;
+
 	if (t->type != SMP_T_STR)
 		memcpy(ts->key.key, key->key, t->key_size);
 	else {
@@ -204,7 +208,10 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
 
 		memcpy(ts->key.key, key->key, key_len);
 		ts->key.key[key_len] = 0;
+		keylen = key_len;
 	}
+
+	return keylen;
 }
 
 /*
@@ -242,20 +249,13 @@ int stktable_get_key_shard(struct stktable *t, const void *key, size_t len)
 }
 
 /*
- * Set the shard for <key> key of <ts> sticky session attached to <t> stick table.
+ * Set the shard from the already initialized stored key of <ts> and its length
+ * <keylen> as computed by stksess_setkey().
  * Use zero for stick-table without peers synchronisation.
  */
-static void stksess_setkey_shard(struct stktable *t, struct stksess *ts,
-                                 struct stktable_key *key)
+static void stksess_setkey_shard(struct stktable *t, struct stksess *ts, size_t keylen)
 {
-	size_t keylen;
-
-	if (t->type == SMP_T_STR)
-		keylen = key->key_len;
-	else
-		keylen = t->key_size;
-
-	ts->shard = stktable_get_key_shard(t, key->key, keylen);
+	ts->shard = stktable_get_key_shard(t, ts->key.key, keylen);
 }
 
 /*
@@ -474,8 +474,10 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 		ts = (void *)ts + round_ptr_size(t->data_size);
 		__stksess_init(t, ts);
 		if (key) {
-			stksess_setkey(t, ts, key);
-			stksess_setkey_shard(t, ts, key);
+			size_t keylen;
+
+			keylen = stksess_setkey(t, ts, key);
+			stksess_setkey_shard(t, ts, keylen);
 		}
 	} else
 		HA_ATOMIC_DEC(&t->current);

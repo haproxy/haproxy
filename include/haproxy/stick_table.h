@@ -43,7 +43,7 @@ extern struct stktable_type stktable_types[];
 void stktable_store_name(struct stktable *t);
 struct stktable *stktable_find_by_name(const char *name);
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
-void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
+size_t stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);
 int stksess_kill(struct stktable *t, struct stksess *ts);
 int stktable_get_key_shard(struct stktable *t, const void *key, size_t len);
