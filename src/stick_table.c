@@ -242,20 +242,19 @@ int stktable_get_key_shard(struct stktable *t, const void *key, size_t len)
 }
 
 /*
- * Set the shard for <key> key of <ts> sticky session attached to <t> stick table.
+ * Set the shard from the already initialized stored key of <ts>.
  * Use zero for stick-table without peers synchronisation.
  */
-static void stksess_setkey_shard(struct stktable *t, struct stksess *ts,
-                                 struct stktable_key *key)
+static void stksess_setkey_shard(struct stktable *t, struct stksess *ts)
 {
 	size_t keylen;
 
 	if (t->type == SMP_T_STR)
-		keylen = key->key_len;
+		keylen = strlen((const char *)ts->key.key);
 	else
 		keylen = t->key_size;
 
-	ts->shard = stktable_get_key_shard(t, key->key, keylen);
+	ts->shard = stktable_get_key_shard(t, ts->key.key, keylen);
 }
 
 /*
@@ -475,7 +474,7 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 		__stksess_init(t, ts);
 		if (key) {
 			stksess_setkey(t, ts, key);
-			stksess_setkey_shard(t, ts, key);
+			stksess_setkey_shard(t, ts);
 		}
 	} else
 		HA_ATOMIC_DEC(&t->current);
