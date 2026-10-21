@@ -2477,28 +2477,40 @@ static int sample_conv_length(const struct arg *arg_p, struct sample *smp, void 
 
 static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp, void *private)
 {
+	const char *src = smp->data.u.str.area;
+	char *dst;
 	int i;
 
-	if (!smp_make_rw(smp))
+	/* <dst> may alias <src>, we never write ahead of where we read */
+	if (!smp_prepare_out(smp))
 		return 0;
 
+	dst = smp->data.u.str.area;
 	for (i = 0; i < smp->data.u.str.data; i++) {
-		if ((smp->data.u.str.area[i] >= 'A') && (smp->data.u.str.area[i] <= 'Z'))
-			smp->data.u.str.area[i] += 'a' - 'A';
+		if ((src[i] >= 'A') && (src[i] <= 'Z'))
+			dst[i] = src[i] + 'a' - 'A';
+		else
+			dst[i] = src[i];
 	}
 	return 1;
 }
 
 static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp, void *private)
 {
+	const char *src = smp->data.u.str.area;
+	char *dst;
 	int i;
 
-	if (!smp_make_rw(smp))
+	/* <dst> may alias <src>, we never write ahead of where we read */
+	if (!smp_prepare_out(smp))
 		return 0;
 
+	dst = smp->data.u.str.area;
 	for (i = 0; i < smp->data.u.str.data; i++) {
-		if ((smp->data.u.str.area[i] >= 'a') && (smp->data.u.str.area[i] <= 'z'))
-			smp->data.u.str.area[i] += 'A' - 'a';
+		if ((src[i] >= 'a') && (src[i] <= 'z'))
+			dst[i] = src[i] + 'A' - 'a';
+		else
+			dst[i] = src[i];
 	}
 	return 1;
 }
