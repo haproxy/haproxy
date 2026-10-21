@@ -953,7 +953,8 @@ void mworker_cleantasks()
 	while (tmp_rq) {
 		t = eb32_entry(tmp_rq, struct task, rq);
 		tmp_rq = eb32_next(tmp_rq);
-		task_destroy(t);
+		if (!(t->state & TASK_KILLED))
+			task_destroy(t);
 	}
 #endif
 	/* clean the per thread run queue */
@@ -962,14 +963,16 @@ void mworker_cleantasks()
 		while (tmp_rq) {
 			t = eb32_entry(tmp_rq, struct task, rq);
 			tmp_rq = eb32_next(tmp_rq);
-			task_destroy(t);
+			if (!(t->state & TASK_KILLED))
+				task_destroy(t);
 		}
 		/* cleanup the per thread timers queue */
 		tmp_wq = eb32_first(&ha_thread_ctx[i].timers);
 		while (tmp_wq) {
 			t = eb32_entry(tmp_wq, struct task, wq);
 			tmp_wq = eb32_next(tmp_wq);
-			task_destroy(t);
+			if (!(t->state & TASK_KILLED))
+				task_destroy(t);
 		}
 	}
 }
