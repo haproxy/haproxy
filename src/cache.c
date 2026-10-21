@@ -1041,9 +1041,9 @@ char *directive_value(const char *sample, int slen, const char *word, int wlen)
  * (cache->maxage) but the actual max age of the response will be set in the
  * true_maxage parameter. It will be used to determine if a response is already
  * stale or not. If <age_relative> is not NULL, it is set to 1 when the true max
- * age comes from a s-maxage or max-age directive, which is relative to the
- * generation of the response and must thus be reduced by its Age, or 0 when it
- * comes from an absolute date or the cache's configuration.
+ * age comes from a s-maxage or max-age directive or from the cache's
+ * configuration, which are relative to the generation of the response and must
+ * thus be reduced by its Age, or 0 when it comes from an absolute date.
  * Compute the maxage using either:
  *  - the assigned max-age of the cache
  *  - the s-maxage directive
@@ -1121,7 +1121,7 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage, in
 
 
 	if (age_relative)
-		*age_relative = (smaxage > 0 || maxage > 0);
+		*age_relative = (smaxage > 0 || maxage > 0 || expires < 0);
 
 	if (smaxage > 0) {
 		if (true_maxage)
@@ -1141,6 +1141,11 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage, in
 		return MIN(expires, cache->maxage);
 	}
 
+	/* No explicit lifetime, the cache's one is used as a heuristic
+	 * lifetime (RFC 9111#4.2.2) counting from the response's generation.
+	 */
+	if (true_maxage)
+		*true_maxage = cache->maxage;
 	return cache->maxage;
 
 }
