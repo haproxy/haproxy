@@ -3410,7 +3410,18 @@ static int parse_encoding_value(struct ist encoding, unsigned int *encoding_valu
 
 				encoding = http_trim_leading_spht(encoding);
 
-				*has_null_weight = isteq(encoding, ist("q=0"));
+				/* qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
+				 * (RFC 9110#12.4.2), it is null when it only contains zeroes.
+				 */
+				if (istmatch(encoding, ist("q=0"))) {
+					encoding = istadv(encoding, 3);
+					if (istlen(encoding) && *istptr(encoding) == '.') {
+						encoding = istnext(encoding);
+						while (istlen(encoding) && *istptr(encoding) == '0')
+							encoding = istnext(encoding);
+					}
+					*has_null_weight = !istlen(encoding);
+				}
 			}
 		}
 	}

@@ -86,6 +86,38 @@ server s1 {
                -hdr "Cache-Control: max-age=5" \
                -hdr "Content-Encoding: gzip" \
                -bodylen 139
+
+       # Null qvalues with decimals: "q=0.0" and "q=0.000" are null weights
+       # per RFC 9110#12.4.2, just like "q=0".
+       rxreq
+       expect req.url == "/accept-encoding-qvalue"
+       txresp -hdr "Content-Encoding: gzip" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 145
+
+       rxreq
+       expect req.url == "/accept-encoding-qvalue"
+       expect req.http.accept-encoding == "gzip;q=0.0, deflate"
+       txresp -hdr "Content-Encoding: deflate" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 155
+
+       rxreq
+       expect req.url == "/accept-encoding-qvalue"
+       expect req.http.accept-encoding == "gzip;q=0.000, deflate;q=0.00"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 165
+
+       rxreq
+       expect req.url == "/accept-encoding-qvalue"
+       expect req.http.accept-encoding == "gzip;q=0.001"
+       txresp -hdr "Content-Encoding: gzip" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 145
 } -start
 
 
@@ -332,4 +364,38 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.content-encoding == "gzip"
        expect resp.bodylen == 139
        expect resp.http.X-Cache-Hit == 0
+
+       #
+       # Null qvalues with decimals (RFC 9110#12.4.2)
+       #
+       txreq -url "/accept-encoding-qvalue" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 145
+       expect resp.http.X-Cache-Hit == 0
+
+       # gzip refused with "q=0.0": the cached gzip response is not delivered
+       txreq -url "/accept-encoding-qvalue" -hdr "Accept-Encoding: gzip;q=0.0, deflate"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "deflate"
+       expect resp.bodylen == 155
+       expect resp.http.X-Cache-Hit == 0
+
+       # both gzip and deflate refused with null qvalues
+       txreq -url "/accept-encoding-qvalue" -hdr "Accept-Encoding: gzip;q=0.000, deflate;q=0.00"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == <undef>
+       expect resp.bodylen == 165
+       expect resp.http.X-Cache-Hit == 0
+
+       # a non-null weight still accepts the encoding
+       txreq -url "/accept-encoding-qvalue" -hdr "Accept-Encoding: gzip;q=0.001"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 145
+       expect resp.http.X-Cache-Hit == 1
 } -run
