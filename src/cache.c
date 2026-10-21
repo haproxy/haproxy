@@ -3256,6 +3256,9 @@ static int cache_postcheck_flt(struct flt_conf *fconf, void *data)
 	if (fconf->id != cache_store_flt_id)
 		return 0;
 	cconf = fconf->conf;
+	/* already resolved: c.name now holds a struct cache pointer */
+	if (cconf->flags & CACHE_FLT_INIT)
+		return 0;
 	if (strcmp(cache->id, cconf->c.name) != 0)
 		return 0;
 	free(cconf->c.name);
