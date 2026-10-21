@@ -1201,7 +1201,10 @@ has been added :
     processing. From the filter point of view, it calls the
     'flt_ops.channel_end_analyze' callback.
 
-These analyzers are called only once per streams.
+These analyzers are called only once per stream, except on a L7 retry: the
+response analyzers are set again when the connection is established, so
+'flt_start_analyze' is called a second time on the response channel, after an
+'http_reset' callback and without any 'flt_end_analyze' call in between.
 
 'flt_ops.channel_start_analyze' and 'flt_ops.channel_end_analyze' callbacks can
 interrupt the stream processing, as 'flt_ops.channel_analyze'. Here is an
