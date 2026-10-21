@@ -1158,6 +1158,17 @@ static int peer_session_init(struct appctx *appctx)
  out_free_addr:
 	sockaddr_free(&addr);
  out_error:
+	/* the appctx will be freed without calling the release callback, so
+	 * the peer must forget it, otherwise it would keep a dangling pointer
+	 * and would never try to reconnect.
+	 */
+	HA_SPIN_LOCK(PEER_LOCK, &peer->lock);
+	if (peer->appctx == appctx) {
+		peer->appctx = NULL;
+		HA_ATOMIC_DEC(&peer->peers->applet_count[tid]);
+	}
+	HA_SPIN_UNLOCK(PEER_LOCK, &peer->lock);
+	task_wakeup(peer->peers->sync_task, TASK_WOKEN_MSG);
 	TRACE_ERROR("peer session init failed", PEERS_EV_SESS_NEW|PEERS_EV_SESS_END|PEERS_EV_SESS_ERR, NULL, peer);
 	return -1;
 }
