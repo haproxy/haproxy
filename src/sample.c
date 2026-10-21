@@ -940,6 +940,55 @@ int smp_dup(struct sample *smp)
 	return 1;
 }
 
+/* Prepares a sample of type STR or BIN to receive the output of a
+ * transformation of its own contents which never produces more bytes than it
+ * consumes (e.g. case conversion, character deletion). The caller must first
+ * save the input's area pointer. On success, the function returns 1 and the
+ * sample's buffer describes the output area: its <data> is set to the number
+ * of input bytes to process, and the "const" flag is cleared. The caller then
+ * writes the output into this area and updates <data> accordingly. The type is
+ * left unchanged, and the trailing zero of strings will be appended by any
+ * further call to smp_is_rw(). If the sample is R/W, the output area is the
+ * input one, so that the caller must be careful never to write ahead of where
+ * it reads. Otherwise it is a new trash chunk at least as large as the input,
+ * avoiding the copy that smp_make_rw() would perform. As with smp_dup(), the
+ * input length may be truncated to the trash size (minus one for strings).
+ * Returns 0 on failure or for other types, in which case the sample is left
+ * unmodified.
+ */
+int smp_prepare_out(struct sample *smp)
+{
+	struct buffer *trash;
+	size_t len;
+
+	if (smp->data.type != SMP_T_STR && smp->data.type != SMP_T_BIN)
+		return 0;
+
+	if (smp_is_rw(smp))
+		return 1;
+
+	len = smp->data.u.str.data;
+	if (smp->data.type == SMP_T_STR) {
+		trash = get_best_trash_chunk(&smp->data.u.str, len + 1);
+		if (!trash)
+			return 0;
+		if (len > trash->size - 1)
+			len = trash->size - 1;
+	}
+	else {
+		trash = get_trash_chunk_sz(len);
+		if (!trash)
+			return 0;
+		if (len > trash->size)
+			len = trash->size;
+	}
+
+	trash->data = len;
+	smp->data.u.str = *trash;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 int c_none(struct sample *smp)
 {
 	return 1;
