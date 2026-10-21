@@ -1543,7 +1543,12 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 			 */
 			if (qcs->flags & QC_SF_SIZE_KNOWN && !eb_is_empty(&qcs->rx.bufs)) {
 				const ncb_sz_t avail = qcs_rx_avail_data(qcs);
-				if (qcs->rx.offset + avail == qcs->rx.offset_max)
+
+				/* A remotely closed QCS cannot have a non empty Rx buffer left to parse. */
+				BUG_ON(avail && qcs_is_close_remote(qcs));
+
+				/* <avail> null check ensures an empty buffer is ignored. */
+				if (avail && qcs->rx.offset + avail == qcs->rx.offset_max)
 					qcs_close_remote(qcs);
 			}
 		}
