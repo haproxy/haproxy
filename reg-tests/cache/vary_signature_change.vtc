@@ -1,0 +1,94 @@
+varnishtest "Variants of a resource varying on different headers are not mixed"
+
+# Servers often add "Vary: origin" only when the request carries an Origin
+# header (e.g. CORS). The variants of a resource then vary on different
+# headers. A variant stored for one Origin must never be delivered to a
+# request with another Origin, and each variant must still be found.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -hdr "Content-Encoding: gzip" -hdr "Vary: accept-encoding" \
+           -hdr "Cache-Control: max-age=60" -body "GZIPPED"
+
+    rxreq
+    expect req.http.origin == "https://evil.example"
+    txresp -hdr "Vary: accept-encoding, origin" \
+           -hdr "Access-Control-Allow-Origin: https://evil.example" \
+           -hdr "Cache-Control: max-age=60" -body "FOR-EVIL"
+
+    rxreq
+    expect req.http.origin == "https://good.example"
+    txresp -hdr "Vary: accept-encoding, origin" \
+           -hdr "Access-Control-Allow-Origin: https://good.example" \
+           -hdr "Cache-Control: max-age=60" -body "FOR-GOOD"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request cache-use c1
+        http-response cache-store c1
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+    cache c1
+        total-max-size 4
+        process-vary on
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/r" -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "GZIPPED"
+    expect resp.http.X-Cache-Hit == 0
+
+    txreq -url "/r" -hdr "Accept-Encoding: br" -hdr "Origin: https://evil.example"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "FOR-EVIL"
+    expect resp.http.X-Cache-Hit == 0
+
+    # must not get the variant of the other origin
+    txreq -url "/r" -hdr "Accept-Encoding: br" -hdr "Origin: https://good.example"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "FOR-GOOD"
+    expect resp.http.X-Cache-Hit == 0
+
+    # each variant is now delivered from the cache to the right requests
+    txreq -url "/r" -hdr "Accept-Encoding: br" -hdr "Origin: https://good.example"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "FOR-GOOD"
+    expect resp.http.access-control-allow-origin == "https://good.example"
+    expect resp.http.X-Cache-Hit == 1
+
+    txreq -url "/r" -hdr "Accept-Encoding: br" -hdr "Origin: https://evil.example"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "FOR-EVIL"
+    expect resp.http.X-Cache-Hit == 1
+
+    txreq -url "/r" -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.body == "GZIPPED"
+    expect resp.http.X-Cache-Hit == 1
+} -run

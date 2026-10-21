@@ -381,6 +381,23 @@ static int secondary_key_cmp(const char *ref_key, const char *new_key)
 }
 
 /*
+ * Compare the secondary key <key> of a request to the one of <entry>. The
+ * request's key must be complete, i.e. built for all the supported headers.
+ * The variants of a resource may vary on different headers, so the request's
+ * key is first reduced to the headers of the entry's signature, exactly as it
+ * was done for the request which created the entry.
+ * Returns 0 if the keys are alike.
+ */
+static int secondary_key_entry_cmp(const struct cache_entry *entry, const char *key)
+{
+	char reduced_key[HTTP_CACHE_SEC_KEY_LEN];
+
+	memcpy(reduced_key, key, HTTP_CACHE_SEC_KEY_LEN);
+	http_request_reduce_secondary_key(entry->secondary_key_signature, reduced_key);
+	return secondary_key_cmp(entry->secondary_key, reduced_key);
+}
+
+/*
  * There can be multiple entries with the same primary key in the ebtree so in
  * order to get the proper one out of the list, we use a secondary_key.
  * This function simply iterates over all the entries with the same primary_key
@@ -401,7 +418,7 @@ struct cache_entry *get_secondary_entry(struct cache_tree *cache, struct cache_e
 	if (!entry->secondary_key_signature)
 		return NULL;
 
-	while (entry && secondary_key_cmp(entry->secondary_key, secondary_key) != 0) {
+	while (entry && secondary_key_entry_cmp(entry, secondary_key) != 0) {
 		node = eb32_next_dup(node);
 
 		/* Make the best use of this iteration and clear expired entries
@@ -2760,7 +2777,12 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		 * primary hash. We need to calculate the secondary hash in order
 		 * to find the actual entry we want (if it exists). */
 		if (res && res->secondary_key_signature) {
-			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
+			/* The variants may vary on different headers, so the
+			 * key is built for all of them. It is reduced to each
+			 * variant's headers when comparing, and left complete
+			 * for the store in case of miss.
+			 */
+			if (!http_request_prebuild_full_secondary_key(s)) {
 				struct cache_entry *to_release = NULL;
 				struct shared_block *to_reattach = NULL;
 
