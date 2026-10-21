@@ -1572,6 +1572,16 @@ static int qcc_decode_qcs(struct qcc *qcc, struct qcs *qcs)
 	return ret;
 }
 
+/* Free <qcc> STREAM frames in Tx list. */
+static void qcc_clear_frms(struct qcc *qcc)
+{
+	TRACE_STATE("resetting STREAM frames list", QMUX_EV_QCC_SEND, qcc->conn);
+	while (!LIST_ISEMPTY(&qcc->tx.frms)) {
+		struct quic_frame *frm = LIST_ELEM(qcc->tx.frms.n, struct quic_frame *, list);
+		qc_frm_free(conn_is_quic(qcc->conn) ? qcc->conn->handle.qc : NULL, &frm);
+	}
+}
+
 /* Allocate if needed and retrieve <qcs> stream buffer for data reception.
  *
  * Returns buffer pointer. May be NULL on allocation failure.
@@ -1698,6 +1708,11 @@ int qcc_realign_stream_txbuf(const struct qcs *qcs, struct buffer *out)
 {
 	if (qcs_prep_bytes(qcs) == b_data(out)) {
 		b_slow_realign(out, trash.area, b_data(out));
+		/* TODO only the QCS owned STREAM frame should be removed,
+		 * however for now there is no mechanism to retry emission
+		 * without clearing the whole list.
+		 */
+		qcc_clear_frms(qcs->qcc);
 		return 0;
 	}
 
@@ -1745,16 +1760,6 @@ static void qcc_notify_fctl(struct qcc *qcc)
 		LIST_DEL_INIT(&qcs->el_fctl);
 		tot_time_stop(&qcs->timer.fctl);
 		qcs_notify_send(qcs);
-	}
-}
-
-/* Free <qcc> STREAM frames in Tx list. */
-static void qcc_clear_frms(struct qcc *qcc)
-{
-	TRACE_STATE("resetting STREAM frames list", QMUX_EV_QCC_SEND, qcc->conn);
-	while (!LIST_ISEMPTY(&qcc->tx.frms)) {
-		struct quic_frame *frm = LIST_ELEM(qcc->tx.frms.n, struct quic_frame *, list);
-		qc_frm_free(conn_is_quic(qcc->conn) ? qcc->conn->handle.qc : NULL, &frm);
 	}
 }
 
