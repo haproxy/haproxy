@@ -1825,12 +1825,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		}
 		else
 			goto out;
-		/* The cache serves its copies with a freshly computed Age, so
-		 * the stored response's Age is stripped. In hints-only mode the
-		 * response is only passed through, never served, so leave it.
-		 */
-		if (!(cache->flags & CACHE_CF_EARLY_HINTS_ONLY))
-			http_remove_header(htx, &ctx);
 	}
 
 	/* Build a last-modified time that will be stored in the cache_entry and
@@ -1847,6 +1841,17 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			struct htx_blk *blk = htx_get_blk(htx, pos);
 			enum htx_blk_type type = htx_get_blk_type(blk);
 			uint32_t sz = htx_get_blksz(blk);
+			struct ist header_name = IST_NULL;
+
+			/* The cache serves its copies with a freshly computed
+			 * Age, so the Age headers are not stored. They are left
+			 * in the response which is forwarded as-is.
+			 */
+			if (type == HTX_BLK_HDR) {
+				header_name = htx_get_blk_name(htx, blk);
+				if (isteq(header_name, ist("age")))
+					continue;
+			}
 
 			hdrs_len += sizeof(*blk) + sz;
 			chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
@@ -1857,7 +1862,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			 * future conditional requests to be able to perform ETag
 			 * comparisons. */
 			if (type == HTX_BLK_HDR) {
-				struct ist header_name = htx_get_blk_name(htx, blk);
 				if (isteq(header_name, ist("etag"))) {
 					object->etag_length = sz - istlen(header_name);
 					object->etag_offset = sizeof(struct cache_entry) +
