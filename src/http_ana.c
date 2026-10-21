@@ -4033,7 +4033,11 @@ void http_check_request_for_cacheability(struct stream *s, struct channel *req)
 			continue;
 		}
 		if (istmatchi(ctx.value, ist("no-store"))) {
+			/* remembered, the response must not be able to
+			 * make itself cacheable again.
+			 */
 			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+			txn->flags |= TX_CACHE_NOSTORE;
 			continue;
 		}
 	}
@@ -4123,7 +4127,8 @@ void http_check_response_for_cacheability(struct stream *s, struct channel *res)
 
 	/* We had a 'max-age=0' directive but no extra s-maxage, do not cache
 	 * the response. */
-	if ((has_null_maxage && !has_smaxage) || forbidden) {
+	if ((has_null_maxage && !has_smaxage) || forbidden ||
+	    (txn->flags & TX_CACHE_NOSTORE)) {
 		txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 	}
 

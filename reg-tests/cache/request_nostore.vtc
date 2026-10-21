@@ -1,0 +1,63 @@
+varnishtest "A request with \"no-store\" is never stored, even if the response is public"
+
+# RFC 9111#5.2.1.5: the no-store request directive forbids caches from storing
+# any part of the request or of its response, whatever the response says.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.url == "/a"
+    txresp -hdr "Cache-Control: public, max-age=60" -bodylen 10
+
+    rxreq
+    expect req.url == "/a"
+    txresp -hdr "Cache-Control: public, max-age=60" -bodylen 11
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request cache-use c1
+        http-response cache-store c1
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+    cache c1
+        total-max-size 4
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/a" -hdr "Cache-Control: no-store"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 10
+
+    # the response to the no-store request must not have been stored
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 11
+    expect resp.http.X-Cache-Hit == 0
+
+    # while this one was
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 11
+    expect resp.http.X-Cache-Hit == 1
+} -run
