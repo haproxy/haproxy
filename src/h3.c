@@ -1562,6 +1562,14 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	BUG_ON(!b_size(appbuf)); /* TODO */
 	htx = htx_from_buf(appbuf);
 	data_ofs = htx->data;
+	/* Do not decode trailers if there is remaining data left, for similar
+	 * reasons as h3_resp_headers_to_htx().
+	 */
+	if (!htx_is_empty(htx)) {
+		qcs->flags |= QC_SF_DEM_FULL;
+		len = 0;
+		goto out;
+	}
 
 	if (!h3s->data_len) {
 		/* Notify that no body is present. This can only happens if
