@@ -7180,7 +7180,7 @@ static int cli_parse_purge_server(char **args, char *payload, struct appctx *app
 		srv->flags |= SRV_F_TO_PURGE;
 
 		if (!tick_isset(be->purge_task->expire))
-			be->purge_task->expire = tick_add(now_ms, 1000);
+			be->purge_task->expire = tick_add(now_ms, 50);
 		task_queue(be->purge_task);
 		ha_notice("Server '%s/%s' flagged for deletion.\n", be->id, srv->id);
 		cli_msg(appctx, LOG_INFO, "Server scheduled for purge.\n");
@@ -7301,7 +7301,7 @@ static int cli_io_handler_purge_all_server(struct appctx *appctx)
 
 	if (ctx->c1) {
 		if (!tick_isset(be->purge_task->expire))
-			be->purge_task->expire = tick_add(now_ms, 1000);
+			be->purge_task->expire = tick_add(now_ms, 50);
 		task_queue(be->purge_task);
 	}
 

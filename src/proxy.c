@@ -5669,7 +5669,7 @@ static int cli_parse_purge_backend(char **args, char *payload, struct appctx *ap
 	if (!ret) {
 		px->flags |= PR_FL_TO_PURGE;
 		if (!tick_isset(px->purge_task->expire))
-			px->purge_task->expire = tick_add(now_ms, 1000);
+			px->purge_task->expire = tick_add(now_ms, 50);
 		task_queue(px->purge_task);
 		ha_notice("Backend '%s' flagged for deletion.\n", px->id);
 		cli_msg(appctx, LOG_INFO, "Backend scheduled for purge.\n");
