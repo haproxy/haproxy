@@ -196,13 +196,26 @@ static inline void conn_ctrl_init(struct connection *conn)
  */
 static inline void conn_ctrl_close(struct connection *conn)
 {
-	if (!conn->xprt && (conn->flags & CO_FL_CTRL_READY)) {
+	if (conn->xprt)
+		return;
+
+	if (conn->flags & CO_FL_CTRL_READY) {
 		if ((conn->flags & (CO_FL_WANT_DRAIN | CO_FL_SOCK_RD_SH)) == CO_FL_WANT_DRAIN)
 			conn_ctrl_drain(conn);
 		conn->flags &= ~CO_FL_CTRL_READY;
 		if (conn->ctrl->ctrl_close)
 			conn->ctrl->ctrl_close(conn);
 	}
+	else if (!(conn->flags & CO_FL_FDLESS) && conn->handle.fd != DEAD_FD_MAGIC) {
+		/* the connection got an accepted FD temporarily assigned but
+		 * it was never inserted, thus it's not known from the fdtab.
+		 * As soon as it's closed, it cannot be touched anymore as it
+		 * may be re-assigned to another thread.
+		 */
+		close(conn->handle.fd);
+		conn->handle.fd = DEAD_FD_MAGIC;
+	}
+
 }
 
 /* If the connection still has a transport layer, then call its close() function
