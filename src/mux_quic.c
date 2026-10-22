@@ -887,16 +887,21 @@ int _qcc_report_glitch(struct qcc *qcc, int inc)
 /* Returns the number of streams which can still be opened until flow-control limit. */
 int qcc_fctl_avail_streams(const struct qcc *qcc, int bidi)
 {
+	uint64_t diff;
+
 	if (bidi) {
 		const uint64_t next = qcc->next_bidi_l / 4;
 		BUG_ON(qcc->rfctl.ms_bidi < next);
-		return qcc->rfctl.ms_bidi - next;
+		diff = qcc->rfctl.ms_bidi - next;
 	}
 	else {
 		const uint64_t next = qcc->next_uni_l / 4;
 		BUG_ON(qcc->rfctl.ms_uni < next);
-		return qcc->rfctl.ms_uni - next;
+		diff = qcc->rfctl.ms_uni - next;
 	}
+
+	/* cap the value to INT_MAX to avoid overflow */
+	return MIN(diff, INT_MAX);
 }
 
 /* Retrieves the maximum number of bidirectional remote streams that the peer
