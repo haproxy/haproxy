@@ -2552,6 +2552,7 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t msg_head_sz,
                                 uint32_t *msg_len, int *totl)
 {
+	uint64_t len;
 	int reql;
 	char *cur;
 
@@ -2580,7 +2581,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 		goto incomplete;
 
 	cur = msg_head;
-	*msg_len = intdecode(&cur, cur + reql);
+	len = intdecode(&cur, cur + reql);
 	if (!cur) {
 		/* the number is truncated, did we read enough ? */
 		if (reql < msg_head_sz)
@@ -2593,15 +2594,17 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 	}
 	*totl += cur - msg_head;
 
+	/* the length must be checked before being truncated to 32 bits */
+	if (len > trash.size) {
+		/* Status code is not success, abort */
+		appctx->st0 = PEER_SESS_ST_ERRSIZE;
+		TRACE_PROTO("malformed message: too large length encoding", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx);
+		return -1;
+	}
+	*msg_len = len;
+
 	/* Read message content */
 	if (*msg_len) {
-		if (*msg_len > trash.size) {
-			/* Status code is not success, abort */
-			appctx->st0 = PEER_SESS_ST_ERRSIZE;
-			TRACE_PROTO("malformed message: too large length encoding", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx);
-			return -1;
-		}
-
 		reql = applet_getblk(appctx, trash.area, *msg_len, *totl);
 		if (reql <= 0) /* closed */
 			goto incomplete;
