@@ -948,9 +948,14 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	 * 0x2a) for the :path pseudo-header field; see Section 7.1 of
 	 * [HTTP].
 	 */
-	if ((isteqi(scheme, ist("http")) || isteqi(scheme, ist("https"))) &&
-	    (!istlen(path) ||
-	     (istptr(path)[0] != '/' && !isteq(path, ist("*"))))) {
+
+	/* HAProxy only works with HTTP(S)-like schemes, always check path no
+	 * matter what the value of :scheme is. Reject empty paths or value not
+	 * started with '/' or '*'. This is important to prevent any issues
+	 * related to URI concatenation.
+	 */
+	if (!istlen(path) ||
+	    (istptr(path)[0] != '/' && !isteq(path, ist("*")))) {
 		TRACE_ERROR("invalid ':path' pseudo-header", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		h3s->err = H3_ERR_MESSAGE_ERROR;
 		qcc_report_glitch(h3c->qcc, 1);
