@@ -1896,7 +1896,8 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 	}
 
 	if (table->type == SMP_T_STR) {
-		unsigned int to_read, to_store;
+		uint64_t to_read;
+		unsigned int to_store;
 
 		to_read = intdecode(msg_cur, msg_end);
 		if (!*msg_cur) {
@@ -1905,7 +1906,7 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 		}
 
 		to_store = MIN(to_read, table->key_size - 1);
-		if (*msg_cur + to_store > msg_end) {
+		if (to_read > (uint64_t)(msg_end - *msg_cur)) {
 			TRACE_ERROR("malformed update message: invalid string (too big)", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p, st);
 			goto malformed_free_newts;
 		}
@@ -2129,7 +2130,7 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 		}
 		case STD_T_DICT: {
 			struct buffer *chunk;
-			size_t data_len, value_len;
+			uint64_t data_len, value_len;
 			unsigned int id;
 			struct dict_entry *de;
 			struct dcache *dc;
@@ -2140,7 +2141,7 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 				break;
 			}
 			data_len = decoded_int;
-			if (*msg_cur + data_len > msg_end) {
+			if (data_len > (uint64_t)(msg_end - *msg_cur)) {
 				TRACE_ERROR("malformed update message: invalid dict value", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p, st);
 				goto malformed_unlock;
 			}
@@ -2168,7 +2169,7 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 			else {
 				chunk = get_trash_chunk();
 				value_len = intdecode(msg_cur, end);
-				if (!*msg_cur || *msg_cur + value_len > end ||
+				if (!*msg_cur || value_len > (uint64_t)(end - *msg_cur) ||
 					unlikely(value_len + 1 >= chunk->size)) {
 					TRACE_ERROR("malformed update message: invalid dict value", PEERS_EV_SESS_IO|PEERS_EV_RX_MSG|PEERS_EV_PROTO_ERR, appctx, p, st);
 					goto malformed_unlock;
