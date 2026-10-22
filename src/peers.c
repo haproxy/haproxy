@@ -3091,7 +3091,6 @@ void peer_io_handler(struct appctx *appctx)
 	while (1) {
 		prev_state = appctx->st0;
 switchstate:
-		maj_ver = min_ver = (unsigned int)-1;
 		switch(appctx->st0) {
 			case PEER_SESS_ST_ACCEPT:
 				prev_state = appctx->st0;
@@ -3108,6 +3107,10 @@ switchstate:
 					goto switchstate;
 				}
 
+				/* st1 holds the minor version in GETHOST/GETPEER,
+				 * or the status code in EXIT.
+				 */
+				appctx->st1 = min_ver;
 				appctx->st0 = PEER_SESS_ST_GETHOST;
 				__fallthrough;
 			case PEER_SESS_ST_GETHOST:
@@ -3153,14 +3156,11 @@ switchstate:
 					curpeer->heartbeat = TICK_ETERNITY;
 					curpeer->coll++;
 				}
-				if (maj_ver != (unsigned int)-1 && min_ver != (unsigned int)-1) {
-					if (min_ver == PEER_DWNGRD_MINOR_VER) {
-						curpeer->flags |= PEER_F_DWNGRD;
-					}
-					else {
-						curpeer->flags &= ~PEER_F_DWNGRD;
-					}
-				}
+				if (appctx->st1 == PEER_DWNGRD_MINOR_VER)
+					curpeer->flags |= PEER_F_DWNGRD;
+				else
+					curpeer->flags &= ~PEER_F_DWNGRD;
+				appctx->st1 = 0;
 				curpeer->appctx = appctx;
 				curpeer->flags |= PEER_F_ALIVE;
 				appctx->svcctx = curpeer;
