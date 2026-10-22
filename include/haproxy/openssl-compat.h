@@ -127,6 +127,11 @@ enum ssl_encryption_level_t {
 #define HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
 #endif
 
+#if (defined(OPENSSL_IS_AWSLC))
+/* AWS-LC owns extension 18; its native SCT API is available in all releases. */
+#define HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST
+#endif
+
 #if ((OPENSSL_VERSION_NUMBER >= 0x10002000L) && !defined(LIBRESSL_VERSION_NUMBER))
 #define HAVE_SSL_CTX_get0_privatekey
 #endif
@@ -141,7 +146,8 @@ enum ssl_encryption_level_t {
 #define HAVE_VANILLA_OPENSSL
 #endif
 
-#if (defined(SN_ct_cert_scts) && !defined(OPENSSL_NO_TLSEXT))
+#if ((defined(SN_ct_cert_scts) && !defined(OPENSSL_NO_TLSEXT)) || defined(OPENSSL_IS_AWSLC))
+/* AWS-LC supports SCT lists without defining the CT OID SN_ct_cert_scts. */
 #define HAVE_SSL_SCTL
 #endif
 

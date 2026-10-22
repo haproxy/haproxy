@@ -1673,6 +1673,8 @@ static int ssl_sock_load_ocsp(const char *path, SSL_CTX *ctx, struct ckch_data *
 #endif
 
 
+#if defined(HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT) || defined(HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST)
+
 #ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
 
 #define CT_EXTENSION_TYPE 18
@@ -1703,12 +1705,21 @@ static __maybe_unused int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type,
 	return 1;
 }
 
+#endif /* HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT */
+
 /* Attaches <sctl> to <ctx>. Returns 0 on success or -1 on failure. */
 static int ssl_sock_load_sctl(SSL_CTX *ctx, struct buffer *sctl)
 {
+#ifdef HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST
+	/* AWS-LC validates and copies the list, including on context switches. */
+	if (!SSL_CTX_set_signed_cert_timestamp_list(ctx, (const uint8_t *)sctl->area, sctl->data))
+		return -1;
+	return 0;
+#else
 	if (!SSL_CTX_set_ex_data(ctx, sctl_ex_index, sctl))
 		return -1;
 	return 0;
+#endif
 }
 
 #endif
@@ -3247,14 +3258,23 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store
 	}
 #endif
 
-#ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
-	if (sctl_ex_index >= 0 && data->sctl) {
+#if defined(HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT) || defined(HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST)
+	if (data->sctl) {
+#ifdef HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST
+		/* A list rejected by AWS-LC only disables SCT delivery; warn and continue. */
 		if (ssl_sock_load_sctl(ctx, data->sctl) < 0) {
+			memprintf(err, "%s '%s.sctl' is present but cannot be parsed by SSL_CTX_set_signed_cert_timestamp_list, the SCTL extension will not be sent.\n",
+			          err && *err ? *err : "", path);
+			errcode |= ERR_WARN;
+		}
+#else
+		if (sctl_ex_index >= 0 && ssl_sock_load_sctl(ctx, data->sctl) < 0) {
 			memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
 			          err && *err ? *err : "", path);
 			errcode |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
+#endif
 	}
 #endif
 
