@@ -523,10 +523,6 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			qc = LIST_ELEM(ctx->bref.ref, struct quic_conn *, el_th_ctx);
 			if ((int)(qc->qc_epoch - ctx->epoch) > 0)
 				done = 1;
-
-			/* Skip to next element if filter on a different connection. */
-			if (ctx->ptr && ctx->ptr != qc)
-				done = 1;
 		}
 
 		if (done) {
@@ -539,34 +535,37 @@ static int cli_io_handler_dump_quic(struct appctx *appctx)
 			continue;
 		}
 
-		switch (cli_show_quic_format(ctx)) {
-		case QUIC_DUMP_FMT_CUST:
-			dump_quic_full(ctx, qc);
-			break;
-		case QUIC_DUMP_FMT_ONELINE:
-			dump_quic_oneline(ctx, qc);
-			break;
 
-		case QUIC_DUMP_FMT_STREAM:
-			dump_quic_stream(ctx, qc);
-			break;
+		/* Do not dump conn if filtered on a specific different entry. */
+		if (!ctx->ptr || ctx->ptr == qc) {
+			switch (cli_show_quic_format(ctx)) {
+			case QUIC_DUMP_FMT_CUST:
+				dump_quic_full(ctx, qc);
+				break;
+			case QUIC_DUMP_FMT_ONELINE:
+				dump_quic_oneline(ctx, qc);
+				break;
 
-		case QUIC_DUMP_FMT_DEFAULT:
-			/* An explicit format must be returned by cli_show_quic_format(). */
-			ABORT_NOW();
+			case QUIC_DUMP_FMT_STREAM:
+				dump_quic_stream(ctx, qc);
+				break;
+
+			case QUIC_DUMP_FMT_DEFAULT:
+				/* An explicit format must be returned by cli_show_quic_format(). */
+				ABORT_NOW();
+			}
+
+			if (applet_putchk(appctx, &trash) == -1) {
+				/* Register show_quic_ctx to quic_conn instance. */
+				LIST_APPEND(&qc->back_refs, &ctx->bref.users);
+				goto full;
+			}
 		}
-
-		if (applet_putchk(appctx, &trash) == -1) {
-			/* Register show_quic_ctx to quic_conn instance. */
-			LIST_APPEND(&qc->back_refs, &ctx->bref.users);
-			goto full;
-		}
-
-		ctx->bref.ref = qc->el_th_ctx.n;
 
 		/* If filtered connection displayed, show quic can be stopped early. */
-		if (ctx->ptr)
+		if (ctx->ptr && ctx->ptr == qc)
 			goto done;
+		ctx->bref.ref = qc->el_th_ctx.n;
 	}
 
  done:
