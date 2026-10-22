@@ -1996,7 +1996,7 @@ static struct qc_stream_rxbuf *qcs_get_rxbuf(struct qcs *qcs, uint64_t offset,
 int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
              char fin, char *data)
 {
-	const int fin_standalone = (!len && fin);
+	int fin_standalone;
 	struct qcs *qcs;
 	enum ncb_ret ncb_ret;
 	uint64_t left;
@@ -2085,6 +2085,9 @@ int qcc_recv(struct qcc *qcc, uint64_t id, uint64_t len, uint64_t offset,
 		data += diff;
 		offset = qcs->rx.offset;
 	}
+
+	/* If FIN received with an already known offset, fin_standalone must be set as well. */
+	fin_standalone = (!len && fin);
 
 	if (len && (qcc->flags & QC_CF_WAIT_HS)) {
 		if (!(qcc->conn->flags & CO_FL_EARLY_DATA)) {
