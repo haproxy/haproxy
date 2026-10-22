@@ -2316,7 +2316,7 @@ int qcc_recv_max_streams(struct qcc *qcc, uint64_t max, int bidi)
 	 *  permits opening of a stream larger than this limit MUST be treated
 	 *  as a connection error of type FRAME_ENCODING_ERROR.
 	 */
-	if (max > QUIC_VARINT_8_BYTE_MAX) {
+	if (max > ((uint64_t)1 << 60)) {
 		TRACE_ERROR("invalid MAX_STREAMS value", QMUX_EV_QCC_RECV, qcc->conn);
 		qcc_set_error(qcc, QC_ERR_FRAME_ENCODING_ERROR, 0,
 		              muxc_tevt_type_proto_err);
