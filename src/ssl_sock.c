@@ -1681,7 +1681,14 @@ int sctl_ex_index = -1;
 
 static __maybe_unused int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
 {
-	struct buffer *sctl = add_arg;
+	struct buffer *sctl;
+
+	/* the extension is registered on all frontend contexts, only the
+	 * ones with a .sctl file have something to send.
+	 */
+	sctl = SSL_CTX_get_ex_data(SSL_get_SSL_CTX(ssl), sctl_ex_index);
+	if (!sctl)
+		return 0;
 
 	*out = (unsigned char *) sctl->area;
 	*outlen = sctl->data;
@@ -1696,20 +1703,37 @@ static __maybe_unused int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type,
 
 static int ssl_sock_load_sctl(SSL_CTX *ctx, struct buffer *sctl)
 {
-	int ret = -1;
-
-	if (!SSL_CTX_add_server_custom_ext(ctx, CT_EXTENSION_TYPE, ssl_sock_sctl_add_cbk, NULL, sctl, ssl_sock_sctl_parse_cbk, NULL))
-		goto out;
-
-	SSL_CTX_set_ex_data(ctx, sctl_ex_index, sctl);
-
-	ret = 0;
-
-out:
-	return ret;
+	if (!SSL_CTX_set_ex_data(ctx, sctl_ex_index, sctl))
+		return -1;
+	return 0;
 }
 
 #endif
+
+/* Registers the SCTL extension on context <ctx> of frontend <bind_conf>. It
+ * must be called on every frontend context right after its creation, whether
+ * a .sctl file is used or not, so that all contexts of a bind_conf share the
+ * same custom extensions in the same order. OpenSSL sizes the received
+ * extensions array from the initial context but parses it using the one
+ * selected in the ClientHello callback, so a mismatch between the two results
+ * in an out-of-bounds read. QUIC binds never get it: this extension is only
+ * emitted in TLS 1.2 ServerHello, and SSL_set_SSL_CTX() in OpenSSL 3.5.1+
+ * reads freed memory when merging the QUIC transport parameters extension
+ * with a context that already has custom extensions. Returns non-zero on
+ * success, 0 on failure.
+ */
+int ssl_sock_ctx_add_sctl_ext(struct bind_conf *bind_conf, SSL_CTX *ctx)
+{
+#ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
+	/* xprt is not yet set to QUIC when certificates are loaded */
+	if (bind_conf->options & BC_O_USE_SOCK_DGRAM)
+		return 1;
+
+	if (!SSL_CTX_add_server_custom_ext(ctx, CT_EXTENSION_TYPE, ssl_sock_sctl_add_cbk, NULL, NULL, ssl_sock_sctl_parse_cbk, NULL))
+		return 0;
+#endif
+	return 1;
+}
 
 static void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
@@ -3350,6 +3374,13 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 
 	SSL_CTX_set_ex_data(ctx, ssl_crtname_index, crtname);
 
+	if (!ssl_sock_ctx_add_sctl_ext(bind_conf, ctx)) {
+		memprintf(err, "%sunable to register the SCTL extension for cert '%s'.\n",
+		          err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+
 	if (global_ssl.security_level > -1)
 		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 
@@ -4154,6 +4185,12 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	}
 
 	bind_conf->initial_ctx = ctx;
+
+	if (!ssl_sock_ctx_add_sctl_ext(bind_conf, ctx)) {
+		cfgerr += 1;
+		ha_alert("Proxy '%s': failed to register the SCTL extension for bind '%s' at [%s:%d].\n",
+		         bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+	}
 
 	if (global_ssl.security_level > -1)
 		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
