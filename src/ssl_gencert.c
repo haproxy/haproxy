@@ -246,6 +246,10 @@ static SSL_CTX *ssl_sock_do_create_cert(const char *servername, struct bind_conf
 	if (!(ssl_ctx = SSL_CTX_new(SSLv23_server_method())))
 		goto mkcert_error;
 
+	/* the custom extensions must match the ones of the initial context */
+	if (!ssl_sock_ctx_add_sctl_ext(bind_conf, ssl_ctx))
+		goto mkcert_error;
+
 	if (global_ssl.security_level > -1)
 		SSL_CTX_set_security_level(ssl_ctx, global_ssl.security_level);
 
