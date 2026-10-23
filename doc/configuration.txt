@@ -20315,6 +20315,8 @@ pha
 
   This option is disabled by default.
 
+  Compatibility: OpenSSL >= 1.1.1. Not supported with AWS-LC.
+
   See also "no-pha", "crt", "alpn" and "proto".
 
 pool-conn-name <expr>
