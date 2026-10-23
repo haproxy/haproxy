@@ -2499,7 +2499,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 	res = smallbuf ? qcc_get_stream_txbuf(qcs, &err, 1) :
 	                 qcc_realloc_stream_txbuf(qcs);
 	if (!res) {
-		if (err) {
+		/* detect alloc failure for qcc_get_stream_txbuf() / qcc_realloc_stream_txbuf() */
+		if (!smallbuf || err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
 		}
@@ -2775,7 +2776,8 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 	res = smallbuf ? qcc_get_stream_txbuf(qcs, &err, 1) :
 	                 qcc_realloc_stream_txbuf(qcs);
 	if (!res) {
-		if (err) {
+		/* detect alloc failure for qcc_get_stream_txbuf() / qcc_realloc_stream_txbuf() */
+		if (!smallbuf || err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
 		}
