@@ -12351,6 +12351,39 @@ static int hlua_filter_from_payload(struct filter *filter, struct channel *chn)
 	return (flt_ctx && !!(flt_ctx->flags & HLUA_FLT_CTX_FL_PAYLOAD_BIT(CHN_IDX(chn))));
 }
 
+/* Arm the wake-up date set by a lua filter callback on the stream task: the
+ * <flt_hlua> runtime set a wake-up date with filter.wake_time(), to be called
+ * back later to continue its processing
+ */
+static void hlua_flt_set_wake_time(struct stream *s, struct filter *filter, struct hlua *flt_hlua)
+{
+	s->task->expire = tick_first((tick_is_expired(s->task->expire, now_ms) ?
+				      TICK_ETERNITY : s->task->expire),
+				     flt_hlua->wake_time);
+}
+
+/* Called when the stream task is woken up because a timer expired. Rearm any
+ * wake-up date if not expired. Otherwise, report a read event on the channel to
+ * resume the filter evaluation.
+ */
+static void hlua_filter_check_timeouts(struct stream *s, struct filter *filter)
+{
+	struct hlua_flt_ctx *flt_ctx = filter->ctx;
+
+	if (tick_isset(flt_ctx->hlua[0]->wake_time)) {
+		if (tick_is_expired(flt_ctx->hlua[0]->wake_time, now_ms))
+			s->req.flags |= CF_READ_EVENT;
+		else
+			hlua_flt_set_wake_time(s, filter, flt_ctx->hlua[0]);
+	}
+	if (tick_isset(flt_ctx->hlua[1]->wake_time)) {
+		if (tick_is_expired(flt_ctx->hlua[1]->wake_time, now_ms))
+			s->res.flags |= CF_READ_EVENT;
+		else
+			hlua_flt_set_wake_time(s, filter, flt_ctx->hlua[1]);
+	}
+}
+
 static int hlua_filter_callback(struct stream *s, struct filter *filter, const char *fun,
 				int dir, unsigned int flags)
 {
@@ -12459,22 +12492,13 @@ static int hlua_filter_callback(struct stream *s, struct filter *filter, const c
 		}
 		hlua_unlock(flt_hlua);
 
-		/* Set timeout in the required channel. */
-		if (flt_hlua->wake_time != TICK_ETERNITY) {
-			if (dir == SMP_OPT_DIR_REQ)
-				s->req.analyse_exp = flt_hlua->wake_time;
-			else
-				s->res.analyse_exp = flt_hlua->wake_time;
-		}
+		/* Set the wake-up date on the stream task. */
+		hlua_flt_set_wake_time(s, filter, flt_hlua);
 		break;
 	case HLUA_E_AGAIN:
-		/* Set timeout in the required channel. */
-		if (flt_hlua->wake_time != TICK_ETERNITY) {
-			if (dir == SMP_OPT_DIR_REQ)
-				s->req.analyse_exp = flt_hlua->wake_time;
-			else
-				s->res.analyse_exp = flt_hlua->wake_time;
-		}
+		/* Set the wake-up date on the stream task. */
+		hlua_flt_set_wake_time(s, filter, flt_hlua);
+
 		/* Some actions can be wake up when a "write" event
 		 * is detected on a response channel. This is useful
 		 * only for actions targeted on the requests.
@@ -12634,6 +12658,7 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	}
 	hlua_flt_ops->attach            = hlua_filter_new;
 	hlua_flt_ops->detach            = hlua_filter_delete;
+	hlua_flt_ops->check_timeouts    = hlua_filter_check_timeouts;
 
 	/* Push the filter class on the stack and resolve all callbacks */
 	hlua_pushref(L, reg_flt->flt_ref[state_id]);
