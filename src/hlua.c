@@ -7949,6 +7949,15 @@ __LJMP static int hlua_http_msg_set_eom(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "set_eom"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
+
+	/* Setting the EOM is only meaningful on data visible by the current
+	 * filter. Otherwise, the end of the message may already be reached,
+	 * an earlier filter holding data back, and setting it again would
+	 * duplicate it.
+	 */
+	if (!hlua_http_msg_fully_visible(L, msg, htx))
+		WILL_LJMP(luaL_error(L, "The 'set_eom' function cannot be called when not all data are visible."));
+
 	htx_set_eom(htx);
 	return 0;
 }
@@ -7964,9 +7973,18 @@ __LJMP static int hlua_http_msg_unset_eom(lua_State *L)
 	struct htx *htx;
 	struct htx_blk *blk;
 
-	MAY_LJMP(check_args(L, 1, "set_eom"));
+	MAY_LJMP(check_args(L, 1, "unset_eom"));
 	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
 	htx = htxbuf(&msg->chn->buf);
+
+	/* Unsetting the EOM is only meaningful on data visible by the current
+	 * filter. Otherwise, the end of the message may not be reached yet, an
+	 * earlier filter holding data back, and the flag could not be removed
+	 * from it.
+	 */
+	if (!hlua_http_msg_fully_visible(L, msg, htx))
+		WILL_LJMP(luaL_error(L, "The 'unset_eom' function cannot be called when not all data are visible."));
+
 	if (!htx_msg_ended(htx))
 		return 0;
 
