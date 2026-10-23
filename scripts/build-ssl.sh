@@ -135,22 +135,31 @@ build_boringssl () {
 }
 
 download_aws_lc () {
-    if [ ! -f "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" ]; then
-        if [ "${AWS_LC_VERSION%%-*}" = "git" ]; then
-            WGETFILE="${AWS_LC_VERSION#git-}.tar.gz"
-        elif [ "${AWS_LC_VERSION#*FIPS}" != "${AWS_LC_VERSION}" ]; then
-            WGETFILE="refs/tags/${AWS_LC_VERSION}.tar.gz"
-        else
-            WGETFILE="refs/tags/v${AWS_LC_VERSION}.tar.gz"
-        fi
+    if [ "${AWS_LC_VERSION#git-}" != "${AWS_LC_VERSION}" ]; then
+        WGETFILE="${AWS_LC_VERSION#git-}.tar.gz"
+    elif [ "${AWS_LC_VERSION#*FIPS}" != "${AWS_LC_VERSION}" ]; then
+        WGETFILE="refs/tags/${AWS_LC_VERSION}.tar.gz"
+    elif [ "${AWS_LC_VERSION#v}" != "${AWS_LC_VERSION}" ]; then
+        WGETFILE="refs/tags/${AWS_LC_VERSION}.tar.gz"
+    else
+        WGETFILE="refs/tags/v${AWS_LC_VERSION}.tar.gz"
+    fi
 
+    if [ ! -f "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" ]; then
         wget -q -O "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" \
           "https://github.com/aws/aws-lc/archive/${WGETFILE}"
     fi
 }
 
 build_aws_lc () {
-    if [ "$(cat ${BUILDSSL_DESTDIR}/.aws_lc-version)" != "${AWS_LC_VERSION}" ]; then
+    STAMP="${AWS_LC_VERSION}"
+    CMAKE_FIPS_FLAGS="-DDISABLE_GO=1 -DDISABLE_PERL=1"
+    if [ "${FIPS:-0}" = "1" ]; then
+        STAMP="${AWS_LC_VERSION}-fips"
+        CMAKE_FIPS_FLAGS="-DFIPS=1"
+    fi
+
+    if [ "$(cat ${BUILDSSL_DESTDIR}/.aws_lc-version)" != "${STAMP}" ]; then
         mkdir -p "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}/"
         tar zxf "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}.tar.gz" -C "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_VERSION}/" --strip-components=1
         (
@@ -158,43 +167,17 @@ build_aws_lc () {
            mkdir -p build
            cd build
            cmake -version
-           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_SHARED_LIBS=1 -DDISABLE_GO=1 -DDISABLE_PERL=1 \
+           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ${CMAKE_FIPS_FLAGS} -DBUILD_SHARED_LIBS=1 \
                  -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH=${BUILDSSL_DESTDIR}/lib \
                  -DBUILD_TESTING=0 -DCMAKE_INSTALL_PREFIX=${BUILDSSL_DESTDIR} ..
            make -j$(nproc)
            make install
         )
-        echo "${AWS_LC_VERSION}" > "${BUILDSSL_DESTDIR}/.aws_lc-version"
-    fi
-}
-
-download_aws_lc_fips () {
-    if [ ! -f "${BUILDSSL_TMPDIR}/aws-lc-${AWS_LC_FIPS_VERSION}.tar.gz" ]; then
-        wget -q -O "${BUILDSSL_TMPDIR}/aws-lc-fips-${AWS_LC_FIPS_VERSION}.tar.gz" \
-          "https://github.com/aws/aws-lc/archive/refs/tags/AWS-LC-FIPS-${AWS_LC_FIPS_VERSION}.tar.gz"
+        echo "${STAMP}" > "${BUILDSSL_DESTDIR}/.aws_lc-version"
     fi
 }
 
 
-# require GO + Perl for FIPS mode
-build_aws_lc_fips () {
-    if [ "$(cat ${BUILDSSL_DESTDIR}/.aws_lc_fips-version)" != "${AWS_LC_FIPS_VERSION}" ]; then
-        mkdir -p "${BUILDSSL_TMPDIR}/aws-lc-fips-${AWS_LC_FIPS_VERSION}/"
-        tar zxf "${BUILDSSL_TMPDIR}/aws-lc-fips-${AWS_LC_FIPS_VERSION}.tar.gz" -C "${BUILDSSL_TMPDIR}/aws-lc-fips-${AWS_LC_FIPS_VERSION}/" --strip-components=1
-        (
-           cd "${BUILDSSL_TMPDIR}/aws-lc-fips-${AWS_LC_FIPS_VERSION}/"
-           mkdir -p build
-           cd build
-           cmake -version
-           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFIPS=1 -DBUILD_SHARED_LIBS=1 \
-                 -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON -DCMAKE_INSTALL_RPATH=${BUILDSSL_DESTDIR}/lib \
-                 -DBUILD_TESTING=0 -DCMAKE_INSTALL_PREFIX=${BUILDSSL_DESTDIR} ..
-           make -j$(nproc)
-           make install
-        )
-        echo "${AWS_LC_FIPS_VERSION}" > "${BUILDSSL_DESTDIR}/.aws_lc_fips-version"
-    fi
-}
 
 download_quictls () {
     if [ -n "${QUICTLS_COMMIT:-}" ]; then
@@ -297,10 +280,6 @@ if [ ! -z ${AWS_LC_VERSION+x} ]; then
   build_aws_lc
 fi
 
-if [ ! -z ${AWS_LC_FIPS_VERSION+x} ]; then
-	download_aws_lc_fips
-	build_aws_lc_fips
-fi
 
 if [ ! -z ${QUICTLS_VERSION+x} ]; then
         download_quictls
