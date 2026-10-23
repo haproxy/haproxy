@@ -4482,6 +4482,24 @@ HTTPMessage class
    All incoming data by default. May be set to -1 to get a maximum of data.
   :returns: a string containing the data found or nil.
 
+.. js:function:: HTTPMessage.closed(http_msg)
+
+  This function returns true if the input of the HTTP message **http_msg** is
+  closed, meaning the underlying channel will not receive data anymore, either
+  because the end of the stream was reached or an error was detected. When
+  called by a filter, the result is relative to the data visible by this
+  filter: if an earlier filter holds back some data, the function always
+  returns false, even if the input is closed, because the held data may still
+  be exposed to the current filter.
+
+  Unlike :js:func:`HTTPMessage.eom()`, which relies on the message framing,
+  this function returns true even if the end of the message was never reached.
+  For instance, if a truncated request is received, the input is closed but no
+  end of message was reported.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :returns: a boolean
+
 .. js:function:: HTTPMessage.eom(http_msg)
 
   This function returns true if the end of message is reached for the HTTP

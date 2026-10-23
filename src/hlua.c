@@ -7287,6 +7287,21 @@ __LJMP static int hlua_http_msg_may_recv(lua_State *L)
 	return 1;
 }
 
+/* Returns true if the HTTP message is closed */
+__LJMP static int hlua_http_msg_is_closed(lua_State *L)
+{
+	struct http_msg *msg;
+	struct htx *htx;
+	int closed;
+
+	MAY_LJMP(check_args(L, 1, "closed"));
+	msg = MAY_LJMP(hlua_checkhttpmsg(L, 1));
+	htx = htxbuf(&msg->chn->buf);
+	closed = hlua_http_msg_fully_visible(L, msg, htx) && channel_input_closed(msg->chn);
+	lua_pushboolean(L, closed);
+	return 1;
+}
+
 /* Returns true if the HTTP message EOM was received */
 __LJMP static int hlua_http_msg_is_eom(lua_State *L)
 {
@@ -14276,6 +14291,7 @@ lua_State *hlua_init_state(int thread_num)
 	hlua_class_function(L, "set_body_len",hlua_http_msg_set_body_len);
 	hlua_class_function(L, "is_full",     hlua_http_msg_is_full);
 	hlua_class_function(L, "may_recv",    hlua_http_msg_may_recv);
+	hlua_class_function(L, "closed",      hlua_http_msg_is_closed);
 	hlua_class_function(L, "eom",         hlua_http_msg_is_eom);
 	hlua_class_function(L, "input",       hlua_http_msg_get_in_len);
 	hlua_class_function(L, "output",      hlua_http_msg_get_out_len);
