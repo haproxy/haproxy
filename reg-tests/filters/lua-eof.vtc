@@ -1,14 +1,15 @@
 varnishtest "Waiting Lua filters drain a complete response followed by backend EOF"
 
-#REGTEST_TYPE=broken
+#REGTEST_TYPE=devel
 
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 feature ignore_unknown_macro
 
-# A backend closing after a complete chunked response can make the stream
-# close before waiting Lua callbacks resume. This also occurs with legacy
-# filters before the instance refactoring. Keep the reproducer separate
-# from the passing resumption test, which holds the backend open with a barrier.
+# A backend closing after a complete chunked response while lua filters
+# wait must not lose the held response: the close is now deferred until
+# the filters resume, and the complete response is delivered to the
+# client. This also exercises keep-alive reuse and both the legacy
+# "filter" chains and the filter instance mode.
 server s1 {
     rxreq
     txresp -body "first response"

@@ -1878,6 +1878,7 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
  wait:
 	if (!(chn->flags & CF_ISRESP))
 		channel_dont_connect(chn);
+	channel_dont_close(chn);
 	DBG_TRACE_DEVEL("wairing for more data", STRM_EV_FLT_ANA, s);
 	return 0;
 }
