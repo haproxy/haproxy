@@ -2975,7 +2975,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 
 	list[hdr].n = ist("");
 
- start:
+ retry:
 	if (!(res = qcc_get_stream_txbuf(qcs, &err, 0))) {
 		if (err) {
 			TRACE_ERROR("cannot allocate Tx buffer", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
@@ -3002,11 +3002,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 	 */
 	if (b_size(&headers_buf) <= 9) {
 		TRACE_STATE("not enough room for trailers frame", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		if (qcc_release_stream_txbuf(qcs))
-			goto end;
-
-		/* Buffer released, restart processing. */
-		goto start;
+		goto err_full;
 	}
 
 	/* Start the headers after frame type + length */
@@ -3014,11 +3010,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 
 	if (qpack_encode_field_section_line(&headers_buf)) {
 		TRACE_STATE("not enough room for trailers section line", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-		if (qcc_release_stream_txbuf(qcs))
-			goto end;
-
-		/* Buffer released, restart processing. */
-		goto start;
+		goto err_full;
 	}
 
 	tail = b_tail(&headers_buf);
@@ -3040,11 +3032,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 
 		if (h3_encode_header(&headers_buf, list[hdr].n, list[hdr].v)) {
 			TRACE_STATE("not enough room for all trailers", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
-			if (qcc_release_stream_txbuf(qcs))
-				goto end;
-
-			/* Buffer released, restart processing. */
-			goto start;
+			goto err_full;
 		}
 	}
 
@@ -3084,6 +3072,20 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
  end:
 	TRACE_LEAVE(H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 	return ret;
+
+ err_full:
+	/* Try to release buffer if not empty. */
+	if (b_data(res)) {
+		if (qcc_release_stream_txbuf(qcs)) {
+			TRACE_DEVEL("cannot release buf", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+			return 0;
+		}
+
+		TRACE_DEVEL("retry after buf release", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
+		goto retry;
+	}
+
+	TRACE_ERROR("trailers too large for encoding", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 
  err:
 	TRACE_DEVEL("leaving on error", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
