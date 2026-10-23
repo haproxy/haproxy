@@ -601,7 +601,8 @@ uint64_t intdecode(char **str, char *end)
 	if (i >= PEER_ENC_2BYTES_MIN) {
 		shift = PEER_ENC_2BYTES_MIN_BITS;
 		do {
-			if (msg >= (unsigned char *)end)
+			/* more than 64 bits would be an invalid encoding */
+			if (msg >= (unsigned char *)end || shift >= 64)
 				goto fail;
 			i += (uint64_t)*msg << shift;
 			shift += PEER_ENC_STOP_BIT;
