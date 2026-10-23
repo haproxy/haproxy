@@ -3166,6 +3166,11 @@ switchstate:
 				curpeer->flags |= PEER_F_ALIVE;
 				appctx->svcctx = curpeer;
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
+				/* peer_session_create() accounts outgoing sessions,
+				 * while __peer_session_deinit() releases the counter
+				 * for every session, so account this incoming one too.
+				 */
+				HA_ATOMIC_INC(&curpeer->peers->applet_count[tid]);
 				_HA_ATOMIC_INC(&active_peers);
 			}
 			__fallthrough;
