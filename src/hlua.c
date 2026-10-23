@@ -3868,6 +3868,19 @@ static struct filter *hlua_channel_filter(lua_State *L, int ud, struct channel *
 	return filter;
 }
 
+/* Helper function to know if all data in a channel are visible by the
+ * current filter. Returns 1 if no filter are attached to the channel or if
+ * all input data are visible by the filter. Otherwise 0 is returned.
+ */
+static int hlua_channel_fully_visible(lua_State *L, struct channel *chn)
+{
+	size_t offset = co_data(chn);
+	size_t len = ci_data(chn);
+
+	hlua_channel_filter(L, 1, chn, &offset, &len);
+	return (offset + len == c_data(chn));
+}
+
 /* Copies <len> bytes of data present in the channel's buffer, starting at the
 * offset <offset>, and put it in a LUA string variable. It is the caller
 * responsibility to ensure <len> and <offset> are valid. It always return the
@@ -4807,10 +4820,14 @@ __LJMP static int hlua_channel_is_full(lua_State *L)
 __LJMP static int hlua_channel_may_recv(lua_State *L)
 {
 	struct channel *chn;
+	int may_recv;
 
 	MAY_LJMP(check_args(L, 1, "may_recv"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	lua_pushboolean(L, (!channel_input_closed(chn) && channel_may_recv(chn)));
+	may_recv = !hlua_channel_fully_visible(L, chn) || (!channel_input_closed(chn) &&
+							  channel_may_recv(chn));
+
+	lua_pushboolean(L, may_recv);
 	return 1;
 }
 

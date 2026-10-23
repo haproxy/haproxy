@@ -2295,7 +2295,11 @@ Channel class
 
 .. js:function:: Channel.may_recv(channel)
 
-  This function returns true if the channel may still receive data.
+  This function returns true if the channel may still receive data. When
+  called by a filter, the result is relative to the data visible by this
+  filter: if an earlier filter holds back some data, the function always
+  returns true, even if the input is closed, because the held data may still
+  be received by the current filter.
 
   :param class_channel channel: The manipulated Channel.
   :returns: a boolean
@@ -4737,7 +4741,11 @@ HTTPMessage class
 
 .. js:function:: HTTPMessage.set_eom(http_msg)
 
-  This function set the end of message for the HTTP message **http_msg**.
+  This function set the end of message for the HTTP message **http_msg**. It
+  can only be called when all data of the message are visible by the current
+  filter. Otherwise, an error is raised, because an earlier filter holding
+  data back may already have reached the end of the message, or may expose
+  data after it.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
 
@@ -4804,6 +4812,10 @@ HTTPMessage class
 .. js:function:: HTTPMessage.unset_eom(http_msg)
 
   This function remove the end of message for the HTTP message **http_msg**.
+  It can only be called when all data of the message are visible by the
+  current filter. Otherwise, an error is raised, because an earlier filter
+  holding data back may expose data carrying the end of message, which could
+  not be removed.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
 
