@@ -1871,8 +1871,10 @@ int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt, int ex
 		memcpy(&expire, *msg_cur, expire_sz);
 		*msg_cur += expire_sz;
 		expire = ntohl(expire);
-		/* Protocol contains expire in MS, check if value is less than table config */
-		if (expire > table->expire)
+		/* Protocol contains expire in MS, check if value is less than
+		 * table config. It's unsigned on the wire.
+		 */
+		if ((uint)expire > (uint)table->expire)
 			expire = table->expire;
 		/* the rest of the code considers expire as ticks and not MS */
 		expire = MS_TO_TICKS(expire);
