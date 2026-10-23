@@ -241,6 +241,13 @@ int ssl_fips_check_ciphers(SSL_CTX *ctx, const enum obj_type *obj, char **err)
 		cipher     = sk_SSL_CIPHER_value(cipher_list, i);
 		cipher_nid = SSL_CIPHER_get_cipher_nid(cipher);
 
+		/* TLS 1.3 ciphersuites report NID_kx_any as key exchange and
+		 * are validated against the approved list by
+		 * ssl_fips_check_ciphersuites().
+		 */
+		if (SSL_CIPHER_get_min_version(cipher) >= TLS1_3_VERSION)
+			goto next;
+
 		kx_nid = SSL_CIPHER_get_kx_nid(cipher);
 		if (kx_nid == NID_kx_ecdhe
 #ifdef NID_kx_dhe

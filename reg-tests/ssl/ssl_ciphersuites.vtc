@@ -11,6 +11,10 @@ varnishtest "Tests for ssl-default-{bind,server}-ciphersuites global option and 
 # to "wrong-be1" backend must fail contrary to the last one.
 
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL) && ssllib_name_startswith(OpenSSL) && openssl_version_atleast(3.0.0) || feature(OPENSSL) && ssllib_name_startswith(AWS-LC) && awslc_api_atleast(35)'"
+# This test configures the TLS_CHACHA20_POLY1305_SHA256 ciphersuite, which
+# is rejected by HAProxy's FIPS compliance checks when the SSL library is
+# running in FIPS mode.
+feature cmd "$HAPROXY_PROGRAM -cc '!fips_mode()'"
 
 setenv VTC_SOCK_TYPE stream
 include ${testdir}/ssl_ciphersuites.vtci

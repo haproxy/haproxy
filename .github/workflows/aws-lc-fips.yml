@@ -1,0 +1,106 @@
+name: AWS-LC (FIPS)
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  Test:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Same AWS-LC sources as in the VTest job, built in FIPS mode
+          - name: AWS-LC 3.x (FIPS)
+            ssl: AWS_LC_VERSION=branch-fips-2024-09-27
+          - name: AWS-LC 4.x (FIPS)
+            ssl: AWS_LC_VERSION=branch-fips-2025-09-12-lts
+          - name: AWS-LC latest (FIPS)
+            ssl: AWS_LC_VERSION=latest
+      fail-fast: false
+    if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Determine AWS-LC sources for ${{ matrix.name }}
+        id: get_aws_lc_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          result=$(cd .github && python3 -c "from matrix import determine_aws_lc; ssl, name = determine_aws_lc('${{ matrix.ssl }}'); print(name); print(ssl)")
+          echo "$result"
+          echo "name=$(echo "$result" | head -n 1 | cut -d= -f2)" >> $GITHUB_OUTPUT
+          echo "result=$(echo "$result" | tail -n 1)" >> $GITHUB_OUTPUT
+      - name: Cache AWS-LC
+        id: cache_aws_lc
+        uses: actions/cache@v5
+        with:
+          path: '~/opt/'
+          key: ssl-${{ steps.get_aws_lc_release.outputs.name }}-fips-Ubuntu-latest-gcc
+      - name: Install apt dependencies
+        run: |
+          sudo apt-get update -o Acquire::Languages=none -o Acquire::Translation=none
+          sudo apt-get --no-install-recommends -y install socat gdb jose
+      - name: Install AWS-LC
+        if: ${{ steps.cache_aws_lc.outputs.cache-hit != 'true' }}
+        run: env FIPS=1 ${{ steps.get_aws_lc_release.outputs.result }} scripts/build-ssl.sh
+      - name: Compile HAProxy
+        run: |
+          make -j$(nproc) ERR=1 CC=gcc TARGET=linux-glibc \
+            USE_OPENSSL_AWSLC=1 USE_QUIC=1 USE_ECH=1 \
+            SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include \
+            DEBUG="-DDEBUG_POOL_INTEGRITY -DDEBUG_UNIT" \
+            ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
+          sudo make install
+      - name: Show HAProxy version
+        id: show-version
+        run: |
+          ldd $(which haproxy)
+          haproxy -vv
+          echo "version=$(haproxy -vq)" >> $GITHUB_OUTPUT
+      - uses: ./.github/actions/setup-vtest
+      - name: Run VTest for HAProxy
+        id: vtest
+        run: |
+          make reg-tests VTEST_PROGRAM="$GITHUB_WORKSPACE/vtest/vtest" REGTESTS_TYPES=default,bug,devel
+      - name: Run Unit tests
+        id: unittests
+        run: |
+          make unit-tests
+      - name: Show VTest results
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          for folder in ${TMPDIR:-/tmp}/haregtests-*/vtc.*; do
+            printf "::group::"
+            cat $folder/INFO
+            cat $folder/LOG
+            echo "::endgroup::"
+          done
+          exit 1
+      - name: Show coredumps
+        if: ${{ failure() && steps.vtest.outcome == 'failure' }}
+        run: |
+          failed=false
+          shopt -s nullglob
+          for file in /tmp/core/core.*; do
+            failed=true
+            printf "::group::"
+            gdb -ex 'thread apply all bt full' ./haproxy $file
+            echo "::endgroup::"
+          done
+          if [ "$failed" = true ]; then
+            exit 1;
+          fi
+      - name: Show Unit-Tests results
+        if: ${{ failure() && steps.unittests.outcome == 'failure' }}
+        run: |
+          for result in ${TMPDIR:-/tmp}/ha-unittests-*/results/res.*; do
+            printf "::group::"
+            cat $result
+            echo "::endgroup::"
+          done
+          exit 1
