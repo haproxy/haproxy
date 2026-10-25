@@ -2928,14 +2928,26 @@ static int _hlua_patref_add_bulk(lua_State *L, int status, lua_KContext ctx)
 
 		if (ref->ptr->flags & PAT_REF_SMP) {
 			/* key:val table */
-			luaL_checktype(L, -2, LUA_TSTRING);
+			if (lua_type(L, -2) != LUA_TSTRING) {
+				HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+				luaL_checktype(L, -2, LUA_TSTRING);
+				return 0; // not reached
+			}
 			key = lua_tostring(L, -2);
-			luaL_checktype(L, -1, LUA_TSTRING);
+			if (lua_type(L, -1) != LUA_TSTRING) {
+				HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+				luaL_checktype(L, -1, LUA_TSTRING);
+				return 0; // not reached
+			}
 			value = lua_tostring(L, -1);
 		}
 		else {
 			/* key-only table, use value as key */
-			luaL_checktype(L, -1, LUA_TSTRING);
+			if (lua_type(L, -1) != LUA_TSTRING) {
+				HA_RWLOCK_WRUNLOCK(PATREF_LOCK, &ref->ptr->lock);
+				luaL_checktype(L, -1, LUA_TSTRING);
+				return 0; // not reached
+			}
 			key = lua_tostring(L, -1);
 		}
 
