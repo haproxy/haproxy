@@ -32,6 +32,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/guid.h>
+#include <haproxy/http.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
@@ -2571,6 +2572,31 @@ static int bind_parse_guid_prefix(char **args, int cur_arg, struct proxy *px, st
 	return 0;
 }
 
+/* parse the "http-hardening" bind keyword */
+static int bind_parse_http_hardening(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	struct http_hdng_prf *prf = NULL;
+	char *msg = NULL;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : expects a profile name as argument", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	/* "auto" sets/keeps the NULL, others must resolve */
+	if (strcmp(args[cur_arg + 1], "auto") != 0) {
+		prf = http_hardening_resolve(args[cur_arg + 1], &msg);
+		if (!prf) {
+			memprintf(err, "'%s' : %s", args[cur_arg], msg);
+			free(msg);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	conf->hdng_prf = prf;
+	return 0;
+}
+
 /* parse the "id" bind keyword */
 static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -3048,6 +3074,7 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "accept-proxy", bind_parse_accept_proxy, 0, 0 }, /* enable PROXY protocol */
 	{ "backlog",      bind_parse_backlog,      1, 0 }, /* set backlog of listening socket */
 	{ "guid-prefix",  bind_parse_guid_prefix,  1, 1 }, /* set guid of listening socket */
+	{ "http-hardening", bind_parse_http_hardening, 1, 1 }, /* set the HTTP hardening profile */
 	{ "id",           bind_parse_id,           1, 1 }, /* set id of listening socket */
 	{ "idle-ping",    bind_parse_idle_ping,    1, 1 }, /* activate idle ping if mux support it */
 	{ "label",        bind_parse_label,        1, 1 }, /* set label of listening socket */

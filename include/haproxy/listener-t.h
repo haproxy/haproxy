@@ -42,6 +42,7 @@ struct task;
 struct protocol;
 struct xprt_ops;
 struct proxy;
+struct http_hdng_prf;
 struct fe_counters;
 struct connection;
 
@@ -192,6 +193,7 @@ struct bind_conf {
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */
+	const struct http_hdng_prf *hdng_prf; /* HTTP hardening profile ("http-hardening") if defined, or NULL */
 	struct xprt_ops *xprt;     /* transport-layer operations for all listeners */
 	uint options;              /* set of BC_O_* flags */
 	unsigned int analysers;    /* bitmap of required protocol analysers */
