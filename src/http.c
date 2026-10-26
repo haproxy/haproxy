@@ -1832,6 +1832,146 @@ struct http_hdng_prf *http_hardening_resolve(const char *name, char **err)
 	return prf;
 }
 
+/* parses the "http-hardening" section and its keywords. A section is declared
+ * with a name, and optionally "from" and the name of an already declared
+ * profile whose settings are inherited. Each hardening option is followed by
+ * "on" or "off" to enable or disable the matching checks.
+ */
+int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm)
+{
+	struct http_hdng_prf *prf, *other, *base = NULL;
+	char *file_copy;
+	const char *err;
+	int err_code = 0;
+	size_t idx = 0;
+	int match;
+
+	if (strcmp(args[0], "http-hardening") == 0) { /* new profile */
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing name for http-hardening section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+				 file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (*args[2]) {
+			if (strcmp(args[2], "from") != 0 || !*args[3]) {
+				ha_alert("parsing [%s:%d] : '%s %s' only supports an optional 'from <name>'.\n",
+					 file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			if (alertif_too_many_args_idx(1, 2, file, linenum, args, &err_code)) {
+				err_code |= ERR_ABORT;
+				goto out;
+			}
+
+			base = http_hardening_lookup(args[3]);
+			if (!base) {
+				ha_alert("parsing [%s:%d] : '%s %s' cannot inherit from '%s' (not found).\n",
+					 file, linenum, args[0], args[1], args[3]);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+		}
+
+		other = cebuis_item_lookup(&http_hardening_by_name, name_node, name, args[1], struct http_hdng_prf);
+		if (other) {
+			ha_alert("parsing [%s:%d] : http-hardening '%s' has same name as another one (declared at %s:%d).\n",
+				 file, linenum, args[1], other->file, other->line);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		/* create the profile */
+		prf = http_hardening_new(args[1]);
+
+		if (!prf) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (base == prf) {
+			ha_alert("parsing [%s:%d] : http-hardening '%s' cannot inherit from itself.\n",
+				 file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		file_copy = strdup(file);
+		if (!file_copy) {
+			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+		prf->file = file_copy;
+		prf->line = linenum;
+		cebuis_item_insert(&http_hardening_by_name, name_node, name, prf);
+
+		if (base)
+			prf->mask = base->mask;
+
+		curr_http_hdng_prf = prf;
+	}
+	else if (!curr_http_hdng_prf) {
+		ha_alert("parsing [%s:%d] : '%s' found outside of an http-hardening section.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+	}
+	else {
+		prf = curr_http_hdng_prf;
+
+		if (kwm != KWM_STD) {
+			ha_alert("parsing [%s:%d] : negation or default is not supported for '%s' in http-hardening.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		match = find_word_index_in_array(http_hardening_kws, sizeof(http_hardening_kws[0]), -1,
+		                                 offsetof(struct http_hardening_kw, name), args[0], &idx);
+		if (match != 2) {
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in http-hardening '%s'.%s%s%s\n",
+				 file, linenum, args[0], prf->name,
+				 match == 1 ? " Maybe you meant '" : "",
+				 match == 1 ? http_hardening_kws[idx].name : "",
+				 match == 1 ? "' ?" : "");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (strcmp(args[1], "on") != 0 && strcmp(args[1], "off") != 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects 'on' or 'off'.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		if (strcmp(args[1], "on") == 0)
+			prf->mask |= http_hardening_kws[idx].mask;
+		else
+			prf->mask &= ~http_hardening_kws[idx].mask;
+	}
+ out:
+	return err_code;
+}
+
+/* ends the section being parsed */
+static int cfg_post_parse_http_hardening()
+{
+	curr_http_hdng_prf = NULL;
+	return 0;
+}
+
 /* releases a profile, except the static ones whose file name is still freed */
 static void http_hardening_free(struct http_hdng_prf *prf)
 {
@@ -1850,6 +1990,7 @@ static void http_hardening_deinit()
 	}
 }
 
+REGISTER_CONFIG_SECTION("http-hardening", cfg_parse_http_hardening, cfg_post_parse_http_hardening);
 REGISTER_POST_DEINIT(http_hardening_deinit);
 
 /* initialize the required structures and arrays */
