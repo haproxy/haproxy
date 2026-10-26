@@ -355,11 +355,13 @@ int flt_parse_instance_legacy(struct proxy *px, struct filter_instance *inst, ch
 			 void *private);
 
 int filter_register_class(struct filter_class *cls, const char *name,
+			  unsigned int flags,
 			  int (*parse)(char **args, struct proxy *px,
 				       struct filter_instance *inst, char **err));
 int filter_place_class(struct filter_class *cls, unsigned int side,
 		       const char *ref_name, enum flt_pos pos);
 int filter_register_class_full(struct filter_class *cls, const char *name,
+			       unsigned int flags,
 			       int (*parse)(char **args, struct proxy *px,
 					    struct filter_instance *inst, char **err),
 			       const char *ref_name, enum flt_pos pos);

@@ -3755,16 +3755,18 @@ int flt_parse_instance_legacy(struct proxy *px, struct filter_instance *inst, ch
 
 /* Registers a new filter class, with the parsing function <parse> used to
  * finalize the filter instances of this class (may be NULL if the class does
- * not support the "filter-config" directive). The class is initialized and
- * added to the global registry of the known classes, and appended at the end
- * of the global order. It is not usable on any channel side until placed with
- * filter_place_class(). Must be called after filter_init_classes(), which
- * runs at the prepare stage: a class registered from the register stage on
- * is added in time for "haproxy -vv" to list it, a class registered later
- * is reported by the CLI alone.
+ * not support the "filter-config" directive). The class is initialized with
+ * the class flags <flags> (FLT_CLS_FL_*) and added to the global registry of
+ * the known classes, and appended at the end of the global order. It is not
+ * usable on any channel side until placed with filter_place_class(). Must be
+ * called after filter_init_classes(), which runs at the prepare stage: a
+ * class registered from the register stage on is added in time for
+ * "haproxy -vv" to list it, a class registered later is reported by the CLI
+ * alone.
  * Returns 0 on success, -1 on error (too early call, duplicate name).
  */
 int filter_register_class(struct filter_class *cls, const char *name,
+			  unsigned int flags,
 			  int (*parse)(char **args, struct proxy *px,
 				       struct filter_instance *inst, char **err))
 {
@@ -3785,13 +3787,14 @@ int filter_register_class(struct filter_class *cls, const char *name,
 		goto out;
 	}
 
-	flt_init_class(cls, name, 0, parse);
+	flt_init_class(cls, name, flags, parse);
 	LIST_APPEND(&filter_classes, &cls->list);
 	LIST_APPEND(&global_filter_classes, &cls->global.list);
 	ret = 0;
   out:
 	return ret;
 }
+
 /* Places <cls> in the order of <side> (FLT_SIDE_GLOBAL, FLT_SIDE_REQ or
  * FLT_SIDE_RES), before or after the reference class <ref_name>. The class is
  * appended in the reference class' .before or .after constraint list of that
@@ -3880,18 +3883,19 @@ static void flt_unplace_class(struct filter_class *cls)
 	}
 }
 
-/* Registers a new filter class named <name> and places it on the global side
- * and on both channel sides, before or after the reference class <ref_name>.
- * Convenience function for the common symmetric case, equivalent to
- * filter_register_class() followed by filter_place_class() on
- * FLT_SIDE_GLOBAL, FLT_SIDE_REQ and FLT_SIDE_RES.
+/* Registers a new filter class named <name> with the class flags <flags>
+ * (FLT_CLS_FL_*) and places it on the global side and on both channel sides,
+ * before or after the reference class <ref_name>. Convenience function for
+ * the common symmetric case, equivalent to filter_register_class() followed
+ * by filter_place_class() on FLT_SIDE_GLOBAL, FLT_SIDE_REQ and FLT_SIDE_RES.
  * Returns 0 on success, -1 on error. */
 int filter_register_class_full(struct filter_class *cls, const char *name,
+			       unsigned int flags,
 			       int (*parse)(char **args, struct proxy *px,
 					    struct filter_instance *inst, char **err),
 			       const char *ref_name, enum flt_pos pos)
 {
-	if (filter_register_class(cls, name, parse) < 0)
+	if (filter_register_class(cls, name, flags, parse) < 0)
 		goto err;
 	if (filter_place_class(cls, FLT_SIDE_GLOBAL, ref_name, pos) < 0)
 		goto cleanup_on_err;
@@ -3924,7 +3928,7 @@ int filter_register_class_full(struct filter_class *cls, const char *name,
  *
  * static int myfilter_register_class(void)
  * {
- *    if (filter_register_class(&flt_myfilter_cls, "myfilter", myfilter_parse_def) < 0)
+ *    if (filter_register_class(&flt_myfilter_cls, "myfilter", FLT_CLS_FL_MULTI, myfilter_parse_def) < 0)
  *       return -1;
  *
  *    // before spoe on request, after lua on response, before cache-store

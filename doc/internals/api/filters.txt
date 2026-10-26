@@ -536,7 +536,9 @@ The filter class is described by the following structure :
     now, only FLT_CLS_FL_MULTI may be set when several instances of the class
     are allowed in the same proxy. In this case, an id is mandatory for each
     instance. Otherwise a second instance of the class in the same proxy is
-    rejected, even with a different id.
+    rejected, even with a different id. The flags are set by the 'flags'
+    argument of filter_register_class() when the class is registered, they
+    cannot be set directly in the structure.
 
   * 'filter_class.parse' is the callback parsing a filter instance (see
     section 3.2.1). It may be NULL, but in this case the class cannot be used
@@ -555,7 +557,8 @@ it supports, relative to an already placed class, with filter_place_class() :
 
     static int my_filter_register_class(void)
     {
-        if (filter_register_class(&flt_my_filter_cls, "my-filter", my_filter_parse_instance) < 0)
+        if (filter_register_class(&flt_my_filter_cls, "my-filter", FLT_CLS_FL_MULTI,
+                                  my_filter_parse_instance) < 0)
             return -1;
 
         /* Evaluate the filter before cache-store globally, before SPOE on the
@@ -589,7 +592,8 @@ and FLT_SIDE_RES, and may be called once per side :
 
 filter_register_class_full() is a helper for the common case where the class is
 placed at the same position relative to the same class, on the global side and
-on both channel sides.
+on both channel sides. It takes the same class flags as
+filter_register_class().
 
 A class placed on neither the request nor the response side is rejected at
 startup because it would be useless. The placements define the default
@@ -1760,6 +1764,7 @@ are left untouched.
         /* Evaluate the filter before SPOE on the request path and after the
          * Lua filters on the response path. */
         if (filter_register_class(&flt_my_filter_cls, "my-filter",
+                                  FLT_CLS_FL_MULTI,
                                   my_filter_parse_instance) < 0)
             return -1;
         if (filter_place_class(&flt_my_filter_cls, FLT_SIDE_REQ,
@@ -1809,12 +1814,12 @@ enabled by another directive, or is referenced by other directives.
     filter. If dynamically allocated, 'fconf->id' must be freed by
     'flt_ops.deinit', as HAProxy never frees or duplicates it.
 
-  * Allow several instances of the class. Set FLT_CLS_FL_MULTI in the class
-    flags to allow several instances of the class in the same proxy, each
-    one with an id. Without this flag, a second instance of the class in the
-    same proxy is rejected, even with a different id. With the flag, an id
-    is mandatory for each instance. Use flt_find_instance() to find an
-    instance by class and id.
+  * Allow several instances of the class. Pass FLT_CLS_FL_MULTI in the flags
+    argument of filter_register_class() to allow several instances of the
+    class in the same proxy, each one with an id. Without this flag, a second
+    instance of the class in the same proxy is rejected, even with a different
+    id. With the flag, an id is mandatory for each instance. Use
+    flt_find_instance() to find an instance by class and id.
 
   * Declare an implicit instance when the filter is enabled by another
     directive. If the filter can be enabled by another directive, for
