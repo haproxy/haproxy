@@ -151,6 +151,7 @@ Summary
 12.7.1.      Load options
 12.8.     ACME
 12.9.     Healthchecks
+12.10.    HTTP hardening
 
 
 1. Quick reminder about HTTP
@@ -364,6 +365,18 @@ Here are some definitions that apply to the current version of HAProxy:
     code to implement a small application. A service usually reads a request,
     performs some operations and produces a response.
 
+  - trusted: this is usually employed to designate a network that is under
+    control of a trusted authority (local, trusted customer or partner), or any
+    connection initiated from or to such a network. Protocol checks in such
+    contexts might often be relaxed without putting the overall security at
+    risk, or remediations are expected to be quickly deployed. See the
+    "http-hardening" bind and server settings for more info.
+
+  - untrusted: this is usually employed to designate a network that is out of
+    any local or trusted authority, typically a network directly exposed to the
+    internet. Protocol checks in such contexts will generally be stricter,
+    maximizing security over legacy compatibility. See the "http-hardening"
+    bind and server settings for more info.
 
 1.3. HTTP request
 -----------------
@@ -18519,6 +18532,15 @@ guid-prefix <string>
   "guid" proxy keyword description for more information on its format.
   See also "shm-stats-file".
 
+http-hardening <name>
+  Selects the HTTP hardening profile that applies to the connections accepted
+  on this bind line. The profile is looked up by name among those declared in
+  "http-hardening" sections (see section 12.10), which must be declared before
+  the bind line. The reserved name "auto" is also accepted to explcitly mean
+  "no http-hardening profile". When no profile is set, if the source of the
+  incoming connection comes from a non-local IPv4/v6 address, the "untrusted"
+  profile will be used, otherwise the "trusted" profile is used by default.
+
 id <id>
   Fixes the socket ID. By default, socket IDs are automatically assigned, but
   sometimes it is more convenient to fix them to ease monitoring. This value
@@ -19751,6 +19773,18 @@ healthcheck <name>
   Thanks to this option, it is possible to use a pre-server health-check
   configuration instead of using the proxy configuration. See also "healthcheck
   section".
+
+http-hardening <name>
+  May be used in the following contexts: http
+
+  Selects the HTTP hardening profile that applies to the traffic exchanged with
+  this server. The profile is looked up by name among those declared in
+  "http-hardening" sections (see section 12.10), which must be declared before
+  the server line. It is inherited from the default-server, server template or
+  "from" server when not set. The name reserved "auto" is also accepted to
+  explicitly mean "no http-hardening profile" and possibly reset one inherited
+  from the default server. When no profile is set, the "trusted" profile is
+  used by default.
 
 id <value>
   May be used in the following contexts: tcp, http, log
@@ -34373,6 +34407,124 @@ tcp-check unset-var(<var-name>)
   Add a specific tcp-check rule for a "tcp-check" healthcheck. The same syntax
   than the corresponding proxy's directives is used. See the corresponding proxy
   documentation for details.
+
+
+12.10. HTTP hardening
+---------------------
+
+HTTP is a very tolerant protocol. Over the years, its specifications have
+accumulated many optional features, alternate syntaxes and compatibility
+exceptions, and HAProxy, like most implementations, accepts the vast majority
+of them in order to remain interoperable with the widest possible range of
+clients and servers. This tolerance comes at a cost: some of these constructs
+are almost never met in normal traffic, and when they are, they are more often
+associated with attack attempts (request smuggling, cache poisoning, evasion of
+filtering rules, exploitation of fragile applications) than with legitimate
+use. Others are perfectly valid but may cause information to leak, such as
+internal headers or details accidentally sent to the other side. While HAProxy
+tends to be robust against these variations, passing valid certain but unusual
+constructs can needlessly expose potentially fragile internal implementations.
+
+Not every deployment needs to accept everything. A frontend exposed to the
+internet usually has good reasons to be stricter than one serving internal
+users, and a backend protecting a fragile application may only want to receive
+a narrow subset of what the protocol permits. HTTP hardening profiles make it
+possible to decide, for each exposed side, which of these uncommon or risky
+constructs are rejected, removed or adjusted, and which ones are simply let
+through as usual.
+
+A profile is declared in an "http-hardening" section and applied to a "bind"
+and/or "server" line using the "http-hardening" keyword. Each control in a
+profile comes with a default, that is usually off, but may be implicit (for
+certain sections, see below), or explicit (inherited from another existing
+section). Since the same profile may be used on either side, controls are
+expressed relative to the traffic received or sent by that side, and never in
+terms of requests or responses.
+
+http-hardening <name> [from <name2>]
+  Declares a new hardening profile <name>. A profile can only be declared once.
+  The name "auto" is reserved. When "from" is used, the profile starts with the
+  settings of the already declared profile <name2>, otherwise it starts with
+  the defaults. A profile must be declared before being referenced by a "bind"
+  or "server" line or by "from", like for "defaults" sections.
+
+  The profiles "untrusted" and "trusted" always exist even if never declared.
+  They may be declared once to change their settings, in which case they start
+  from their defaults. They are supported in "from" to create new profiles. The
+  reserved name "auto" may not be defined nor used in "from".
+
+<keyword> { on | off }
+  Enables or disables the hardening check designated by <keyword> in the
+  profile being declared. Keywords are processed in order, so a later line
+  overrides an earlier one. The keyword "all" designates all options at once,
+  which allows to preset or clear everything before adjusting some of them.
+  Each option applies to requests, responses, or both. The list of known
+  keywords is presented below, and may be listed from the command line using
+  "haproxy -dKcfg".
+
+  Example :
+        http-hardening untrusted
+            all on
+
+        http-hardening trusted
+            all off
+
+        frontend www
+            bind :80 http-hardening untrusted
+
+        backend app
+            server app1 192.168.0.1:80 http-hardening trusted
+
+  All configurable checks try to follow the same naming scheme:
+  - reject-xxxx: this applies to inbound traffic (request, response or both),
+    and rejects the whole request or response if a specific condition is
+    matched. An error is returned.
+
+  - delete-xxxx: this applies to inbound traffic (request, response or both),
+    after the location where "reject" checks are applied, so that "reject"
+    checks always have precedence over "delete" ones. Such rules indicate that
+    the offending element (generally a header field) will be deleted very early
+    before the HTTP message enters the core HTTP processing. It will then not
+    be seen by processing rules. These actions may be used to fix up protocol
+    glitches without rejecting traffic.
+
+  - adjust-xxxx: this applies to inbound traffic (request, response or both),
+    after the location where "delete" checks are applied, so that "delete"
+    checks always have precedence over "adjust" ones. Such rules indicate that
+    the offending element will be adjusted or reformatted very early before the
+    HTTP message enters the core HTTP processing. It will then not be seen in
+    its original form by processing rules. These actions may be used to fix up
+    protocol glitches without rejecting traffic.
+
+  - block-outgoing-xxxx: this applies to outbound traffic (request, response,
+    or both). It will refuse to emit a message (request or response) that
+    violates the designated control. This is generally used to avoid emitting
+    possibly ambiguous protocol elements to a client or a server. An error will
+    be produced.
+
+  - delete-outgoing-xxxx: this applies to outbound traffic (request, response
+    or both), after the location where "block-outgoing" checks are applied, so
+    that "block-outgoing" checks always have precedence over "delete-outgoing"
+    ones. Such rules indicate that the offending element (generally a header
+    field) will be deleted before the HTTP message is emitted so that nothing
+    ambiguous is emitted to a client or server. These actions may be used to
+    gracefully adapt to sensitive components, and to clean up private
+    information.
+
+  - adjust-outgoing-xxxx: this applies to outbound traffic (request, response
+    or both), after the location where "delete-outgoing" checks are applied, so
+    that "delete-outgoing" checks always have precedence over "adjust-outgoing"
+    ones. Such rules indicate that the offending element will be adjusted or
+    reformatted before the HTTP message is emitted so that nothing ambiguous is
+    emitted to a client or server. These actions may be used to gracefully
+    adapt to with sensitive components, and to clean up private information.
+
+  Supported http-hardening checks and descriptions:
+
+  - all
+        This keyword covers all known keywords together. It is essentially used
+        to enable or disable all checks at once.
+
 
 /*
  * Local variables:

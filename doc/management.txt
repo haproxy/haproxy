@@ -3335,7 +3335,8 @@ show http-hardening [<name>]
   known hardening option of this profile, followed by the direction it applies
   to ("req" for requests, "res" for responses, "-" for both), and by "on" or
   "off" depending on whether it is enabled. Options that cover a set of several
-  options, such as "all", are not shown.
+  options, such as "all", are not shown. See also section 12.10 of the
+  configuration manual.
 
   Example :
     $ echo "show http-hardening" | socat - /tmp/haproxy.sock
