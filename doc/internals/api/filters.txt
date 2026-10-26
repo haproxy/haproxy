@@ -83,9 +83,13 @@ declaration is an instance, possibly with an id. A proxy uses one mode or the
 other, never both: as soon as a legacy "filter" directive is used, the proxy
 works in legacy mode, otherwise the new mode is used. Implicitly declared
 filters do not select a mode, so a proxy using only implicit filters works in
-the new mode. The "filter-api" global option changes this last rule: when it
-is set to "downgrade-to-legacy", a proxy using only implicitly declared filters
-works in the legacy mode. It is a fallback for the filters not supporting the
+the new mode, unless the implicitly declared filters are only known as legacy
+filter configurations: a filter not supporting the new mode declares no
+class, hence no instance, and a proxy implying such filters keeps working in
+the legacy mode. A proxy implying filters of both kinds uses the new mode,
+where the class-less ones are ignored. The "filter-api" global option forces
+the legacy mode for every proxy using only implicitly declared filters,
+whatever they imply. It is a fallback for the filters not supporting the
 new mode, and the explicit declarations always win.
 
 A filter class defines the filter name, its placement in the request and
@@ -1655,9 +1659,12 @@ supporting both modes must not scan 'px->filter_configs' directly.
 
 A filter written before HAProxy 3.5 only supports the legacy mode. It keeps
 working as-is, nothing is required to use it with the "filter" directive.
-But it is invisible to the new mode until its class is declared. If it
-relies on an implicit declaration only, the "filter-api downgrade-to-legacy"
-global option keeps it working in the meantime, see the FAQ (section 5.7).
+But it is invisible to the new mode until its class is declared. A proxy
+implying only such filters keeps working in the legacy mode, since HAProxy
+3.5 deduces it from the implied declarations, but a proxy implying filters
+of both kinds ignores the class-less ones: the "filter-api
+downgrade-to-legacy" global option keeps them working in the meantime, see
+the FAQ (section 5.7).
 This section lists what changed for a filter developer, then explains how to
 convert an existing filter, first with the minimal changes to support both
 modes, then to take full advantage of the new mode.
@@ -2025,7 +2032,13 @@ enabled by another directive, or is referenced by other directives.
     filter class is invisible to the new mode: the declarations implying it
     are silently ignored, because there is no filter instance to instantiate.
     All the filters supported in-tree are available in both modes, so this
-    only concerns third-party filters.
+    only concerns third-party filters. A proxy implying only such filters
+    works in the legacy mode by default, since HAProxy 3.5 deduces the mode
+    from the implied declarations, so they keep working as-is. The problem
+    only arises for a proxy implying filters of both kinds: the class-less
+    ones are ignored. All the filters implied by such a proxy must then
+    support the new mode, or the legacy ones must be declared explicitly
+    with the "filter" directive.
 
     In this case, the "filter-api downgrade-to-legacy" global option restores
     the behavior of HAProxy 3.4: the proxies without explicit filter

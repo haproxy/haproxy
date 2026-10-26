@@ -3175,19 +3175,67 @@ static int flt_precheck_instances(struct proxy *proxy)
 }
 
 
-/* Applies the default filter mode on the proxy <px>: when the legacy filter
- * mode was requested globally, a proxy with no explicit filter declaration
- * (neither "filter" nor "filter-*" directives) uses the legacy mode instead
- * of the new one, so the implicit declarations of the filters not supporting
- * the new mode keep working. A proxy with explicit declarations keeps the
- * mode it selected: the legacy mode for the "filter" directives, the new
- * one for the "filter-*" directives.
+/* Returns true if the proxy <px> has at least one filter instance, explicit
+ * or implicit, in its configuration state. Must be called before the instances
+ * are flattened in px->filter_instances, so they are walked through their
+ * class references.
+ */
+static int flt_has_conf_instances(const struct proxy *px)
+{
+	struct filter_class_ref *ref;
+
+	list_for_each_entry(ref, &px->conf.filter_refs, list) {
+		if (!LIST_ISEMPTY(&ref->instances))
+			return 1;
+	}
+	return 0;
+}
+
+/* Applies the default filter mode on the proxy <px>, when it used no explicit
+ * filter declaration (neither "filter" nor "filter-*" directives): the mode
+ * is deduced from the filter configurations and the filter instances implied
+ * by the other directives. A proxy with only filter configurations, and no
+ * instance, uses the legacy mode: an implied filter not supporting the new
+ * mode declares no class, hence no instance. A proxy with filter instances
+ * uses the new mode: the implied filters all declared their classes. A proxy
+ * with both may mix implied filters of the two kinds, and uses the new mode,
+ * so the legacy-only ones are ignored, as any class-less filter in the new
+ * mode. A proxy with explicit declarations keeps the mode it selected: the
+ * legacy mode for the "filter" directives, the new one for the "filter-*"
+ * directives. When the legacy filter mode was requested globally, a proxy
+ * with no explicit declaration uses the legacy mode instead of the new one,
+ * whatever it deduced, so the implicit declarations of the filters not
+ * supporting the new mode keep working.
  */
 static void flt_apply_default_mode(struct proxy *px)
 {
-	if (filter_api_downgraded == 1 &&
-	    !flt_use_legacy_filter(px) && !flt_has_explicit_config(px))
+	if (flt_use_legacy_filter(px) || flt_has_explicit_config(px))
+		return;
+
+	if (filter_api_downgraded == 1) {
 		px->flags |= PR_FL_FILTER_LEGACY;
+		return;
+	}
+
+	/* Filter configurations with no instance: the implied filters declared
+	 * no class, so they are only usable in the legacy mode.
+	 */
+	if (!LIST_ISEMPTY(&px->filter_configs) && !flt_has_conf_instances(px)) {
+		struct flt_conf *fconf;
+		int first = 1;
+
+		chunk_reset(&trash);
+		chunk_printf(&trash, "config: %s '%s' : All filters used are relying only on legacy API "
+			     "(set 'filter-api downgrade-to-legacy' in a global section to remove this warning): \n\t",
+			     proxy_type_str(px), px->id);
+		list_for_each_entry(fconf, &px->filter_configs, list) {
+			chunk_appendf(&trash, "%s'%s'", (first ? " " : ", "), fconf->id);
+			first = 0;
+		}
+		ha_warning("%.*s\n", (int)trash.data, trash.area);
+
+		px->flags |= PR_FL_FILTER_LEGACY;
+	}
 }
 
 /* Calls flt_precheck_instances() for all proxies, see above */

@@ -2819,13 +2819,18 @@ filter-api default | downgrade-to-legacy
   used ("filter", "filter-config", "filter-enable", "filter-disable" or
   "filter-sequence").
 
-  This option is unset by default. So proxies without explicit filter
-  directives rely on the filter instance api. By setting it to
-  "downgrade-to-legacy", it is possible to force proxies to use the legacy
-  filter API by default. It could be useful the time to convert outdated
-  filters still relying on the legacy API only. Indeed, such filters will be
-  silently ignored except if the "filter" directive is used to declare them.
-  This option can be set to "default" to restore the default behavior.
+  This option is unset by default. The API used by a proxy without explicit
+  filter directives is deduced from the filters implied by its other
+  directives: a proxy implying only filters known as legacy filter
+  configurations, without any filter class, uses the legacy API, while a
+  proxy implying at least one filter class uses the filter instance API, and
+  the class-less filters it may also imply are ignored. By setting this option
+  to "downgrade-to-legacy", it is possible to force the proxies without
+  explicit filter directives to use the legacy filter API, whatever they
+  imply. It could be useful the time to convert outdated filters still relying
+  on the legacy API only. Indeed, such filters will be silently ignored in
+  the filter instance API, except if the "filter" directive is used to declare
+  them. This option can be set to "default" to restore the default behavior.
 
   Note that it should be a temporary workaround. There is no warranty that all
   filters will remain compatible with the legacy API. In that case, they will
@@ -31788,11 +31793,16 @@ are inherited from a defaults section. Conversely, a legacy "filter" directive
 is rejected in a proxy inheriting filter instances from its defaults
 section. Filters implicitly declared by other directives (for instance by the
 "compression" options, the "cache-store" rules or "use-fcgi-app") do not
-select a mode: a proxy using only such filters works in the new mode.
+select a mode: a proxy using only such filters works in the new mode, unless
+the implied filters are only known as legacy filter configurations, without
+any filter class: a proxy implying only such filters works in the legacy
+mode, and a proxy implying filters of both kinds uses the new mode, where the
+class-less ones are ignored. All the filters documented in this section
+declare their classes, so they are always visible to the new mode.
 The "filter-api" global option changes this last rule: when it is set to
 "downgrade-to-legacy", the proxies using only implicitly declared filters work
-in the legacy mode, so the filters not supporting the new mode keep
-working. Explicit filter declarations always win, in both modes.
+in the legacy mode, whatever they imply, so the filters not supporting the
+new mode keep working. Explicit filter declarations always win, in both modes.
 
 All the filters documented below support the new mode. The <class> name to use
 with "filter-config" may differ from the legacy filter name; it is given in
