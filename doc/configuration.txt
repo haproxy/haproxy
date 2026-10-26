@@ -150,6 +150,7 @@ Summary
 12.7.     Certificate Storage
 12.7.1.      Load options
 12.8.     ACME
+12.9.     Healthchecks
 
 
 1. Quick reminder about HTTP
