@@ -33,6 +33,7 @@
 #include <haproxy/event_hdl.h>
 #include <haproxy/global.h>
 #include <haproxy/guid.h>
+#include <haproxy/http.h>
 #include <haproxy/log.h>
 #include <haproxy/mailers.h>
 #include <haproxy/namespace.h>
@@ -2062,6 +2063,31 @@ static int srv_parse_tfo(char **args, int *cur_arg, struct proxy *px, struct ser
 	return 0;
 }
 
+/* parse the "http-hardening" server keyword */
+static int srv_parse_http_hardening(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	struct http_hdng_prf *prf = NULL;
+	char *msg = NULL;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : expects a profile name as argument", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	/* "auto" sets/keeps the NULL, others must resolve */
+	if (strcmp(args[*cur_arg + 1], "auto") != 0) {
+		prf = http_hardening_resolve(args[*cur_arg + 1], &msg);
+		if (!prf) {
+			memprintf(err, "'%s' : %s", args[*cur_arg], msg);
+			free(msg);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	newsrv->hdng_prf = prf;
+	return 0;
+}
+
 /* parse the "usesrc" server keyword */
 static int srv_parse_usesrc(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -2467,6 +2493,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "minconn",              srv_parse_minconn,              1,  1,  1 }, /* Enable a dynamic maxconn limit */
 	{ "namespace",            srv_parse_namespace,            1,  1,  0 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-backup",            srv_parse_no_backup,            0,  1,  1 }, /* Flag as non-backup server */
+	{ "http-hardening",       srv_parse_http_hardening,       1,  1,  1 }, /* Set the HTTP hardening profile */
 	{ "no-send-proxy",        srv_parse_no_send_proxy,        0,  1,  1 }, /* Disable use of PROXY V1 protocol */
 	{ "no-send-proxy-v2",     srv_parse_no_send_proxy_v2,     0,  1,  1 }, /* Disable use of PROXY V2 protocol */
 	{ "no-tfo",               srv_parse_no_tfo,               0,  1,  1 }, /* Disable use of TCP Fast Open */
@@ -2977,6 +3004,7 @@ void srv_settings_cpy(struct server *srv, const struct server *src, int srv_tmpl
 	}
 
 	srv->pp_opts = src->pp_opts;
+	srv->hdng_prf = src->hdng_prf;
 	if (src->rdr_pfx != NULL) {
 		srv->rdr_pfx = strdup(src->rdr_pfx);
 		srv->rdr_len = src->rdr_len;

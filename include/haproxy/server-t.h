@@ -343,6 +343,7 @@ struct path_parameters {
 };
 
 struct proxy;
+struct http_hdng_prf;
 
 struct server {
 	/* mostly config or admin stuff, doesn't change often */
@@ -353,6 +354,7 @@ struct server {
 	signed char use_ssl;		        /* ssl enabled (1: on, 0: disabled, -1 forced off)  */
 	unsigned int flags;                     /* server flags (SRV_F_*) */
 	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
+	const struct http_hdng_prf *hdng_prf;   /* HTTP hardening profile ("http-hardening") if set, or NULL */
 	struct list el_px;                      /* attach point in parent proxy */
 	struct list el_alt;                     /* extra attach point for several usages
 	                                         * - for <servers_to_init> global list during parsing
