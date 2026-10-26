@@ -1773,20 +1773,32 @@ const struct http_hardening_kw http_hardening_kws[] = {
 };
 
 /* Declared profiles are indexed by name in <http_hardening_by_name>. They must
- * be declared before being referenced, like for "defaults" sections.
+ * be declared before being referenced, like for "defaults" sections. The
+ * implicit "untrusted" and "trusted" profiles are static, so that they may
+ * always be referenced, and are only inserted into the tree when their section
+ * is parsed, in which case they are reset to their default values beforehand.
  */
 static struct ceb_root *http_hardening_by_name;
+struct http_hdng_prf http_hardening_untrusted  = { .name = "untrusted",  .mask = HTTP_HRD_UNTRUSTED_DEFAULT  };
+struct http_hdng_prf http_hardening_trusted    = { .name = "trusted",    .mask = HTTP_HRD_TRUSTED_DEFAULT    };
 
 /* the profile being filled by the "http-hardening" section parser */
 static struct http_hdng_prf *curr_http_hdng_prf;
 
-/* Returns the declared profile named <name>, or NULL if it doesn't exist.
+/* Returns the declared profile named <name>, or the implicit one if it's
+ * "untrusted" or "trusted" and not declared, or NULL if it doesn't exist.
  */
 struct http_hdng_prf *http_hardening_lookup(const char *name)
 {
 	struct http_hdng_prf *prf;
 
 	prf = cebuis_item_lookup(&http_hardening_by_name, name_node, name, name, struct http_hdng_prf);
+	if (!prf) {
+		if (strcmp(name, http_hardening_untrusted.name) == 0)
+			prf = &http_hardening_untrusted;
+		else if (strcmp(name, http_hardening_trusted.name) == 0)
+			prf = &http_hardening_trusted;
+	}
 	return prf;
 }
 
@@ -1834,8 +1846,10 @@ struct http_hdng_prf *http_hardening_resolve(const char *name, char **err)
 
 /* parses the "http-hardening" section and its keywords. A section is declared
  * with a name, and optionally "from" and the name of an already declared
- * profile whose settings are inherited. Each hardening option is followed by
- * "on" or "off" to enable or disable the matching checks.
+ * profile whose settings are inherited. Otherwise the default settings of the
+ * "untrusted" (resp. "trusted") profile apply to all but "trusted". Each
+ * hardening option is followed by "on" or "off" to enable or disable the
+ * matching checks.
  */
 int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm)
 {
@@ -1857,6 +1871,12 @@ int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm
 		if (err) {
 			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
 				 file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (strcmp(args[1], "auto") == 0) {
+			ha_alert("parsing [%s:%d] : '%s' name 'auto' is reserved.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -1890,8 +1910,13 @@ int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm
 			goto out;
 		}
 
-		/* create the profile */
-		prf = http_hardening_new(args[1]);
+		/* use the implicit profile or create it */
+		if (strcmp(args[1], http_hardening_untrusted.name) == 0)
+			prf = &http_hardening_untrusted;
+		else if (strcmp(args[1], http_hardening_trusted.name) == 0)
+			prf = &http_hardening_trusted;
+		else
+			prf = http_hardening_new(args[1]);
 
 		if (!prf) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -1916,8 +1941,13 @@ int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm
 		prf->line = linenum;
 		cebuis_item_insert(&http_hardening_by_name, name_node, name, prf);
 
+		/* note: was preset during allocation */
 		if (base)
 			prf->mask = base->mask;
+		else if (prf == &http_hardening_trusted)
+			prf->mask = HTTP_HRD_TRUSTED_DEFAULT;
+		else if (prf == &http_hardening_untrusted)
+			prf->mask = HTTP_HRD_UNTRUSTED_DEFAULT;
 
 		curr_http_hdng_prf = prf;
 	}
@@ -1976,8 +2006,10 @@ static int cfg_post_parse_http_hardening()
 static void http_hardening_free(struct http_hdng_prf *prf)
 {
 	ha_free(&prf->file);
-	free(prf->name);
-	free(prf);
+	if (prf != &http_hardening_untrusted && prf != &http_hardening_trusted) {
+		free(prf->name);
+		free(prf);
+	}
 }
 
 static void http_hardening_deinit()

@@ -246,6 +246,10 @@ struct http_violation {
 /* default policy for a new profile: permissive */
 #define HTTP_HRD_DEFAULT  HTTP_HRD_NONE
 
+/* default contents of the implicit "untrusted" and "trusted" profiles */
+#define HTTP_HRD_UNTRUSTED_DEFAULT             HTTP_HRD_DEFAULT
+#define HTTP_HRD_TRUSTED_DEFAULT               HTTP_HRD_DEFAULT
+
 /* a hardening keyword */
 struct http_hardening_kw {
 	const char *name;

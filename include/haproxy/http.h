@@ -36,6 +36,8 @@ extern const uint8_t http_char_classes[256];
 extern long http_err_status_codes[512 / sizeof(long)];
 extern long http_fail_status_codes[512 / sizeof(long)];
 extern const struct http_hardening_kw http_hardening_kws[];
+extern struct http_hdng_prf http_hardening_untrusted;
+extern struct http_hdng_prf http_hardening_trusted;
 
 enum http_meth_t find_http_meth(const char *str, const int len);
 int http_get_status_idx(unsigned int status);
