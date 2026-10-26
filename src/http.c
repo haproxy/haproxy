@@ -1772,6 +1772,18 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ NULL, 0 }
 };
 
+/* Dumps the list of known HTTP hardening keywords on stdout, one per line. */
+void dump_http_hardening_kws()
+{
+	const struct http_hardening_kw *kw;
+
+	for (kw = http_hardening_kws; kw->name; kw++)
+		if (kw->mask & (kw->mask - 1)) // more than one bit set
+			printf("\t%s\n", kw->name);
+		else // single bit, report its position starting at 1
+			printf("\t%s (%d)\n", kw->name, my_flsl(kw->mask));
+}
+
 /* Declared profiles are indexed by name in <http_hardening_by_name>. They must
  * be declared before being referenced, like for "defaults" sections. The
  * implicit "untrusted" and "trusted" profiles are static, so that they may

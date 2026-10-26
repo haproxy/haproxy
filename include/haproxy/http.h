@@ -42,6 +42,7 @@ extern struct http_hdng_prf http_hardening_trusted;
 enum http_meth_t find_http_meth(const char *str, const int len);
 int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);
+void dump_http_hardening_kws();
 struct http_hdng_prf *http_hardening_lookup(const char *name);
 struct http_hdng_prf *http_hardening_resolve(const char *name, char **err);
 void http_status_add_range(long *array, uint low, uint high);

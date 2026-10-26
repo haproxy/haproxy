@@ -63,6 +63,7 @@
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/lb_chash.h>
 #include <haproxy/lb_fas.h>
@@ -3204,6 +3205,10 @@ void cfg_dump_registered_keywords()
 
 		}
 	}
+
+	/* this section's keywords are not registered via cfg_kw_list */
+	printf("http-hardening\n");
+	dump_http_hardening_kws();
 }
 
 /* these are the config sections handled by default */
