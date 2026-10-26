@@ -599,7 +599,8 @@ size_t appctx_htx_snd_buf(struct appctx *appctx, struct buffer *buf, size_t coun
 	size_t ret = 0;
 
 	ret = buf_htx->data;
-	if (htx_is_empty_noerr(appctx_htx) && buf_htx->data == count) {
+	if (htx_is_empty_noerr(appctx_htx) && buf_htx->data == count &&
+		b_size(&appctx->inbuf) == b_size(buf)) {
 		htx_to_buf(appctx_htx, &appctx->inbuf);
 		htx_to_buf(buf_htx, buf);
 		b_xfer(&appctx->inbuf, buf, b_data(buf));
