@@ -1775,6 +1775,7 @@ static int http_parse_acceptable_http_violations(char **args, int section_type, 
 /* list of known HTTP hardening options */
 const struct http_hardening_kw http_hardening_kws[] = {
 	/* insert new hardening options below this line */
+	{ "reject-duplicate-host-header",   HTTP_HRD_REJ_DUP_HOST_HDR, HTTP_DIR_REQ  },
 	/* insert new hardening options above this line */
 	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }

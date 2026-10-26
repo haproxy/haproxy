@@ -1089,7 +1089,12 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 							ptr = v.ptr; /* Set ptr on the error */
 							goto http_msg_invalid;
 						}
-						/* if the same host, skip it */
+						/* if the same host, skip or reject it */
+						if (http_harden(HTTP_HRD_REJ_DUP_HOST_HDR)) {
+							state = H1_MSG_HDR_L2_LWS;
+							ptr = v.ptr; /* Set ptr on the error */
+							goto http_msg_invalid;
+						}
 						break;
 					}
 				}

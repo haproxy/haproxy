@@ -325,6 +325,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	uint32_t data_ofs = htx->data; /* used to rollback on error */
 	struct ist phdr_val[H2_PHDR_NUM_ENTRIES];
 	uint32_t fields; /* bit mask of H2_PHDR_FND_* */
+	int host_cnt = 0;
 	uint32_t idx;
 	int ck, lck; /* cookie index and last cookie index */
 	int phdr;
@@ -416,9 +417,14 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		}
 
 		if (isteq(list[idx].n, ist("host"))) {
-			/* skip duplicates */
-			if (fields & H2_PHDR_FND_HOST)
+			host_cnt++;
+			/* skip duplicates, including real host from :authority */
+			if (fields & H2_PHDR_FND_HOST) {
+				/* check hardening, don't count :authority as a dup */
+				if (host_cnt > 1 && http_harden(HTTP_HRD_REJ_DUP_HOST_HDR))
+					goto fail;
 				continue;
+			}
 
 			fields |= H2_PHDR_FND_HOST;
 			if (http_authority_has_forbidden_char(list[idx].v))

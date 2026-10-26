@@ -34525,6 +34525,11 @@ http-hardening <name> [from <name2>]
         This keyword covers all known keywords together. It is essentially used
         to enable or disable all checks at once.
 
+  - reject-duplicate-host-header (inbound request)
+        Rejects requests containing more than one "Host" header field, even if
+        valid and identical. This is recommended on untrusted listeners. Note that
+        even if not rejected, duplicate host header fields are folded into a
+        single one.
 
 /*
  * Local variables:

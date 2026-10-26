@@ -720,6 +720,7 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	struct ist meth = IST_NULL, path = IST_NULL;
 	struct ist scheme = IST_NULL, authority = IST_NULL;
 	struct ist uri;
+	int host_cnt = 0;
 	int hdr_idx, ret;
 	int cookie = -1, last_cookie = -1, i;
 	int relaxed = !!(h3c->qcc->proxy->options2 & PR_O2_REQBUG_OK);
@@ -1058,6 +1059,7 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		if (isteq(list[hdr_idx].n, ist("host"))) {
 			struct ist prev_auth = authority;
 
+			host_cnt++;
 			if (http_authority_has_forbidden_char(list[hdr_idx].v) ||
 			    h3_set_authority(qcs, &authority, list[hdr_idx].v)) {
 				h3s->err = H3_ERR_MESSAGE_ERROR;
@@ -1068,6 +1070,15 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 			if (isttest(prev_auth)) {
 				/* skip duplicate Host header */
+				/* TODO: need to check if it matches the previous one */
+				/* check hardening, but don't count :authority as a dup */
+				if (host_cnt > 1 && http_harden(HTTP_HRD_REJ_DUP_HOST_HDR)) {
+					h3s->err = H3_ERR_MESSAGE_ERROR;
+					qcc_report_glitch(h3c->qcc, 1);
+					len = -1;
+					goto out;
+				}
+
 				++hdr_idx;
 				continue;
 			}
