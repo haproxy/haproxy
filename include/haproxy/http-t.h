@@ -24,6 +24,7 @@
 #define _HAPROXY_HTTP_T_H
 
 #include <inttypes.h>
+#include <import/cebtree.h>
 #include <import/ist.h>
 #include <haproxy/buf-t.h>
 
@@ -233,6 +234,37 @@ struct http_violation {
 	enum http_dir dir;
 };
 
+/* HTTP hardening masks. A profile is a 32-bit bitmap of such masks, shared by
+ * both directions so that header processing doesn't depend on the side. A bit
+ * set means the corresponding hardening check is enabled.
+ */
+#define HTTP_HRD_NONE                       0x00000000
+/* insert new masks below this line */
+/* insert new masks above this line */
+#define HTTP_HRD_ALL                        0xFFFFFFFF
+
+/* default policy for a new profile: permissive */
+#define HTTP_HRD_DEFAULT  HTTP_HRD_NONE
+
+/* a hardening keyword */
+struct http_hardening_kw {
+	const char *name;
+	uint32_t mask;
+	enum http_dir dir;
+};
+
+/* An HTTP hardening profile, as declared in an "http-hardening" section and
+ * referenced by "bind" and "server" lines. Profiles are indexed by <name> in a
+ * global tree. By default nothing is hardened, and the <mask> field lists the
+ * extra hardening checks.
+ */
+struct http_hdng_prf {
+	struct ceb_node name_node;  /* indexes <name> in http_hardening_by_name */
+	char *name;                 /* profile name */
+	uint32_t mask;              /* enabled HTTP_HRD_* masks */
+	int line;                   /* line of the declaration */
+	char *file;                 /* file of the declaration */
+};
 
 #endif /* _HAPROXY_HTTP_T_H */
 

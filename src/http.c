@@ -11,9 +11,12 @@
  */
 
 #include <ctype.h>
+#include <import/cebis_tree.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/errors.h>
 #include <haproxy/http.h>
+#include <haproxy/init.h>
 #include <haproxy/tools.h>
 
 /* It is about twice as fast on recent architectures to lookup a byte in a
@@ -1760,6 +1763,94 @@ static int http_parse_acceptable_http_violations(char **args, int section_type, 
  end:
 	return ret;
 }
+
+/* list of known HTTP hardening options */
+const struct http_hardening_kw http_hardening_kws[] = {
+	/* insert new hardening options below this line */
+	/* insert new hardening options above this line */
+	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
+	{ NULL, 0 }
+};
+
+/* Declared profiles are indexed by name in <http_hardening_by_name>. They must
+ * be declared before being referenced, like for "defaults" sections.
+ */
+static struct ceb_root *http_hardening_by_name;
+
+/* the profile being filled by the "http-hardening" section parser */
+static struct http_hdng_prf *curr_http_hdng_prf;
+
+/* Returns the declared profile named <name>, or NULL if it doesn't exist.
+ */
+struct http_hdng_prf *http_hardening_lookup(const char *name)
+{
+	struct http_hdng_prf *prf;
+
+	prf = cebuis_item_lookup(&http_hardening_by_name, name_node, name, name, struct http_hdng_prf);
+	return prf;
+}
+
+/* Allocates a new profile named <name> and returns it without inserting it
+ * anywhere. The new profile has no hardening option enabled. NULL is returned
+ * on allocation failure.
+ */
+static struct http_hdng_prf *http_hardening_new(const char *name)
+{
+	struct http_hdng_prf *prf;
+
+	prf = calloc(1, sizeof(*prf));
+	if (!prf)
+		return NULL;
+
+	/* by default no hardening is performed */
+	prf->mask = HTTP_HRD_DEFAULT;
+	prf->name = strdup(name);
+	if (!prf->name) {
+		free(prf);
+		return NULL;
+	}
+	return prf;
+}
+
+/* Finds the profile named <name> for a reference made by a "bind" or "server"
+ * line. The profile must have been declared before. Returns the profile on
+ * success, or NULL with an error message in <err> that must be freed by the
+ * caller.
+ */
+struct http_hdng_prf *http_hardening_resolve(const char *name, char **err)
+{
+	struct http_hdng_prf *prf;
+
+	if (strcmp(name, "auto") == 0) {
+		memprintf(err, "http-hardening profile name 'auto' is reserved");
+		return NULL;
+	}
+
+	prf = http_hardening_lookup(name);
+	if (!prf)
+		memprintf(err, "unknown http-hardening profile '%s' (it must be declared before)", name);
+	return prf;
+}
+
+/* releases a profile, except the static ones whose file name is still freed */
+static void http_hardening_free(struct http_hdng_prf *prf)
+{
+	ha_free(&prf->file);
+	free(prf->name);
+	free(prf);
+}
+
+static void http_hardening_deinit()
+{
+	struct http_hdng_prf *prf;
+
+	while ((prf = cebuis_item_first(&http_hardening_by_name, name_node, name, struct http_hdng_prf))) {
+		cebuis_item_delete(&http_hardening_by_name, name_node, name, prf);
+		http_hardening_free(prf);
+	}
+}
+
+REGISTER_POST_DEINIT(http_hardening_deinit);
 
 /* initialize the required structures and arrays */
 static void _http_init()
