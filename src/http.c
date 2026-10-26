@@ -13,7 +13,10 @@
 #include <ctype.h>
 #include <import/cebis_tree.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/chunk.h>
+#include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/http.h>
 #include <haproxy/init.h>
@@ -2033,6 +2036,95 @@ static void http_hardening_deinit()
 		http_hardening_free(prf);
 	}
 }
+
+/* CLI context used during "show http-hardening" */
+struct show_http_hardening_ctx {
+	struct http_hdng_prf *profile;        /* profile to dump, NULL to list all */
+	struct http_hdng_prf *last;           /* last profile listed */
+	const struct http_hardening_kw *kw;   /* last kw dumped or NULL before first */
+	int stage;                            /* 0: implicit profiles, 1: tree */
+};
+
+/* parses "show http-hardening [<name>]", and if a name is given, sets the
+ * profile to dump.
+ */
+static int cli_parse_show_http_hardening(char **args, char *payload, struct appctx *appctx, void *trusted)
+{
+	struct show_http_hardening_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+
+	if (*args[2]) {
+		ctx->profile = http_hardening_lookup(args[2]);
+		if (!ctx->profile)
+			return cli_err(appctx, "Unknown http-hardening profile.\n");
+	}
+	return 0;
+}
+
+/* Lists the declared profiles, preceded by the implicit "untrusted" and "trusted"
+ * ones if they were not declared, or dumps the state of each single-bit
+ * option of the selected profile. Returns 0 if the output buffer is full and
+ * it needs to be called again, otherwise non-zero.
+ */
+static int cli_io_handler_show_http_hardening(struct appctx *appctx)
+{
+	struct show_http_hardening_ctx *ctx = appctx->svcctx;
+	struct http_hdng_prf *prf;
+	const struct http_hardening_kw *kw = ctx->kw;
+
+	chunk_reset(&trash);
+
+	if (ctx->profile) {
+		/* dump everything at once */
+		if (!kw)
+			kw = http_hardening_kws;
+
+		for (; kw->name; kw++) {
+			/* only report single-bit options, not sets */
+			if (!kw->mask || (kw->mask & (kw->mask - 1)) != 0)
+				continue;
+			chunk_appendf(&trash, "%2u %-40s  %-3s  %s\n", my_flsl(kw->mask), kw->name,
+			              kw->dir == HTTP_DIR_REQ ? "req" : kw->dir == HTTP_DIR_RES ? "res" : "-",
+			              (ctx->profile->mask & kw->mask) ? "on" : "off");
+		}
+		if (applet_putchk(appctx, &trash) == -1)
+			return 0;
+		ctx->kw = kw;
+		return 1;
+	}
+
+	if (ctx->stage == 0) {
+		if (!cebuis_item_lookup(&http_hardening_by_name, name_node, name, http_hardening_untrusted.name, struct http_hdng_prf))
+			chunk_appendf(&trash, "%s (implicit)\n", http_hardening_untrusted.name);
+		if (!cebuis_item_lookup(&http_hardening_by_name, name_node, name, http_hardening_trusted.name, struct http_hdng_prf))
+			chunk_appendf(&trash, "%s (implicit)\n", http_hardening_trusted.name);
+		if (b_data(&trash) && applet_putchk(appctx, &trash) == -1)
+			return 0;
+		ctx->stage = 1;
+	}
+
+	/* the tree doesn't change once started so the last one is still valid */
+	if (ctx->last)
+		prf = cebuis_item_next(&http_hardening_by_name, name_node, name, ctx->last);
+	else
+		prf = cebuis_item_first(&http_hardening_by_name, name_node, name, struct http_hdng_prf);
+
+	while (prf) {
+		chunk_printf(&trash, "%s\n", prf->name);
+		if (applet_putchk(appctx, &trash) == -1)
+			return 0;
+		ctx->last = prf;
+		prf = cebuis_item_next(&http_hardening_by_name, name_node, name, prf);
+	}
+	return 1;
+}
+
+static struct cli_kw_list http_hardening_cli_kws = {{ }, {
+	{ { "show", "http-hardening", NULL }, "show http-hardening [name]              : lists the profiles, or dumps one of them's rules",
+	  cli_parse_show_http_hardening, cli_io_handler_show_http_hardening },
+	{{},}
+}};
+
+INITCALL1(STG_REGISTER, cli_register_kw, &http_hardening_cli_kws);
 
 REGISTER_CONFIG_SECTION("http-hardening", cfg_parse_http_hardening, cfg_post_parse_http_hardening);
 REGISTER_POST_DEINIT(http_hardening_deinit);

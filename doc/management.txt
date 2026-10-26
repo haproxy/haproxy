@@ -3328,6 +3328,26 @@ show filter instances <px> [global|request|response]
   section 9 of the configuration manual for details about the filters
   declaration modes.
 
+show http-hardening [<name>]
+  Without argument, lists the names of all known http-hardening profiles, the
+  implicit "untrusted" and "trusted" ones being marked "(implicit)" when they were
+  not declared in the configuration. When a profile name is passed, shows each
+  known hardening option of this profile, followed by the direction it applies
+  to ("req" for requests, "res" for responses, "-" for both), and by "on" or
+  "off" depending on whether it is enabled. Options that cover a set of several
+  options, such as "all", are not shown.
+
+  Example :
+    $ echo "show http-hardening" | socat - /tmp/haproxy.sock
+    custom
+    trusted
+    untrusted
+
+    $ echo "show http-hardening custom" | socat - /tmp/haproxy.sock
+     1 reject-duplicate-host-header             req on
+     2 reject-status-out-of-range               res off
+     3 delete-underscore-in-header-name         -   on
+
 show info [typed|json] [desc] [float]
   Dump info about haproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
