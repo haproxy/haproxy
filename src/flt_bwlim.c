@@ -750,6 +750,16 @@ INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_cont_actions);
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_actions);
 
+static int bwlim_find_flt_by_name(struct flt_conf *fconf, void *data)
+{
+	if (fconf->id == bwlim_in_flt_id || fconf->id == bwlim_out_flt_id) {
+		struct bwlim_config *conf = fconf->conf;
+		const char *name = data;
+
+		return (strcmp(name, conf->name) == 0);
+	}
+	return 0;
+}
 
 /* Generic function to parse bandwidth limitation filter configurartion. It
  * Returns -1 on error and 0 on success. It handles configuration for per-stream
@@ -758,7 +768,6 @@ INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_actions);
 static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct flt_conf *fconf,
 			   char **err, void *private)
 {
-	struct flt_conf *fc;
 	struct bwlim_config *conf;
 	int shared, per_stream;
 	int pos = *cur_arg + 1;
@@ -781,17 +790,12 @@ static int parse_bwlim_flt(char **args, int *cur_arg, struct proxy *px, struct f
 		goto error;
 	}
 
-	list_for_each_entry(fc, &px->filter_configs, list) {
-		if (fc->id == bwlim_in_flt_id || fc->id == bwlim_out_flt_id) {
-			struct bwlim_config *c = fc->conf;
-
-			if (strcmp(conf->name, c->name) == 0) {
-				memprintf(err, "bwlim filter '%s' already declared for proxy '%s'\n",
-					  conf->name, px->id);
-				goto error;
-			}
-		}
+	if (flt_find_conf(px, NULL, FLT_SIDE_GLOBAL, bwlim_find_flt_by_name, conf->name)) {
+		memprintf(err, "bwlim filter '%s' already declared for proxy '%s'\n",
+			  conf->name, px->id);
+		goto error;
 	}
+
 	shared = per_stream = 0;
 	pos++;
 	while (*args[pos]) {
