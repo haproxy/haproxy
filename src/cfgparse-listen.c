@@ -1189,6 +1189,7 @@ static int proxy_parse_capture(char **args, int section_type, struct proxy *curp
                                char **err)
 {
 	struct cap_hdr *hdr;
+	long len;
 
 	warnifnotcap(curpx, PR_CAP_FE, file, line, args[0], NULL);
 
@@ -1208,6 +1209,12 @@ static int proxy_parse_capture(char **args, int section_type, struct proxy *curp
 			return -1;
 		}
 
+		len = atol(args[4]);
+		if (len < 0 || len > INT_MAX) {
+			memprintf(err, "'%s %s': invalid length '%s'.", args[0], args[1], args[4]);
+			return -1;
+		}
+
 		name = strdup(args[2]);
 		if (!name)
 			goto alloc_error;
@@ -1215,7 +1222,7 @@ static int proxy_parse_capture(char **args, int section_type, struct proxy *curp
 		free(curpx->capture_name);
 		curpx->capture_name = name;
 		curpx->capture_namelen = strlen(name);
-		curpx->capture_len = atol(args[4]);
+		curpx->capture_len = len;
 		curpx->to_log |= LW_COOKIE;
 		return 0;
 	}
@@ -1231,6 +1238,12 @@ static int proxy_parse_capture(char **args, int section_type, struct proxy *curp
 		return -1;
 	}
 
+	len = atol(args[5]);
+	if (len < 0 || len >= INT_MAX) {
+		memprintf(err, "'%s %s %s': invalid length '%s'.", args[0], args[1], args[2], args[5]);
+		return -1;
+	}
+
 	hdr = calloc(1, sizeof(*hdr));
 	if (!hdr)
 		goto alloc_error;
@@ -1240,7 +1253,7 @@ static int proxy_parse_capture(char **args, int section_type, struct proxy *curp
 		goto alloc_err_free_hdr;
 
 	hdr->namelen = strlen(args[3]);
-	hdr->len = atol(args[5]);
+	hdr->len = len;
 	hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
 	if (!hdr->pool)
 		goto alloc_err_free_name;
