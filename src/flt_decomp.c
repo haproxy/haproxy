@@ -1210,7 +1210,6 @@ static int
 parse_decomp_req_flt(char **args, int *cur_arg, struct proxy *px,
                      struct flt_conf *fconf, char **err, void *private)
 {
-	struct flt_conf *fc;
 	struct decomp *decomp;
 
 	if (!(px->cap & PR_CAP_FE)) {
@@ -1219,11 +1218,9 @@ parse_decomp_req_flt(char **args, int *cur_arg, struct proxy *px,
 		return -1;
 	}
 
-	list_for_each_entry(fc, &px->filter_configs, list) {
-		if (fc->id == decomp_req_flt_id) {
-			memprintf(err, "%s: Proxy supports only one decomp-req filter\n", px->id);
-			return -1;
-		}
+	if (flt_find_conf(px, decomp_req_flt_id, FLT_SIDE_GLOBAL, NULL, NULL)) {
+		memprintf(err, "%s: Proxy supports only one decomp-req filter\n", px->id);
+		return -1;
 	}
 
 	decomp = proxy_get_decomp(px, 0);
@@ -1245,7 +1242,6 @@ static int
 parse_decomp_res_flt(char **args, int *cur_arg, struct proxy *px,
                      struct flt_conf *fconf, char **err, void *private)
 {
-	struct flt_conf *fc;
 	struct decomp *decomp;
 
 	if (!(px->cap & PR_CAP_BE)) {
@@ -1254,11 +1250,9 @@ parse_decomp_res_flt(char **args, int *cur_arg, struct proxy *px,
 		return -1;
 	}
 
-	list_for_each_entry(fc, &px->filter_configs, list) {
-		if (fc->id == decomp_res_flt_id) {
-			memprintf(err, "%s: Proxy supports only one decomp-res filter\n", px->id);
-			return -1;
-		}
+	if (flt_find_conf(px, decomp_res_flt_id, FLT_SIDE_GLOBAL, NULL, NULL)) {
+		memprintf(err, "%s: Proxy supports only one decomp-req filter\n", px->id);
+		return -1;
 	}
 
 	decomp = proxy_get_decomp(px, 0);
