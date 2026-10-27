@@ -18196,6 +18196,13 @@ crt <cert>
   valid Signed Certificate Timestamp List, as described in RFC. File is parsed
   to check basic syntax, but no signatures are verified.
 
+  OpenSSL 1.1.1 and later and AWS-LC support SCT delivery in both TLS 1.2 and
+  TLS 1.3. The list is sent in the ServerHello for TLS 1.2 and earlier, or in
+  the leaf Certificate entry for TLS 1.3, when the client requests the
+  signed_certificate_timestamp extension. Older OpenSSL versions only support
+  SCT delivery in TLS 1.2 and earlier. SCT delivery from ".sctl" files is
+  disabled for QUIC on all TLS libraries.
+
   There are cases where it is desirable to support multiple key types, e.g. RSA
   and ECDSA in the cipher suites offered to the clients. This allows clients
   that support EC certificates to be able to use EC ciphers, while
