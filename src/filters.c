@@ -2145,6 +2145,32 @@ struct flt_conf *flt_find_conf(struct proxy *px, const char *flt_id, unsigned in
 	return ctx.found;
 }
 
+/* Finds a legacy filter configuration of the proxy <px> with the id
+ * <flt_id> (any id if NULL), searching the legacy configurations in
+ * declaration order, whatever the filter mode of the proxy. Unlike
+ * flt_find_conf(), it never resolves the configurations of the filter
+ * instances, so it must only be used during the configuration parsing,
+ * before the mode of the proxy is deduced: after the post-parsing stage,
+ * the legacy configurations of the filters that registered no class are
+ * ignored in the new mode. If <match> is not NULL, it is called with each
+ * candidate and <data> and must return non-zero to accept it. Returns the
+ * first match, or NULL if none.
+ */
+struct flt_conf *flt_find_legacy_conf(struct proxy *px, const char *flt_id,
+				      int (*match)(struct flt_conf *fconf, void *data), void *data)
+{
+	struct flt_conf *fconf;
+
+	list_for_each_entry(fconf, &px->filter_configs, list) {
+		if (flt_id && fconf->id != flt_id)
+			continue;
+		if (match && !match(fconf, data))
+			continue;
+		return fconf;
+	}
+	return NULL;
+}
+
 
 /* Links <inst> in the global class references of <px> and on each side its
  * class is placed on. All links were initialized on allocation.
