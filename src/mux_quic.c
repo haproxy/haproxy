@@ -30,9 +30,11 @@
 #include <haproxy/quic_tx.h>
 #include <haproxy/quic_utils.h>
 #include <haproxy/session.h>
+#include <haproxy/server-t.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_qmux.h>
 #include <haproxy/xref.h>
@@ -1908,7 +1910,8 @@ int qcc_install_app_ops(struct qcc *qcc)
 	struct connection *conn = qcc->conn;
 	const struct qcc_app_ops *app_ops;
 	struct server *srv;
-	const char *alpn;
+	char srv_alpn[MAX_ALPN_SIZE];
+	const char *alpn = NULL;
 	int alpn_len;
 
 	TRACE_ENTER(QMUX_EV_QCC_NEW, conn);
@@ -1919,12 +1922,13 @@ int qcc_install_app_ops(struct qcc *qcc)
 
 		srv = __objt_server(conn->target);
 		HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-		alpn = srv->path_params.nego_alpn;
+		strlcpy2(srv_alpn, srv->path_params.nego_alpn, MAX_ALPN_SIZE);
 		HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 
-		if (!alpn)
+		if (!*srv_alpn)
 			goto err;
-		alpn_len = strlen(srv->path_params.nego_alpn);
+		alpn = srv_alpn;
+		alpn_len = strlen(srv_alpn);
 	}
 
 	app_ops = quic_alpn_to_app_ops(alpn, alpn_len);
