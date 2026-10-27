@@ -2824,7 +2824,8 @@ filter-api default | downgrade-to-legacy
   directives: a proxy implying only filters known as legacy filter
   configurations, without any filter class, uses the legacy API, while a
   proxy implying at least one filter class uses the filter instance API, and
-  the class-less filters it may also imply are ignored. By setting this option
+  the class-less filters it may also imply are ignored, with a warning on
+  each of their legacy filter configurations. By setting this option
   to "downgrade-to-legacy", it is possible to force the proxies without
   explicit filter directives to use the legacy filter API, whatever they
   imply. It could be useful the time to convert outdated filters still relying

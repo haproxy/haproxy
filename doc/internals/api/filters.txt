@@ -86,8 +86,9 @@ filters do not select a mode, so a proxy using only implicit filters works in
 the new mode, unless the implicitly declared filters are only known as legacy
 filter configurations: a filter not supporting the new mode declares no
 class, hence no instance, and a proxy implying such filters keeps working in
-the legacy mode. A proxy implying filters of both kinds uses the new mode,
-where the class-less ones are ignored. The "filter-api" global option forces
+legacy mode. A proxy implying filters of both kinds uses the new mode, where
+the class-less ones are ignored: their legacy configurations are reported as
+a warning. The "filter-api" global option forces
 the legacy mode for every proxy using only implicitly declared filters,
 whatever they imply. It is a fallback for the filters not supporting the
 new mode, and the explicit declarations always win.
@@ -1662,7 +1663,8 @@ working as-is, nothing is required to use it with the "filter" directive.
 But it is invisible to the new mode until its class is declared. A proxy
 implying only such filters keeps working in the legacy mode, since HAProxy
 3.5 deduces it from the implied declarations, but a proxy implying filters
-of both kinds ignores the class-less ones: the "filter-api
+of both kinds ignores the class-less ones, with a warning on each of their
+legacy configurations: the "filter-api
 downgrade-to-legacy" global option keeps them working in the meantime, see
 the FAQ (section 5.7).
 This section lists what changed for a filter developer, then explains how to
@@ -2036,7 +2038,8 @@ enabled by another directive, or is referenced by other directives.
     works in the legacy mode by default, since HAProxy 3.5 deduces the mode
     from the implied declarations, so they keep working as-is. The problem
     only arises for a proxy implying filters of both kinds: the class-less
-    ones are ignored. All the filters implied by such a proxy must then
+    ones are ignored, and HAProxy reports a warning for each of their legacy
+    configurations. All the filters implied by such a proxy must then
     support the new mode, or the legacy ones must be declared explicitly
     with the "filter" directive.
 

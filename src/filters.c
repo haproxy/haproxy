@@ -3191,6 +3191,57 @@ static int flt_has_conf_instances(const struct proxy *px)
 	return 0;
 }
 
+/* Returns true if the proxy <px> has a filter instance of the filter owning
+ * the callbacks table <ops>. A filter supporting the new mode registers a
+ * class whose parse callback produces configurations with the same callbacks
+ * table as its legacy keyword parser (see flt_parse_instance_legacy()), so
+ * the table identifies the filter behind a configuration. Must be called
+ * after the instances were finalized, when their configuration exists.
+ */
+static int flt_conf_has_instance(struct proxy *px, const struct flt_ops *ops)
+{
+	struct filter_class_ref *ref;
+	struct filter_instance *inst;
+
+	list_for_each_entry(ref, &px->conf.filter_refs, list) {
+		list_for_each_entry(inst, &ref->instances, global.list) {
+			if (inst->fconf && inst->fconf->ops == ops)
+				return 1;
+		}
+	}
+	return 0;
+}
+
+/* Warns about the legacy filter configurations of the proxy <px> that the new
+ * filter API ignores. Only the filter instances are evaluated in the new
+ * mode: a legacy filter configuration with no instance of the same filter is
+ * never used, and the filter it configures does not work. Such a
+ * configuration comes from an implicit declaration of a filter that
+ * registered no class, an explicit "filter" directive would have selected the
+ * legacy mode for the whole proxy. The relation between a configuration and
+ * the instances of its filter relies on the callbacks table of the filter,
+ * see flt_conf_has_instance(). Must be called when the proxy uses the new
+ * mode, after its instances were finalized and before they are flattened.
+ */
+static void flt_warn_ignored_conf(struct proxy *px)
+{
+	struct flt_conf *fconf;
+
+	if (flt_use_legacy_filter(px) || LIST_ISEMPTY(&px->filter_configs))
+		return;
+
+	list_for_each_entry(fconf, &px->filter_configs, list) {
+		if (flt_conf_has_instance(px, fconf->ops))
+			continue;
+		ha_warning("config: %s '%s' : ignoring the legacy filter configuration '%s'. "
+			   "Declare all filters with the 'filter' directive or use the 'filter-api "
+			   "downgrade-to-legacy' option to evaluate it with the legacy filter API.\n",
+			   proxy_type_str(px), px->id,
+			   fconf->id ? fconf->id : (fconf->name ? fconf->name : "<unnamed>"));
+	}
+}
+
+
 /* Applies the default filter mode on the proxy <px>, when it used no explicit
  * filter declaration (neither "filter" nor "filter-*" directives): the mode
  * is deduced from the filter configurations and the filter instances implied
@@ -3261,6 +3312,11 @@ static int flt_precheck_instances_all()
 				 px->id);
 			return err_code;
 		}
+		/* The instances are finalized: the legacy configurations of the
+		 * filters that registered no class, ignored by the new mode,
+		 * are identified now, before the class references are released.
+		 */
+		flt_warn_ignored_conf(px);
 		err_code |= flt_enable_filters(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to apply the filter-enable/filter-disable directives of proxy '%s'.\n",
