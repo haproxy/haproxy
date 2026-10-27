@@ -614,6 +614,15 @@ WARNING : filter_register_class() and filter_place_class() must be called after
           class registered from a later stage still works and is listed by the
           "show filter classes" CLI command, but not by 'haproxy -vv'.
 
+A filter may look up a class by name with filter_find_class(), which returns
+the registered 'struct filter_class' matching <name>, or NULL. It may be
+useful for a filter enabling another one implicitly: like
+flt_add_implicit_instance() (see section 3.2.1), it must not keep a pointer
+to the class during the parsing, the class registry is complete once all the
+STG_REGISTER initcalls were called. It is also the supported way for the
+keyword parser of a directive to resolve the class it enables, instead of
+scanning the class registry by hand.
+
 
 Then the filter internal configuration must be defined. For instance :
 
@@ -852,6 +861,29 @@ WARNING : The legacy parser may rely on parsing-time globals, the most common
           one being 'curproxy'. Such globals are not set when the class parse
           callback is called (after the configuration parsing), so they must be
           saved and restored around the call by the filter if needed.
+
+The legacy keyword parser fills the 'struct flt_conf' passed by the "filter"
+directive parser. When a filter is also enabled by another directive, the
+parser of that directive must create the configuration itself and link it in
+the three configuration orders of the proxy with flt_conf_add(), which
+appends it, or flt_conf_insert(), which prepends it. The 'list', 'by_req'
+and 'by_res' members must not be linked when these helpers are called. The
+declaration order defines the evaluation order, but the core reorders the
+implicitly declared core filters during the post-parsing stage, so the
+filters must not rely on the position of their implicit configurations.
+flt_conf_delete() unlinks a configuration from the three orders, for
+instance when an explicit declaration replaces an implicit one. A
+configuration created implicitly must not be marked FLT_CFG_FL_EXPLICIT:
+this flag is reserved to the "filter" directive parser, an explicit
+declaration of the filter is then detected by the duplicate checks of the
+core and of the filters.
+
+A legacy configuration is only evaluated when the proxy uses the legacy
+mode. A directive parsing-time test of the mode must use
+flt_use_legacy_filter(px), which returns true when the "filter" directive
+was used or when the mode was deduced from the implied filters: its result
+must not be cached during the parsing, the flag it tests is only stable once
+the post-parsing stage is reached.
 
 
 Optionally, by implementing the 'flt_ops.check' callback, an extra check is
@@ -1653,6 +1685,25 @@ The match callback passed to flt_find_conf() typically compares the filter
 configuration ('fconf->conf') with the reference stored in the rule. Since the
 helpers select the right source according to the proxy mode, a filter
 supporting both modes must not scan 'px->filter_configs' directly.
+
+Finally, flt_find_legacy_conf(px, flt_id, match, data) is the parsing-time
+counterpart of flt_find_conf(): it searches the legacy filter
+configurations of the proxy only, in declaration order, whatever the filter
+mode, because the mode is not known yet while the configuration is parsed.
+It takes the same filter id and optional match callback as flt_find_conf(),
+but no side. It must not be used after the configuration was parsed: in the
+new mode, the legacy configurations of the filters that registered no class
+are ignored, so only flt_find_conf() resolves the configuration referenced
+by a rule, once the instances were finalized.
+
+And flt_has_explicit_config(px) returns true when the proxy contains an
+explicit filter declaration: a "filter-*" directive, or a "filter-config"
+instance that is not implicit. The core uses it to reject the filter
+directives of a defaults section and the "filter" lines of a proxy
+inheriting filter instances. A filter supporting an implicit declaration
+may use it to detect such a declaration, but it must not be called during
+the parsing of the directive it replaces: an implicit declaration may be
+followed by an explicit one.
 
 
 4. PORTING A LEGACY FILTER
