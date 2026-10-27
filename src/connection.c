@@ -1784,6 +1784,14 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
 		}
+		else if (hdr_ip4->ip_hl < 5 ||
+			 hdr_len < hdr_ip4->ip_hl * 4 + sizeof(struct my_tcphdr)) {
+			/* The IPv4 header length is invalid or the announced
+			 * header is too short to contain the TCP ports.
+			 */
+			conn->err_code = CO_ER_CIP_BAD_PROTO;
+			goto fail;
+		}
 
 		hdr_tcp = (struct my_tcphdr *)(line + (hdr_ip4->ip_hl * 4));
 
@@ -1812,6 +1820,11 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 		}
 		else if (hdr_ip6->ip6_nxt != IPPROTO_TCP) {
 			/* The protocol does not include a TCP header */
+			conn->err_code = CO_ER_CIP_BAD_PROTO;
+			goto fail;
+		}
+		else if (hdr_len < sizeof(struct ip6_hdr) + sizeof(struct my_tcphdr)) {
+			/* The announced header is too short to contain the TCP ports */
 			conn->err_code = CO_ER_CIP_BAD_PROTO;
 			goto fail;
 		}
