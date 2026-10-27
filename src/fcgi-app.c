@@ -509,11 +509,19 @@ struct flt_ops fcgi_flt_ops = {
 /**************************************************************************/
 /*********************** FCGI Config parsing ******************************/
 /**************************************************************************/
+static int fcgi_find_flt_by_name(struct flt_conf *fconf, void *data)
+{
+	struct fcgi_flt_conf *fcgi_conf = fconf->conf;
+	const char *name = data;
+
+	return (strcmp(name, fcgi_conf->name) == 0);
+}
+
 static int
 parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 	       struct flt_conf *fconf, char **err, void *private)
 {
-	struct flt_conf *f, *back;
+	struct flt_conf *f;
 	struct fcgi_flt_conf *fcgi_conf = NULL;
 	char *name = NULL;
 	int pos = *cur_arg;
@@ -531,22 +539,20 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 	pos += 2;
 
 	/* Check if an fcgi-app filter with the same name already exists */
-	list_for_each_entry_safe(f, back, &px->filter_configs, list) {
-		if (f->id != fcgi_flt_id)
-			continue;
+	f = flt_find_conf(px, fcgi_flt_id, FLT_SIDE_GLOBAL, fcgi_find_flt_by_name, name);
+	if (f) {
+		/* Place the filter at its right position */
 		fcgi_conf = f->conf;
-		if (strcmp(name, fcgi_conf->name) != 0) {
+		if (!(fcgi_conf->flags & FCGI_FLT_F_IMPLICIT_DECL)) {
 			fcgi_conf = NULL;
-			continue;
+			memprintf(err, "%s: multiple explicit declarations of the fcgi-app filter '%s'",
+				  px->id, name);
+			goto err;
 		}
 
-		/* Place the filter at its right position */
-		LIST_DELETE(&f->list);
-		LIST_DELETE(&f->by_req);
-		LIST_DELETE(&f->by_res);
+		flt_conf_delete(f);
 		free(f);
 		ha_free(&name);
-		break;
 	}
 
 	/* No other fcgi-app filter found, create configuration for the explicit one */
@@ -618,7 +624,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 				    const struct proxy *defpx, const char *file, int line,
 				    char **err)
 {
-	struct filter_class *cls;
+	struct filter_instance *finst = NULL;
 	struct flt_conf *fconf = NULL;
 	struct fcgi_flt_conf *fcgi_conf = NULL;
 	int retval = 0;
@@ -635,17 +641,13 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 		goto end;
 	}
 
-	/* check if a fcgi filter was already registered with this name,
-	 * if that's the case, must use it. */
-	list_for_each_entry(fconf, &curpx->filter_configs, list) {
-		if (fconf->id == fcgi_flt_id) {
-			fcgi_conf = fconf->conf;
-			if (fcgi_conf && strcmp((char *)fcgi_conf->name, args[1]) == 0)
-				goto end;
-			memprintf(err, "'%s' : only one fcgi-app supported per backend", args[0]);
-			retval = -1;
+	finst = flt_find_instance(curpx, &flt_fcgi_cls, NULL);
+	if (finst) {
+		if (finst->id && strcmp((char *)finst->id, args[1]) == 0)
 			goto end;
-		}
+		memprintf(err, "'%s' : only one fcgi-app supported per backend", args[0]);
+		retval = -1;
+		goto end;
 	}
 
 	/* Create the FCGI filter config */
@@ -670,8 +672,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 	/* also create the corresponding implicit filter instance. The
 	 * fcgi-app name is used as the instance id, there is no argument.
 	 */
-	cls = filter_find_class(fcgi_filter_cls_name);
-	if (!cls || flt_add_implicit_instance(curpx, cls, args[1], NULL, file, line) < 0) {
+	if (flt_add_implicit_instance(curpx, &flt_fcgi_cls, args[1], NULL, file, line) < 0) {
 		free(fconf);
 		goto err;
 	}
