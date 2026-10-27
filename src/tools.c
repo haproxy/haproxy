@@ -2821,6 +2821,8 @@ int strl2irc(const char *s, int len, int *ret)
 		}
 	} else {
 		/* negative number */
+		if (len == 1)
+			return 1; /* sign alone, no digit */
 		s++;
 		while (--len > 0) {
 			j = (*s++) - '0';
@@ -2865,6 +2867,8 @@ int strl2llrc(const char *s, int len, long long *ret)
 		}
 	} else {
 		/* negative number */
+		if (len == 1)
+			return 1; /* sign alone, no digit */
 		s++;
 		while (--len > 0) {
 			j = (*s++) - '0';
