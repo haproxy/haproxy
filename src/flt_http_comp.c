@@ -1071,15 +1071,13 @@ static int
 parse_http_comp_flt(char **args, int *cur_arg, struct proxy *px,
                     struct flt_conf *fconf, char **err, void *private)
 {
-	struct flt_conf *fc, *back;
 	struct flt_conf *fconf_res;
 	struct comp *comp;
 
-	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
-		if (fc->id == http_comp_req_flt_id || fc->id == http_comp_res_flt_id) {
-			memprintf(err, "%s: Proxy supports only one compression filter\n", px->id);
-			return -1;
-		}
+	if (flt_find_conf(px, http_comp_req_flt_id, FLT_SIDE_GLOBAL, NULL, NULL) ||
+	    flt_find_conf(px, http_comp_res_flt_id, FLT_SIDE_GLOBAL, NULL, NULL)) {
+		memprintf(err, "%s: Proxy supports only one compression filter\n", px->id);
+		return -1;
 	}
 
 	/* Allocate the compression options now, they will be filled by the
@@ -1130,14 +1128,11 @@ static int
 parse_http_comp_req_flt(char **args, int *cur_arg, struct proxy *px,
                         struct flt_conf *fconf, char **err, void *private)
 {
-	struct flt_conf *fc, *back;
 	struct comp *comp;
 
-	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
-		if (fc->id == http_comp_req_flt_id) {
-			memprintf(err, "%s: Proxy supports only one comp-req filter\n", px->id);
-			return -1;
-		}
+	if (flt_find_conf(px, http_comp_req_flt_id, FLT_SIDE_GLOBAL, NULL, NULL)) {
+		memprintf(err, "%s: Proxy supports only one comp-req filter\n", px->id);
+		return -1;
 	}
 
 	comp = proxy_get_comp(px, 0);
@@ -1159,14 +1154,11 @@ static int
 parse_http_comp_res_flt(char **args, int *cur_arg, struct proxy *px,
                         struct flt_conf *fconf, char **err, void *private)
 {
-	struct flt_conf *fc, *back;
 	struct comp *comp;
 
-	list_for_each_entry_safe(fc, back, &px->filter_configs, list) {
-		if (fc->id == http_comp_res_flt_id) {
-			memprintf(err, "%s: Proxy supports only one comp-res filter\n", px->id);
-			return -1;
-		}
+	if (flt_find_conf(px, http_comp_res_flt_id, FLT_SIDE_GLOBAL, NULL, NULL)) {
+		memprintf(err, "%s: Proxy supports only one comp-res filter\n", px->id);
+		return -1;
 	}
 
 	comp = proxy_get_comp(px, 0);
