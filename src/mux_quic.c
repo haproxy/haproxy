@@ -4132,22 +4132,6 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 
 	qcc->tx.buf_in_flight = 0;
 
-	if (qcc_is_pacing_active(conn)) {
-		quic_pacing_init(&qcc->tx.pacer, &conn->handle.qc->path->cc);
-		qcc->tx.paced_sent_ctr = 0;
-
-		/* Initialize pacing_task. */
-		qcc->pacing_task = task_new_here();
-		if (!qcc->pacing_task) {
-			TRACE_ERROR("pacing task alloc failure", QMUX_EV_QCC_NEW);
-			goto err;
-		}
-		qcc->pacing_task->process = qcc_pacing_task;
-		qcc->pacing_task->context = qcc;
-		qcc->pacing_task->expire = TICK_ETERNITY;
-		qcc->pacing_task->state |= TASK_F_WANTS_TIME;
-	}
-
 	if (!conn_is_quic(conn)) {
 		qcc->tx.qmux_buf = BUF_NULL;
 		qcc->rx.qmux_buf = BUF_NULL;
@@ -4174,6 +4158,22 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 			_HA_ATOMIC_ADD(&tg_ctx->committed_extra_streams,
 			               qcc->lfctl.ms_bidi_init - 1);
 		}
+	}
+
+	if (qcc_is_pacing_active(conn)) {
+		quic_pacing_init(&qcc->tx.pacer, &conn->handle.qc->path->cc);
+		qcc->tx.paced_sent_ctr = 0;
+
+		/* Initialize pacing_task. */
+		qcc->pacing_task = task_new_here();
+		if (!qcc->pacing_task) {
+			TRACE_ERROR("pacing task alloc failure", QMUX_EV_QCC_NEW);
+			goto err;
+		}
+		qcc->pacing_task->process = qcc_pacing_task;
+		qcc->pacing_task->context = qcc;
+		qcc->pacing_task->expire = TICK_ETERNITY;
+		qcc->pacing_task->state |= TASK_F_WANTS_TIME;
 	}
 
 	qcc->wait_event.tasklet = tasklet_new();
