@@ -18196,6 +18196,10 @@ crt <cert>
   valid Signed Certificate Timestamp List, as described in RFC. File is parsed
   to check basic syntax, but no signatures are verified.
 
+  SCT delivery over TLS 1.2 and earlier is supported with OpenSSL 1.0.2 and
+  later or AWS-LC. TLS 1.3 requires OpenSSL 1.1.1 and later or AWS-LC. SCT
+  delivery over QUIC is not supported.
+
   There are cases where it is desirable to support multiple key types, e.g. RSA
   and ECDSA in the cipher suites offered to the clients. This allows clients
   that support EC certificates to be able to use EC ciphers, while
