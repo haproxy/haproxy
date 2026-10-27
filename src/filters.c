@@ -517,6 +517,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 		struct flt_kw *kw;
 		int cur_arg;
 
+		curpx->flags |= PR_FL_FILTER_LEGACY;
 		if (!*args[1]) {
 			memprintf(err,
 				  "parsing [%s:%d] : missing argument for '%s' in %s '%s'.",
@@ -567,7 +568,6 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			goto error;
 		}
 
-		curpx->flags |= PR_FL_FILTER_LEGACY;
 		fconf->flags |= FLT_CFG_FL_EXPLICIT;
 		flt_conf_add(curpx, fconf);
 	}
