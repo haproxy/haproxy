@@ -1759,6 +1759,12 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	if (trash.data < 20)
 		goto missing;
 
+	/* Fail if the announced header does not fit in what was received,
+	 * since it will be consumed below in a single recv() into the trash.
+	 */
+	if (hdr_len > trash.data - (line - trash.area))
+		goto missing;
+
 	/* Get IP version from the first four bits */
 	ip_ver = (*line & 0xf0) >> 4;
 
