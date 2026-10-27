@@ -394,6 +394,17 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		}
 
 		/* regular header field in (name,value) */
+
+		/* we may have to delete headers with underscores in their
+		 * names. These ones are already marked as found when not
+		 * rejected so we can avoid a costly lookup in normal times.
+		 */
+		if (unlikely(http_hdng_chk.found & HTTP_HRD_REJ_USCORE_HDR_NAM) &&
+		    istlen(istfind(list[idx].n, '_')) && http_harden(HTTP_HRD_DEL_USCORE_HDR_NAM)) {
+			/* skip it, so it won't be added */
+			continue;
+		}
+
 		if (unlikely(!(fields & H2_PHDR_FND_NONE))) {
 			/* no more pseudo-headers, time to build the request line */
 			sl = h2_prepare_htx_reqline(fields, phdr_val, htx, msgf);
@@ -719,6 +730,17 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		}
 
 		/* regular header field in (name,value) */
+
+		/* we may have to delete headers with underscores in their
+		 * names. These ones are already marked as found when not
+		 * rejected so we can avoid a costly lookup in normal times.
+		 */
+		if (unlikely(http_hdng_chk.found & HTTP_HRD_REJ_USCORE_HDR_NAM) &&
+		    istlen(istfind(list[idx].n, '_')) && http_harden(HTTP_HRD_DEL_USCORE_HDR_NAM)) {
+			/* skip it, so it won't be added */
+			continue;
+		}
+
 		if (!(fields & H2_PHDR_FND_NONE)) {
 			/* no more pseudo-headers, time to build the status line */
 			sl = h2_prepare_htx_stsline(fields, phdr_val, htx, msgf);

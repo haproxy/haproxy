@@ -1779,6 +1779,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-lowercase-method",        HTTP_HRD_REJ_LCASE_METHOD, HTTP_DIR_REQ  },
 	{ "reject-underscore-in-header-name", HTTP_HRD_REJ_USCORE_HDR_NAM, HTTP_DIR_BOTH },
 	{ "reject-underscore-in-trailer-name", HTTP_HRD_REJ_USCORE_TLR_NAM, HTTP_DIR_BOTH },
+	{ "delete-underscore-in-header-name", HTTP_HRD_DEL_USCORE_HDR_NAM, HTTP_DIR_BOTH },
 	/* insert new hardening options above this line */
 	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }

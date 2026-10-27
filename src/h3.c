@@ -1060,6 +1060,17 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 			goto out;
 		}
 
+		/* we may have to delete headers with underscores in their
+		 * names. These ones are already marked as found when not
+		 * rejected so we can avoid a costly lookup in normal times.
+		 */
+		if (unlikely(http_hdng_chk.found & HTTP_HRD_REJ_USCORE_HDR_NAM) &&
+		    istlen(istfind(list[hdr_idx].n, '_')) && http_harden(HTTP_HRD_DEL_USCORE_HDR_NAM)) {
+			/* skip it, so it won't be added */
+			++hdr_idx;
+			continue;
+		}
+
 		if (isteq(list[hdr_idx].n, ist("host"))) {
 			struct ist prev_auth = authority;
 

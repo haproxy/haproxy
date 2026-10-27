@@ -34525,6 +34525,17 @@ http-hardening <name> [from <name2>]
         This keyword covers all known keywords together. It is essentially used
         to enable or disable all checks at once.
 
+  - delete-underscore-in-header-name (inbound, request and response)
+        Deletes from requests and responses any header field whose name
+        contains an underscore character ('_' or \x5C). While this character is
+        perfectly permitted, some application frameworks which create automatic
+        variables already turn the dash ('-') into an underscore in variable
+        names, leading to an ambiguity with the underscore which can result in
+        the same variable name. This could be abused to bypass some
+        access-control policy for example. No standard HTTP header uses this,
+        so it is recommended to enable on untrusted listeners. Note that this
+        applies only after "reject-underscore-in-header-name" was accepted.
+
   - reject-duplicate-host-header (inbound request)
         Rejects requests containing more than one "Host" header field, even if
         valid and identical. This is recommended on untrusted listeners. Note that
@@ -34546,7 +34557,8 @@ http-hardening <name> [from <name2>]
         variable names, leading to an ambiguity with the underscore which can
         result in the same variable name. This could be abused to bypass some
         access-control policy for example. No standard HTTP header uses this,
-        so it is safe to enable on untrusted listeners.
+        so it is safe to enable on untrusted listeners. See also the
+        "delete-underscore-in-header-name" variant.
 
   - reject-underscore-in-trailer-name (inbound, request and response)
         Rejects requests and responses in which one tailer field name contains

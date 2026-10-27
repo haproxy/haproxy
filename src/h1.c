@@ -1038,6 +1038,18 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 						break;
 				}
 
+				/* we may have to delete headers with underscores
+				 * in their names. These ones are already marked
+				 * as found when not rejected so we can avoid a
+				 * costly lookup in normal times.
+				 */
+				if (unlikely(http_hdng_chk.found & HTTP_HRD_REJ_USCORE_HDR_NAM) &&
+				    ((h1m->state != H1_MSG_TRAILERS && istlen(istfind(n, '_')) &&
+				      http_harden(HTTP_HRD_DEL_USCORE_HDR_NAM)))) {
+					/* skip it, so it won't be added */
+					break;
+				}
+
 				if (isteqi(n, ist("transfer-encoding"))) {
 					ret = h1_parse_xfer_enc_header(h1m, v);
 					if (ret < 0) {
