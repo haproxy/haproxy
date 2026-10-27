@@ -405,6 +405,14 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			continue;
 		}
 
+		/* we may have to delete unregistered header names (X-) */
+		if (unlikely(http_harden(HTTP_HRD_DEL_UNREG_HDR))) {
+			if (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
+			    (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X'))
+				/* skip it, so it won't be added */
+				continue;
+		}
+
 		if (unlikely(!(fields & H2_PHDR_FND_NONE))) {
 			/* no more pseudo-headers, time to build the request line */
 			sl = h2_prepare_htx_reqline(fields, phdr_val, htx, msgf);
@@ -739,6 +747,14 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		    istlen(istfind(list[idx].n, '_')) && http_harden(HTTP_HRD_DEL_USCORE_HDR_NAM)) {
 			/* skip it, so it won't be added */
 			continue;
+		}
+
+		/* we may have to delete unregistered header names (X-) */
+		if (unlikely(http_harden(HTTP_HRD_DEL_UNREG_HDR))) {
+			if (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
+			    (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X'))
+				/* skip it, so it won't be added */
+				continue;
 		}
 
 		if (!(fields & H2_PHDR_FND_NONE)) {

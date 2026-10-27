@@ -34546,6 +34546,18 @@ http-hardening <name> [from <name2>]
         recommended to enable on untrusted listeners. Note that this applies
         only after "reject-underscore-in-trailer-name" was accepted.
 
+  - delete-unregistered-header-fields (inbound, request and response)
+        Deletes from requests and responses any header field whose name starts
+        with 'x-' (upper or lower case). These header fields are not registered
+        with IANA and are not used across the internet by standard components.
+        They may appear in untrusted requests in attacks trying to exploit some
+        backend framework weaknesses however, as well as in old browsers that
+        were trying to work around known server bugs (e.G. "X-Pad"). While it
+        would be risky to block such requests, it is safe and even recommended
+        to delete such headers from inbound internet requests. It is preferable
+        not to do it on responses however when applications uses such header
+        fields to report information to HAProxy.
+
   - reject-duplicate-host-header (inbound request)
         Rejects requests containing more than one "Host" header field, even if
         valid and identical. This is recommended on untrusted listeners. Note that

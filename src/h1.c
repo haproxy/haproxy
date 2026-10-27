@@ -1052,6 +1052,13 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					break;
 				}
 
+				/* we may have to delete unregistered header names (X-) */
+				if (unlikely(h1m->state != H1_MSG_TRAILERS && http_harden(HTTP_HRD_DEL_UNREG_HDR))) {
+					if (n.len > 1 && n.ptr[1] == '-' &&
+					    (n.ptr[0] == 'x' || n.ptr[0] == 'X'))
+						break;
+				}
+
 				if (isteqi(n, ist("transfer-encoding"))) {
 					ret = h1_parse_xfer_enc_header(h1m, v);
 					if (ret < 0) {

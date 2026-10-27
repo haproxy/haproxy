@@ -1781,6 +1781,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-underscore-in-trailer-name", HTTP_HRD_REJ_USCORE_TLR_NAM, HTTP_DIR_BOTH },
 	{ "delete-underscore-in-header-name", HTTP_HRD_DEL_USCORE_HDR_NAM, HTTP_DIR_BOTH },
 	{ "delete-underscore-in-trailer-name", HTTP_HRD_DEL_USCORE_TLR_NAM, HTTP_DIR_BOTH },
+	{ "delete-unregistered-header-fields",HTTP_HRD_DEL_UNREG_HDR, HTTP_DIR_BOTH },
 	/* insert new hardening options above this line */
 	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }
