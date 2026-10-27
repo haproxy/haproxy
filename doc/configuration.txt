@@ -1458,9 +1458,9 @@ amount of memory used by the variables by setting "tune.vars" global parameters.
 
 Variables must be designated using the format "<scope>.<name>". The <scope> is
 a single word indicating the life time of the variable. The <name> part, inside
-a scope, may only contain characters 'a-z', 'A-Z', '0-9' and '_'. It is unique
-in this scope but the same name in different scopes can be used and refers to
-different variables. Supported scopes are:
+a scope, may only contain characters 'a-z', 'A-Z', '0-9', '_' and '.'. It is
+unique in this scope but the same name in different scopes can be used and
+refers to different variables. Supported scopes are:
 
   * proc  : for variables known during the whole process lifespan and globally
             accessible. "proc" variables can be manipulated from the CLI using
