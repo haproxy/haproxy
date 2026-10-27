@@ -1609,15 +1609,24 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		 * Pseudo-header fields MUST NOT appear in trailer sections.
 		 */
 		TRACE_ERROR("pseudo-header field in trailers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		goto fail_with_glitch;
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
 
 	case HTTP_PRS_INV_HNAME:
 		TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		goto fail_with_glitch;
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
 
 	case HTTP_PRS_FORB_TRL:
 		TRACE_ERROR("forbidden HTTP/3 headers", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		goto fail_with_glitch;
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
 
 	case HTTP_PRS_INV_HVAL:
 		/* RFC 9114 10.3 Intermediary-Encapsulation Attacks
@@ -1630,7 +1639,10 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		 * value MUST be treated as malformed
 		 */
 		TRACE_ERROR("control character present in trailer value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		goto fail_with_glitch;
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
 
 	default:
 		/* Not a protocol error, only the trailers block could not
@@ -1638,7 +1650,8 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		 * caused by too large trailers).
 		 */
 		TRACE_ERROR("cannot add trailer", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		goto fail;
+		len = -1;
+		goto out;
 	}
 
 	if (fin)
@@ -1661,13 +1674,6 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_LEAVE(H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 	return len;
-
- fail_with_glitch:
-	qcc_report_glitch(h3c->qcc, 1);
-	h3s->err = H3_ERR_MESSAGE_ERROR;
- fail:
-	TRACE_DEVEL("leaving on error", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-	return -1;
 }
 
 /* Copy from buffer <buf> a H3 DATA frame of length <len> in QUIC stream <qcs>
