@@ -2123,9 +2123,72 @@ static int cli_io_handler_show_http_hardening(struct appctx *appctx)
 	return 1;
 }
 
+/* parses "set http-hardening <name> <option> {on|off}": changes an option of
+ * a profile. The profile is only read by the other threads, which are isolated
+ * during the update so that no lock is needed to read it.
+ */
+static int cli_parse_set_http_hardening(char **args, char *payload, struct appctx *appctx, void *trusted)
+{
+	struct http_hdng_prf *prf;
+	char *msg = NULL;
+	size_t idx = 0;
+	int match;
+	int v, on;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[2] || !*args[3] || !*args[4] || *args[5])
+		return cli_err(appctx, "Usage: set http-hardening <name> <option> {on|off}\n");
+
+	prf = http_hardening_lookup(args[2]);
+	if (!prf)
+		return cli_err(appctx, "Unknown http-hardening profile.\n");
+
+	v = atoi(args[3]);
+	match = 0;
+	if (v > 0 && v <= 8 * sizeof(http_hardening_kws[0].mask)) {
+		/* numeric entry found, corresponds to bit position starting at 1 */
+		for (idx = 0; idx < sizeof(http_hardening_kws) / sizeof(http_hardening_kws[0]); idx++) {
+			if (1U << (v - 1) == http_hardening_kws[idx].mask) {
+				/* found at [idx] */
+				match = 2;
+				break;
+			}
+		}
+
+	}
+
+	if (match != 2)
+		match = find_word_index_in_array(http_hardening_kws, sizeof(http_hardening_kws[0]), -1,
+	                                         offsetof(struct http_hardening_kw, name), args[3], &idx);
+	if (match != 2) {
+		if (match == 1) {
+			memprintf(&msg, "Unknown http-hardening option. Maybe you meant '%s' ?\n",
+			          http_hardening_kws[idx].name);
+			return cli_dynerr(appctx, msg);
+		}
+		return cli_err(appctx, "Unknown http-hardening option.\n");
+	}
+
+	on = strcmp(args[4], "on") == 0;
+	if (!on && strcmp(args[4], "off") != 0)
+		return cli_err(appctx, "Expects 'on' or 'off'.\n");
+
+	thread_isolate();
+	if (on)
+		prf->mask |= http_hardening_kws[idx].mask;
+	else
+		prf->mask &= ~http_hardening_kws[idx].mask;
+	thread_release();
+	return 1;
+}
+
 static struct cli_kw_list http_hardening_cli_kws = {{ }, {
 	{ { "show", "http-hardening", NULL }, "show http-hardening [name]              : lists the profiles, or dumps one of them's rules",
 	  cli_parse_show_http_hardening, cli_io_handler_show_http_hardening },
+	{ { "set", "http-hardening", NULL }, "set http-hardening <name> <opt> on|off : enable or disable an option of a profile",
+	  cli_parse_set_http_hardening },
 	{{},}
 }};
 

@@ -2647,6 +2647,19 @@ set anon global-key <key>
   integer between 0 and 4294967295 (0 disables the global key). This command
   requires admin privilege.
 
+set http-hardening <name> { <option> | <number> } { on | off }
+  Enables or disables the hardening option <option> in the http-hardening
+  profile <name>, which may be "untrusted" and "trusted" even if not declared.
+  Alternately, the option may be designated by its <number> which corresponds
+  to the one reported by "show http-hardening". The special option "all"
+  changes all options at once, which may be used to quickly relax or restore
+  everything in an emergency. The change applies to all connections and servers
+  using this profile and is not persistent: it is lost on reload, so the
+  configuration must be updated as well. The profile being only updated while
+  all threads are isolated, this command may momentarily delay processing. This
+  command requires the admin level. See also "show http-hardening" and section
+  12.10 of the configuration manual.
+
 set map <map> [<key>|#<ref>] <value>
   Modify the value corresponding to each key <key> in a map <map>. <map> is the
   #<id> or <name> returned by "show map". If the <ref> is used in place of
