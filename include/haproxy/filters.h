@@ -229,6 +229,15 @@ static inline void flt_conf_insert(struct proxy *px, struct flt_conf *fconf)
 	LIST_INSERT(&px->filters_res_configs, &fconf->by_res);
 }
 
+/* Removes the legacy filter config <fconf> from the three configuration
+ * lists.*/
+static inline void flt_conf_delete(struct flt_conf *fconf)
+{
+	LIST_DELETE(&fconf->list);
+	LIST_DELETE(&fconf->by_req);
+	LIST_DELETE(&fconf->by_res);
+}
+
 /* Helper function that returns the "global" state of filters attached to a
  * stream. */
 static inline struct strm_flt *
