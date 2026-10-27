@@ -1705,6 +1705,28 @@ static __maybe_unused int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type,
 	return 1;
 }
 
+#ifdef HAVE_SSL_CTX_ADD_CUSTOM_EXT
+/* Returns the selected context's SCT list via <out>/<outlen>. Returns 1
+ * to send it, or 0 if absent or <chainidx> is not the TLS 1.3 leaf entry.
+ */
+static int ssl_sock_sctl_add_cbk_ex(SSL *ssl, unsigned int ext_type, unsigned int context,
+                                  const unsigned char **out, size_t *outlen, X509 *x,
+                                  size_t chainidx, int *al, void *add_arg)
+{
+	if ((context & SSL_EXT_TLS1_3_CERTIFICATE) && chainidx != 0)
+		return 0;
+	return ssl_sock_sctl_add_cbk(ssl, ext_type, out, outlen, al, add_arg);
+}
+
+/* Accepts the client's SCT request through the legacy callback. Returns 1. */
+static int ssl_sock_sctl_parse_cbk_ex(SSL *ssl, unsigned int ext_type, unsigned int context,
+                                    const unsigned char *in, size_t inlen, X509 *x,
+                                    size_t chainidx, int *al, void *parse_arg)
+{
+	return ssl_sock_sctl_parse_cbk(ssl, ext_type, in, inlen, al, parse_arg);
+}
+#endif
+
 #endif /* HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT */
 
 /* Copies <sctl> into <ctx>, leaving ownership with the caller. Returns 0
@@ -1750,12 +1772,17 @@ static int ssl_sock_load_sctl(SSL_CTX *ctx, struct buffer *sctl)
 int ssl_sock_ctx_add_sctl_ext(struct bind_conf *bind_conf, SSL_CTX *ctx)
 {
 #ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
-	/* xprt is not yet set to QUIC when certificates are loaded */
 	if (bind_conf->options & BC_O_USE_SOCK_DGRAM)
 		return 1;
-
+#ifdef HAVE_SSL_CTX_ADD_CUSTOM_EXT
+	if (!SSL_CTX_add_custom_ext(ctx, CT_EXTENSION_TYPE,
+	                           SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_2_SERVER_HELLO | SSL_EXT_TLS1_3_CERTIFICATE,
+	                           ssl_sock_sctl_add_cbk_ex, NULL, NULL, ssl_sock_sctl_parse_cbk_ex, NULL))
+		return 0;
+#else
 	if (!SSL_CTX_add_server_custom_ext(ctx, CT_EXTENSION_TYPE, ssl_sock_sctl_add_cbk, NULL, NULL, ssl_sock_sctl_parse_cbk, NULL))
 		return 0;
+#endif
 #endif
 	return 1;
 }
@@ -3229,7 +3256,7 @@ end:
 }
 
 
-/* Loads the info in ckch into ctx
+/* Loads <store> into <ctx> for <bind_conf>, omitting SCT delivery on QUIC.
  * Returns a bitfield containing the flags:
  *     ERR_FATAL in any fatal error case
  *     ERR_ALERT if the reason of the error is available in err
@@ -3237,7 +3264,7 @@ end:
  * The value 0 means there is no error nor warning and
  * the operation succeed.
  */
-static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store, SSL_CTX *ctx, char **err)
+static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store, SSL_CTX *ctx, struct bind_conf *bind_conf, char **err)
 {
 	int errcode = 0;
 	struct ckch_data *data = store->data;
@@ -3276,7 +3303,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, struct ckch_store *store
 #endif
 
 #if defined(HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT) || defined(HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST)
-	if (data->sctl) {
+	if (data->sctl && !(bind_conf->options & BC_O_USE_SOCK_DGRAM)) {
 #ifdef HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST
 		/* A list rejected by AWS-LC only disables SCT delivery; warn and continue. */
 		if (ssl_sock_load_sctl(ctx, data->sctl) < 0) {
@@ -3418,7 +3445,7 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 	if (global_ssl.security_level > -1)
 		SSL_CTX_set_security_level(ctx, global_ssl.security_level);
 
-	errcode |= ssl_sock_put_ckch_into_ctx(path, ckchs, ctx, err);
+	errcode |= ssl_sock_put_ckch_into_ctx(path, ckchs, ctx, bind_conf, err);
 	if (errcode & ERR_CODE)
 		goto error;
 

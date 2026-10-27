@@ -146,6 +146,10 @@ enum ssl_encryption_level_t {
 #define HAVE_VANILLA_OPENSSL
 #endif
 
+#if defined(HAVE_VANILLA_OPENSSL) && defined(HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT) && (OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#define HAVE_SSL_CTX_ADD_CUSTOM_EXT
+#endif
+
 #if ((defined(SN_ct_cert_scts) && !defined(OPENSSL_NO_TLSEXT)) || defined(OPENSSL_IS_AWSLC))
 /* AWS-LC supports SCT lists without defining the CT OID SN_ct_cert_scts. */
 #define HAVE_SSL_SCTL
