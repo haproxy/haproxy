@@ -1707,7 +1707,9 @@ static __maybe_unused int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type,
 
 #endif /* HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT */
 
-/* Attaches <sctl> to <ctx>. Returns 0 on success or -1 on failure. */
+/* Copies <sctl> into <ctx>, leaving ownership with the caller. Returns 0
+ * on success or -1 on allocation, storage or library validation failure.
+ */
 static int ssl_sock_load_sctl(SSL_CTX *ctx, struct buffer *sctl)
 {
 #ifdef HAVE_SSL_CTX_SET_SIGNED_CERT_TIMESTAMP_LIST
@@ -1716,8 +1718,23 @@ static int ssl_sock_load_sctl(SSL_CTX *ctx, struct buffer *sctl)
 		return -1;
 	return 0;
 #else
-	if (!SSL_CTX_set_ex_data(ctx, sctl_ex_index, sctl))
+	struct buffer *sctl_ctx;
+
+	/* The ex_data free callback owns this copy; the ckch keeps the original. */
+	sctl_ctx = calloc(1, sizeof(*sctl_ctx));
+	if (!sctl_ctx)
 		return -1;
+
+	if (!chunk_dup(sctl_ctx, sctl)) {
+		free(sctl_ctx);
+		return -1;
+	}
+
+	if (!SSL_CTX_set_ex_data(ctx, sctl_ex_index, sctl_ctx)) {
+		chunk_destroy(sctl_ctx);
+		free(sctl_ctx);
+		return -1;
+	}
 	return 0;
 #endif
 }
