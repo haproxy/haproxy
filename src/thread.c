@@ -2057,6 +2057,17 @@ int parse_thread_set(const char *arg, struct thread_set *ts, char **err)
 						  set, is_rel ? MAX_THREADS_PER_GROUP : MAX_THREADS);
 					return -1;
 				}
+
+				/* a range given in reverse order is accepted and
+				 * swapped, as done for "cpu-map" and "process".
+				 * Otherwise max < min would be stored as "all",
+				 * "odd" or "even" below.
+				 */
+				if (max < min) {
+					v = min;
+					min = max;
+					max = v;
+				}
 			}
 
 			/* here sep points to the first non-digit after the thread spec,
