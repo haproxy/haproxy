@@ -2765,7 +2765,6 @@ static void resolvers_destroy(struct resolvers *resolvers)
 			     (resolvers->t &&
 			      ha_thread_info[resolvers->t->tid].tgid == tgid))) {
 				fd_delete(ns->dgram->conn.t.sock.fd);
-				close(ns->dgram->conn.t.sock.fd);
 			}
 			dns_ring_free(ns->dgram->ring_req);
 			free(ns->dgram);
