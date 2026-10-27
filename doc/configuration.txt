@@ -34531,6 +34531,13 @@ http-hardening <name> [from <name2>]
         even if not rejected, duplicate host header fields are folded into a
         single one.
 
+  - reject-lowercase-method (inbound request)
+        Rejects requests whose method contains a lower-case character. No
+        standard HTTP method uses lower-case characters and these ones are
+        essentially used in desynchronization attack scenarios, by trying to
+        exploit different case matching schemes along the chain. This is
+        recommended on untrusted listeners.
+
 /*
  * Local variables:
  *  fill-column: 79

@@ -509,8 +509,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 
 	case H1_MSG_RQMETH:
 	http_msg_rqmeth:
-		if (likely(HTTP_IS_TOKEN(*ptr)))
+		if (likely(HTTP_IS_TOKEN(*ptr))) {
+			if (unlikely(islower((unsigned char)*ptr))) {
+				if (http_harden(HTTP_HRD_REJ_LCASE_METHOD)) {
+					state = H1_MSG_RQMETH;
+					goto http_msg_invalid;
+				}
+			}
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_rqmeth, http_msg_ood, state, H1_MSG_RQMETH);
+		}
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			sl.rq.m.len = ptr - sl.rq.m.ptr;

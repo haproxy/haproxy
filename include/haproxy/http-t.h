@@ -241,6 +241,7 @@ struct http_violation {
 #define HTTP_HRD_NONE                       0x00000000
 /* insert new masks below this line */
 #define HTTP_HRD_REJ_DUP_HOST_HDR           0x00000001
+#define HTTP_HRD_REJ_LCASE_METHOD           0x00000002
 /* insert new masks above this line */
 #define HTTP_HRD_ALL                        0xFFFFFFFF
 

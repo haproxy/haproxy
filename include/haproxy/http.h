@@ -235,8 +235,8 @@ static inline int http_header_has_forbidden_char(const struct ist ist, const cha
 	return 0;
 }
 
-/* Check that method only contains token as required.
- * See RFC 9110 9. Methods
+/* Check that method only contains token as required. See RFC 9110 9. Methods.
+ * Can also enforce non-lower case if hardening requires it.
  */
 static inline int http_method_has_forbidden_char(const struct ist ist)
 {
@@ -245,6 +245,11 @@ static inline int http_method_has_forbidden_char(const struct ist ist)
 	do {
 		if (!HTTP_IS_TOKEN(*start))
 			return 1;
+
+		if (unlikely(islower((unsigned char)*start))) {
+			if (http_harden(HTTP_HRD_REJ_LCASE_METHOD))
+				return 1;
+		}
 		start++;
 	} while (start < istend(ist));
 	return 0;
