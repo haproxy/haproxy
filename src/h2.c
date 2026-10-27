@@ -349,9 +349,12 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			 */
 			phdr = h2_str_to_phdr(list[idx].n);
 
-			for (i = !!phdr; i < list[idx].n.len; i++)
+			for (i = !!phdr; i < list[idx].n.len; i++) {
 				if ((uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
 					goto fail;
+				if (list[idx].n.ptr[i] == '_' && http_harden(HTTP_HRD_REJ_USCORE_HDR_NAM))
+					goto fail;
+			}
 		}
 
 		/* RFC7540#10.3: intermediaries forwarding to HTTP/1 must take care of
@@ -679,9 +682,12 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 			 */
 			phdr = h2_str_to_phdr(list[idx].n);
 
-			for (i = !!phdr; i < list[idx].n.len; i++)
+			for (i = !!phdr; i < list[idx].n.len; i++) {
 				if ((uint8_t)(list[idx].n.ptr[i] - 'A') <= 'Z' - 'A' || !HTTP_IS_TOKEN(list[idx].n.ptr[i]))
 					goto fail;
+				if (list[idx].n.ptr[i] == '_' && http_harden(HTTP_HRD_REJ_USCORE_HDR_NAM))
+					goto fail;
+			}
 		}
 
 		/* RFC7540#10.3: intermediaries forwarding to HTTP/1 must take care of

@@ -600,6 +600,10 @@ static int _h3_handle_hdr(struct qcs *qcs, const struct http_hdr *hdr)
 			TRACE_ERROR("invalid characters in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 			goto err;
 		}
+		if (c == '_' && http_harden(HTTP_HRD_REJ_USCORE_HDR_NAM)) {
+			TRACE_ERROR("hardening rejected underscore in field name", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			goto err;
+		}
 	}
 
 	/* RFC 9114 10.3 Intermediary-Encapsulation Attacks
