@@ -2410,7 +2410,6 @@ static int check_cache_rule(struct act_rule *rule, struct proxy *proxy, char **e
 
 static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_rule *rule, char **err)
 {
-	struct filter_class *cls;
 
 	if (!*name || strcmp(name, "if") == 0 || strcmp(name, "unless") == 0) {
 		memprintf(err, "expects a cache name");
@@ -2427,10 +2426,9 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 	 * fconf during check stage.
 	 * The cache name is used as the instance id, there is no argument.
 	 */
-	cls = filter_find_class(cache_store_filter_cls_name);
-	if (!cls || flt_add_implicit_instance(proxy, cls, name, NULL,
-						rule->conf.file ? rule->conf.file : proxy->conf.file,
-						rule->conf.file ? rule->conf.line : proxy->conf.line) < 0) {
+	if (flt_add_implicit_instance(proxy, &flt_cache_store_cls, name, NULL,
+				      rule->conf.file ? rule->conf.file : proxy->conf.file,
+				      rule->conf.file ? rule->conf.line : proxy->conf.line) < 0) {
 		memprintf(err, "out of memory\n");
 		goto err;
 	}
@@ -3605,12 +3603,19 @@ static int http_request_reduce_secondary_key(unsigned int vary_signature,
 }
 
 
+static int cache_find_flt_by_name(struct flt_conf *fconf, void *data)
+{
+	struct cache_flt_conf *cconf = fconf->conf;
+	const char *name = data;
+
+	return (strcmp(name, cconf->c.name) == 0);
+}
 
 static int
 parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 		struct flt_conf *fconf, char **err, void *private)
 {
-	struct flt_conf *f, *back;
+	struct flt_conf *f;
 	struct cache_flt_conf *cconf = NULL;
 	char *name = NULL;
 	int pos = *cur_arg;
@@ -3629,16 +3634,9 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 
 	/* Check if an implicit filter with the same name already exists. If so,
 	 * we remove the implicit filter to use the explicit one. */
-	list_for_each_entry_safe(f, back, &px->filter_configs, list) {
-		if (f->id != cache_store_flt_id)
-			continue;
-
+	f = flt_find_conf(px, cache_store_flt_id, FLT_SIDE_GLOBAL, cache_find_flt_by_name, name);
+	if (f) {
 		cconf = f->conf;
-		if (strcmp(name, cconf->c.name) != 0) {
-			cconf = NULL;
-			continue;
-		}
-
 		if (!(cconf->flags & CACHE_FLT_F_IMPLICIT_DECL)) {
 			cconf = NULL;
 			memprintf(err, "%s: multiple explicit declarations of the cache filter '%s'",
@@ -3647,12 +3645,9 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 		}
 
 		/* Remove the implicit filter. <cconf> is kept for the explicit one */
-		LIST_DELETE(&f->list);
-		LIST_DELETE(&f->by_req);
-		LIST_DELETE(&f->by_res);
+		flt_conf_delete(f);
 		free(f);
 		free(name);
-		break;
 	}
 
 	/* No implicit cache filter found, create configuration for the explicit one */
