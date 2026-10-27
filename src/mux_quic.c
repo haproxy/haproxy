@@ -3392,6 +3392,16 @@ static int qcc_io_send(struct qcc *qcc)
 			LIST_APPEND(&qcc->send_list, &qcs->el_send);
 		}
 
+		/* If at least one QCS has failed, need to refresh the whole
+		 * frame list. This prevents BUG_ON() crash on the above loop
+		 * about QCS present in send_list not blocked on flow control
+		 * or buf allocation. This only occurs after qcs_send() failure
+		 * on frame allocation. Error path for send subscribing cannot
+		 * reach this code, thus there is no unnecessary frames cleanup
+		 * on a transient network error.
+		 */
+		qcc_clear_frms(qcc);
+
 		if (!qfctl_rblocked(&qcc->tx.fc))
 			tasklet_wakeup(qcc->wait_event.tasklet);
 	}
