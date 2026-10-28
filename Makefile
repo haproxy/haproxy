@@ -1107,7 +1107,7 @@ endif # non-empty target
 # implementations lack the long ones, and undefined symbols are told by their
 # type in awk instead of --defined-only, which these implementations lack too.
 define make_minidebug
-	$(call qinfo,  MINIDBG)cp -f $@ $@.noxz; \
+	$(call qinfo,  MINIDBG)LC_ALL=C; export LC_ALL; cp -f $@ $@.noxz; \
 	if ! ( \
 	    $(NM) -D -P $@ | awk '$$2 != "U" && $$2 != "w" { print $$1 }' | sort > $@.dsyms && \
 	    $(NM) -P $@ | awk '$$2 == "T" || $$2 == "t" { print $$1 }' | sort > $@.fsyms && \
