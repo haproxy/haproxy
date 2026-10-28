@@ -1634,7 +1634,7 @@ static ssize_t h3_trailers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	prs_status = http_trailers_to_htx(list, 1, htx, (qcs->qcc->flags & QC_CF_IS_BACK) ? HTTP_PF_DIR_RES : 0);
+	prs_status = http_trailers_to_htx(list, fin, htx, (qcs->qcc->flags & QC_CF_IS_BACK) ? HTTP_PF_DIR_RES : 0);
 	switch (prs_status) {
 	case HTTP_PRS_SUCCESS:
 		break;
@@ -2020,7 +2020,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			goto done;
 		}
 
-		if (quic_stream_is_bidi(qcs->id) && qcs_http_handle_standalone_fin(qcs)) {
+		if (quic_stream_is_bidi(qcs->id) && qcs_http_handle_standalone_fin(qcs, h3s->st_req == H3S_ST_REQ_TRAILERS)) {
 			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
 			              muxc_tevt_type_internal_err);
@@ -2335,7 +2335,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				}
 
 				/* Reuse wrapper function to easily set EOM on HTX message. */
-				if (qcs_http_handle_standalone_fin(qcs)) {
+				if (qcs_http_handle_standalone_fin(qcs, h3s->st_req == H3S_ST_REQ_TRAILERS)) {
 					TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 					qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
 					              muxc_tevt_type_internal_err);

@@ -39,7 +39,7 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 	BUG_ON(b_data(b) != b_contig_data(b, 0));
 
 	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
-		if (qcs_http_handle_standalone_fin(qcs))
+		if (qcs_http_handle_standalone_fin(qcs, 0))
 			return -1;
 		return 0;
 	}
@@ -163,7 +163,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 
 	if (!to_copy) {
 		if (fin && quic_stream_is_bidi(qcs->id)) {
-			if (qcs_http_handle_standalone_fin(qcs)) {
+			if (qcs_http_handle_standalone_fin(qcs, 0)) {
 				htx_to_buf(htx, htx_buf);
 				return -1;
 			}
