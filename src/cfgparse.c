@@ -2379,6 +2379,10 @@ int check_config_validity()
 	if (err_code != ERR_NONE)
 		goto out;
 
+	/* Pre-initialize the filter instances of all proxies */
+	err_code |= flt_preinit_instances_all();
+	if (err_code & ERR_CODE)
+		goto out;
 	/*
 	 * we must finish to initialize certain things on the servers,
 	 * as some of the fields may be accessed soon

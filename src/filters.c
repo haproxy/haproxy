@@ -3119,7 +3119,7 @@ static void flt_flatten_instances(struct proxy *px)
  * post-parsing stage. Returns a combination of ERR_* flags, ERR_NONE on
  * success.
  */
-static int flt_precheck_instance(struct proxy *proxy, struct filter_instance *inst)
+static int flt_preinit_instance(struct proxy *proxy, struct filter_instance *inst)
 {
 	char *err = NULL;
 
@@ -3160,7 +3160,7 @@ static int flt_precheck_instance(struct proxy *proxy, struct filter_instance *in
  * instance is allowed for classes without FLT_CLS_FL_MULTI. Returns a
  * combination of ERR_* flags, ERR_NONE on success.
  */
-static int flt_precheck_class_instances(struct proxy *proxy, struct filter_class_ref *ref)
+static int flt_preinit_class_instances(struct proxy *proxy, struct filter_class_ref *ref)
 {
 	struct filter_instance *inst;
 	int err_code = ERR_NONE;
@@ -3179,11 +3179,11 @@ static int flt_precheck_class_instances(struct proxy *proxy, struct filter_class
 	}
 
 	list_for_each_entry(inst, &ref->instances, global.list)
-		err_code |= flt_precheck_instance(proxy, inst);
+		err_code |= flt_preinit_instance(proxy, inst);
 	return err_code;
 }
 
-static int flt_precheck_instances(struct proxy *proxy)
+static int flt_preinit_instances(struct proxy *proxy)
 {
 	struct filter_class_ref *ref;
 	int err_code = ERR_NONE;
@@ -3196,7 +3196,7 @@ static int flt_precheck_instances(struct proxy *proxy)
 
 	/* Finalize every instance once, following the global class order. */
 	list_for_each_entry(ref, &proxy->conf.filter_refs, list)
-		err_code |= flt_precheck_class_instances(proxy, ref);
+		err_code |= flt_preinit_class_instances(proxy, ref);
 	return err_code;
 }
 
@@ -3315,8 +3315,8 @@ static void flt_apply_default_mode(struct proxy *px)
 	}
 }
 
-/* Calls flt_precheck_instances() for all proxies, see above */
-static int flt_precheck_instances_all()
+/* Calls flt_preinit_instances() for all proxies, see above */
+int flt_preinit_instances_all(void)
 {
 	struct proxy *px;
 	int err_code = ERR_NONE;
@@ -3332,7 +3332,7 @@ static int flt_precheck_instances_all()
 		if (px->flags & (PR_FL_DISABLED|PR_FL_STOPPED))
 			continue;
 
-		err_code |= flt_precheck_instances(px);
+		err_code |= flt_preinit_instances(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to parse the filter instances of proxy '%s'.\n",
 				 px->id);
@@ -3411,8 +3411,9 @@ static void flt_twork_done(union twork_arg arg, union twork_arg ret)
  * from its defaults section were copied): the parse callback of every
  * instance is called to produce its filter configuration, the
  * filter-enable/filter-disable and filter-sequence directives are applied,
- * and the three evaluation orders are flattened. This mirrors the pre-check
- * stage of the startup, so flt_start_new_proxy() must be called before
+ * and the three evaluation orders are flattened. This mirrors the
+ * pre-initialization of the instances at startup, so
+ * flt_start_new_proxy() must be called before
  * proxy_finalize(), while the threads are isolated, so that the filter
  * analyzers are enabled if the proxy has filters.
  * Returns a combination of ERR_* flags, ERR_NONE on success.
@@ -3426,7 +3427,7 @@ int flt_start_new_proxy(struct proxy *px)
 	 */
 	flt_apply_default_mode(px);
 
-	err_code |= flt_precheck_instances(px);
+	err_code |= flt_preinit_instances(px);
 	if (!(err_code & (ERR_ABORT|ERR_FATAL)))
 		err_code |= flt_enable_filters(px);
 	if (!(err_code & (ERR_ABORT|ERR_FATAL)))
@@ -4175,7 +4176,6 @@ static void filter_init_classes(void)
 
 
 
-REGISTER_PRE_CHECK(flt_precheck_instances_all);
 REGISTER_PRE_CHECK(flt_precheck_classes);
 REGISTER_POST_PROXY_CHECK(flt_check_instances);
 REGISTER_POST_CHECK(flt_init_all);
