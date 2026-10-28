@@ -21,7 +21,7 @@
 #define SPOP_CF_DEM_SALLOC      0x00000100  /* demux blocked on lack of stream's rx buffer */
 #define SPOP_CF_DEM_SFULL       0x00000200  /* demux blocked on stream request buffer full */
 #define SPOP_CF_DEM_TOOMANY     0x00000400  /* demux blocked waiting for some stream connectors to leave */
-#define SPOP_CF_DEM_BLOCK_ANY   0x000007E0  /* aggregate of the demux flags above except DALLOC/DFULL */
+#define SPOP_CF_DEM_BLOCK_ANY   0x00000780  /* aggregate of the demux flags above except DALLOC/DFULL */
 
 /* Other flags */
 #define SPOP_CF_DISCO_SENT      0x00001000  /* a frame DISCONNECT was successfully sent */
