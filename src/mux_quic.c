@@ -4223,15 +4223,6 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 	qcc_reset_idle_start(qcc);
 	LIST_INIT(&qcc->opening_list);
 
-	if (conn_is_quic(conn)) {
-		HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
-	}
-	else {
-		/* Wakeup MUX immediately if data copied from XPRT layer. */
-		if (unlikely(b_data(&qcc->rx.qmux_buf)))
-			tasklet_wakeup(qcc->wait_event.tasklet);
-	}
-
 	/* Register conn as app_ops may use it. */
 	qcc->conn = conn;
 
@@ -4307,6 +4298,15 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 		qcs->sd = sc->sedesc;
 		qcc->nb_sc++;
 		qcc->tot_sc++;
+	}
+
+	if (conn_is_quic(conn)) {
+		HA_ATOMIC_STORE(&conn->handle.qc->qcc, qcc);
+	}
+	else {
+		/* Wakeup MUX immediately if data copied from XPRT layer. */
+		if (unlikely(b_data(&qcc->rx.qmux_buf)))
+			tasklet_wakeup(qcc->wait_event.tasklet);
 	}
 
 	TRACE_USER("init mux", QMUX_EV_QCC_NEW, conn);
