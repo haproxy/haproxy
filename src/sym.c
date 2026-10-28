@@ -1609,6 +1609,19 @@ void *get_sym_next_addr(const char *name)
 
 #endif /* elf & linux & dl */
 
+static void append_obj_name(struct buffer *buf, const char *file)
+{
+	const char *fn = file, *q;
+
+	q = strrchr(fn, '/');
+	if (q)
+		fn = q + 1;
+	q = strchr(fn, '.');
+	if (!q)
+		q = fn + strlen(fn);
+	chunk_appendf(buf, "%.*s", (int)(long)(q - fn), fn);
+}
+
 /* appends "[obj:]sym[+off[/size]]" for the symbol <sl> found for <addr>; the
  * object prefix (between last '/' and first following '.') is omitted for the
  * executable or when <with_obj> is zero.
@@ -1617,15 +1630,8 @@ static void dump_sym_lookup(struct buffer *buf, const struct sym_lookup *sl,
 			    const void *addr, int with_obj)
 {
 	if (with_obj && !sl->is_exe && sl->file) {
-		const char *fn = sl->file, *q;
-
-		q = strrchr(fn, '/');
-		if (q)
-			fn = q + 1;
-		q = strchr(fn, '.');
-		if (!q)
-			q = fn + strlen(fn);
-		chunk_appendf(buf, "%.*s:", (int)(long)(q - fn), fn);
+		append_obj_name(buf, sl->file);
+		chunk_appendf(buf, ":");
 	}
 
 	chunk_appendf(buf, "%s", sl->name);
@@ -1851,7 +1857,6 @@ const void *resolve_dso_name(struct buffer *buf, const char *pfx, const void *ad
 #if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
 	Dl_info dli;
 	size_t size;
-	const char *fname, *p;
 
 	/* Now let's try to be smarter */
 	if (!dladdr_and_size(addr, &dli, &size))
@@ -1862,15 +1867,7 @@ const void *resolve_dso_name(struct buffer *buf, const char *pfx, const void *ad
 		pfx = NULL;
 	}
 
-	/* keep the part between '/' and '.' */
-	fname = dli.dli_fname;
-	p = strrchr(fname, '/');
-	if (p++)
-		fname = p;
-	p = strchr(fname, '.');
-	if (!p)
-		p = fname + strlen(fname);
-	chunk_appendf(buf, "%.*s", (int)(long)(p - fname), fname);
+	append_obj_name(buf, dli.dli_fname);
 	return addr;
  unknown:
 #endif /* __ELF__ && !__linux__ || USE_DL */
