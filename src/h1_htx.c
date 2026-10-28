@@ -1065,7 +1065,7 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 	parser_flags = HTTP_PF_UPCASE_OK;
 	parser_flags |= (h1m->flags & H1_MF_RESP) ? HTTP_PF_DIR_RES : 0;
 
-	if (http_trailers_to_htx(hdrs, dsthtx, parser_flags) != HTTP_PRS_SUCCESS)
+	if (http_trailers_to_htx(hdrs, 1, dsthtx, parser_flags) != HTTP_PRS_SUCCESS)
 		goto error;
 
 	h1m->state = H1_MSG_DONE;

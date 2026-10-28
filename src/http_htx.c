@@ -1978,7 +1978,9 @@ int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
  * <htx>, and an HTTP_PRS_SUCCESS status code is returned if some bytes were
  * emitted. In case of error, another code is returned, indicating the nature
  * of the problem. The caller must have verified that the message in the buffer
- * is compatible with receipt of trailers. The <flags> is a union of HTTP_PF_*
+ * is compatible with receipt of trailers. If <need_eot> is true, the EOT
+ * block is appended to the HTX message. Caller may want to skip it for now if
+ * EOM reporting needs to be delayed. The <flags> is a union of HTTP_PF_*
  * describing the parser's state and permissions (direction, pseudo-headers,
  * etc).
  *
@@ -1989,7 +1991,7 @@ int http_cookie_merge(struct htx *htx, struct http_hdr *list, int first)
  *   - in all cases except the end of list, v.name and v.len must designate a
  *     valid value.
  */
-enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *htx, uint flags)
+enum http_parser_status http_trailers_to_htx(struct http_hdr *list, int need_eot, struct htx *htx, uint flags)
 {
 	uint32_t data_ofs = htx->data; /* used to rollback on error */
 	enum http_parser_status ret = HTTP_PRS_SUCCESS;
@@ -2121,7 +2123,7 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 	}
 
 	/* now finalize the trailers block */
-	if (!htx_add_endof(htx, HTX_BLK_EOT)) {
+	if (need_eot && !htx_add_endof(htx, HTX_BLK_EOT)) {
 		ret = HTTP_PRS_TOO_LARGE;
 		goto fail;
 	}
