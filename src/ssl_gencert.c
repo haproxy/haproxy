@@ -424,13 +424,26 @@ error:
 int ssl_sock_generate_certificate_from_conn(struct bind_conf *bind_conf, SSL *ssl)
 {
 	uint64_t key;
-	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	struct connection *conn = ssl_sock_get_conn(ssl, NULL);
+#ifdef USE_QUIC
+	struct quic_conn *qc = SSL_get_ex_data(ssl, ssl_qc_app_data_index);
+#endif
+	struct sockaddr_storage *dst = NULL;
 
-	if (conn_get_dst(conn)) {
-		key = ssl_sock_generated_cert_key(conn->dst, get_addr_len(conn->dst));
-		if (ssl_sock_assign_generated_cert(key, bind_conf, ssl))
-			return 1;
-	}
+	if (conn && conn_get_dst(conn))
+		dst = conn->dst;
+#ifdef USE_QUIC
+	else if (!conn && qc)
+		dst = &qc->local_addr;
+#endif
+
+	if (!dst)
+		return 0;
+
+	key = ssl_sock_generated_cert_key(dst, get_addr_len(dst));
+	if (ssl_sock_assign_generated_cert(key, bind_conf, ssl))
+		return 1;
+
 	return 0;
 }
 
