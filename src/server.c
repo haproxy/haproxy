@@ -2677,6 +2677,7 @@ static int parse_srv_expr(char *str, struct sample_expr **out, struct proxy *px,
 		memprintf(err, "fetch method '%s' extracts information from '%s', "
 		          "none of which is available here.",
 		          str, sample_src_names(expr->fetch->use));
+		release_sample_expr(expr);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
