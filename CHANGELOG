@@ -1,6 +1,202 @@
 ChangeLog :
 ===========
 
+2026/10/28 : 3.5-dev10
+    - BUG/MEDIUM: stats-file: shm-stats-file be counters not working anymore
+    - BUG/MINOR: quic: rearm packet on packet received even non ack-eliciting
+    - REGTESTS: use HAPROXY_TEST_TIMEOUT for wait in purge srv/be
+    - BUILD: sym: Make sure minidebug works correctly with most environments
+    - BUILD: sym: Use dl_iterate_phdr() for more OSes.
+    - BUILD: sym: Get it to build and work on various OSes
+    - BUILD: sym: Make sure __always_inline always is inline.
+    - BUILD: sym: Build properly with gold as a linker
+    - BUILD: sym: Keep a temporary binary without .gnu_debugdata
+    - BUILD: sym: Don't add a minidebug section to haterm and haload
+    - MINOR: quic: use the listener for Retry and Version Negotiation emission
+    - MINOR: quic: define a function to emit a datagram on a listener socket
+    - BUG/MEDIUM: quic: use datagram destination as source for Retry
+    - BUG/MINOR: quic: use datagram destination as source for stateless reset
+    - BUG/MINOR: quic: use datagram destination as source for version negotiation
+    - REGTESTS: quic: check Retry source address on a wildcard listener
+    - BUG/MINOR: quic: handle EINTR on emission of packets without connection
+    - MINOR: quic: rename confusing qc_purge_txbuf() to qc_flush_txbuf()
+    - BUG/MEDIUM: mux_quic: prevent uaf on fctl frame after send error
+    - BUG/MINOR: mux_quic: prevent RS/SS on unistream with hq-interop
+    - BUG/MINOR: check: do not inspect errno if conn FDLESS
+    - BUG/MINOR: mux_quic: do not crash on SE_SHR_DRAIN shut
+    - MEDIUM: quic: implement the AEAD confidentiality limit
+    - OPTIM: quic: use native HKDF APIs where available
+    - TESTS: quic: add HKDF unit tests using RFC 5869 vectors
+    - BUG/MEDIUM: peers: keep the earliest sync task deadline
+    - DOC: config: explain per ACL line limitations
+    - MINOR: quic: use the same HP encryption helpers for RX and TX
+    - BUG/MINOR: quic: valid NEW_TOKEN connections are counted as half-open
+    - BUG/MEDIUM: cli: Fix parsing of big payloads with dynamically allocated buffer
+    - BUG/MINOR: filters: fix silent compression disable with legacy "filter compression" first
+    - MINOR: filters: Support the global side in filter_place_class()
+    - OPTIMIZE: stream: Stop holding a reference on the frontend during stream_free()
+    - BUG/MEDIUM: mux-h1: Don't close the connection on a payload parsing error
+    - BUG/MEDIUM: h1: make the Connection/Upgrade headers cleanup idempotent
+    - BUG/MINOR: h1: keep accepting unsafe violations after a parser reset
+    - BUG/MEDIUM: h1: don't rewrite the Upgrade header when not cleaning headers
+    - BUG/MEDIUM: h1-htx: don't stall on messages ending exactly at the buffer's end
+    - BUG/MEDIUM: mux-h1: don't truncate the response when closing after draining
+    - BUG/MEDIUM: mux-h1: don't truncate responses on soft-stop
+    - BUG/MINOR: h1: don't use uninitialized start line pointers when restarting
+    - BUG/MINOR: mux-h1: only reset the session's timing info on the frontend side
+    - BUG/MINOR: mux-h1: fix the open streams counter on stream creation failure
+    - BUG/MINOR: mux-h1: wake the connection up when a pending error can be sent
+    - BUG/MINOR: mux-h1: don't dereference a NULL opposite sedesc in h1_fastfwd()
+    - BUG/MEDIUM: h1: reject CONNECT request targets other than "host:port"
+    - BUG/MEDIUM: mux-h1: don't lose the end of the previous chunk in h1_make_chunk()
+    - BUG/MEDIUM: mux-h1: don't stall when draining more than a buffer of data
+    - BUG/MINOR: mux-h1: reset the content-length/chunking state after a 1xx response
+    - BUG/MINOR: mux-h1: don't keep fast-forwarding disabled for the next streams
+    - BUG/MINOR: mux-h1: don't report a 408 error on timeout of a closed connection
+    - BUG/MEDIUM: mux-h1: don't swap buffers when transferring data with a reserved offset
+    - BUG/MINOR: mux-h1: report payload parsing glitches to the session
+    - BUG/MEDIUM: mux-h1: don't lose error responses once a content-length was parsed
+    - BUG/MEDIUM: h1: build a missing Host header from the authority of the URI
+    - BUG/MINOR: h1: reject CONNECT authorities with an empty host
+    - BUG/MINOR: h1: forget a previous pass' results when parsing headers only
+    - BUG/MEDIUM: mux-h1: don't send chunked responses to HTTP/1.0 clients
+    - BUG/MINOR: mux-h1: convert the <from> argument of h1-case-adjust to lower case
+    - BUG/MEDIUM: h1: reject absolute http(s) URIs with an empty host
+    - BUG/MINOR: mux-h1: only rely on the client's method for bodyless responses
+    - BUG/MINOR: mux-h1: search the websocket key in the right message
+    - BUG/MINOR: mux-h1: don't forward request trailers named like server name header
+    - BUG/MEDIUM: mux-h1: don't spread-close idle conns with idle-close-on-response
+    - BUG/MINOR: mux-h1: Don't subscribe for receives once read0 or error received
+    - BUILD: makefile: better support git worktrees
+    - BUG/MINOR: sym: don't crash on images linked at a fixed base
+    - CI: github: run several weekly/monthly jobs daily
+    - DOC: remove the AWS-LC CI image
+    - BUG/MEDIUM: resolvers: reject too long labels when encoding a name
+    - CI: github: fix VTest cache paths in container jobs
+    - BUG/MAJOR: mux-quic: do not crash on connection error after glitch threshold
+    - BUG/MAJOR: mux-h2: split absolute URIs like the HTTP analysers do on output
+    - BUG/MEDIUM: h3: split absolute URIs like the HTTP analysers do on output
+    - BUG/MINOR: filters: free the error message of the filter-config parsers
+    - MINOR: filters: initialize the filter classes before the register stage
+    - BUG/MEDIUM: bwlim: never burst more than the pending data in input
+    - MINOR: filters: Move cache-store after decompression in global classes list
+    - BUG/MINOR: sample: Fix wrong 'base64urldec' return value check in 'jwt_member_query'
+    - BUG/MEDIUM: h3: fix BUG_ON() crash with glitch on SETTINGS parsing
+    - BUG/MEDIUM: h3: fix BUG_ON() crash with glitch on GOAWAY parsing
+    - BUG/MEDIUM: h3: fix BUG_ON() crash with glitch after QPACK dec err
+    - MINOR: h3: remove dead code on h3_rcv_buf() error path
+    - BUG/MINOR: h3: fix risk of BUG_ON() crash with glitch on unknown frame
+    - BUG/MINOR: h3: fix BUG_ON() crash with glitch on htx_set_eom() failure
+    - REGTESTS: filters: Fix the global filters order as reported on the CLI
+    - Revert "BUG/MAJOR: mux-quic: do not crash on connection error after glitch threshold"
+    - MEDIUM: filters: automatically order the implicit core filters in legacy mode
+    - DOC: filters: document the automatic ordering of the legacy core filters
+    - MEDIUM: filters: eval the backend instances first on the response path
+    - MEDIUM: filters: eval the legacy backend filters first on the response path
+    - BUG/MINOR: flt-decomp: Report error about filter order in lagacy mode only
+    - BUG/MEDIUM: h3: fix memory corruption on trailers parsing realign
+    - BUG/MINOR: mux_quic: wake streams on soft-stop using listener socket
+    - BUG/MINOR: h3: enforce maxrewrite on request headers
+    - BUG/MINOR: h3: fix crash with maxrewrite on response headers
+    - BUG/MINOR: cfgparse/peers: warn and prevent undefined behavior when peers is missing bind info
+    - BUG/MEDIUM: task: do not destroy twice the tasks already killed in mworker_cleantasks()
+    - BUG/MEDIUM: mux_quic: fix crash on QCS double remote close
+    - BUG/MEDIUM: mux_quic: ensure FIN is reported after Rx data transfer
+    - MINOR: thread: split out thread_bind_to_cpu_map()
+    - OPTIM: fd: Make each thread group's FD table NUMA-local
+    - OPTIM: fd: make each thread group's polled_mask NUMA-local
+    - MINOR: ssl: Add new 'pha' server option
+    - BUILD: thread: fix builds without thread support
+    - DOC: config: add missing acme.scheduler in the global index
+    - MINOR: tools: add find_word_index_in_array() to find a keyword
+    - MINOR: http/config: add acceptable-http-re{quest,sponse}-violations
+    - MINOR: http: add one control per existing HTTP violation
+    - MEDIUM: http: add the "short-status-code" violation exception
+    - BUG/MINOR: jwt: don't truncate binary HMAC secrets at the first NULL byte
+    - BUG/MINOR: jws: fix ECDSA_SIG leak in jws_b64_signature()
+    - BUG/MINOR: jwe: only accept exact "alg" and "enc" names in JWE tokens
+    - BUG/MINOR: jwe: reject non-empty encrypted keys with "dir" and "ECDH-ES"
+    - BUG/MINOR: jwe: only match the exact "ALL" word in jwt.decrypt_{alg,enc}_list
+    - BUG/MINOR: jwt: enforce the ECDSA signature length in jwt_verify
+    - BUG/MINOR: mux-quic: prevent send corruption on buf realign
+    - BUG/MEDIUM: mux_quic: fix FIN received with an already known offset
+    - BUG/MINOR: quic: fix "show quic" filtered connection
+    - BUG/MINOR: mux_quic: fix MAX_STREAMS limit
+    - BUG/MINOR: mux_quic: fix overflow on avail_streams
+    - MINOR: cli/server: speed up proxy/server purge via the CLI
+    - BUG/MINOR: promex: don't loop forever when a module skips a time series
+    - BUG/MINOR: http-ana: call the http_reset filter callback on L7 retries
+    - DOC: filters: channel_start_analyze is called again on L7 retries
+    - BUG/MEDIUM: server: Don't use the cached ALPN for websocket
+    - BUG/MAJOR: h3: always check :path for all scheme values
+    - BUG/MEDIUM: h3: prevent conn failure on trailers decoding without space
+    - BUG/MINOR: h3: do not retry on trailers too large
+    - BUG/MINOR: h3: do not wait after Tx realloc failure
+    - BUG/MEDIUM: connection: don't leak the fd of an accepted connection
+    - BUG/MINOR: hlua/filters: Track the payload phase per channel
+    - BUG/MEDIUM: hlua/filters: make HTTPMessage.eom/may_recv relative to the filter's data
+    - MINOR: hlua/filters: Add HTTPMessage.closed() to check if input is closed
+    - BUG/MINOR: hlua/filters: Restrict HTTPMessage.set_eom/unset_eom to visible data
+    - BUG/MEDIUM: hlua/filters: Make Channel.may_recv relative to the filter's data
+    - BUG/MEDIUM: hlua/filters: Never arm the analysis timer for the lua wake-ups
+    - BUG/MEDIUM: filters: Don't propagate a close while a filter waits on a channel
+    - BUG/MEDIUM: deviceatlas: isolate threads while swapping the reloaded atlas
+    - BUG/MINOR: deviceatlas: refresh the user-agent evidence id after a reload
+    - BUG/MINOR: deviceatlas: ignore the scheduler's update in progress marker
+    - BUG/MINOR: deviceatlas: use the result's property type when printing
+    - BUG/MINOR: deviceatlas: consume a scheduled update before loading it
+    - BUG/MEDIUM: peers: do not keep a dict entry cached when its update was not sent
+    - BUG/MEDIUM: peers: fix byte order of last_get on updates without identifier
+    - BUG/MINOR: peers: forget the appctx when the peer session init fails
+    - BUG/MINOR: peers: don't lose the peer's version when the hello is fragmented
+    - BUG/MINOR: peers: reject over-long varints in intdecode()
+    - BUG/MINOR: peers: account incoming sessions in the per-thread applet counters
+    - BUG/MINOR: peers: compare the received expiration date as unsigned
+    - BUG/MINOR: peers: don't use remote table definitions from a previous session
+    - BUG/MINOR: peers: forget the remote table when ignoring an unknown key type
+    - BUG/MEDIUM: listener: enforce rate-limit sessions across thread groups
+    - BUG/MINOR: hlua: unlock Patref before add_bulk type error
+    - MINOR: filters: Set the class flags on filter class registration
+    - MINOR: filters: Deduce the default filter API from the implied filters
+    - MINOR: filters: Warn about ignored legacy filters for a proxy
+    - MINOR: filters: Declare a proxy as using the legacy API before parsing filter directive
+    - MINOR: filters: Add a function to remove a filter conf from all proxy lists
+    - MINOR: filters: Add a function to find a legacy filter configuration during parsing
+    - MINOR: cache: Stop to explicitly loop on the proxy's filter_configs list
+    - MINOR: fcgi-app: Stop to explicitly loop on the proxy's filter_configs list
+    - MINOR: bwlim: Stop to explicitly loop on the proxy's filter_configs list
+    - MINOR: flt-decomp: Stop to explicitly loop on the proxy's filter_configs list
+    - MINOR: flt-http-comp: Stop to explicitly loop on the proxy's filter_configs list
+    - MINOR: filters: Document the public helpers missing from the filters guide
+    - BUG/MEDIUM: applet: check buffer sizes before HTX transfer
+    - DOC: config: Fix documentation about dot character in variable names
+    - DOC: configuration: document library compatibility for TLS keywords
+    - DOC: configuration: document library compatibility for pha
+    - MINOR: filters: Pre-initialize the instances in check_config_validity()
+    - BUG/MAJOR: mux_quic: remove data not yet sent on reset stream
+    - BUG/MEDIUM: mux_quic: do not reset timeout after shut
+    - BUG/MINOR: mux_quic: fix possible BUG_ON() after frame alloc failure
+    - BUG/MINOR: mux_quic: fix ALPN retrieval from server
+    - BUG/MINOR: mux_quic: fix stream elasticity dec on qcm_init() failure
+    - BUG/MINOR: h3: reset HTX message after trailers parsing error
+    - BUG/MINOR: thread: don't turn reversed thread ranges into "even"
+    - BUG/MINOR: tools: make strl2irc() and strl2llrc() reject a lone minus sign
+    - BUG/MINOR: cfgparse-listen: reject negative capture lengths
+    - BUG/MINOR: stick-table: reject negative stick counter IDs in sc-* actions
+    - CLEANUP: resolvers: don't close the nameserver socket twice on deinit
+    - BUG/MINOR: connection: check the NetScaler CIP header length against received data
+    - BUG/MINOR: connection: check the IP header length in NetScaler CIP
+    - BUG/MEDIUM: ssl-gencert: fix a NULL dereference with QUIC listeners
+    - BUG/MEDIUM: ssl: fix an out-of-bounds read on SSL_CTX switch with a .sctl file
+    - BUG/MEDIUM: ssl: support SCTL with AWS-LC
+    - BUG/MINOR: ssl: fix a double-free of the .sctl buffer with several contexts
+    - BUG/MINOR: ssl: support SCTL in TLS 1.3 Certificate messages
+    - DOC: configuration: clarify SCT support by TLS library and version
+    - BUG/MINOR: server: free the sample expression when it is not usable on a server
+    - BUG/MEDIUM: mux-spop: Don't include DALLOC/DFULL flags in SPOP_CF_DEM_BLOCK_ANY
+    - DOC: config: add missing entry for health checks
+    - IMPORT: slz: update slz to version 1.4-dev3
+
 2026/10/14 : 3.5-dev9
     - CLEANUP: sym: move symbol resolution out of tools.c
     - MINOR: sym: add an in-process symbol table for backtraces
