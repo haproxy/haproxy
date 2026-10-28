@@ -77,11 +77,12 @@ struct slz_stream {
 #else
 	uint32_t queue; /* last pending bits, LSB first, faster on 32-bit archs */
 #endif
-	uint32_t qbits; /* number of bits in queue, < 8 on 32-bit, < 32 on 64-bit */
 	unsigned char *outbuf; /* set by encode() */
-	uint16_t state; /* one of slz_state */
-	uint8_t level:1; /* 0 = no compression, 1 = compression */
+	uint32_t qbits; /* number of bits in queue, < 8 on 32-bit, < 32 on 64-bit */
+	uint32_t state;   /* one of slz_state */
+	uint8_t unused:2; /* free for future use */
 	uint8_t format:2; /* SLZ_FMT_* */
+	uint8_t level:4;  /* 0 = no compression, 1..15 = compression */
 	uint8_t debt;    /* number of bits by which the fixed huffman encoding is
 	                  * currently behind the equivalent stored blocks, see
 	                  * SLZ_MAX_DEBT in slz.c
@@ -89,6 +90,15 @@ struct slz_stream {
 	uint32_t crc32;
 	uint32_t ilen;
 };
+
+/* Note about output buffer sizing: encode functions below do not take an
+ * output len, instead the caller must provide a "large enough" output buffer.
+ * When enabling direct queuing via SLZ_DIRECT_ENQUEUE24, the 3 bytes following
+ * the end of the buffer may be written to, and the caller must take that into
+ * account by allocating a buffer that is at least 3 bytes larger than needed.
+ * And when using SLZ_DIRECT_ENQUEUE56, it's up to 7 extra bytes that may be
+ * needed.
+ */
 
 /* Functions specific to rfc1951 (deflate) */
 void slz_prepare_dist_table(); /* obsolete, not needed anymore */
@@ -240,6 +250,81 @@ enum uslz_stream_state {
 	USLZ_ST_CHECK_CKSUM,
 };
 
+/* Width, in bits, of the direct lookup tables used to decode dynamic huffman
+ * codes: one for the literal/length alphabet, one for the distance alphabet.
+ * A code no longer than the table is decoded in a single load, a longer one
+ * falls back to walking the tree, which costs one dependent load per bit.
+ * Each table costs (1 << bits) * 2 bytes in *every* stream state, so this is
+ * a direct trade between memory and decoding speed. Setting a width to zero
+ * removes the corresponding table from the state along with the code that
+ * uses it, which is the right thing for an application holding many
+ * mostly-idle streams.
+ *
+ * These are deliberately not build options. They set the size and the layout
+ * of struct uslz_stream, which is exported and instantiated by the calling
+ * application, so a -D reaching only one of the two sides would leave the
+ * library and the application disagreeing on the offset of every field past
+ * fast_lit[]: the application would allocate 1568 bytes where the library
+ * writes 2848, and nothing would detect it. Defining them unconditionally is
+ * what prevents this, the definition below wins in every translation unit
+ * that includes this file and a -D trying to change them only earns a
+ * redefinition warning. The values can still be changed, but only here, and
+ * doing so requires rebuilding the library *and* everything that instantiates
+ * a stream.
+ *
+ * The performance below was measured on 8 different machines decoding a
+ * silesia.tar compressed by gzip, with various combinations of literal length
+ * bits and distance bits. The tests were lacking several optimizations that
+ * were later added, so the numbers are off compared to current code, but their
+ * ratios are still correct. The rates are expressed in MB/s of output stream
+ * after decompression:
+ *
+ *   lit/dist  state    arl  spr sklx 7800 7v13 5105 atom   n1
+ *     0/0     1728 B   237  186  178  232  174  124   50  124
+ *     0/7     1984 B   285  223  199  282  206  144   56  143
+ *     9/0     2752 B   379  286  313  329  239  175   66  182
+ *     8/6     2368 B   433  342  323  378  273  190   69  198
+ *     9/7     3008 B   508  402  381  419  303  222   76  229
+ *    10/7     4032 B   547  437  403  445  324  238   78  245  <= current
+ *    11/7     6080 B   556  446  409  451  325  245   79  250
+ *
+ * It's important not to forget that decompressing gzip requires to keep a
+ * 32 kB sliding window, so the real sizes are those obtained by adding
+ * 32768 to the values above. Once taken into account, and measures reported
+ * as extra percentages compared to 0/0, the best choices appear more clearly:
+ *
+ *   lit/dist   memory    arl   spr  sklx  7800  7v13  5105  atom    n1
+ *   0/0      34496 B    237   186   178   232   174   124    50   124  MB/s
+ *   0/7        +0.7%   +20%  +20%  +12%  +21%  +18%  +17%  +11%  +15%
+ *   9/0        +3.0%   +60%  +54%  +76%  +42%  +37%  +41%  +32%  +46%
+ *   8/6        +1.9%   +83%  +84%  +82%  +63%  +57%  +54%  +37%  +59%
+ *   9/7        +3.7%  +114% +117% +115%  +80%  +74%  +80%  +52%  +84%
+ *   10/7       +6.7%  +131% +135% +127%  +92%  +86%  +93%  +56%  +97%  <= current
+ *   11/7      +12.6%  +135% +140% +130%  +94%  +87%  +98%  +58% +101%
+ *
+ * Each step then costs a few percent of the per-stream footprint and buys
+ * tens of points on that scale, until it stops:
+ *
+ *     8/6 -> 9/7     memory +1.8%    speed +14 to +33 points
+ *     9/7 -> 10/7    memory +2.9%    speed  +5 to +18 points
+ *    10/7 -> 11/7    memory +5.6%    speed  +1 to  +5 points
+ *
+ * 10/7 is where the curve bends, and that is what is set below: against no
+ * table at all it buys between 56% (the Atom) and 135% (the Sapphire Rapids)
+ * on a dynamic stream for 6.7% more memory per stream, while the step past it
+ * costs twice as much memory for a tenth of the speed.
+ *
+ * An embedded application that decodes nothing but slz output is the
+ * exception: those streams never look these tables up, so it can set both
+ * widths to zero and get the 2304 bytes back.
+ */
+#define USLZ_FAST_BITS 10
+#define USLZ_FAST_DBITS 7
+
+#if USLZ_FAST_BITS > 15 || USLZ_FAST_DBITS > 15
+#error "USLZ_FAST_BITS and USLZ_FAST_DBITS must not exceed 15, the longest deflate code"
+#endif
+
 /* decompression state */
 struct uslz_stream {
 	enum uslz_stream_state state;         /* parsing state, USLZ_ST_* */
@@ -262,13 +347,13 @@ struct uslz_stream {
 	unsigned long dec_bofs;               /* offset used to read the current decoded block */
 	unsigned long dec_bsize;              /* size of the current decoded block */
 
-	uint64_t bit_accum;                   /* bit accumulator (used by GETBITS() macro) */
 	unsigned char num_bits;               /* number of bits in the accumulator */
 
 	unsigned char block_type;             /* compressed block type */
 	unsigned int huff_index;              /* current index for pending huffman decoding
 	                                       * attempt
 	                                       */
+	unsigned long bit_accum;              /* bit accumulator (used by GETBITS() macro) */
 	unsigned int symbol;                  /* symbol code currently being processed */
 	unsigned int last_value;              /* last value read for length / distance table
 	                                       * construction
@@ -297,6 +382,17 @@ struct uslz_stream {
 	 * enough space for that alphabet.
 	 */
 	short literal_table[288*2-2];
+	/* Direct lookup table for the literal/length alphabet, indexed by the
+	 * next USLZ_FAST_BITS bits of the stream. Same layout as
+	 * fixed_huff_dec_table: the symbol in the upper bits and the code
+	 * length in the low 4 bits, a length of zero meaning the code is
+	 * longer than the table and literal_table[] has to be walked.
+	 */
+	uint16_t fast_lit[1 << USLZ_FAST_BITS];
+
+	/* same for the distance alphabet */
+	uint16_t fast_dist[1 << USLZ_FAST_DBITS];
+
 	union {
 		/* Code-to-symbol conversion table for the alphabet used for
 		 * distances.  This alphabet consists of 32 symbols, 2 of
@@ -310,8 +406,8 @@ struct uslz_stream {
 		 */
 		struct {
 			unsigned char buf[10];
+			unsigned char gzip_flags;
 			int buf_len;
-			char gzip_flags;
 		} hdr_detect;
 	};
 	short codelen_table[19*2-2];          /* Code-to-symbol conversion table for the alphabet

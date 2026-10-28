@@ -22,9 +22,20 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "import/slz.h"
-#include "import/slz-prv.h"
-#include "import/slz-tables.h"
+#include "slz.h"
+#include "slz-prv.h"
+#include "tables.h"
+
+/* We'll tentatively use PCLMULQDQ for CRC calculation on x86_64 CPUs even if
+ * not enabled at build time, unless SLZ_NO_PCLMUL is set to disable it. This
+ * is done by detecting its support at boot time on supported compilers.
+ */
+#if !defined(SLZ_NO_PCLMUL) && (defined(__x86_64__)) && \
+    (defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 6))
+#define SLZ_USE_PCLMUL
+#include <immintrin.h>
+static int slz_have_pclmul = 0;
+#endif
 
 /*
  * =============================================================================
@@ -95,9 +106,10 @@ uint32_t slz_crc32_by1(uint32_t crc, const unsigned char *buf, int len)
 }
 
 /* This version computes the crc32 of <buf> over <len> bytes, doing most of it
- * in 32-bit chunks.
+ * in 32-bit chunks. It is the portable implementation, and it also finishes
+ * what the carry-less one below leaves behind.
  */
-uint32_t slz_crc32_by4(uint32_t crc, const unsigned char *buf, int len)
+static uint32_t crc32_by4_tab(uint32_t crc, const unsigned char *buf, int len)
 {
 	const unsigned char *end = buf + len;
 
@@ -172,6 +184,109 @@ uint32_t slz_crc32_by4(uint32_t crc, const unsigned char *buf, int len)
 	while (buf < end)
 		crc = crc32_char(crc, *buf++);
 	return crc;
+}
+
+#if defined(SLZ_USE_PCLMUL)
+
+/* Carry-less folding implementation of the very same CRC-32, using PCLMULQDQ.
+ *
+ * The state is a 128-bit polynomial in the same reflected representation as the
+ * one the table code works in, which makes the final reduction trivial: it is
+ * just the table code run over the accumulator's 16 bytes. Folding a state
+ * forward by N bytes means multiplying it by x^(8N) modulo the CRC polynomial,
+ * which splits over the two halves of the register into two carry-less
+ * multiplications by a constant:
+ *
+ *   fold_N(Q) = clmul(Q.lo, x^(8N+95) mod P) ^ clmul(Q.hi, x^(8N+31) mod P)
+ *
+ * The constants were derived from the CRC recurrence rather than copied from
+ * elsewhere, and the whole scheme was verified against the table code for every
+ * length and starting value before being written here; see results.md.
+ *
+ * Four accumulators are folded by 64 bytes each so that the multiplier latency,
+ * which is much higher than its throughput, is not what limits the loop. They
+ * are combined at the end by folding each into the next by 16 bytes.
+ */
+__attribute__((target("pclmul,sse4.1"))) /* pretend -mpclmul -msse4.1 was passed */
+static uint32_t crc32_pclmul(uint32_t crc, const unsigned char *buf, int len)
+{
+	/* x^159 and x^95 : fold by 16 bytes */
+	const __m128i k16 = _mm_setr_epi32(0xae689191, 0, 0xccaa009e, 0);
+	/* x^543 and x^479 : fold by 64 bytes */
+	const __m128i k64 = _mm_setr_epi32(0x8f352d95, 0, 0x1d9513d7, 0);
+	unsigned char tmp[16] __attribute__((aligned(16)));
+	__m128i q, q0, q1, q2, q3;
+	int blk = len & ~15;
+
+	if (blk >= 64) {
+		q0 = _mm_xor_si128(_mm_loadu_si128((const __m128i *)(buf +  0)),
+		                   _mm_cvtsi32_si128(~crc));
+		q1 = _mm_loadu_si128((const __m128i *)(buf + 16));
+		q2 = _mm_loadu_si128((const __m128i *)(buf + 32));
+		q3 = _mm_loadu_si128((const __m128i *)(buf + 48));
+		buf += 64; blk -= 64; len -= 64;
+
+		while (blk >= 64) {
+			q0 = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q0, k64, 0x00),
+			                                 _mm_clmulepi64_si128(q0, k64, 0x11)),
+			                   _mm_loadu_si128((const __m128i *)(buf +  0)));
+			q1 = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q1, k64, 0x00),
+			                                 _mm_clmulepi64_si128(q1, k64, 0x11)),
+			                   _mm_loadu_si128((const __m128i *)(buf + 16)));
+			q2 = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q2, k64, 0x00),
+			                                 _mm_clmulepi64_si128(q2, k64, 0x11)),
+			                   _mm_loadu_si128((const __m128i *)(buf + 32)));
+			q3 = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q3, k64, 0x00),
+			                                 _mm_clmulepi64_si128(q3, k64, 0x11)),
+			                   _mm_loadu_si128((const __m128i *)(buf + 48)));
+			buf += 64; blk -= 64; len -= 64;
+		}
+
+		/* combine the four accumulators, oldest first */
+		q = q0;
+		q = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q, k16, 0x00),
+		                                _mm_clmulepi64_si128(q, k16, 0x11)), q1);
+		q = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q, k16, 0x00),
+		                                _mm_clmulepi64_si128(q, k16, 0x11)), q2);
+		q = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q, k16, 0x00),
+		                                _mm_clmulepi64_si128(q, k16, 0x11)), q3);
+	}
+	else if (blk >= 16) {
+		q = _mm_xor_si128(_mm_loadu_si128((const __m128i *)buf),
+		                  _mm_cvtsi32_si128(~crc));
+		buf += 16; blk -= 16; len -= 16;
+	}
+	else
+		return crc32_by4_tab(crc, buf, len);
+
+	while (blk >= 16) {
+		q = _mm_xor_si128(_mm_xor_si128(_mm_clmulepi64_si128(q, k16, 0x00),
+		                                _mm_clmulepi64_si128(q, k16, 0x11)),
+		                  _mm_loadu_si128((const __m128i *)buf));
+		buf += 16; blk -= 16; len -= 16;
+	}
+
+	/* The accumulator is a polynomial in exactly the representation the table
+	 * code consumes, so reducing it is just running that code over its 16
+	 * bytes from an all-ones state. Then the 0 to 15 trailing bytes.
+	 */
+	_mm_store_si128((__m128i *)tmp, q);
+	crc = crc32_by4_tab(~0U, tmp, 16);
+	return crc32_by4_tab(crc, buf, len);
+}
+
+#endif /* SLZ_USE_PCLMUL */
+
+/* Computes the crc32 of <buf> over <len> bytes, using the carry-less
+ * implementation when the CPU supports it.
+ */
+uint32_t slz_crc32_by4(uint32_t crc, const unsigned char *buf, int len)
+{
+#if defined(SLZ_USE_PCLMUL)
+	if (__builtin_expect(slz_have_pclmul && len >= 16, 1))
+		return crc32_pclmul(crc, buf, len);
+#endif
+	return crc32_by4_tab(crc, buf, len);
 }
 
 /* Original version from RFC1950, verified and works OK */
@@ -298,4 +413,9 @@ __attribute__((constructor))
 static void __slz_common_initialize(void)
 {
 	__slz_make_crc_table(); // used by both slz and uslz
+
+#if defined(SLZ_USE_PCLMUL)
+	slz_have_pclmul = __builtin_cpu_supports("pclmul") &&
+	                  __builtin_cpu_supports("sse4.1");
+#endif
 }

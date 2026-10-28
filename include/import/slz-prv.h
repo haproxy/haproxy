@@ -48,8 +48,115 @@
 #define HAVE_FAST_MULT
 #endif
 
-/* Log2 of the size of the hash table used for the references table. */
-#define HASH_BITS 13
+/* returns the max of <a> and <b>, must be constant since evaluated twice */
+#define MIN_C(a, b) ({				\
+	(a < b) ? a : b;			\
+})
+
+/* returns the min of <a> and <b>; both must be of compatible types and are
+ * evaluated exactly once.
+ */
+#define MIN(a, b) ({				\
+	typeof(a) _a = (a);			\
+	typeof(a) _b = (b);			\
+	(_a < _b) ? _a : _b;			\
+})
+
+/* returns the min of <a> and <b>; both cast to type <t>, are evaluated exactly
+ * once.
+ */
+#define MIN_T(t, a, b) ({			\
+	t _a = (t)(a);				\
+	t _b = (t)(b);				\
+	(_a < _b) ? _a : _b;			\
+})
+
+/* returns the max of <a> and <b>, must be constant since evaluated twice */
+#define MAX_C(a, b) ({				\
+	(a > b) ? a : b;			\
+})
+
+/* returns the max of <a> and <b>; both must be of compatible types and are
+ * evaluated exactly once.
+ */
+#define MAX(a, b) ({				\
+	typeof(a) _a = (a);			\
+	typeof(a) _b = (b);			\
+	(_a > _b) ? _a : _b;			\
+})
+
+/* returns the max of <a> and <b>; both cast to type <t>, are evaluated exactly
+ * once.
+ */
+#define MAX_T(t, a, b) ({			\
+	t _a = (t)(a);				\
+	t _b = (t)(b);				\
+	(_a > _b) ? _a : _b;			\
+})
+
+
+/* reads an unaligned 32-bit word in little endian order */
+static inline uint32_t read_le32(const void *p)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	const union {  uint32_t u32; } __attribute__((packed)) *u = p;
+	return u->u32;
+#else
+	const uint8_t *u8 = p;
+	return (uint32_t)u8[0] | ((uint32_t)u8[1] << 8) |
+	       ((uint32_t)u8[2] << 16) | ((uint32_t)u8[3] << 24);
+#endif
+}
+
+/* reads an unaligned 64-bit word in little endian order, same as read_le32() */
+static inline uint64_t read_le64(const void *p)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	const union {  uint64_t u64; } __attribute__((packed)) *u = p;
+	return u->u64;
+#else
+	const uint8_t *u8 = p;
+	return (uint64_t)read_le32(u8) | ((uint64_t)read_le32(u8 + 4) << 32);
+#endif
+}
+
+/* reads an unaligned machine word in little endian order, same as read_le32() */
+static inline unsigned long read_lelong(const void *p)
+{
+#if __SIZEOF_LONG__ > 4
+	return read_le64(p);
+#else
+	return read_le32(p);
+#endif
+}
+
+/* writes an unaligned 32-bit word in little endian order */
+static inline void write_le32(void *p, uint32_t v)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	union {  uint32_t u32; } __attribute__((packed)) *u = p;
+	u->u32 = v;
+#else
+	uint8_t *u8 = p;
+	u8[0] = v;
+	u8[1] = v >> 8;
+	u8[2] = v >> 16;
+	u8[3] = v >> 24;
+#endif
+}
+
+/* writes an unaligned 16-bit word in little order */
+static inline void write_le16(void *p, uint16_t v)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+	union {  uint16_t u16; } __attribute__((packed)) *u = p;
+	u->u16 = v;
+#else
+	uint8_t *u8 = p;
+	u8[0] = v;
+	u8[1] = v >> 8;
+#endif
+}
 
 /* uses the most suitable crc32 function to update crc on <buf, len> */
 static inline uint32_t update_crc(uint32_t crc, const void *buf, int len)
@@ -57,127 +164,58 @@ static inline uint32_t update_crc(uint32_t crc, const void *buf, int len)
 	return slz_crc32_by4(crc, buf, len);
 }
 
-/* This hash provides good average results on HTML contents, and is among the
- * few which provide almost optimal results on various different pages.
+/* reverses bits in 5bits len <v> input and returns the new value.
+ * ie: 01100 becomes 00110. Bits 5 and above are ignored.
  */
-static inline uint32_t slz_hash(uint32_t a)
+#if defined(__aarch64__) || defined(__ARM_ARCH_7A__)
+
+/* ARM >= v7 has a fast rbit instruction */
+static inline uint32_t rbit5(uint32_t v)
 {
-#if defined(__ARM_FEATURE_CRC32)
-#  if defined(__ARM_ARCH_ISA_A64)
+#if defined(__ARM_ARCH_ISA_A64)
 	// 64 bit mode
-	__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(a) : "r"(0));
-#  else
+	__asm__ ("rbit %w0, %w0" : "+r" (v));
+#else
 	// 32 bit mode (e.g. armv7 compiler building for armv8
-	__asm__ volatile("crc32w %0,%0,%1" : "+r"(a) : "r"(0));
-#  endif
-	return a >> (32 - HASH_BITS);
-#elif defined(__SSE4_2__) && defined(USE_CRC32C_HASH)
-	// SSE 4.2 offers CRC32C which is a bit slower than the multiply
-	// but provides a slightly smoother hash
-	__asm__ volatile("crc32l %1,%0" : "+r"(a) : "r"(0));
-	return a >> (32 - HASH_BITS);
-#elif defined(HAVE_FAST_MULT)
-	// optimal factor for HASH_BITS=12 and HASH_BITS=13 among 48k tested: 0x1af42f
-	return (a * 0x1af42f) >> (32 - HASH_BITS);
-#else
-	return ((a << 19) + (a << 6) - a) >> (32 - HASH_BITS);
+	__asm__ ("rbit %0, %0" : "+r" (v));
 #endif
+	return v >> 27;
 }
 
-/* This function compares buffers <a> and <b> and reads 32 or 64 bits at a time
- * during the approach. It makes us of unaligned little endian memory accesses
- * on capable architectures. <max> is the maximum number of bytes that can be
- * read, so both <a> and <b> must have at least <max> bytes ahead. <max> may
- * safely be null or negative if that simplifies computations in the caller.
- */
-static inline long memmatch(const unsigned char *a, const unsigned char *b, long max)
-{
-	long len = 0;
+#else /* not arm */
 
-#ifdef UNALIGNED_LE_OK
-	unsigned long xor;
-
-	while (1) {
-		if ((long)(len + 2 * sizeof(long)) > max) {
-			while (len < max) {
-				if (a[len] != b[len])
-					break;
-				len++;
-			}
-			return len;
-		}
-
-		xor = *(long *)&a[len] ^ *(long *)&b[len];
-		if (xor)
-			break;
-		len += sizeof(long);
-
-		xor = *(long *)&a[len] ^ *(long *)&b[len];
-		if (xor)
-			break;
-		len += sizeof(long);
-	}
-
-#if defined(__x86_64__) || defined(__i386__) || defined(__i486__) || defined(__i586__) || defined(__i686__)
-	/* x86 has bsf. We know that xor is non-null here */
-	asm("bsf %1,%0\n" : "=r"(xor) : "0" (xor));
-	return len + xor / 8;
-#else
-	if (sizeof(long) > 4 && !(xor & 0xffffffff)) {
-		/* This code is optimized out on 32-bit archs, but we still
-		 * need to shift in two passes to avoid a warning. It is
-		 * properly optimized out as a single shift.
-		 */
-		xor >>= 16; xor >>= 16;
-		if (xor & 0xffff) {
-			if (xor & 0xff)
-				return len + 4;
-			return len + 5;
-		}
-		if (xor & 0xffffff)
-			return len + 6;
-		return len + 7;
-	}
-
-	if (xor & 0xffff) {
-		if (xor & 0xff)
-			return len;
-		return len + 1;
-	}
-	if (xor & 0xffffff)
-		return len + 2;
-	return len + 3;
-#endif // x86
-
-#else // UNALIGNED_LE_OK
-	/* This is the generic version for big endian or unaligned-incompatible
-	 * architectures.
-	 */
-	while (len < max) {
-		if (a[len] != b[len])
-			break;
-		len++;
-	}
-	return len;
+#define rbit5(v) ({                                                             \
+	typeof(v) _v = (v);                                                     \
+	((0xf7b3d591e6a2c480ULL >> ((_v & 0x1e) * 2)) & 0xf) + ((_v & 1) << 4); \
+})
 
 #endif
-}
 
-/* helper function to reverse bits in <input> which is expected to be
- * <len> bits long.
+/* helper function to reverse up to 9 bits in <input> which is expected to be
+ * <len> bits long. The function might work with more than 9 bits in certain
+ * cases with no guarantees, so don't go over 9.
  */
-static inline short rev_short(short input, int len)
+static inline uint32_t rbit9(uint32_t input, int len)
 {
-	short ret = 0;
+#if defined(__aarch64__) || defined(__ARM_ARCH_7A__)
+	/* ARM >= v7 has a fast rbit instruction */
+	input <<= 32 - len; // align left before reversal
+#if defined(__ARM_ARCH_ISA_A64)
+	// 64 bit mode
+	__asm__ ("rbit %w0, %w0" : "+r" (input));
+#else
+	// 32 bit mode (e.g. armv7 compiler building for armv8
+	__asm__ ("rbit %0, %0" : "+r" (input));
+#endif
+	return input;
 
-	while (len) {
-		ret <<= 1;
-		ret |= (input & 1);
-		input >>= 1;
-		len--;
-	}
-
-	return ret;
+#else /* not arm */
+	uint32_t h, l;
+	h = input >> 5;
+	l = input;
+	h = rbit5(h); l = rbit5(l);
+	return ((l << 5) | h) >> (10 - len); /* new_h = [rev(l):5][rev(h):5] */
+#endif
 }
 
 #endif

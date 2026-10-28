@@ -24,9 +24,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "import/slz.h"
-#include "import/slz-prv.h"
-#include "import/slz-tables.h"
+#include "slz.h"
+#include "slz-prv.h"
+#include "tables.h"
 
 /* if PRECOMPUTE_TABLES not set, then tables.h does not provide fh_dist_table
  * table as we need to recompute it.
@@ -34,6 +34,95 @@
 #ifndef PRECOMPUTE_TABLES
 static uint32_t fh_dist_table[32768];
 #endif // ifndef PRECOMPUTE_TABLES
+
+/* The enqueue functions have two possible implementations. The default one
+ * only writes to the output buffer once it holds a whole store's worth of
+ * bits, which costs a test but never writes a byte it does not advance over.
+ * The "direct" one, selected by these macros, stores unconditionally and then
+ * advances by however many whole bytes the queue turned out to hold, leaving
+ * fewer than 8 bits behind. That saves a branch, and requires the caller to
+ * leave room past the output pointer for the widest store used (3 bytes for
+ * enqueue24() and enqueue8(), 7 for enqueue56()), since the bytes beyond the
+ * advance are rewritten by the next call. They're only usable for unaligned
+ * little endian archs and generally work better on modern x86_64. Tests show
+ * that x86_64 and arm64 benefit greatly from this.
+ *
+ * SLZ_DIRECT_ENQUEUE56 goes further by writing a whole length+distance pair in
+ * a single operation instead of two.
+ */
+
+/* directly write 32 bits at a time to output for up to 24 bits */
+#ifndef SLZ_DIRECT_ENQUEUE24
+# if defined(UNALIGNED_LE_OK)
+#  define SLZ_DIRECT_ENQUEUE24 1
+# else
+#  define SLZ_DIRECT_ENQUEUE24 0
+# endif
+#endif
+
+/* directly write 8 bits at a time to the output */
+#ifndef SLZ_DIRECT_ENQUEUE8
+# define SLZ_DIRECT_ENQUEUE8 SLZ_DIRECT_ENQUEUE24
+#endif
+
+/* directly write 64 bits at a tome to output for up to 56 bits */
+#ifndef SLZ_DIRECT_ENQUEUE56
+# if defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4) && defined(UNALIGNED_LE_OK)
+#  define SLZ_DIRECT_ENQUEUE56 1
+# else
+#  define SLZ_DIRECT_ENQUEUE56 0
+# endif
+#endif
+
+/* The direct enqueue8() writes a single byte, which is only enough because it
+ * assumes fewer than 8 bits were already queued. That holds for every enqueue
+ * variant except the conditional 64-bit enqueue24(), which deliberately lets
+ * up to 31 bits accumulate before storing. Combining the two would advance the
+ * output pointer over bytes that were never written.
+ */
+#if SLZ_DIRECT_ENQUEUE8 && !SLZ_DIRECT_ENQUEUE24 && \
+    defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4) && defined(UNALIGNED_LE_OK)
+# error "SLZ_DIRECT_ENQUEUE8 requires SLZ_DIRECT_ENQUEUE24 on this platform"
+#endif
+
+/* enqueue56() needs a 64-bit queue and unaligned little-endian stores. */
+#if SLZ_DIRECT_ENQUEUE56 && !(defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4) && defined(UNALIGNED_LE_OK))
+# undef SLZ_DIRECT_ENQUEUE56
+# define SLZ_DIRECT_ENQUEUE56 0
+#endif
+
+/* Also indexes the positions covered by the beginning of a match. This is quite
+ * important for example on HTML or other streams with lots of varying prefixes,
+ * especially when combined with the backwards match, because otherwise a likely
+ * repeating element will not be indexed, and when the window advances, its ref
+ * is likely to disappear, causing the next one to experience a miss.
+ */
+#ifndef SLZ_INSERT_SKIPPED
+# define SLZ_INSERT_SKIPPED 1
+#endif
+
+/* Skip large non-compressible areas and send them as literals to avoid wasting
+ * CPU trying to compress them. It's faster on incompressible data, at the cost
+ * of a slightly reduced compression ratio.
+ */
+#ifndef SLZ_LITERAL_SKIP
+# define SLZ_LITERAL_SKIP 1
+#endif
+
+/* Enables growing a match backwards over the literals that are still pending,
+ * see slz_rfc1951_encode(). Costs a little CPU on every match and gains about
+ * 1% of output. Tests show that matching up to 2 bytes brings almost optimal
+ * results at minimal extra cost, and that compression gains at 1 byte are
+ * higher than the CPU increase they cause, and tend to result in higher
+ * compression speed due to the savings on encoding. The only way to disable
+ * this optimization is to comment out this line.
+ */
+#define SLZ_BACKWARD_MATCH ((const int[]){ 0, 1, 2, 8 })
+
+/* Log2 of the size of the hash table used for the references table. */
+#ifndef SLZ_HASH_BITS
+# define SLZ_HASH_BITS 13
+#endif
 
 /* First, RFC1951-specific declarations and extracts from the RFC.
  *
@@ -158,6 +247,9 @@ Distance encoding :
 
 */
 
+/* for use to temporarily disable a builtin_expect */
+#define __no_builtin_expect(cond, exp) (cond)
+
 /* back references, built in a way that is optimal for 32/64 bits */
 /* format:
  * bit0..31  = word
@@ -171,19 +263,130 @@ union ref {
 	uint64_t by64;
 };
 
-#if defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4) && defined(UNALIGNED_LE_OK)
+/* This hash provides good average results on HTML contents, and is among the
+ * few which provide almost optimal results on various different pages.
+ */
+static inline uint32_t slz_hash(uint32_t a)
+{
+#if defined(__ARM_FEATURE_CRC32)
+#  if defined(__ARM_ARCH_ISA_A64)
+	// 64 bit mode
+	__asm__ volatile("crc32w %w0,%w0,%w1" : "+r"(a) : "r"(0));
+#  else
+	// 32 bit mode (e.g. armv7 compiler building for armv8
+	__asm__ volatile("crc32w %0,%0,%1" : "+r"(a) : "r"(0));
+#  endif
+#elif defined(__SSE4_2__) && defined(USE_CRC32C_HASH)
+	// SSE 4.2 offers CRC32C which is a bit slower than the multiply
+	// but provides a slightly smoother hash
+	__asm__ volatile("crc32l %1,%0" : "+r"(a) : "r"(0));
+#elif defined(HAVE_FAST_MULT)
+	// optimal factor for SLZ_HASH_BITS=12 and SLZ_HASH_BITS=13 among 48k tested: 0x1af42f
+	a = (a * 0x1af42f); // 12: 44.12, 13: 43.35
+	//return (a * 0x1aaee3) >> (32 - SLZ_HASH_BITS); // 12: 44.14, 13: 43.34
+	//return (a * 0x1aae0b) >> (32 - SLZ_HASH_BITS); // 12: 44.15, 13: 43.35, -30k
+	//return (a * 0x17e7bd) >> (32 - SLZ_HASH_BITS); // 12: 44.15, 13: 43.36
+	//return (a * 0xaae7b) >> (32 - SLZ_HASH_BITS); // 12: 44.22, 13:43.35, -1k
+	//return (a * 0xaaec3) >> (32 - SLZ_HASH_BITS); // 12: 44.20, 13: 43.35, -10k // 275659647
+#else
+	a = ((a << 19) + (a << 6) - a);
+#endif
+	return a >> (32 - SLZ_HASH_BITS);
+}
+
+/* This function compares buffers <a> and <b> and reads 32 or 64 bits at a time
+ * during the approach. It makes us of unaligned little endian memory accesses
+ * on capable architectures. <max> is the maximum number of bytes that can be
+ * read, so both <a> and <b> must have at least <max> bytes ahead. <max> may
+ * safely be null or negative if that simplifies computations in the caller.
+ */
+static inline long memmatch(const unsigned char *a, const unsigned char *b, long max)
+{
+	long len = 0;
+
+#ifdef UNALIGNED_LE_OK
+
+	while (len + 2 * (long)sizeof(long) - 1 < max) {
+		unsigned long xor;
+
+		xor = *(unsigned long *)&a[len] ^ *(unsigned long *)&b[len];
+		if (xor)
+			return len + (__builtin_ctzl(xor) >> 3);
+		len += (long)sizeof(long);
+
+		xor = *(unsigned long *)&a[len] ^ *(unsigned long *)&b[len];
+		if (xor)
+			return len + (__builtin_ctzl(xor) >> 3);
+		len += (long)sizeof(long);
+	}
+
+	while (len + (long)sizeof(long) - 1 < max) {
+		unsigned long xor;
+
+		xor = *(unsigned long *)&a[len] ^ *(unsigned long *)&b[len];
+		if (xor)
+			return len + (__builtin_ctzl(xor) >> 3);
+		len += (long)sizeof(long);
+	}
+
+	if (sizeof(long) > 4 && len + 3 < max) {
+		uint32_t xor;
+
+		xor = *(uint32_t *)&a[len] ^ *(uint32_t *)&b[len];
+		if (xor)
+			return len + (__builtin_ctz(xor) >> 3);
+		len += 4;
+	}
+
+	if (len + 1 < max) {
+		uint16_t xor;
+
+		xor = *(uint16_t *)&a[len] ^ *(uint16_t *)&b[len];
+		if (xor)
+			return len + !(uint8_t)xor;
+		len += 2;
+	}
+
+	if (len < max && a[len] == b[len])
+		len++;
+	return len;
+
+#else // UNALIGNED_LE_OK
+	/* This is the generic version for big endian or unaligned-incompatible
+	 * architectures.
+	 */
+	while (len < max) {
+		if (a[len] != b[len])
+			break;
+		len++;
+	}
+	return len;
+
+#endif
+}
+
+#if defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4)
 
 /* enqueue code x of <xbits> bits (LSB aligned, at most 24) and copy complete
  * 32-bit words into output buffer. X must not contain non-zero bits above
- * xbits.
+ * xbits. Note that the function may write up to 3 extra bytes since it may
+ * write 32 bits even if only 8 are needed.
  */
-static inline void enqueue24(struct slz_stream *strm, uint64_t x, uint32_t xbits)
+static inline void enqueue24(struct slz_stream *__restrict strm, uint64_t x, uint32_t xbits)
 {
 	uint64_t queue = strm->queue + (x << strm->qbits);
 	uint32_t qbits = strm->qbits + xbits;
 
+#if SLZ_DIRECT_ENQUEUE24
+	write_le32(strm->outbuf, queue);
+	queue >>= qbits & ~7U;
+
+	strm->queue = queue;
+	strm->outbuf += qbits >> 3;
+	strm->qbits = qbits & 7;
+#else
 	if (__builtin_expect(qbits >= 32, 1)) {
-		*(uint32_t *)strm->outbuf = queue;
+		write_le32(strm->outbuf, queue);
 		queue >>= 32;
 		qbits -= 32;
 		strm->outbuf += 4;
@@ -191,47 +394,110 @@ static inline void enqueue24(struct slz_stream *strm, uint64_t x, uint32_t xbits
 
 	strm->queue = queue;
 	strm->qbits = qbits;
+#endif
 }
 
+/* enqueue code x of <xbits> bits (at most 8) and copy complete bytes into out
+ * buf. X must not contain non-zero bits above xbits.
+ */
+#if SLZ_DIRECT_ENQUEUE8
+static inline void enqueue8(struct slz_stream *__restrict strm, uint32_t x, uint32_t xbits)
+{
+	uint64_t queue = strm->queue + ((uint64_t)x << strm->qbits);
+	uint32_t qbits = strm->qbits + xbits;
+
+	*strm->outbuf = queue;
+	strm->outbuf += qbits >= 8;
+	queue >>= qbits & 8;
+	strm->queue = queue;
+	strm->qbits = qbits & 7;
+}
+#else
 #define enqueue8 enqueue24
+#endif
+
+#if SLZ_DIRECT_ENQUEUE56
+/* Enqueues code <x> of <xbits> bits (LSB aligned) and stores the low 8 bytes
+ * of the queue, then advances over the whole bytes it holds. <xbits> plus
+ * whatever was already queued must stay below 64, and the caller must leave 8
+ * bytes of room past strm->outbuf rather than the 4 the other enqueues need.
+ * It exists to send a length code and the distance code that follows it in one
+ * go, which is at most 31 bits: 7 or 8 for the length code plus up to 5 extra,
+ * then 5 for the distance code plus up to 13 extra.
+ */
+static inline void enqueue56(struct slz_stream *__restrict strm, uint64_t x, uint32_t xbits)
+{
+	uint64_t queue = strm->queue + (x << strm->qbits);
+	uint32_t qbits = strm->qbits + xbits;
+
+	*(uint64_t *)strm->outbuf = queue;
+	queue >>= qbits & ~7U;
+
+	strm->queue = queue;
+	strm->outbuf += qbits >> 3;
+	strm->qbits = qbits & 7;
+}
+#endif
 
 /* flush the queue and align to next byte */
-static inline void flush_bits(struct slz_stream *strm)
+static inline void flush_bits(struct slz_stream *__restrict strm)
 {
-	if (strm->qbits > 0)
-		*strm->outbuf++ = strm->queue;
+	if (!strm->qbits)
+		return;
 
+	*strm->outbuf++ = strm->queue;
+
+#if !SLZ_DIRECT_ENQUEUE24
+	/* Only the conditional enqueue24() can leave more than 7 bits in the
+	 * queue, and only it needs the three extra stores. The direct one
+	 * masks the count with 7 on every path, as do enqueue8() and
+	 * enqueue56(), so a single byte covers every case there.
+	 *
+	 * This is not free to get wrong: flush_bits() is inlined into
+	 * copy_lit() and into all six flush/finish entry points, so the three
+	 * dead stores cost 585 bytes of text and 3% of throughput on silesia
+	 * once SLZ_LITERAL_SKIP starts calling copy_lit() for every skipped
+	 * chunk.
+	 */
 	if (strm->qbits > 8)
 		*strm->outbuf++ = strm->queue >> 8;
 
+#if !SLZ_DIRECT_ENQUEUE8
 	if (strm->qbits > 16)
 		*strm->outbuf++ = strm->queue >> 16;
 
 	if (strm->qbits > 24)
 		*strm->outbuf++ = strm->queue >> 24;
+#endif
+#endif
 
 	strm->queue = 0;
 	strm->qbits = 0;
 }
 
-#else /* non-64 bit or aligned or big endian */
+#else /* non-64 bit */
 
 /* enqueue code x of <xbits> bits (LSB aligned, at most 24) and copy complete
  * bytes into out buf. X must not contain non-zero bits above xbits. Prefer
- * enqueue8() when xbits is known for being 8 or less.
+ * enqueue8() when xbits is known for being 8 or less. Note that the function
+ * may write up to 3 extra bytes since it may write 32 bits even if only 8 are
+ * needed.
  */
-static void enqueue24(struct slz_stream *strm, uint32_t x, uint32_t xbits)
+static void enqueue24(struct slz_stream *__restrict strm, uint32_t x, uint32_t xbits)
 {
 	uint32_t queue = strm->queue + (x << strm->qbits);
 	uint32_t qbits = strm->qbits + xbits;
 
-	if (qbits >= 16) {
-#ifndef UNALIGNED_LE_OK
-		strm->outbuf[0] = queue;
-		strm->outbuf[1] = queue >> 8;
-#else
-		*(uint16_t *)strm->outbuf = queue;
+#if SLZ_DIRECT_ENQUEUE24
+	write_le32(strm->outbuf, queue);
+	queue >>= qbits & ~7U;
+	strm->outbuf += qbits >> 3;
+	strm->qbits = qbits & 7;
+	strm->queue = queue;
+	return;
 #endif
+	if (qbits >= 16) {
+		write_le16(strm->outbuf, queue);
 		strm->outbuf += 2;
 		queue >>= 16;
 		qbits -= 16;
@@ -250,11 +516,19 @@ static void enqueue24(struct slz_stream *strm, uint32_t x, uint32_t xbits)
 /* enqueue code x of <xbits> bits (at most 8) and copy complete bytes into
  * out buf. X must not contain non-zero bits above xbits.
  */
-static inline void enqueue8(struct slz_stream *strm, uint32_t x, uint32_t xbits)
+static inline void enqueue8(struct slz_stream *__restrict strm, uint32_t x, uint32_t xbits)
 {
 	uint32_t queue = strm->queue + (x << strm->qbits);
 	uint32_t qbits = strm->qbits + xbits;
 
+#if SLZ_DIRECT_ENQUEUE8
+	*strm->outbuf = queue;
+	strm->outbuf += qbits >= 8;
+	queue >>= qbits & 8;
+	strm->queue = queue;
+	strm->qbits = qbits & 7;
+	return;
+#endif
 	if (__builtin_expect((signed)(qbits - 8) >= 0, 1)) {
 		qbits -= 8;
 		*strm->outbuf++ = queue;
@@ -266,13 +540,17 @@ static inline void enqueue8(struct slz_stream *strm, uint32_t x, uint32_t xbits)
 }
 
 /* align to next byte */
-static inline void flush_bits(struct slz_stream *strm)
+static inline void flush_bits(struct slz_stream *__restrict strm)
 {
-	if (strm->qbits > 0)
-		*strm->outbuf++ = strm->queue;
+	if (!strm->qbits)
+		return;
 
+	*strm->outbuf++ = strm->queue;
+
+#if !SLZ_DIRECT_ENQUEUE8
 	if (strm->qbits > 8)
 		*strm->outbuf++ = strm->queue >> 8;
+#endif
 
 	strm->queue = 0;
 	strm->qbits = 0;
@@ -281,31 +559,27 @@ static inline void flush_bits(struct slz_stream *strm)
 
 
 /* only valid if buffer is already aligned */
-static inline void copy_8b(struct slz_stream *strm, uint32_t x)
+static inline void copy_8b(struct slz_stream *__restrict strm, uint32_t x)
 {
 	*strm->outbuf++ = x;
 }
 
 /* only valid if buffer is already aligned */
-static inline void copy_16b(struct slz_stream *strm, uint32_t x)
+static inline void copy_16b(struct slz_stream *__restrict strm, uint32_t x)
 {
-	strm->outbuf[0] = x;
-	strm->outbuf[1] = x >> 8;
+	write_le16(strm->outbuf, x);
 	strm->outbuf += 2;
 }
 
 /* only valid if buffer is already aligned */
-static inline void copy_32b(struct slz_stream *strm, uint32_t x)
+static inline void copy_32b(struct slz_stream *__restrict strm, uint32_t x)
 {
-	strm->outbuf[0] = x;
-	strm->outbuf[1] = x >> 8;
-	strm->outbuf[2] = x >> 16;
-	strm->outbuf[3] = x >> 24;
+	write_le32(strm->outbuf, x);
 	strm->outbuf += 4;
 }
 
 /* Using long because faster on 64-bit (can save one shift) */
-static inline void send_huff(struct slz_stream *strm, unsigned long code)
+static inline void send_huff(struct slz_stream *__restrict strm, unsigned long code)
 {
 	uint32_t bits;
 
@@ -315,44 +589,83 @@ static inline void send_huff(struct slz_stream *strm, unsigned long code)
 	enqueue24(strm, code, bits);
 }
 
-static inline void send_eob(struct slz_stream *strm)
+static inline void send_eob(struct slz_stream *__restrict strm)
 {
 	enqueue8(strm, 0, 7); // direct encoding of 256 = EOB (cf RFC1951)
+}
+
+/* copies <len> litterals from <buf>. at once. <len> must not be null and must
+ * be lower than or equal to 65535, which can be guaranteed when using
+ * SLZ_LITERAL_SKIP with limited literal lengths. <more> indicates that there
+ * are data past buf + <len>. Only supports fixed encoding.
+ */
+__attribute__((unused))
+static void copy_lit_small(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
+{
+	int eob_shift = (strm->state == SLZ_ST_EOB) ? 0 : 7;
+
+	/* explanation: if there is no EOB yet, we have to send one.
+	 * It's 0 encoded over 7 bits. Then we have to copy !more into BFINAL
+	 * (one bit), and 00 in btype (two bits). Finally we pad to the next
+	 * byte. So we add 0 or 7 bits for EOB, followed by 3 then by 0 to 7
+	 * bits for alignment. That's 3 to 17 bits.
+	 */
+	enqueue24(strm, (!more) << eob_shift, 3 + eob_shift + (7 & -(3 + eob_shift + strm->qbits))); // EOB + BFINAL + BTYPE
+	strm->state = more ? SLZ_ST_EOB : SLZ_ST_DONE;
+
+#if !SLZ_DIRECT_ENQUEUE24
+	/* the queue is byte-aligned now, but the conditional 64-bit enqueue24()
+	 * may still hold up to 4 bytes of it that must be written first.
+	 */
+	flush_bits(strm);
+#endif
+	copy_16b(strm, len);
+	copy_16b(strm, ~len);
+	memcpy(strm->outbuf, buf, len);
+	strm->outbuf += len;
 }
 
 /* copies <len> litterals from <buf>. <more> indicates that there are data past
  * buf + <len>. <len> must not be null.
  */
-static void copy_lit(struct slz_stream *strm, const void *buf, uint32_t len, int more)
+__attribute__((unused))
+static void copy_lit(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
 {
 	uint32_t len2;
 
+	if (len <= 65535)
+		return copy_lit_small(strm, buf, len, more);
+
+	if (strm->state != SLZ_ST_EOB)
+		send_eob(strm);
+
+	len2 = 65535;
+	len -= len2;
+
 	do {
+		/* wire BFINAL (!more), BTYPE (00) and round to the next byte boundary */
+		enqueue24(strm, !(more || len), 3 + ((5 - strm->qbits) & 7));
+#if !SLZ_DIRECT_ENQUEUE24
+		flush_bits(strm); // see copy_lit_small()
+#endif
+		copy_32b(strm, (~len2 << 16) + len2);
+		memcpy(strm->outbuf, buf, len2);
+		buf += len2;
+		strm->outbuf += len2;
 		len2 = len;
 		if (__builtin_expect(len2 > 65535, 0))
 			len2 = 65535;
 
 		len -= len2;
+	} while (__builtin_expect(len2, 0));
 
-		if (strm->state != SLZ_ST_EOB)
-			send_eob(strm);
-
-		strm->state = (more || len) ? SLZ_ST_EOB : SLZ_ST_DONE;
-
-		enqueue8(strm, !(more || len), 3); // BFINAL = !more ; BTYPE = 00
-		flush_bits(strm);
-		copy_16b(strm, len2);  // len2
-		copy_16b(strm, ~len2); // nlen2
-		memcpy(strm->outbuf, buf, len2);
-		buf += len2;
-		strm->outbuf += len2;
-	} while (len);
+	strm->state = more ? SLZ_ST_EOB : SLZ_ST_DONE;
 }
 
 /* copies <len> litterals from <buf>. <more> indicates that there are data past
  * buf + <len>. <len> must not be null.
  */
-static void copy_lit_huff(struct slz_stream *strm, const unsigned char *buf, uint32_t len, int more)
+static void copy_lit_huff(struct slz_stream *__restrict strm, const unsigned char *buf, uint32_t len, int more)
 {
 	uint32_t pos;
 
@@ -375,36 +688,43 @@ static void copy_lit_huff(struct slz_stream *strm, const unsigned char *buf, uin
 	} while (pos < len);
 }
 
-/* sets <count> BYTES to -32769 in <refs> so that any uninitialized entry will
- * verify (pos-last-1 >= 32768) and be ignored. <count> must be a multiple of
- * 128 bytes and <refs> must be at least one count in length. It's supposed to
- * be applied to 64-bit aligned data exclusively, which makes it slightly
- * faster than the regular memset() since no alignment check is performed.
+/* Marks all <count> bytes worth of entries in <refs> as unusable, so that any
+ * entry not written since is rejected by the (pos - last - 1 >= 32768) test in
+ * slz_rfc1951_encode(). <count> is in bytes and <refs> must be at least that
+ * large.
+ *
+ * The byte value is not arbitrary. It has to leave a <pos> field that reads as
+ * "far in the past" for every possible <pos>, on 32-bit as well, where that
+ * subtraction is done on 32 bits. 0xFF wouldn't work. 0xFE gives 0xFEFEFEFE,
+ * hence pos + 0x01010101, which is above 32768 and does not wrap for any
+ * realistic input length. Note that the use of memset() here is intentional
+ * as it was measured to be faster on modern libcs than an unrolled loop.
  */
 static void reset_refs(union ref *refs, long count)
 {
-	/* avoid a shift/mask by casting to void* */
-	union ref *end = (void *)refs + count;
+	memset(refs, 0xFE, count);
+}
 
-	do {
-		refs[ 0].by64 = -32769;
-		refs[ 1].by64 = -32769;
-		refs[ 2].by64 = -32769;
-		refs[ 3].by64 = -32769;
-		refs[ 4].by64 = -32769;
-		refs[ 5].by64 = -32769;
-		refs[ 6].by64 = -32769;
-		refs[ 7].by64 = -32769;
-		refs[ 8].by64 = -32769;
-		refs[ 9].by64 = -32769;
-		refs[10].by64 = -32769;
-		refs[11].by64 = -32769;
-		refs[12].by64 = -32769;
-		refs[13].by64 = -32769;
-		refs[14].by64 = -32769;
-		refs[15].by64 = -32769;
-		refs += 16;
-	} while (refs < end);
+/* Inserts position <p> of input buffer <in> into the reference table <refs>.
+ * Reads the 4 bytes at in[p], so the caller must guarantee that in[p + 3] is
+ * within the input buffer.
+ */
+static inline void insert_ref(union ref *refs, const unsigned char *in, unsigned long p)
+{
+#ifdef UNALIGNED_LE_OK
+	uint32_t w = *(uint32_t *)&in[p];
+#else
+	uint32_t w = ((uint32_t)in[p]) | ((uint32_t)in[p + 1] << 8) |
+	             ((uint32_t)in[p + 2] << 16) | ((uint32_t)in[p + 3] << 24);
+#endif
+	uint32_t h = slz_hash(w);
+
+	if (sizeof(long) >= 8)
+		refs[h].by64 = ((uint64_t)p) + ((uint64_t)w << 32);
+	else {
+		refs[h].by32.pos = p;
+		refs[h].by32.word = w;
+	}
 }
 
 /* Number of bits wasted by the 9-bit literals above which it becomes
@@ -446,28 +766,44 @@ static void reset_refs(union ref *refs, long count)
  * more than its own share, which the following ones will not emit. The caller
  * is responsible for ensuring there is enough room in the output buffer for
  * this. The amount of output bytes is returned, and no CRC is computed.
+ *
+ * Note: this function uses a lot of registers due to local variables that
+ * hold pre-computed values that need to be kept very long. Be extremely
+ * careful when changing anything there, and test again on multiple compiler
+ * versions. For example, when building with avx512f (e.g. -march=native on
+ * Skylake-X and Zen-4+), gcc 13 and 14 tend to move some variables to %xmm0
+ * and to read it back using vmovq multiple times, affecting performance, which
+ * can be recovered using -mno-avx512f (~1-2%). On gcc-15, the performance is
+ * better and that option degrades it by 2% again. gcc-16 is even slightly
+ * better (+0.5%). As a general rule, nothing vectorizes well here, and the
+ * unaligned, short memcpy() calls must not be translated to AVX512 code.
  */
-long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsigned char *in, long ilen, int more)
+static inline __attribute__((always_inline))
+long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more, int level)
 {
 	long rem = ilen;
 	unsigned long pos = 0;
 	unsigned long last;
+	const unsigned char *lastp;
 	uint32_t word = 0;
 	long mlen;
 	uint32_t h;
 	uint64_t ent;
 
+#if SLZ_LITERAL_SKIP
+	long skip_ratio = 0;
+#endif
 	uint32_t plit = 0;
 	uint32_t bit9 = 0;
 	uint32_t dist, code;
-	union ref refs[1 << HASH_BITS];
+	union ref refs[1 << SLZ_HASH_BITS];
 
-	if (!strm->level) {
+	if (__builtin_expect(!strm->level, 0)) {
 		/* force to send as literals (eg to preserve CPU) */
 		strm->outbuf = out;
-		plit = pos = ilen;
-		bit9 = 52; /* force literal dump */
-		goto final_lit_dump;
+		if (ilen)
+			copy_lit(strm, in, ilen, more);
+		goto leave;
 	}
 
 	reset_refs(refs, sizeof(refs));
@@ -475,6 +811,7 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 	strm->outbuf = out;
 
 #ifndef UNALIGNED_FASTER
+ reload_word:
 	if (rem >= 4)  // <word> is only used inside the loop below, hence the test for >= 4
 		word = ((uint32_t)(unsigned char)in[pos] << 8) + ((uint32_t)(unsigned char)in[pos + 1] << 16) + ((uint32_t)(unsigned char)in[pos + 2] << 24);
 #endif
@@ -553,6 +890,54 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 			plit++;
 			bit9 += ((unsigned char)word >= 144);
 			pos++;
+
+			/* Incompressible data: once enough literals have accumulated
+			 * without a single match, stop looking for a while and just
+			 * dump what follows as literal blocks, doubling the amount
+			 * skipped each time so that a long incompressible block
+			 * costs less and less to walk over. A match resets it.
+			 */
+#if SLZ_LITERAL_SKIP
+			if (level <= 1 && !(plit & 63)) {
+				/* be careful: plit+skip must never be >= 65535 */
+				long skip;
+				skip_ratio = (skip_ratio * 2 + 1) & 255; // capped exponential: 0,1,3,7,... and stays at 255
+				skip = rem >= skip_ratio * 32 ? skip_ratio * 32 : rem;
+				copy_lit_small(strm, in + pos - plit, plit + skip, more || skip < rem);
+				pos += skip;
+				rem -= skip;
+				plit = 0;
+# ifndef UNALIGNED_FASTER
+				/* we'll need to update the current word since we skipped some bytes */
+				goto reload_word;
+# else
+				continue;
+# endif
+			}
+			else if (level == 2 && !(plit & 2047)) {
+				/* be careful: plit+skip must never be >= 65535 */
+				long skip = rem >= skip_ratio * 4096 ? skip_ratio * 4096 : rem;
+				skip_ratio = (skip_ratio * 2 + 1) & 7; // capped exponential: 0,1,3,7 and stays at 7
+				copy_lit_small(strm, in + pos - plit, plit + skip, more || skip < rem);
+				pos += skip;
+				rem -= skip;
+				plit = 0;
+# ifndef UNALIGNED_FASTER
+				/* we'll need to update the current word since we skipped some bytes */
+				goto reload_word;
+# else
+				continue;
+# endif
+			}
+			else if (level >= 3) // no literal skip at levels >= 3
+#endif
+			{
+				/* either no literal_skip at build time, or high enough level */
+				if (__builtin_expect(plit == 0xffc0, 0)) {
+					copy_lit_small(strm, in + pos - plit, plit, 1);
+					plit = 0;
+				}
+			}
 			continue;
 		}
 
@@ -560,8 +945,11 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		if ((unsigned long)(pos - last - 1) >= 32768)
 			goto send_as_lit;
 
+		/* faster to keep a copy of this with gcc 13-16 */
+		lastp = in + last;
+
 		/* Note: cannot encode a length larger than 258 bytes */
-		mlen = memmatch(in + pos + 4, in + last + 4, (rem > 258 ? 258 : rem) - 4) + 4;
+		mlen = memmatch(in + pos + 4, lastp + 4, (rem > 258 ? 258 : rem) - 4) + 4;
 
 		/* found a matching entry */
 
@@ -628,6 +1016,93 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		    (dist & 0x1f) + (code >> 16) + SLZ_SWITCH_COST > 8 * mlen)
 			goto send_as_lit;
 
+#if defined(SLZ_BACKWARD_MATCH)
+		/* Compare queued literals in case the previous ones were not
+		 * found due to hash collisions but still match. We don't go
+		 * further than 8 bytes so that we can find them in a single
+		 * 64-bit comparison. On aligned-only machines we read one byte
+		 * at a time, as it is expected to be cheaper than composing an
+		 * unaligned int and manually doing a ctzll() on it. Tests have
+		 * shown that there's little to gain past 8 bytes, and anyway
+		 * the total match length will be bounded by 258. BTW we only
+		 * consider cases where last >= 8 because this guarantees that
+		 * we can access both the searched sequence and the match found
+		 * on a wole word at once. It may miss some rare matches on the
+		 * edge of the buffer that we don't care about.
+		 *
+		 * It's worth noting that we *do not* fixup <bit9> if a match
+		 * is found, as this would be too complicated and counter-
+		 * productive. This means that literals that were finally
+		 * encoded might still count towards the budget limit, but this
+		 * is not dramatic and keeps us on the safe side.
+		 *
+		 * The result of the search is to only touch <back> that will be
+		 * used all along in all operations. Multiple attempts have shown
+		 * that it's both easier and faster this way than changing then
+		 * rolling back offsets when we finally give up and send_as_lit.
+		 */
+		if (__builtin_expect(plit != 0, 1) &&
+		    (last >= MAX_C(sizeof(long), SLZ_BACKWARD_MATCH[level]))) {
+			long bmax = MIN(plit, 8); // keep it at 8, always faster
+			long back = 0;
+
+			if (bmax > 258 - mlen)
+				bmax = 258 - mlen;
+
+#if defined(UNALIGNED_LE_OK)
+			if (SLZ_BACKWARD_MATCH[level] == 2) { // 43.32%, best speed vs savings
+				uint16_t x = *(uint16_t *)&in[pos - 2] ^ *(uint16_t *)(lastp - 2);
+				back = x & 0xff00 ? 0 : x ? 1 : 2;
+				if (back > bmax)
+					back = bmax;
+			} else if (SLZ_BACKWARD_MATCH[level] == 3 || SLZ_BACKWARD_MATCH[level] == 4) { // 32 bits: 43.31% or 43.30%
+				uint32_t x = *(uint32_t *)&in[pos - 4] ^ *(uint32_t *)(lastp - 4);
+				back = x & 0xffff0000u ?
+					x & 0xff000000u ? 0 : 1 :
+					x & 0xffffff00u ? 2 :
+					x ? 3 : SLZ_BACKWARD_MATCH[level]; // 3 or 4, test eliminated at 3
+				if (back > bmax)
+					back = bmax;
+			} else if (SLZ_BACKWARD_MATCH[level] == 8) { // 64 bits: 43.30%
+				uint64_t x = *(uint64_t *)&in[pos - 8] ^ *(uint64_t *)(lastp - 8);
+				back = x ? (__builtin_clzll(x) >> 3) : 8;
+				if (back > bmax)
+					back = bmax;
+			} else
+#endif
+			if (SLZ_BACKWARD_MATCH[level] == 1) { // single-byte match: 43.39%
+				if (in[pos - 1] == lastp[-1])
+					back++;
+				if (back > bmax)
+					back = bmax;
+			}
+			else { /* unaligned not supported or match != 1/2/3/4/8 */
+				while (back < bmax && in[pos - back - 1] == lastp[-back - 1])
+					back++;
+			}
+
+			if (back) {
+				/* OK now we're certain to use the match, we must rewind the
+				 * literals that are part of the match.
+				 */
+				pos  -= back;
+				plit -= back;
+				rem  += back;
+				mlen += back;
+				/* <code> was computed from the un-extended
+				 * length above and must follow, or we would
+				 * consume <back> more bytes than the length
+				 * code tells the decoder to copy. <dist> does
+				 * not move. The cost test above keeps using
+				 * the un-extended length, which is safe: the
+				 * extension only makes the match cheaper per
+				 * byte, never more expensive.
+				 */
+				code = len_fh[mlen];
+			}
+		}
+#endif // SLZ_BACKWARD_MATCH // otherwise 43.83%
+
 		/* first, copy pending literals */
 		if (plit) {
 			/* Huffman encoding requires 9 bits for octets 144..255, so this
@@ -641,7 +1116,7 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 			 * only those sent in huffman mode add to the debt.
 			 */
 			if (bit9 >= SLZ_SWITCH_COST || strm->debt >= SLZ_MAX_DEBT)
-				copy_lit(strm, in + pos - plit, plit, 1);
+				copy_lit_small(strm, in + pos - plit, plit, 1);
 			else {
 				copy_lit_huff(strm, in + pos - plit, plit, 1);
 				strm->debt += bit9;
@@ -650,6 +1125,9 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 			plit = 0;
 		}
 
+#if SLZ_LITERAL_SKIP
+		skip_ratio = 0;
+#endif
 		/* use mode 01 - fixed huffman */
 		if (strm->state == SLZ_ST_EOB) {
 			strm->state = SLZ_ST_FIXED;
@@ -657,10 +1135,20 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		}
 
 		/* copy the length first */
+#if SLZ_DIRECT_ENQUEUE56
+		/* the length code and the distance code that follows it total
+		 * 31 bits at most, which one enqueue can take in a single
+		 * shift-or-store instead of two
+		 */
+		enqueue56(strm, (uint64_t)(code & 0xFFFF) |
+		                ((uint64_t)(dist >> 5) << (code >> 16)),
+		          (code >> 16) + (dist & 0x1f));
+#else
 		enqueue24(strm, code & 0xFFFF, code >> 16);
 
 		/* in fixed huffman mode, dist is fixed 5 bits */
 		enqueue24(strm, dist >> 5, dist & 0x1f);
+#endif
 
 		/* <bit9> only measures the current group of literals, which is
 		 * what the decisions above compare against, and it restarts
@@ -685,6 +1173,18 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		rem -= mlen;
 		pos += mlen;
 
+#if SLZ_INSERT_SKIPPED
+		if (rem < 4)
+			break;
+		/* try to index the matched entry to improve the likelyhood
+		 * that a similar sequence will be a hit next time. We only
+		 * need 4 remaining bytes starting from the current one.
+		 */
+		insert_ref(refs, in, pos - mlen + 3);
+		insert_ref(refs, in, pos - mlen + 2);
+		insert_ref(refs, in, pos - mlen + 1);
+#endif // SLZ_INSERT_SKIPPED
+
 #ifndef UNALIGNED_FASTER
 		/* same as before the loop, this is only used when continuing
 		 * in the loop, so let's use the same condition (rem>=4).
@@ -707,7 +1207,6 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 		} while (--rem);
 	}
 
- final_lit_dump:
 	/* Now copy remaining literals or mark the end. The cost of switching to
 	 * a stored block depends on the current state and on the presence of
 	 * data after these literals, see the SLZ_*_COST definitions above.
@@ -721,26 +1220,54 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 			cost = (strm->state == SLZ_ST_EOB) ? SLZ_LAST_COST_EOB : SLZ_LAST_COST;
 
 		if (bit9 >= cost || strm->debt >= SLZ_MAX_DEBT)
-			copy_lit(strm, in + pos - plit, plit, more);
+			copy_lit_small(strm, in + pos - plit, plit, more);
 		else
 			copy_lit_huff(strm, in + pos - plit, plit, more);
 
 		plit = 0;
 	}
-
+ leave:
 	strm->ilen += ilen;
 	return strm->outbuf - out;
 }
 
+static __attribute__((noinline))
+long _slz_rfc1951_encode_lev1(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
+{
+	return _slz_rfc1951_encode(strm, out, in, ilen, more, 1);
+}
+
+static __attribute__((noinline))
+long _slz_rfc1951_encode_lev2(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
+{
+	return _slz_rfc1951_encode(strm, out, in, ilen, more, 2);
+}
+
+static __attribute__((noinline))
+long _slz_rfc1951_encode_lev3(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
+{
+	return _slz_rfc1951_encode(strm, out, in, ilen, more, 3);
+}
+
+long slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
+{
+	if (strm->level <= 1)
+		return _slz_rfc1951_encode_lev1(strm, out, in, ilen, more);
+	else if (strm->level <= 2)
+		return _slz_rfc1951_encode_lev2(strm, out, in, ilen, more);
+	else
+		return _slz_rfc1951_encode_lev3(strm, out, in, ilen, more);
+}
+
 /* Initializes stream <strm> for use with raw deflate (rfc1951). The CRC is
  * unused but set to zero. The compression level passed in <level> is set. This
- * value can only be 0 (no compression) or 1 (compression) and other values
- * will lead to unpredictable behaviour. The function always returns 0.
+ * value will be capped between 0 (no compression) and 15 (max compression).
+ * The function always returns 0.
  */
 int slz_rfc1951_init(struct slz_stream *strm, int level)
 {
 	strm->state = SLZ_ST_EOB; // no header
-	strm->level = level;
+	strm->level = MIN(MAX(level, 0), 15);
 	strm->format = SLZ_FMT_DEFLATE;
 	strm->crc32 = 0;
 	strm->ilen  = 0;
@@ -985,14 +1512,14 @@ long slz_rfc1952_encode(struct slz_stream *strm, unsigned char *out, const unsig
 }
 
 /* Initializes stream <strm> for use with the gzip format (rfc1952). The
- * compression level passed in <level> is set. This value can only be 0 (no
- * compression) or 1 (compression) and other values will lead to unpredictable
- * behaviour. The function always returns 0.
+ * compression level passed in <level> is set. This value will be capped
+ * between 0 (no compression) and 15 (max compression). The function always
+ * returns 0.
  */
 int slz_rfc1952_init(struct slz_stream *strm, int level)
 {
 	strm->state  = SLZ_ST_INIT;
-	strm->level  = level;
+	strm->level  = MIN(MAX(level, 0), 15);
 	strm->format = SLZ_FMT_GZIP;
 	strm->crc32  = 0;
 	strm->ilen   = 0;
@@ -1196,14 +1723,14 @@ long slz_rfc1950_encode(struct slz_stream *strm, unsigned char *out, const unsig
 }
 
 /* Initializes stream <strm> for use with the zlib format (rfc1950). The
- * compression level passed in <level> is set. This value can only be 0 (no
- * compression) or 1 (compression) and other values will lead to unpredictable
- * behaviour. The function always returns 0.
+ * compression level passed in <level> is set. This value will be capped
+ * between 0 (no compression) and 15 (max compression). The function always
+ * returns 0.
  */
 int slz_rfc1950_init(struct slz_stream *strm, int level)
 {
 	strm->state  = SLZ_ST_INIT;
-	strm->level  = level;
+	strm->level  = MIN(MAX(level, 0), 15);
 	strm->format = SLZ_FMT_ZLIB;
 	strm->crc32  = 1; // rfc1950/zlib starts with initial crc=1
 	strm->ilen   = 0;
@@ -1259,6 +1786,7 @@ int slz_rfc1950_finish(struct slz_stream *strm, unsigned char *buf)
 	return strm->outbuf - buf;
 }
 
+#ifndef PRECOMPUTE_TABLES
 /* Returns code for lengths 1 to 32768. The bit size for the next value can be
  * found this way :
  *
@@ -1306,6 +1834,7 @@ static inline uint32_t dist_to_code(uint32_t l)
 
 	return code;
 }
+#endif
 
 /* not thread-safe, must be called exactly once */
 static inline void __slz_prepare_dist_table()

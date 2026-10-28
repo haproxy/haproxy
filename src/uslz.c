@@ -29,9 +29,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include "import/slz.h"
-#include "import/slz-prv.h"
-#include "import/slz-tables.h"
+#include "slz.h"
+#include "slz-prv.h"
+#include "tables.h"
 
 /* if PRECOMPUTE_TABLES not set, then tables.h does not provide
  * fixed_huff_dec_table table as we need to recompute it.
@@ -209,6 +209,65 @@ static int gen_huffman_table(unsigned int symbols,
 	return 1;
 }
 
+/*
+ * gen_fast_table: fill the direct lookup <table> of <tbits> bits from the code
+ * lengths in <lengths>, for an alphabet of <symbols> symbols. Entries have the
+ * same layout as fixed_huff_dec_table[]: the symbol in the upper bits and the
+ * code length in the low 4 bits. Codes longer than <tbits> are left at zero
+ * and are decoded by walking the tree built by gen_huffman_table() instead.
+ *
+ * Each code is replicated over every combination of the bits above it, so
+ * that a lookup performed with fewer than <tbits> bits still finds it,
+ * provided the length found is not larger than the number of bits available.
+ * That is what lets the decoder work at the very end of a stream, where fewer
+ * bits than the table width may remain.
+ *
+ * Preconditions: <lengths> holds <symbols> entries, all of them <= 15, and
+ * <table> is (1 << tbits) entries long.
+ */
+static void gen_fast_table(unsigned int symbols, const unsigned char *lengths,
+                           uint16_t *table, unsigned int tbits)
+{
+	unsigned short next_code[16];
+	unsigned short count[16];
+	unsigned int i, len, code;
+
+	memset(table, 0, (1U << tbits) * sizeof(*table));
+	memset(count, 0, sizeof(count));
+
+	for (i = 0; i < symbols; i++)
+		count[lengths[i]]++;
+
+	/* first code of each length, as specified in rfc1951 3.2.2 */
+	count[0] = 0;
+	code = 0;
+	for (len = 1; len < 16; len++) {
+		code = (code + count[len - 1]) << 1;
+		next_code[len] = code;
+	}
+
+	for (i = 0; i < symbols; i++) {
+		unsigned int rev, step;
+
+		len = lengths[i];
+		if (!len)
+			continue;
+
+		/* codes are assigned sequentially within a length, and the
+		 * ones too long for the table still consume code space.
+		 */
+		code = next_code[len]++;
+		if (len > tbits)
+			continue;
+
+		/* codes appear bit-reversed in the accumulator */
+		rev = rbit9(code, len);
+		step = 1U << len;
+		for (; rev < (1U << tbits); rev += step)
+			table[rev] = (i << 7) | len;
+	}
+}
+
 /* updates crc for the current <state> inflate stream, chooses the proper
  * crc computation function according to the format used in the stream.
  */
@@ -226,11 +285,12 @@ static inline void uslz_update_crc(struct uslz_stream *state, const unsigned cha
  *
  * Returns 1 on success and 0 if more data is needed.
  */
-static inline int bit_accumulate(const unsigned char **in_ptr, const unsigned char *in_top, unsigned char *num_bits, uint64_t *bit_accum)
+static inline int bit_accumulate(const unsigned char **in_ptr, const unsigned char *in_top,
+                                 unsigned char *num_bits, unsigned long *bit_accum)
 {
 	if (*in_ptr >= in_top)
 		return 0;
-	*bit_accum |= (uint64_t)(*in_ptr)[0] << *num_bits;
+	*bit_accum |= (unsigned long)(*in_ptr)[0] << *num_bits;
 	*num_bits += 8;
 	(*in_ptr)++;
 	return 1;
@@ -247,12 +307,13 @@ static inline int bit_accumulate(const unsigned char **in_ptr, const unsigned ch
  */
 static inline int gethuff(unsigned int *huff_index,
                                              const unsigned char **in_ptr, const unsigned char *in_top,
-                                             unsigned char *num_bits, uint64_t *bit_accum,
+                                             unsigned char *num_bits, unsigned long *bit_accum,
                                              unsigned int *var, short *table)
 {
 	unsigned int index;
 	unsigned int bits;
 	unsigned long bit_follow;
+	int ret = 0;
 
 	index = *huff_index;
 	bits = *num_bits;
@@ -260,14 +321,10 @@ static inline int gethuff(unsigned int *huff_index,
 
 	for (;;) {
 		if (bits == 0) {
-			if (*in_ptr >= in_top) {
-				*num_bits = bits;
-				*bit_accum = bit_follow;
-				*huff_index = index;
-				return 0;
-			}
-			bit_follow |= (unsigned long) (*in_ptr)[0] << bits;
-			bits += 8;
+			if (*in_ptr >= in_top)
+				break;
+			bit_follow |= (unsigned long) (*in_ptr)[0];
+			bits = 8;
 			(*in_ptr)++;
 		}
 
@@ -275,6 +332,9 @@ static inline int gethuff(unsigned int *huff_index,
 		bit_follow >>= 1;
 		bits--;
 		if (table[index] >= 0) {
+			*var = table[index];
+			index = 0;
+			ret = 1;
 			break;
 		}
 		index = ~(table[index]);
@@ -282,10 +342,9 @@ static inline int gethuff(unsigned int *huff_index,
 
 	*num_bits = bits;
 	*bit_accum = bit_follow;
-	*var = table[index];
-	*huff_index = 0;
+	*huff_index = index;
 
-	return 1;
+	return ret;
 }
 
 /* when decoding static/fixed huffman (we must be sure of that before
@@ -297,7 +356,7 @@ static inline int gethuff(unsigned int *huff_index,
  * needs more input data.
  */
 static inline int gethuff_fixed(const unsigned char **in_ptr, const unsigned char *in_top,
-                                                   unsigned char *num_bits, uint64_t *bit_accum,
+                                                   unsigned char *num_bits, unsigned long *bit_accum,
                                                    unsigned int *var)
 {
 	unsigned long bit_follow;
@@ -330,7 +389,7 @@ static inline int gethuff_fixed(const unsigned char **in_ptr, const unsigned cha
 			 * length to prevent mismatch.
 			 */
 			idx = (bit_follow & ((1 << bits) - 1));
-			if ((fixed_huff_dec_table[idx] & 0xF) > bits) {
+			if ((fixed_huff_dec_table[idx] & 0x3F) > bits) {
 				/* no match found with <bits>, so there must be
 				 * data available for reading (errors appart)
 				 * Since we already have 7 bits and a refill is
@@ -347,29 +406,178 @@ static inline int gethuff_fixed(const unsigned char **in_ptr, const unsigned cha
 		}
 		break;
 	}
-	*num_bits = bits - (fixed_huff_dec_table[idx] & 0xF);
-	*bit_accum = bit_follow >> (fixed_huff_dec_table[idx] & 0xF);
+	*num_bits = bits - (fixed_huff_dec_table[idx] & 0x3F);
+	*bit_accum = bit_follow >> (fixed_huff_dec_table[idx] & 0x3F);
 	*var = fixed_huff_dec_table[idx] >> 7;
 
 	return 1;
 }
 
-/* reverses bits in 5bits len <v> input and returns the new value.
- * ie: 01100 becomes 00110. Bits 5-7 are ignored.
+/* Decodes one symbol using the direct lookup <table> of <tbits> bits, which
+ * must have been filled by gen_fast_table().
+ *
+ * Returns 1 when a symbol was decoded and stored in <var>, 0 if more input
+ * data is needed, and -1 when the code is longer than the table, in which
+ * case no bit was consumed from the accumulator and the caller has to fall
+ * back to gethuff().
  */
-static inline uint8_t rbit5(uint8_t v)
+static inline int gethuff_fast(const unsigned char **in_ptr, const unsigned char *in_top,
+                               unsigned char *num_bits, unsigned long *bit_accum,
+                               unsigned int *var, const uint16_t *table,
+                               unsigned int tbits)
 {
-	v = ((0xf7b3d591e6a2c480ULL >> ((v & 0x1e) * 2)) & 0xf) + ((v & 1) << 4);
-	return v;
+	unsigned long accum = *bit_accum;
+	unsigned int bits = *num_bits;
+	unsigned int entry, len;
+
+	while (1) {
+		if (bits >= tbits) {
+			entry = table[accum & ((1U << tbits) - 1)];
+			break;
+		}
+
+		/* Not enough bits for a full lookup. The table being padded,
+		 * looking it up with what we have is still valid as long as it
+		 * lands on a code no longer than that; otherwise we need more
+		 * data to tell.
+		 */
+		entry = table[accum & ((1U << bits) - 1)];
+		len = entry & 0xF;
+		if (len && len <= bits)
+			break;
+
+		if (*in_ptr >= in_top) {
+			*num_bits = bits;
+			*bit_accum = accum;
+			return 0;
+		}
+		accum |= (unsigned long)(*in_ptr)[0] << bits;
+		bits += 8;
+		(*in_ptr)++;
+	}
+
+	len = entry & 0xF;
+	if (!len) {
+		/* too long for the table: hand the refilled accumulator back
+		 * untouched so that the tree walk starts on the first bit of
+		 * the code.
+		 */
+		*num_bits = bits;
+		*bit_accum = accum;
+		return -1;
+	}
+
+	*num_bits = bits - len;
+	*bit_accum = accum >> len;
+	*var = entry >> 7;
+	return 1;
 }
 
-
 /* The set of macros below is relevant for uslz_decode_block() function */
+
+/* Fast path for the bit reader. Without it the accumulator is refilled one
+ * byte at a time, each byte costing a test against in_top and a test for
+ * "do I have enough bits yet", both of which depend on the data and are
+ * mispredicted a lot: on a silesia compressed by slz they account for about
+ * half of the branch misses of the whole decoder.
+ *
+ * REFILL() instead brings a whole machine word in with a single unaligned
+ * load and no branch beyond the one checking that the word is readable. It
+ * leaves the accumulator with everything but its low byte valid, that is 56
+ * to 63 bits on a 64-bit platform, which covers the longest symbol any block
+ * type can produce (15 bits of code, 5 of length extra, 15 of distance code
+ * and 13 of distance extra, so 48): one call per symbol is then enough and
+ * every "do I have enough bits" test inside the decoders becomes a test that
+ * is always false, and therefore free. A 32-bit platform only gets 24 to 31
+ * bits, enough for a literal or a length but not always for a whole
+ * length/distance pair, and the readers keep their byte at a time refill for
+ * what a refill did not cover, so they remain correct, they just take that
+ * slower path more often.
+ *
+ * The number of whole bytes the load brought in is written
+ * "num_bits ^ (8 * __SIZEOF_LONG__ - 1)" rather than the subtraction it is
+ * equal to as long as <num_bits> stays below the width of the accumulator,
+ * which it always does here. The compiler cannot know that bound, so the
+ * subtraction makes it emit the constant, a subtraction and a sign extension
+ * of a result it cannot prove positive, where the xor becomes a shift and an
+ * xor on the low byte.
+ *
+ * Bits above <num_bits> are not zero any more after this: the load brings in
+ * up to 7 bytes, 3 on a 32-bit platform, that are not accounted for, and
+ * <in_ptr> is left pointing at them so that the next refill reads them again
+ * and ORs the same values at the same places. That is harmless because every
+ * reader masks what it takes.
+ *
+ * Nothing is ever pushed back to the input: a byte that made it into the
+ * accumulator counts as consumed, exactly as it did when they were pulled in
+ * one at a time, so a caller that is told it has fed us N bytes never has to
+ * present them again. The two places that want bytes rather than bits, a
+ * stored block and the trailer, get back on a byte boundary with ALIGN_BYTE()
+ * and then take those bytes from the accumulator before touching <in_ptr>.
+ *
+ * The only condition is UNALIGNED_LE_OK. A refill of 24 bits is worth having
+ * as much as one of 56: built with -m32 on an x86, it decodes a fixed huffman
+ * stream 26% faster and a dynamic one 8% faster than the byte at a time loop
+ * it replaces, two data dependent branches per byte being what those bits are
+ * traded for.
+ */
+#if defined(UNALIGNED_LE_OK)
+#define REFILL()                                                               \
+	do {                                                                   \
+		if (__builtin_expect(in_top - in_ptr >= __SIZEOF_LONG__, 1)) { \
+			bit_accum |= read_lelong(in_ptr) << num_bits;          \
+			in_ptr += (num_bits ^ (8 * __SIZEOF_LONG__ - 1)) >> 3; \
+			num_bits |= 8 * __SIZEOF_LONG__ - 8;                   \
+		}                                                              \
+	} while (0)
+
+/* handle up to one literal at output position <ofs>. This may only be used
+ * inside uslz_decode_block() immediately after REFILL() in the loop. The "if"
+ * block is used to automatically adapt to the size of the long and handle
+ * either 2 or 6 symbols at once. Note that num_bits may contain bit 7 set and
+ * will need to be masked before being consumed at the end of the calls.
+ */
+#define FIXED_LITERAL(ofs)                                                     \
+	do {                                                                   \
+		if (ofs < __SIZEOF_LONG__ - 2) {                               \
+			unsigned int entry;                                    \
+			entry = fixed_huff_dec_table[bit_accum & 0x1FF];       \
+			bit_accum >>= entry & 0x3F;                            \
+			num_bits   -= entry;                                   \
+			state->symbol = entry >> 7;                            \
+			if (state->symbol >= 256) {                            \
+				num_bits &= 0x3F;                              \
+				goto have_symbol;                              \
+			}                                                      \
+			*out++ = state->symbol;                                \
+		}                                                              \
+	} while (0)
+
+/* Drops the bits left in the byte being read so that the accumulator holds
+ * whole bytes only, and clears whatever REFILL() left above them. <num_bits>
+ * must be below the width of the accumulator here, which REFILL() guarantees.
+ */
+#define ALIGN_BYTE()                                                        \
+	do {                                                                \
+		bit_accum >>= num_bits & 7;                                 \
+		num_bits &= ~7;                                             \
+		bit_accum &= (1UL << num_bits) - 1;                         \
+	} while (0)
+#else
+#define REFILL()     do { } while (0)
+#define ALIGN_BYTE()                                                        \
+	do {                                                                \
+		num_bits = 0;                                               \
+		bit_accum = 0;                                              \
+	} while (0)
+#endif
 
 /* The GETBITS macro retrieves the specified number of bits (n) from
  * the block, returning from the function if no more data is available,
  * and stores the value in the given variable (var).  The number of
- * bits to retrieve (n) must be no greater than 32.
+ * bits to retrieve (n) must be no greater than 24, so that the byte at a time
+ * refill cannot overflow even a 32-bit accumulator; the widest used below is
+ * 16.
  */
 #define GETBITS(n,var)                                                              \
 	do {                                                                        \
@@ -377,7 +585,7 @@ static inline uint8_t rbit5(uint8_t v)
 			if (!bit_accumulate(&in_ptr, in_top, &num_bits, &bit_accum))\
 				goto out_of_data;                                   \
 		}                                                                   \
-		var = bit_accum & ((1ULL << n) - 1);                                \
+		var = bit_accum & ((1UL << n) - 1);                                 \
 		bit_accum >>= n;                                                    \
 		num_bits -= n;                                                      \
 	} while (0)
@@ -417,7 +625,7 @@ static inline uint8_t rbit5(uint8_t v)
  * the current checksum batch.
  */
 #define SET_OUT_LIM() do {                                          \
-		unsigned long __room = out_max - 1 - dec_bsize;      \
+		unsigned long __room = out_max - dec_bsize;          \
 		                                                    \
 		out_lim = out_end;                                  \
 		if ((unsigned long)(out_end - crc_ptr) > CRC_BLOCK)  \
@@ -445,6 +653,55 @@ static inline uint8_t rbit5(uint8_t v)
 
 #define CASE_STATE(s)  case USLZ_ST_##s: goto state_##s
 
+/* Called when uslz_decode_block() reported a full output. If it was waiting
+ * for a symbol and that symbol is an end of block, the EOB is consumed, the
+ * state is set so that uslz_decode_block() finishes the block when called
+ * again, and non-zero is returned. Otherwise nothing
+ * changes and zero is returned. The EOB emits nothing and must still be
+ * consumed, as well as the trailer that may follow, or a caller whose buffer
+ * is exactly the size of the output would never see the end of the stream.
+ * It is deliberately not done in uslz_decode_block(), where even an out of
+ * line call in the checkpoint costs 2 to 5% on this hot loop by disturbing
+ * its register allocation, and it is kept out of line and holds all the
+ * tests so as to add as little code as possible to uslz_decode().
+ */
+static __attribute__((noinline))
+int uslz_eob_follows(struct uslz_stream *state)
+{
+	const unsigned char *in_ptr = state->in_ptr;
+	unsigned long bit_accum = state->bit_accum;
+	unsigned char num_bits = state->num_bits;
+	unsigned int hi = state->huff_index;
+	unsigned int sym;
+	int ret;
+
+	if (state->dec_bsize < state->out_max || state->state != USLZ_ST_READ_SYMBOL)
+		return 0;
+
+	if (state->block_type != 2)
+		ret = gethuff_fixed(&in_ptr, state->in_top, &num_bits, &bit_accum, &sym);
+	else
+		ret = gethuff(&hi, &in_ptr, state->in_top, &num_bits, &bit_accum, &sym, state->literal_table);
+
+	if (!ret || sym != 256)
+		return 0;
+
+	state->in_ptr = in_ptr;
+	state->bit_accum = bit_accum;
+	state->num_bits = num_bits;
+	state->huff_index = 0;
+	state->symbol = 256;
+
+	/* uslz_decode_block() must now finish the block. Rather than adding a
+	 * state for this, which costs ~1% by moving the hot loop around, we
+	 * resume as a stored block with nothing left to copy, which goes
+	 * straight to the end of the block.
+	 */
+	state->nread = state->len;
+	state->state = USLZ_ST_UNCOMPRESSED_DATA;
+	return 1;
+}
+
 /* main decoding function for inflate API, takes <state> stream as parameter
  * and decode as much data as possible from input data (as long as output
  * buffer allows it), it automatically detects uncompressed, fixed or dynamic
@@ -468,7 +725,7 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 	unsigned char *out = out_base + dec_total % out_max;
 	unsigned char *crc_ptr = out;
 	unsigned char *out_lim;
-	uint64_t bit_accum = state->bit_accum;
+	unsigned long bit_accum = state->bit_accum;
 	unsigned char num_bits = state->num_bits;
 	/* whether the ring already wrapped once, i.e. whether the whole
 	 * buffer is valid history for the distances.
@@ -538,7 +795,8 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 	 * buffer.
 	 */
 	if (state->block_type == 0) {
-		num_bits = 0;  /* Skip remaining bits in the previous byte. */
+		/* Skip remaining bits in the previous byte. */
+		ALIGN_BYTE();
 		state->state = USLZ_ST_UNCOMPRESSED_LEN;
 
  state_UNCOMPRESSED_LEN:
@@ -563,6 +821,18 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			if (out == out_lim) {
 				resume = R_UNCOMP;
 				goto checkpoint;
+			}
+
+			/* bytes already pulled into the accumulator by
+			 * REFILL() come first, <in_ptr> has moved past them.
+			 */
+			if (num_bits >= 8) {
+				*out++ = bit_accum;
+				bit_accum >>= 8;
+				num_bits -= 8;
+				state->nread++;
+				remain--;
+				continue;
 			}
 
 			if (in_ptr >= in_top)
@@ -706,6 +976,21 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			err_code = USLZ_DECODE_E_GEN_HUFF;
 			goto error_return;
 		}
+
+		/* The tree above can decode any code but costs one dependent
+		 * load per bit. Add a direct lookup table for the literal and
+		 * length codes, which is where most of the symbols are read.
+		 * Its cost is paid once per block and amortised over the many
+		 * thousands of symbols a block holds. A zero width disables
+		 * the table, and the whole thing then folds away.
+		 */
+		if (USLZ_FAST_BITS)
+			gen_fast_table(state->literal_count, state->literal_len,
+			               state->fast_lit, USLZ_FAST_BITS);
+
+		if (USLZ_FAST_DBITS)
+			gen_fast_table(state->distance_count, state->distance_len,
+			               state->fast_dist, USLZ_FAST_DBITS);
 	}
 	/* else Static tables: we don't need to generate literal / distance table
 	 * because we directly use gethuff_fixed().
@@ -725,15 +1010,71 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			goto checkpoint;
 		}
 
+		/* one refill per symbol is enough for the longest one */
+		REFILL();
+
 		/* Read a compressed symbol from the block. */
 		if (state->block_type != 2) {
+#if defined(UNALIGNED_LE_OK)
+			/* Literal fast path for fixed huffman blocks, which is
+			 * what slz emits and where three symbols out of four
+			 * are literals. As long as one refill's worth of input
+			 * and as many output bytes as a refill covers are
+			 * available, a literal is one table lookup and one
+			 * store, with none of the per-symbol checks of the
+			 * generic path: a fixed code is at most 9 bits, so a
+			 * refill covers six of them on a 64-bit platform and
+			 * two on a 32-bit one, which is what "__SIZEOF_LONG__
+			 * - 2" counts below. They are decoded with no test on
+			 * the input, and the output room is checked once for
+			 * all of them. The first symbol that is not a literal
+			 * is handed to the generic path below, which still
+			 * does all the checking on lengths and distances.
+			 */
+			while (out_lim - out >= __SIZEOF_LONG__ - 2 &&
+			       in_top - in_ptr >= __SIZEOF_LONG__) {
+				REFILL();
+
+				/* read up to (sizeof(long) - 2) symbols;
+				 * excess calls are ignored on 32-bit machines.
+				 */
+				FIXED_LITERAL(0); FIXED_LITERAL(1);
+				FIXED_LITERAL(2); FIXED_LITERAL(3);
+				FIXED_LITERAL(4); FIXED_LITERAL(5);
+				num_bits &= 0x3F;
+			}
+			/* the loop may have filled the output exactly to the
+			 * limit, and the generic path only checks that before
+			 * decoding, at the top of the loop: go back there.
+			 */
+			if (out == out_lim)
+				continue;
+#endif /* UNALIGNED_LE_OK */
 			/* fixed huffman */
 			if (!gethuff_fixed(&in_ptr, in_top, &num_bits, &bit_accum, &state->symbol))
 				goto out_of_data;
 		}
-		else
-			GETHUFF(state->symbol, state->literal_table);
+		else {
+			/* <huff_index> being non-zero means a tree walk was
+			 * interrupted by a lack of data and has to be resumed;
+			 * the fast path cannot be used then, as some bits of
+			 * the code have already been consumed.
+			 */
+			int ret = -1;
 
+			if (USLZ_FAST_BITS && !state->huff_index)
+				ret = gethuff_fast(&in_ptr, in_top, &num_bits, &bit_accum,
+				                   &state->symbol, state->fast_lit,
+				                   USLZ_FAST_BITS);
+			if (!ret)
+				goto out_of_data;
+			if (ret < 0)
+				GETHUFF(state->symbol, state->literal_table);
+		}
+
+#if defined(UNALIGNED_LE_OK)
+ have_symbol:
+#endif /* UNALIGNED_LE_OK */
 		/* If the symbol is a literal, add it to the buffer and continue
 		 * with the next code.
 		 */
@@ -784,8 +1125,19 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			bit_accum >>= 5;
 			num_bits -= 5;
 		}
-		else
-			GETHUFF(state->symbol, state->distance_table);
+		else {
+			/* same fast path as for the literal codes above */
+			int ret = -1;
+
+			if (USLZ_FAST_DBITS && !state->huff_index)
+				ret = gethuff_fast(&in_ptr, in_top, &num_bits, &bit_accum,
+				                   &state->symbol, state->fast_dist,
+				                   USLZ_FAST_DBITS);
+			if (!ret)
+				goto out_of_data;
+			if (ret < 0)
+				GETHUFF(state->symbol, state->distance_table);
+		}
 
 		if (state->symbol <= 3)
 			state->distance = state->symbol + 1;
@@ -836,13 +1188,21 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 				 * ring, which is only valid history once the
 				 * ring has wrapped at least once. This test
 				 * replaces the former distance_avail counter:
-				 * a distance never exceeds 32K and the ring is
-				 * at least that large, so "have we produced at
-				 * least <distance> bytes" is exactly "has the
-				 * ring wrapped, or is the distance within the
-				 * current position".
+				 * "have we produced at least <distance> bytes"
+				 * is exactly "has the ring wrapped, or is the
+				 * distance within the current position", as
+				 * long as the distance doesn't exceed the ring.
+				 * It can only do so with a ring smaller than
+				 * 32K, where such a match would start before
+				 * <out_base>. Testing it here only costs in
+				 * this rarely taken branch. Note the likely()
+				 * test below that proves to improve the perf
+				 * while an unlikely degrades them. This is
+				 * likely due to the short exit path compared
+				 * to the heavier memmove() that's better kept
+				 * away from the rest of the hot path.
 				 */
-				if (!wrapped) {
+				if (__builtin_expect(!wrapped || state->distance > out_max, 1)) {
 					err_code = USLZ_DECODE_E_DISTANCE;
 					goto error_return;
 				}
@@ -876,6 +1236,7 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 
 					do {
 						*dst++ = *src++;
+						__asm__("" : "+r"(dst)); // keep gcc's vectorizer off to save 10% perf
 					} while (--cnt);
 				}
 			}
@@ -925,7 +1286,7 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 	/* no more room in the decoded block, ask for a drain. The state to
 	 * resume from was set by whoever jumped here.
 	 */
-	if (dec_bsize + 1 >= out_max)
+	if (dec_bsize >= out_max)
 		goto out_of_space;
 
 	SET_OUT_LIM();
@@ -955,8 +1316,7 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 		 * accumulator for that purpose since it is not used for
 		 * decoding anymore.
 		 */
-		bit_accum = 0;
-		num_bits = 0;
+		ALIGN_BYTE();
 		/* the trailer may well not be available yet, in which case we
 		 * have to be able to come back here on the next call.
 		 */
@@ -970,20 +1330,20 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			while (num_bits < 32) {
 				if (in_ptr >= in_top)
 					goto out_of_data;
-				/* the cast matters: in_ptr[0] is promoted to a
-				 * signed int, so for the first byte, whose
-				 * shift is 24, any value >= 0x80 would become
-				 * negative and be sign-extended over the upper
-				 * half of the 64-bit accumulator.
+				/* the four bytes are stored big endian while
+				 * the accumulator holds them in the order they
+				 * arrived, hence the swap below.
 				 */
-				bit_accum |= (uint32_t)in_ptr[0] << (24 - num_bits);
+				bit_accum |= (unsigned long)in_ptr[0] << num_bits;
 				in_ptr++;
 				num_bits += 8;
 			}
-			if (state->crc != bit_accum) {
+			if (state->crc != __builtin_bswap32((uint32_t)bit_accum)) {
 				err_code = USLZ_DECODE_E_BAD_CRC;
 				goto error_return;
 			}
+			bit_accum = 0;
+			num_bits = 0;
 		}
 		else if ((state->flags & USLZ_FL_GZIP)) {
 			/* The gzip trailer is 8 bytes: crc32 then isize, both
@@ -996,7 +1356,9 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			while (num_bits < 64) {
 				if (in_ptr >= in_top)
 					goto out_of_data;
-				bit_accum |= (uint64_t)in_ptr[0] << num_bits;
+				if (__SIZEOF_LONG__ > 4 ||
+				    num_bits < 8 * __SIZEOF_LONG__)
+					bit_accum |= (unsigned long)in_ptr[0] << num_bits;
 				in_ptr++;
 				num_bits += 8;
 			}
@@ -1084,7 +1446,7 @@ static int uslz_next_member(struct uslz_stream *state)
 			 */
 			return 0;
 		}
-		state->bit_accum |= (uint64_t)state->in_ptr[0] << state->num_bits;
+		state->bit_accum |= (unsigned long)state->in_ptr[0] << state->num_bits;
 		state->in_ptr += 1;
 		state->num_bits += 8;
 	}
@@ -1162,7 +1524,7 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
                                  unsigned char **decoded_data, long *decoded_size,
                                  long *consumed_bytes, uint32_t *crc_ret)
 {
-	enum uslz_decode_ret res;
+	enum uslz_decode_ret res = USLZ_DECODE_SUCCESS;
 
 	/* ensure input consistency */
 	if (compressed_data == NULL || compressed_size < 0 ||
@@ -1503,6 +1865,10 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
 			case USLZ_DECODE_SUCCESS:
 				break;
 			case USLZ_DECODE_OUT_OF_SPACE:
+				/* a full output may only be waiting for an EOB */
+				if (__builtin_expect(uslz_eob_follows(state), 0))
+					continue;
+				goto drain;
 			case USLZ_DECODE_OUT_OF_DATA:
 				goto drain;
 			default:
@@ -1553,10 +1919,11 @@ enum uslz_decode_ret uslz_decode(struct uslz_stream *state,
  * It will be used by slz_inflate as a rotating buffer to decode the stream
  * and allow the caller to read decoded data. As such it is exclusively managed
  * by slz_inflate and must not be modified by the caller, only read from during
- * the whole decoding process. Minimum size should be 32K, because zlib algo
- * specifies that up to 32K bytes distance can be used, thus the inflate API
- * should always be able to go 32K bytes in the past at any time with such a
- * buffer.
+ * the whole decoding process. The size should be at least 32K, because deflate
+ * permits references up to 32K bytes in the past, which a smaller buffer
+ * cannot hold once it has wrapped: such references are then rejected with
+ * USLZ_DECODE_E_DISTANCE, even in a valid stream. A smaller buffer is thus
+ * only suited to a stream whose whole output fits in it.
  *
  * Returns 1 on success and 0 on failure.
  */
@@ -1565,7 +1932,7 @@ int uslz_init(struct uslz_stream *state,
 {
 	struct uslz_stream zero = { 0 };
 
-	if (state == NULL || output_size < 32768 || output_buffer == NULL)
+	if (state == NULL || output_size < 1 || output_buffer == NULL)
 		return 0;
 
 	/* zero out <state> */
@@ -1638,54 +2005,55 @@ static inline void __uslz_prepare_fixed_huff_dec_table(void)
 	 *
 	 * symbols and len are stored on 16bits unsigned integers. We use exactly 512 indexes
 	 * (from 0 to 511 which is 9 bits maximal value) as static encoding is performed using
-	 * at most 9 bits:
+	 * at most 9 bits. Len is stored on 6 bits so that the compiler knows it can drop the
+	 * mask when using them for a shift on archs that mask upper bits in shift counts.
 	 *
 	 * Each value in the array is stored this way:
 	 *
 	 *    9 bits for the symbol (A)
-	 *    3 unused bits
-	 *    4 bits for the len (B)
+	 *    1 unused bit
+	 *    6 bits for the len (B), only 4 of which are set
 	 *
 	 * ie:
-	 *      AAAAAAAA AXXXBBBB
+	 *      AAAAAAAA AXBBBBBB
 	 */
 
 	// we revese the codes in order to directly compare them as they appear
-	// in the bit accumulator in huffman decoding func using rev_short(), the
+	// in the bit accumulator in huffman decoding func using rbit9(), the
 	// RFC doesn't specify bit order is inverted but this is the only way this
 	// works in practise.
 	while (it <= 143) {
 		// 00110000X through 10111111X
-		fixed_huff_dec_table[rev_short((0x30 + it), 8) | 0x100] = it << 7;      // symbol
-		fixed_huff_dec_table[rev_short((0x30 + it), 8) | 0x100] |= 8;           // len
-		fixed_huff_dec_table[rev_short((0x30 + it), 8)] = it << 7;              // symbol
-		fixed_huff_dec_table[rev_short((0x30 + it), 8)] |= 8;                   // len
+		fixed_huff_dec_table[rbit9((0x30 + it), 8) | 0x100] = it << 7;      // symbol
+		fixed_huff_dec_table[rbit9((0x30 + it), 8) | 0x100] |= 8;           // len
+		fixed_huff_dec_table[rbit9((0x30 + it), 8)] = it << 7;              // symbol
+		fixed_huff_dec_table[rbit9((0x30 + it), 8)] |= 8;                   // len
 		it += 1;
 	}
 	while (it <= 255) {
 		// 110010000 through 111111111
-		fixed_huff_dec_table[rev_short(0x190 + it - 144, 9)] = it << 7;         // symbol
-		fixed_huff_dec_table[rev_short(0x190 + it - 144, 9)] |= 9;              // len
+		fixed_huff_dec_table[rbit9(0x190 + it - 144, 9)] = it << 7;         // symbol
+		fixed_huff_dec_table[rbit9(0x190 + it - 144, 9)] |= 9;              // len
 		it += 1;
 	}
 	while (it <= 279) {
 		// 0000000XX through 0010111XX
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7)] = it << 7;         // symbol
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7)] |= 7;              // len
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7) | 0x80] = it << 7;  // symbol
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7) | 0x80] |= 7;       // len
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7) | 0x100] = it << 7; // symbol
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7) | 0x100] |= 7;      // len
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7) | 0x180] = it << 7; // symbol
-		fixed_huff_dec_table[rev_short((0x0 + it - 256), 7) | 0x180] |= 7;      // len
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7)] = it << 7;         // symbol
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7)] |= 7;              // len
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7) | 0x80] = it << 7;  // symbol
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7) | 0x80] |= 7;       // len
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7) | 0x100] = it << 7; // symbol
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7) | 0x100] |= 7;      // len
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7) | 0x180] = it << 7; // symbol
+		fixed_huff_dec_table[rbit9((0x0 + it - 256), 7) | 0x180] |= 7;      // len
 		it += 1;
 	}
 	while (it <= 287) {
 		// 11000000X through 11000111X
-		fixed_huff_dec_table[rev_short((0xC0 + it - 280), 8)] = it << 7;         // symbol
-		fixed_huff_dec_table[rev_short((0xC0 + it - 280), 8)] |= 8;              // len
-		fixed_huff_dec_table[rev_short((0xC0 + it - 280), 8) | 0x100] = it << 7; // symbol
-		fixed_huff_dec_table[rev_short((0xC0 + it - 280), 8) | 0x100] |= 8;      // len
+		fixed_huff_dec_table[rbit9((0xC0 + it - 280), 8)] = it << 7;         // symbol
+		fixed_huff_dec_table[rbit9((0xC0 + it - 280), 8)] |= 8;              // len
+		fixed_huff_dec_table[rbit9((0xC0 + it - 280), 8) | 0x100] = it << 7; // symbol
+		fixed_huff_dec_table[rbit9((0xC0 + it - 280), 8) | 0x100] |= 8;      // len
 		it += 1;
 	}
 #endif
