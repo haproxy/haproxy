@@ -62,24 +62,27 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	return ret;
 }
 
+/* Add EOM flag on input buffer for <qcs> instance.
+ * Returns 0 on success else non zero on internal error.
+ */
 int qcs_http_handle_standalone_fin(struct qcs *qcs)
 {
 	struct buffer *appbuf;
-	struct htx *htx;
-	int eom;
+	struct htx *htx = NULL;
 
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs)))
 		goto err;
-
 	htx = htx_from_buf(appbuf);
-	eom = htx_set_eom(htx);
-	htx_to_buf(htx, appbuf);
-	if (!eom)
+
+	if (!htx_set_eom(htx))
 		goto err;
 
+	htx_to_buf(htx, appbuf);
 	return 0;
 
  err:
+	if (htx)
+		htx_to_buf(htx, appbuf);
 	return -1;
 }
 
