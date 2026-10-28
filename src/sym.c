@@ -1854,21 +1854,29 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
  */
 const void *resolve_dso_name(struct buffer *buf, const char *pfx, const void *addr)
 {
-#if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
-	Dl_info dli;
-	size_t size;
+	struct sym_lookup sl;
 
-	/* Now let's try to be smarter */
-	if (!dladdr_and_size(addr, &dli, &size))
-		goto unknown;
-
-	if (pfx) {
-		chunk_appendf(buf, "%s", pfx);
-		pfx = NULL;
+	if (sym_resolve(addr, &sl) && sl.file) {
+		if (pfx)
+			chunk_appendf(buf, "%s", pfx);
+		append_obj_name(buf, sl.file);
+		return addr;
 	}
 
-	append_obj_name(buf, dli.dli_fname);
-	return addr;
+#if (defined(__ELF__) && !defined(__linux__)) || defined(USE_DL)
+	{
+		Dl_info dli;
+		size_t size;
+
+		/* Now let's try to be smarter */
+		if (!dladdr_and_size(addr, &dli, &size))
+			goto unknown;
+
+		if (pfx)
+			chunk_appendf(buf, "%s", pfx);
+		append_obj_name(buf, dli.dli_fname);
+		return addr;
+	}
  unknown:
 #endif /* __ELF__ && !__linux__ || USE_DL */
 
