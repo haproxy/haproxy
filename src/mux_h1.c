@@ -59,6 +59,7 @@ struct h1c {
 	struct h1_counters *px_counters; /* h1 counters attached to proxy */
 	struct buffer_wait buf_wait;     /* Wait list for buffer allocation */
 	struct wait_event wait_event;    /* To be used if we're waiting for I/Os */
+	const struct http_hdng_prf *hdng_prf; /* hardening profile of this connection, always set */
 	int glitches;                    /* Number of glitches on this connection */
 };
 
@@ -75,6 +76,7 @@ struct h1s {
 	struct h1m req;
 	struct h1m res;
 
+	struct http_hdng_chk hdng_chk; /* hardening checks to be performed and their results */
 	enum http_meth_t meth; /* HTTP request method  */
 	uint16_t status;       /* HTTP response status */
 
@@ -981,6 +983,10 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	h1m_init_res(&h1s->res);
 	h1s->res.flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 
+	/* set hardening bits from the bind_conf or server profile */
+	http_reset_hardening_check(&h1s->hdng_chk);
+	h1s->hdng_chk.rules = h1c->hdng_prf->mask;
+
 	h1s->status = 0;
 	h1s->meth   = HTTP_METH_OTHER;
 
@@ -1338,6 +1344,8 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	struct h1c *h1c;
 	struct task *t = NULL;
 	void *conn_ctx = conn->ctx;
+	const struct listener *li;
+	const struct server *srv;
 
 	TRACE_ENTER(H1_EV_H1C_NEW);
 
@@ -1359,6 +1367,21 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->req_count = 0;
 	h1c->term_evts_log = 0;
 	h1c->glitches = 0;
+
+	srv = objt_server(conn->target);
+	li = objt_listener(conn->target);
+	if (srv)
+		h1c->hdng_prf = srv->hdng_prf;
+	else if (li)
+		h1c->hdng_prf = li->bind_conf->hdng_prf;
+
+	/* "auto": untrusted for non-local otherwise trusted */
+	if (!h1c->hdng_prf) {
+		if (conn_get_src(conn) && is_ip_untrusted(conn->src))
+			h1c->hdng_prf = &http_hardening_untrusted;
+		else
+			h1c->hdng_prf = &http_hardening_trusted;
+	}
 
 	LIST_INIT(&h1c->buf_wait.list);
 	h1c->wait_event.tasklet = tasklet_new();
@@ -2256,7 +2279,10 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 
 		if (h1m->state <= H1_MSG_LAST_LF) {
 			TRACE_PROTO("parsing message headers", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1c->conn, h1s);
+			http_hdng_chk = h1s->hdng_chk;
 			ret = h1_handle_headers(h1s, h1m, htx, &h1c->ibuf, &total, count);
+			h1s->hdng_chk = http_hdng_chk;
+			http_reset_hardening_check(&http_hdng_chk);
 			if (!ret)
 				break;
 
@@ -2283,7 +2309,10 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 		else if (h1m->state == H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing message trailers", H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s);
+			http_hdng_chk = h1s->hdng_chk;
 			ret = h1_handle_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
+			h1s->hdng_chk = http_hdng_chk;
+			http_reset_hardening_check(&http_hdng_chk);
 			if (h1m->state != H1_MSG_DONE)
 				break;
 
