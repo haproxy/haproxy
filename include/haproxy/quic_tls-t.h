@@ -204,8 +204,6 @@ struct quic_tls_kp {
 	size_t ivlen;
 	unsigned char *key;
 	size_t keylen;
-	uint64_t count;
-	unsigned char flags;
 };
 
 /* Key phase bit of the packets we send */
