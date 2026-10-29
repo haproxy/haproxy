@@ -234,8 +234,6 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	qel->tx.crypto.bufs[0]->sz = 0;
 	qel->tx.crypto.nb_buf = 1;
 
-	qel->tx.crypto.sz = 0;
-	qel->tx.crypto.offset = 0;
 	/* No CRYPTO data for early data TLS encryption level */
 	if (level == ssl_encryption_early_data)
 		qel->cstream = NULL;
