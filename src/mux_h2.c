@@ -87,6 +87,7 @@ struct h2c {
 	unsigned int nb_sc;       /* number of attached stream connectors */
 	unsigned int nb_reserved; /* number of reserved streams */
 	unsigned int stream_cnt;  /* total number of streams seen */
+	const struct http_hdng_prf *hdng_prf; /* hardening profile of this connection, always set */
 	int glitches;             /* total number of glitches on this connection */
 
 	uint32_t term_evts_log;  /* Termination events log: first 4 events reported */
@@ -126,6 +127,7 @@ struct h2s {
 	uint64_t next_max_ofs; /* max stream offset that next WU must permit (curr_rx_ofs+rx_win) */
 	uint rx_head, rx_tail; /* head and tail of rx buffer in the conn's shared rx buf */
 	uint rx_count;         /* total number of allocated rxbufs */
+	struct http_hdng_chk hdng_chk;
 	/* 4 bytes hole here */
 	struct wait_event *subs;  /* recv wait_event the stream connector associated is waiting on (via h2_subscribe) */
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_list */
@@ -1399,6 +1401,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	struct h2c *h2c;
 	struct task *t = NULL;
 	void *conn_ctx = conn->ctx;
+	const struct listener *li;
+	const struct server *srv;
 	uint nb_rxbufs;
 
 	TRACE_ENTER(H2_EV_H2C_NEW);
@@ -1503,6 +1507,21 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->receiving_streams = 0;
 	h2c->glitches = 0;
 	h2c->term_evts_log = 0;
+
+	srv = objt_server(conn->target);
+	li = objt_listener(conn->target);
+	if (srv)
+		h2c->hdng_prf = srv->hdng_prf;
+	else if (li)
+		h2c->hdng_prf = li->bind_conf->hdng_prf;
+
+	/* "auto": untrusted for non-local otherwise trusted */
+	if (!h2c->hdng_prf) {
+		if (conn_get_src(conn) && is_ip_untrusted(conn->src))
+			h2c->hdng_prf = &http_hardening_untrusted;
+		else
+			h2c->hdng_prf = &http_hardening_trusted;
+	}
 
 	h2c->dbuf = *input;
 	h2c->dsi = -1;
@@ -2129,6 +2148,8 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->rx_tail   = 0;
 	h2s->rx_head   = 0;
 	h2s->rx_count  = 0;
+	http_reset_hardening_check(&h2s->hdng_chk);
+	h2s->hdng_chk.rules = h2c->hdng_prf->mask;
 	memset(h2s->upgrade_protocol, 0, sizeof(h2s->upgrade_protocol));
 
 	h2s->by_id.key = h2s->id = id;
@@ -2286,6 +2307,7 @@ static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct stconn *sc, struct
 		h2s = NULL;
 		goto out;
 	}
+
 	h2s->sd = sc->sedesc;
 	h2s->sess = sess;
 	h2c->nb_sc++;
@@ -3573,6 +3595,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	struct buffer rxbuf = BUF_NULL;
 	unsigned long long body_len = ULLONG_MAX;
 	uint32_t flags = 0;
+	struct http_hdng_chk hdng_chk;
 	int error;
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
@@ -3597,7 +3620,14 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 				goto out;
 			}
 
+			/* set the global hardening context to our current one */
+			http_hdng_chk = h2s->hdng_chk;
 			error = h2c_dec_hdrs(h2c, h2s_rxbuf_tail(h2s), &h2s->flags, &h2s->body_len, NULL);
+
+			/* and collect what was found */
+			h2s->hdng_chk = http_hdng_chk;
+			http_reset_hardening_check(&http_hdng_chk);
+
 			/* unrecoverable error ? */
 			if (h2c->st0 >= H2_CS_ERROR) {
 				TRACE_USER("Unrecoverable error decoding H2 trailers", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, h2s_rxbuf_tail(h2s));
@@ -3631,7 +3661,20 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* the stream was already killed by an RST, let's consume
 		 * the data and send another RST.
 		 */
+
+		/* set hardening bits from the bind_conf or server profile */
+		http_reset_hardening_check(&hdng_chk);
+		hdng_chk.rules = h2c->hdng_prf->mask;
+
+		/* set the global hardening context to our current one */
+		http_hdng_chk = hdng_chk;
+
 		error = h2c_dec_hdrs(h2c, &rxbuf, &flags, &body_len, NULL);
+
+		/* and collect what was found */
+		hdng_chk = http_hdng_chk;
+		http_reset_hardening_check(&http_hdng_chk);
+
 		h2_sess_log_strm(h2c->conn->owner);
 		h2s = (struct h2s*)h2_error_stream;
 		h2c_report_glitch(h2c, 1, "rcvd H2 trailers on closed stream");
@@ -3668,7 +3711,17 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto conn_err;
 	}
 
+	/* set hardening bits from the bind_conf or server profile */
+	http_reset_hardening_check(&hdng_chk);
+	hdng_chk.rules = h2c->hdng_prf->mask;
+
+	/* set the global hardening context to our current one */
+	http_hdng_chk = hdng_chk;
 	error = h2c_dec_hdrs(h2c, &rxbuf, &flags, &body_len, NULL);
+
+	/* and collect what was found */
+	hdng_chk = http_hdng_chk;
+	http_reset_hardening_check(&http_hdng_chk);
 
 	if (error == 0) {
 		/* No error but missing data for demuxing, it is an incomplete frame */
@@ -3732,6 +3785,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2s->body_len = body_len;
 	if (h2s->flags & H2_SF_DATA_CLEN)
 		h2s->sd->kip = h2s->body_len;
+	h2s->hdng_chk = hdng_chk;
 	h2s_propagate_term_flags(h2c, h2s);
 
  done:
@@ -3831,7 +3885,13 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto fail;
 	}
 
+	/* set the global hardening context to our current one */
+	http_hdng_chk = h2s->hdng_chk;
 	error = h2c_dec_hdrs(h2c, h2s_rxbuf_tail(h2s), &h2s->flags, &h2s->body_len, h2s->upgrade_protocol);
+
+	/* and collect what was found */
+	h2s->hdng_chk = http_hdng_chk;
+	http_reset_hardening_check(&http_hdng_chk);
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR) {
