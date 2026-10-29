@@ -151,10 +151,6 @@ struct quic_cstream *quic_cstream_new(struct quic_conn *qc)
 
 	cs->rx.offset = 0;
 	cs->rx.ncbuf = NCBMBUF_NULL;
-
-	cs->tx.offset = 0;
-	cs->tx.sent_offset = 0;
-	cs->tx.buf = BUF_NULL;
 	cs->desc = qc_stream_desc_new((uint64_t)-1, -1, cs, qc);
 	if (!cs->desc) {
 		TRACE_ERROR("crypto stream allocation failed", QUIC_EV_CONN_INIT, qc);
