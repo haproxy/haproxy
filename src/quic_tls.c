@@ -18,7 +18,6 @@
 #include <haproxy/pool.h>
 #include <haproxy/quic_ack.h>
 #include <haproxy/quic_conn.h>
-#include <haproxy/quic_rx.h>
 #include <haproxy/quic_stream.h>
 
 
