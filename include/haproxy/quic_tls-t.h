@@ -156,7 +156,6 @@ enum quic_tls_pktns {
 	QUIC_TLS_PKTNS_MAX,
 };
 
-extern unsigned char initial_salt[20];
 extern const unsigned char initial_salt_draft_29[20];
 extern const unsigned char initial_salt_v1[20];
 extern const unsigned char initial_salt_v2[20];
