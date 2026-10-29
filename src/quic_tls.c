@@ -1088,7 +1088,7 @@ int quic_tls_key_update(struct quic_conn *qc)
 
 	TRACE_ENTER(QUIC_EV_CONN_KP, qc);
 
-	TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
+	TRACE_PRINTF(TRACE_LEVEL_DEVELOPER, QUIC_EV_CONN_KP, qc, 0, 0, 0,
 	             "nxt_rx->secretlen=%llu rx->secretlen=%llu",
 	             (ull)nxt_rx->secretlen, (ull)rx->secretlen);
 	/* Prepare new RX secrets */
