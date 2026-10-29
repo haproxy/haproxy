@@ -524,12 +524,18 @@ int quic_hkdf_expand_label(const EVP_MD *md,
 	                        key, keylen, hdkf_label, pos - hdkf_label);
 }
 
-/*
- * This function derives two keys from <secret> is <ctx> as TLS cryptographic context.
- * ->key is the TLS key to be derived to encrypt/decrypt data at TLS level.
- * ->iv is the initialization vector to be used with ->key.
- * ->hp_key is the key to be derived for header protection.
- * Obviouly these keys have the same size becaused derived with the same TLS cryptographic context.
+/* Derive into <key>, <iv> and <hp_key> the AEAD key, the AEAD IV and the
+ * header protection key from <secret>, using <md> as hash function and the
+ * labels of <qv>. This follows the packet protection key derivation of
+ * RFC 9001 5.1: each value is the output of HKDF-Expand-Label applied to the
+ * encryption level secret, with the "quic key", "quic iv" and "quic hp"
+ * labels.
+ *
+ * The length of each derived value depends on the AEAD algorithm and on the
+ * header protection cipher, and is checked against the size of the
+ * corresponding output buffer.
+ *
+ * Return 1 if succeeded, 0 if not.
  */
 int quic_tls_derive_keys(const QUIC_AEAD *aead, const EVP_CIPHER *hp,
                          const EVP_MD *md, const struct quic_version *qv,
