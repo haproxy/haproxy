@@ -55,6 +55,8 @@
 #define CLI_MAX_MATCHES 5
 #define CLI_MAX_HELP_ENTRIES 1024
 
+#define CLI_CMD_FL_UNINTR        0x0001  /* runs as uninterruptible */
+
 /* CLI states */
 enum {
 	CLI_ST_INIT = 0,   /* initial state, must leave to zero ! */

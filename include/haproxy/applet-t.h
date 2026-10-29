@@ -137,6 +137,7 @@ struct appctx {
 							      if the command is terminated or the session released */
 		struct cli_kw *kw;      /* the keyword being processed */
 		struct mt_list sess_el; /* attach point in global <cli_session_list> */
+		uint cmd_flags;         /* flags for the active command */
 	} cli_ctx; /* context dedicated to the CLI applet */
 
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */

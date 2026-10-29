@@ -1696,6 +1696,16 @@ the pattern marking the end of the payload is part of this limit.
 When entering a payload while in interactive mode, the prompt will change from
 "> " to "+ ".
 
+Most commands should run rapidly before reporting their final status. Some
+commands though may take longer to wait for external events. By default, the
+handler is interrupted as soon as the CLI client disconnects which is the
+safest behavior. However, this causes issues with utilities such as 'socat'
+which close their output channel only, as haproxy is unable to differentiate
+between a full and a partial close. These commands may support an extra
+argument to run in the so-called uninterruptible execution mode. To prevent
+excessive usage, the number of concurrent uninterruptible jobs is fixed to a
+low value and extra requests will be rejected with an error.
+
 It is important to understand that when multiple haproxy processes are started
 on the same sockets, any process may pick up the request and will output its
 own stats.

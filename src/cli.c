@@ -99,6 +99,35 @@ struct show_env_ctx {
 /* Currently active CLI sessions. */
 static struct mt_list cli_session_list = MT_LIST_HEAD_INIT(cli_session_list);
 
+/* Limit of concurrent uninterruptible jobs. */
+#define CLI_MAX_JOBS_UNINTR   3
+/* Current number of concurrent uninterruptible jobs. */
+static uint cli_jobs_unintr = 0;
+
+/* Prepare for the execution of a new uninterruptible job.
+ * Returns 0 on success or non zero if concurrent job limit exceeded.
+ */
+int cli_inc_unintr(struct appctx *appctx)
+{
+	if (HA_ATOMIC_FETCH_ADD(&cli_jobs_unintr, 1) >= CLI_MAX_JOBS_UNINTR) {
+		HA_ATOMIC_DEC(&cli_jobs_unintr);
+		return 1;
+	}
+
+	appctx->cli_ctx.cmd_flags |= CLI_CMD_FL_UNINTR;
+	return 0;
+}
+
+/* Notify about the end of an uninterruptible job. */
+void cli_dec_unintr(struct appctx *appctx)
+{
+	if (!(appctx->cli_ctx.cmd_flags & CLI_CMD_FL_UNINTR))
+		return;
+
+	HA_ATOMIC_DEC(&cli_jobs_unintr);
+	appctx->cli_ctx.cmd_flags &= ~CLI_CMD_FL_UNINTR;
+}
+
 /* CLI context for the "show fd" command */
 /* flags for show_fd_ctx->show_mask */
 #define CLI_SHOWFD_F_PI  0x00000001   /* pipes             */
@@ -807,6 +836,7 @@ static void cli_reset_cmd(struct appctx *appctx)
 	appctx->cli_ctx.kw = NULL;
 	appctx->cli_ctx.io_handler = NULL;
 	appctx->cli_ctx.io_release = NULL;
+	appctx->cli_ctx.cmd_flags = 0;
 }
 
 /* Processes the CLI interpreter on the stats socket. This function is called
@@ -1015,6 +1045,7 @@ int cli_init(struct appctx *appctx)
 	appctx->cli_ctx.payload = BUF_NULL;
 	appctx->cli_ctx.max_payload_sz = global.tune.cli_max_payload_sz;
 	MT_LIST_APPEND(&cli_session_list, &appctx->cli_ctx.sess_el);
+	appctx->cli_ctx.cmd_flags = 0;
 
 	/* Wakeup the applet ASAP. */
         applet_need_more_data(appctx);
