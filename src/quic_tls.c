@@ -66,7 +66,7 @@ void quic_tls_keys_hexdump(struct buffer *buf,
 		return;
 	aead_keylen = (size_t)QUIC_AEAD_key_length(secs->aead);
 	aead_ivlen = (size_t)QUIC_AEAD_iv_length(secs->aead);
-	hp_len = (size_t)EVP_CIPHER_key_length(secs->hp);
+	hp_len = quic_hp_key_len(secs->hp);
 
 	chunk_appendf(buf, "\n          key=");
 	for (i = 0; i < aead_keylen; i++)
@@ -541,16 +541,7 @@ int quic_tls_derive_keys(const QUIC_AEAD *aead, const EVP_CIPHER *hp,
 {
 	size_t aead_keylen = (size_t)QUIC_AEAD_key_length(aead);
 	size_t aead_ivlen = (size_t)QUIC_AEAD_iv_length(aead);
-#ifdef QUIC_AEAD_API
-	size_t hp_len = 0;
-
-	if (hp == EVP_CIPHER_CHACHA20)
-		hp_len = 32;
-	else if (hp)
-		hp_len = (size_t)EVP_CIPHER_key_length(hp);
-#else
-	size_t hp_len = hp ? (size_t)EVP_CIPHER_key_length(hp) : 0;
-#endif
+	size_t hp_len = quic_hp_key_len(hp);
 
 	if (aead_keylen > keylen || aead_ivlen > ivlen || hp_len > hp_keylen)
 		return 0;

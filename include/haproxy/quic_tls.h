@@ -281,6 +281,25 @@ static inline const EVP_CIPHER *tls_hp(const SSL_CIPHER *cipher)
 
 }
 
+/* Return the key length of <hp>, the header protection cipher.
+ * Under QUIC_AEAD_API, tls_hp() returns
+ * EVP_CIPHER_CHACHA20, which is not an EVP_CIPHER at all but an EVP_AEAD
+ * cast to that type, as the underlying SSL library does not expose a
+ * ChaCha20 cipher usable for header protection. Calling
+ * EVP_CIPHER_key_length() on it would read the field of an EVP_CIPHER
+ * inside an EVP_AEAD object, so handle this case first.
+ */
+static inline size_t quic_hp_key_len(const EVP_CIPHER *hp)
+{
+	if (!hp)
+		return 0;
+#ifdef QUIC_AEAD_API
+	if (hp == EVP_CIPHER_CHACHA20)
+		return 32;
+#endif
+	return (size_t)EVP_CIPHER_key_length(hp);
+}
+
 /* These following functions map TLS implementation encryption level to ours */
 static inline struct quic_pktns **ssl_to_quic_pktns(struct quic_conn *qc,
                                                     enum ssl_encryption_level_t level)
