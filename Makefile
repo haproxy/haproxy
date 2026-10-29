@@ -144,6 +144,21 @@ include include/make/errors.mk
 include include/make/compiler.mk
 include include/make/options.mk
 
+#### Addons
+# External addons are loaded through EXTRA_MAKE after the options are set up.
+# Their Makefile.mk fragments may declare options, objects, includes, flags,
+# a late hook and install targets through the EXTRA_* variables consumed later
+# in this Makefile.
+EXTRA_USE_OPTS      =
+EXTRA_CFLAGS       =
+EXTRA_INCLUDES      =
+EXTRA_LATE_HOOK     =
+EXTRA_LDFLAGS       =
+EXTRA_INSTALL       =
+EXTRA_UNINSTALL     =
+# External fragments may define rules; keep "all" as the default goal.
+.DEFAULT_GOAL := all
+
 #### Installation options.
 DESTDIR =
 INSTALL = install
@@ -358,13 +373,10 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER USE_POLL                        \
            USE_MEMORY_PROFILING USE_SHM_OPEN USE_MINIDEBUG                    \
            USE_STATIC_PCRE USE_STATIC_PCRE2                                   \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT                      \
-           USE_QUIC_OPENSSL_COMPAT USE_KTLS
+           USE_QUIC_OPENSSL_COMPAT USE_KTLS $(EXTRA_USE_OPTS)
 
 # preset all variables for all supported build options among use_opts
 $(reset_opts_vars)
-
-# Check that any USE_* variable that was forced actually exist.
-$(warn_unknown_options)
 
 #### Target system options
 
@@ -568,7 +580,7 @@ OPTIONS_CFLAGS  =
 OPTIONS_LDFLAGS =
 OPTIONS_OBJS    =
 
-#### Extra objects to be built and integrated (used only for development)
+#### Extra objects to be built and integrated, including external addons
 EXTRA_OBJS =
 
 # A compressed table of the symbols which are not exported (mostly the static
@@ -876,6 +888,9 @@ ifneq ($(EXTRA_MAKE),)
   include $(addsuffix /Makefile.mk,$(EXTRA_MAKE))
 endif
 
+# Check options after external addons have registered their runtime switches.
+$(warn_unknown_options)
+
 # better keep this one close to the end, as several libs above may need it
 ifneq ($(USE_DL:0=),)
   DL_LDFLAGS = -ldl
@@ -891,6 +906,10 @@ endif
 
 #### End of the USE_* options handling, any such option that would be added
 #### below could be silently ignored.
+
+# Extra compiler flags, including those provided by external addons.
+OPTIONS_CFLAGS += $(EXTRA_CFLAGS)
+OPTIONS_LDFLAGS += $(EXTRA_LDFLAGS)
 
 # appends all foo_{C,LD}FLAGS to OPTIONS_{C,LD}FLAGS
 $(collect_opts_flags)
@@ -1041,6 +1060,9 @@ OBJS += src/xz_dec_stream.o src/xz_dec_lzma2.o src/xz_crc32.o		\
         src/xz_crc64.o
 endif
 
+# Late addon hook, expanded once every OPTIONS_CFLAGS append has happened.
+_ := $(EXTRA_LATE_HOOK)
+
 ifneq ($(USE_MINIDEBUG:0=),)
   MINIDEBUG_TOOL = $(SHELL) scripts/minidbg.sh
 endif
@@ -1050,7 +1072,7 @@ HATERM_OBJS += $(OBJS) src/haterm_init.o src/hbuf.o
 HALOAD_OBJS += $(OBJS) src/haload_init.o src/haload.o src/hbuf.o
 
 # Used only for forced dependency checking. May be cleared during development.
-INCLUDES = $(wildcard include/*/*.h)
+INCLUDES = $(wildcard include/*/*.h) $(EXTRA_INCLUDES)
 DEP = $(INCLUDES) .build_opts
 
 help:
@@ -1245,9 +1267,9 @@ install-bin:
 	$(Q)$(INSTALL) -d "$(DESTDIR)$(SBINDIR)"
 	$(Q)$(INSTALL) haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
-install: install-bin install-admin install-man install-doc
+install: install-bin install-admin install-man install-doc $(EXTRA_INSTALL)
 
-uninstall:
+uninstall: $(EXTRA_UNINSTALL)
 	$(Q)rm -f "$(DESTDIR)$(MANDIR)"/man1/haproxy.1
 	$(Q)for x in $(DOCUMENTATION); do \
 		rm -f "$(DESTDIR)$(DOCDIR)"/$$x.txt ; \
