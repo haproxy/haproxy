@@ -61,7 +61,6 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf);
 struct quic_cstream *quic_cstream_new(struct quic_conn *qc);
 void quic_cstream_free(struct quic_cstream *cs);
 void quic_free_arngs(struct quic_conn *qc, struct quic_arngs *arngs);
-struct quic_cstream *quic_cstream_new(struct quic_conn *qc);
 struct task *quic_conn_app_io_cb(struct task *t, void *context, unsigned int state);
 
 void quic_conn_closed_err_count_inc(struct quic_conn *qc, struct quic_frame *frm);
