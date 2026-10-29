@@ -149,7 +149,7 @@ int quic_token_check(struct quic_rx_packet *pkt,
 
 	/* The token is prefixed by a one-byte length format which is not ciphered. */
 	if (!quic_tls_decrypt2(buf, token + 1, tokenlen - QUIC_TOKEN_RAND_DLEN - 1, aad, aadlen,
-	                       ctx, aead, key, iv)) {
+	                       ctx, aead, iv)) {
 		TRACE_ERROR("Could not decrypt token", QUIC_EV_CONN_LPKT, qc);
 		goto err;
 	}

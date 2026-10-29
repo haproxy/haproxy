@@ -66,12 +66,12 @@ int quic_tls_decrypt2(unsigned char *out,
                       unsigned char *in, size_t ilen,
                       unsigned char *aad, size_t aad_len,
                       QUIC_AEAD_CTX *ctx, const QUIC_AEAD *aead,
-                      const unsigned char *key, const unsigned char *iv);
+                      const unsigned char *iv);
 
 int quic_tls_decrypt(unsigned char *buf, size_t len,
                      unsigned char *aad, size_t aad_len,
                      QUIC_AEAD_CTX *tls_ctx, const QUIC_AEAD *aead,
-                     const unsigned char *key, const unsigned char *iv);
+                     const unsigned char *iv);
 
 int quic_tls_generate_retry_integrity_tag(unsigned char *odcid, unsigned char odcid_len,
                                           const unsigned char *buf, size_t len,

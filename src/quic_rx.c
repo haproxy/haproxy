@@ -133,7 +133,6 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 	QUIC_AEAD_CTX *rx_ctx = tls_ctx->rx.ctx;
 	unsigned char *rx_iv = tls_ctx->rx.iv;
 	size_t rx_iv_sz = tls_ctx->rx.ivlen;
-	unsigned char *rx_key = tls_ctx->rx.key;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXPKT, qc);
 
@@ -158,7 +157,6 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 
 				rx_ctx = qc->ku.prv_rx.ctx;
 				rx_iv  = qc->ku.prv_rx.iv;
-				rx_key = qc->ku.prv_rx.key;
 				kp_prv = 1;
 			}
 			else if (pkt->pn > qel->pktns->rx.largest_pn) {
@@ -177,7 +175,6 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 				kp_changed = 1;
 				rx_ctx = qc->ku.nxt_rx.ctx;
 				rx_iv  = qc->ku.nxt_rx.iv;
-				rx_key = qc->ku.nxt_rx.key;
 			}
 		}
 	}
@@ -186,7 +183,7 @@ static int qc_pkt_decrypt(struct quic_conn *qc, struct quic_enc_level *qel,
 
 	ret = quic_tls_decrypt(pkt->data + pkt->aad_len, pkt->len - pkt->aad_len,
 	                       pkt->data, pkt->aad_len,
-	                       rx_ctx, tls_ctx->rx.aead, rx_key, iv);
+	                       rx_ctx, tls_ctx->rx.aead, iv);
 	if (!ret) {
 		TRACE_ERROR("quic_tls_decrypt() failed", QUIC_EV_CONN_RXPKT, qc);
 
