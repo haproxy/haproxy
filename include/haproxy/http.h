@@ -39,6 +39,8 @@ extern const struct http_hardening_kw http_hardening_kws[];
 extern struct http_hdng_prf http_hardening_untrusted;
 extern struct http_hdng_prf http_hardening_trusted;
 
+extern THREAD_LOCAL struct http_hdng_chk http_hdng_chk;
+
 enum http_meth_t find_http_meth(const char *str, const int len);
 int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);
@@ -102,6 +104,34 @@ static inline char *http_find_param_list(char *path, size_t path_l, char delim)
 static inline int http_is_param_delimiter(char c, char delim)
 {
 	return c == '&' || c == ';' || c == delim;
+}
+
+/* reset an http hardening check after a call */
+static inline void http_reset_hardening_check(struct http_hdng_chk *chk)
+{
+	chk->rules = 0;
+	chk->found = 0;
+	chk->fixed = 0;
+}
+
+/* marks the global http_hdng_chk.found with the provided check, then checks if this
+ * test is enabled or not. If so, it will put it in the hardening fixed value
+ * and return true, otherwise it will return false. This allows to construct
+ * simple checks like this and have all fields properly filled:
+ *
+ *     if (unlikely(smiley_in_header_name))
+ *         if (http_harden(HTTP_HRD_SMILEY_HNAME))
+ *             goto fail;
+ *
+ * Make sure to pass it single-bit options to keep found/fixed easy to grasp.
+ */
+static inline int http_harden(uint32_t flag)
+{
+	http_hdng_chk.found |= flag;
+	if (!(http_hdng_chk.rules & flag))
+		return 0;
+	http_hdng_chk.fixed |= flag;
+	return 1;
 }
 
 /* Match language range with language tag. RFC2616 14.4:

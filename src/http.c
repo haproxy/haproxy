@@ -377,6 +377,11 @@ const struct ist http_known_methods[HTTP_METH_OTHER] = {
 long http_err_status_codes[512 / sizeof(long)] = { };
 long http_fail_status_codes[512 / sizeof(long)] = { };
 
+/* hardening checks to be run through the HTTP stack, preset by the caller,
+ * must always be cleared by the one that sets or checks them after use.
+ */
+THREAD_LOCAL struct http_hdng_chk http_hdng_chk = { };
+
 /*
  * returns a known method among HTTP_METH_* or HTTP_METH_OTHER for all unknown
  * ones.

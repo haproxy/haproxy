@@ -270,6 +270,18 @@ struct http_hdng_prf {
 	char *file;                 /* file of the declaration */
 };
 
+/* description of a check to be done in the HTTP stack:
+ * - rules = mask of the checks to apply (comes from the profile) ;
+ * - found = mask of checks met even if not blocked, preset to zero
+ *   before the call and filled by the stack ;
+ * - fixed = mask of actions performed
+ */
+struct http_hdng_chk {
+       uint32_t rules; // rules to apply
+       uint32_t found; // what was found
+       uint32_t fixed; // mask of actions performed
+};
+
 #endif /* _HAPROXY_HTTP_T_H */
 
 /*
