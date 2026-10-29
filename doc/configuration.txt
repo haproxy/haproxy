@@ -19372,6 +19372,10 @@ check
   httpchk", "option mysql-check" "option smtpchk", "option pgsql-check",
   "option ldap-check", or "option redis-check".
 
+  For log backends, although UDP endpoints are supported, TCP will be used
+  for checks as implicit protocol, because there is no such thing as rax
+  UDP checks, and ICMP checks are not available.
+
   Example:
       # simple tcp check
       backend foo

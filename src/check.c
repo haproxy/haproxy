@@ -1872,6 +1872,16 @@ int init_srv_check(struct server *srv)
 			srv->check.xprt = xprt_get(XPRT_SSL);
 	}
 
+	/* special case for log backends, we enforce stream socket type
+	 * if type is DGRAM because although log backends support UDP endpoints
+	 * there is no such thing as raw UDP checks, and we don't offer ICMP
+	 * checks, so let's stick to TCP (for checks) as per the documentation.
+	 */
+	if (srv->proxy->mode == PR_MODE_SYSLOG && srv->check.addr_type.proto_type == PROTO_TYPE_DGRAM) {
+		srv->check.addr_type.proto_type = PROTO_TYPE_STREAM;
+		srv->check.addr_type.xprt_type = PROTO_TYPE_STREAM;
+	}
+
 	/* Inherit the mux protocol from the server if not already defined for
 	 * the check
 	 */
