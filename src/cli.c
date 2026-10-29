@@ -2526,11 +2526,16 @@ static int cli_parse_set_ratelimit(char **args, char *payload, struct appctx *ap
 static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct cli_wait_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
-	uint wait_ms;
+	uint wait_ms, unintr = 0;
 	const char *err;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
+
+	if (strcmp(args[1], "-u") == 0) {
+		unintr = 1;
+		++args;
+	}
 
 	if (!*args[1])
 		return cli_err(appctx, "Expects a duration in milliseconds.\n");
@@ -2558,8 +2563,9 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 	}
 	else if (*args[2]) {
 		/* show the command's help either upon request (-h) or error */
-		err = "Usage: wait {-h|<duration>} [condition [args...]]\n"
+		err = "Usage: wait {-h|[-u] <duration>} [condition [args...]]\n"
 			"  - '-h' displays this help\n"
+			"  - '-u' activates uninterruptible mode\n"
 			"  - <duration> is the maximum wait time, optionally suffixed by the unit among\n"
 			"    'us', 'ms', 's', 'm', 'h', and 'd'. ; the default unit is milliseconds.\n"
 			"  - <condition> indicates what to wait for, no longer than the specified\n"
@@ -2614,6 +2620,9 @@ static int cli_parse_wait(char **args, char *payload, struct appctx *appctx, voi
 
 	ctx->start = now_ms;
 	ctx->deadline = tick_add(now_ms, wait_ms);
+
+	if (unintr && cli_inc_unintr(appctx))
+		return cli_err(appctx, "Cannot start a new uninterruptible job.\n");
 
 	/* proceed with the I/O handler */
 	return 0;
@@ -2731,7 +2740,8 @@ static int cli_io_handler_wait(struct appctx *appctx)
 
  wait:
 	/* Stop waiting upon close/abort/error */
-	if (unlikely(se_fl_test(appctx->sedesc, SE_FL_SHW)) && !b_data(&appctx->inbuf)) {
+	if (!(appctx->cli_ctx.cmd_flags & CLI_CMD_FL_UNINTR) &&
+	    unlikely(se_fl_test(appctx->sedesc, SE_FL_SHW)) && !b_data(&appctx->inbuf)) {
 		ctx->error = CLI_WAIT_ERR_INTR;
 		return 1;
 	}
@@ -2746,6 +2756,8 @@ static void cli_release_wait(struct appctx *appctx)
 	struct cli_wait_ctx *ctx = appctx->svcctx;
 	char *msg = NULL;
 	int i;
+
+	cli_dec_unintr(appctx);
 
 	switch (ctx->error) {
 	case CLI_WAIT_ERR_EXP:  memprintf(&msg, "Wait delay expired. %s\n", ctx->msg); break;
@@ -4631,7 +4643,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "version", NULL },           "show version                            : show version of the current process",                     cli_parse_show_version, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "wait", NULL },                      "wait {-h|<delay_ms>} cond [args...]     : wait the specified delay or condition (-h to see list)",  cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
+	{ { "wait", NULL },                      "wait {-h|[-u] <delay_ms>} cond [args...] : wait the specified delay or condition (-h to see list)", cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
 	{ { "_send_status", NULL },              NULL,  											      _send_status, NULL, NULL, NULL, ACCESS_MASTER_ONLY },
 	{{},}
 }};
