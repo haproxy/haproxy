@@ -62,7 +62,49 @@
 #include <haproxy/twork.h>
 #include <haproxy/vars.h>
 #include <haproxy/ssl_ocsp.h>
+#include <limits.h>
 
+
+struct pool_head *pool_head_strm_memslot = NULL;
+
+/* Logical size, independent of pool rounding and debugging overhead. */
+static int stream_memslot_size;
+
+/* Reserve <size> bytes per stream during initialization, before streams exist.
+ * Return a pointer-aligned byte offset (possibly zero), or -1 on failure.
+ */
+int stream_reserve_memslot(int size)
+{
+	struct pool_head *pool;
+	unsigned int aligned;
+	int offset;
+
+	if (size <= 0 || size > INT_MAX - (int)(sizeof(void *) - 1))
+		return -1;
+	aligned = ((unsigned int)size + sizeof(void *) - 1) & ~(sizeof(void *) - 1);
+	if (aligned > (unsigned int)(INT_MAX - stream_memslot_size))
+		return -1;
+	/* Pools have a fixed block size, so each reservation needs a larger pool.
+	 * Create it first to preserve earlier reservations if allocation fails.
+	 * No streams exist yet, so the previous pool can then be destroyed.
+	 */
+	pool = create_pool("strm_memslot", stream_memslot_size + aligned, 0);
+	if (!pool)
+		return -1;
+	pool_destroy(pool_head_strm_memslot);
+	pool_head_strm_memslot = pool;
+	offset = stream_memslot_size;
+	stream_memslot_size += aligned;
+	return offset;
+}
+
+/* Return the address of the reserved slot at <offset> in stream <s>. Requires
+ * allocated storage and a valid offset returned by stream_reserve_memslot().
+ */
+void *stream_get_memslot(struct stream *s, int offset)
+{
+	return s->memory_slot + offset;
+}
 
 DECLARE_TYPED_POOL(pool_head_stream, "stream", struct stream);
 DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);
@@ -401,6 +443,14 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	s->waiting_entity.ptr = NULL;
 
 	s->stkctr = NULL;
+
+	/* Memory reserved by addons during configuration parsing. */
+	s->memory_slot = NULL;
+	if (pool_head_strm_memslot) {
+		if (unlikely((s->memory_slot = pool_zalloc(pool_head_strm_memslot)) == NULL))
+			goto out_fail_alloc;
+	}
+
 	if (pool_head_stk_ctr) {
 		s->stkctr = pool_alloc(pool_head_stk_ctr);
 		if (!s->stkctr)
@@ -610,6 +660,8 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
  out_fail_alloc:
 	if (s)
 		pool_free(pool_head_stk_ctr, s->stkctr);
+	if (s)
+		pool_free(pool_head_strm_memslot, s->memory_slot);
 	pool_free(pool_head_stream, s);
 	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_NEW|STRM_EV_STRM_ERR);
 	return NULL;
@@ -792,6 +844,7 @@ void stream_free(struct stream *s)
 
 	stream_set_target(s, NULL);
 
+	pool_free(pool_head_strm_memslot, s->memory_slot);
 	pool_free(pool_head_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
@@ -802,6 +855,7 @@ void stream_free(struct stream *s)
 		pool_flush(pool_head_pcli_txn);
 		pool_flush(pool_head_requri);
 		pool_flush(pool_head_capture);
+		pool_flush(pool_head_strm_memslot);
 		pool_flush(pool_head_stream);
 		pool_flush(pool_head_session);
 		pool_flush(pool_head_connection);

@@ -55,6 +55,10 @@ extern struct trace_source trace_strm;
 
 #define IS_HTX_STRM(strm) ((strm)->flags & SF_HTX)
 
+extern struct pool_head *pool_head_strm_memslot;
+int stream_reserve_memslot(int size);                   /* Reserve storage during haproxy initialization */
+void *stream_get_memslot(struct stream *s, int offset); /* Access a previously reserved slot */
+
 extern struct pool_head *pool_head_stream;
 extern struct pool_head *pool_head_uniqueid;
 

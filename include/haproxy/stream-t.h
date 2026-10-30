@@ -359,6 +359,7 @@ struct stream {
 	struct be_counters_shared_tg *sv_tgcounters; /* pointer to current thread group shared server counters */
 
 	struct ocsp_clt_check_ctx *ocsp_clt_check_ctx; /* used for client ssl certificate's ocsp check */
+	char *memory_slot;                      /* general-purpose storage accessed via stream_get_memslot() */
 };
 
 #endif /* _HAPROXY_STREAM_T_H */
