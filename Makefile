@@ -940,6 +940,9 @@ endif
 # add options at the beginning of the "ld" command line if needed.
 LDOPTS = $(TARGET_LDFLAGS) $(OPTIONS_LDFLAGS) $(ADDLIB)
 
+# External addons may supply their own build and cleanup targets.
+ifeq ($(EXTRA_TARGET_BUILD),)
+
 ifeq ($(TARGET),)
 all:
 	@echo "Building HAProxy without specifying a TARGET is not supported."
@@ -1337,6 +1340,8 @@ update-version:
 	echo "$(VERSION)" > VERSION
 	echo "$(SUBVERS)" > SUBVERS
 	echo "$(VERDATE)" > VERDATE
+
+endif # EXTRA_TARGET_BUILD
 
 # just display the build options. The "USE_*" options and their respective
 # settings are also listed if they're explicitly set on the command line, or if
