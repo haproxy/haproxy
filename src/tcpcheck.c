@@ -3090,6 +3090,13 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 				 strcasecmp(args[cur_arg+1], "transfer-encoding") == 0)
 				goto skip_hdr;
 
+			/* keep room for the terminating IST_NULL entry */
+			if (i >= global.tune.max_http_hdr - 1) {
+				memprintf(errmsg, "too many headers (tune.http.maxhdr is %d)",
+					  global.tune.max_http_hdr);
+				goto error;
+			}
+
 			hdrs[i].n = ist(args[cur_arg + 1]);
 			hdrs[i].v = ist(args[cur_arg + 2]);
 			i++;
