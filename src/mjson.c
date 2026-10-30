@@ -176,7 +176,7 @@ struct msjon_get_data {
 static int plen1(const char *s) {
   int i = 0, n = 0;
   while (s[i] != '\0' && s[i] != '.' && s[i] != '[')
-    n++, i += s[i] == '\\' ? 2 : 1;
+    n++, i += (s[i] == '\\' && s[i + 1] != '\0') ? 2 : 1;
   // printf("PLEN: s: [%s], [%.*s] => %d\n", s, i, s, n);
   return n;
 }
@@ -184,9 +184,23 @@ static int plen1(const char *s) {
 static int plen2(const char *s) {
   int i = 0, __attribute__((unused)) n = 0;
   while (s[i] != '\0' && s[i] != '.' && s[i] != '[')
-    n++, i += s[i] == '\\' ? 2 : 1;
+    n++, i += (s[i] == '\\' && s[i + 1] != '\0') ? 2 : 1;
   // printf("PLEN: s: [%s], [%.*s] => %d\n", s, i, s, n);
   return i;
+}
+
+// Moves <*pos> past the array index it points to, i.e. from the opening '['
+// to the character following the closing ']'. Returns 0 if the index is not
+// a decimal number properly terminated by a ']', and leaves <*pos> untouched.
+// The scan never goes past the end of the string so that a truncated index
+// such as "$.a[" or "$.a[0" cannot cause an overread.
+static int skip_idx(const char *path, int *pos) {
+  int i = *pos + 1;
+  if (path[i] < '0' || path[i] > '9') return 0;
+  while (path[i] >= '0' && path[i] <= '9') i++;
+  if (path[i] != ']') return 0;
+  *pos = i + 1;
+  return 1;
 }
 
 static int kcmp(const char *a, const char *b, int n) {
@@ -213,21 +227,16 @@ static int mjson_get_cb(int tok, const char *s, int off, int len, void *ud) {
     if (data->d1 == data->d2 && data->path[data->pos] == '[') {
       data->i1 = 0;
       data->i2 = (int) mystrtod(&data->path[data->pos + 1], strlen(&data->path[data->pos + 1]),  NULL);
-      if (data->i1 == data->i2) {
+      if (data->i1 == data->i2 && skip_idx(data->path, &data->pos))
         data->d2++;
-        data->pos += 3;
-      }
     }
     if (!data->path[data->pos] && data->d1 == data->d2) data->obj = off;
     data->d1++;
   } else if (tok == ',') {
     if (data->d1 == data->d2 + 1) {
       data->i1++;
-      if (data->i1 == data->i2) {
-        while (data->path[data->pos] != ']') data->pos++;
-        data->pos++;
+      if (data->i1 == data->i2 && skip_idx(data->path, &data->pos))
         data->d2++;
-      }
     }
   } else if (tok == MJSON_TOK_KEY && data->d1 == data->d2 + 1 &&
              data->path[data->pos] == '.' && s[off] == '"' &&
