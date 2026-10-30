@@ -6948,6 +6948,15 @@ balance url_param <param> [check_post]
                   the Power of Two Random Choices and is described here :
                   http://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf
 
+                  The servers are drawn on the consistent hash ring, where each
+                  server gets 16 points per unit of weight. With the default
+                  weight of 1, the share of the ring of each server is uneven:
+                  in a farm of 32 servers it varies between about 2% and 4%,
+                  and the servers with a larger share are drawn more often.
+                  Using the same higher weight for all servers, such as 100,
+                  makes the shares almost even and the distribution closer to a
+                  uniform draw, at the expense of a larger tree.
+
                   For backends in LOG mode, the number of draws is ignored and
                   a single random is picked since there is no notion of server
                   load. Random log balancing can be useful with large farms or
