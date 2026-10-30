@@ -1091,6 +1091,7 @@ static void h1s_destroy(struct h1s *h1s)
 		 * belong to us anymore and must not be passed to traces.
 		 */
 		struct connection *conn = (h1c->conn && h1c->conn->ctx == h1c) ? h1c->conn : NULL;
+		int short_clen = 0;
 
 		TRACE_POINT(H1_EV_H1S_END, conn, h1s);
 		h1c->h1s = NULL;
@@ -1107,14 +1108,21 @@ static void h1s_destroy(struct h1s *h1s)
 
 		/*
 		 * If we reached the end of the stream and sent less bits than
-		 * announced in Content-Length, we have little choice but to
-		 * close the connection, as the peer will expect more.
+		 * announced in Content-Length, we can't add the connection
+		 * to the idle pool, as the peer will expect more. Just flag
+		 * the connection in error if there is nothing left to send,
+		 * otherwise the connection will be closed once everything
+		 * has been sent.
 		 */
 		if ((h1s->req.curr_len && !(h1s->flags & H1S_F_BODYLESS_REQ)) ||
-		    (h1s->res.curr_len && !(h1s->flags & H1S_F_BODYLESS_RESP)))
-			h1c->flags |= H1C_F_ERROR;
+		    (h1s->res.curr_len && !(h1s->flags & H1S_F_BODYLESS_RESP))) {
+			short_clen = 1;
+			if (!b_data(&h1c->obuf))
+				h1c->flags |= H1C_F_ERROR;
+		}
 
 		if (!(h1c->flags & (H1C_F_EOS|H1C_F_ERR_PENDING|H1C_F_ERROR|H1C_F_ABRT_PENDING|H1C_F_ABRTED)) &&  /* No error/read0/abort */
+		    !short_clen &&                                                           /* no truncated message */
 		    h1_is_alive(h1c) &&                                                      /* still alive */
 		    (h1s->flags & H1S_F_WANT_KAL) &&                                         /* K/A possible */
 		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
@@ -4378,10 +4386,10 @@ static int h1_process(struct h1c * h1c)
 	/* H1 connection must be released ASAP if:
 	 *  - an error occurred on the H1C or
 	 *  - a read0 was received or
-	 *  - a silent shutdown was emitted and all outgoing data sent
+	 *  - the connection is closing and all outgoing data sent
 	 */
 	if ((h1c->flags & (H1C_F_EOS|H1C_F_ERROR|H1C_F_ABRT_PENDING|H1C_F_ABRTED)) ||
-	    (h1c->state >= H1_CS_CLOSING && (h1c->flags & H1C_F_SILENT_SHUT) && !b_data(&h1c->obuf))) {
+	    (h1c->state >= H1_CS_CLOSING && !b_data(&h1c->obuf))) {
 		if (h1c->state != H1_CS_RUNNING) {
 			/* No stream connector or upgrading */
 			if (h1c->state == H1_CS_IDLE)
