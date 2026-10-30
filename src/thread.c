@@ -513,6 +513,7 @@ const char *lock_label(enum lock_label label)
 	case DEBUG3_LOCK:          return "DEBUG3";
 	case DEBUG4_LOCK:          return "DEBUG4";
 	case DEBUG5_LOCK:          return "DEBUG5";
+	case EXTRAS_LOCK:          return "EXTRAS";
 	case LOCK_LABELS:          break; /* keep compiler happy */
 	};
 	/* only way to come here is consecutive to an internal bug */

@@ -226,6 +226,7 @@ enum lock_label {
 	DEBUG3_LOCK,
 	DEBUG4_LOCK,
 	DEBUG5_LOCK,
+	EXTRAS_LOCK,
 	LOCK_LABELS
 };
 
