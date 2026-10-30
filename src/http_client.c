@@ -1745,7 +1745,7 @@ static struct http_hdr *hlua_httpclient_table_to_hdrs(lua_State *L)
 		result = calloc((hdr_num + 1), sizeof(*result));
 		if (!result)
 			goto skip_headers;
-		memcpy(result, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
+		memcpy(result, hdrs, sizeof(struct http_hdr) * hdr_num);
 
 		result[hdr_num].n = IST_NULL;
 		result[hdr_num].v = IST_NULL;
