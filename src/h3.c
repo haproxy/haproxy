@@ -153,6 +153,7 @@ struct h3c {
 	uint64_t id_shut_l; /* GOAWAY ID locally emitted */
 	uint64_t id_shut_r; /* GOAWAY ID emitted by the peer */
 
+	const struct http_hdng_prf *hdng_prf; /* hardening profile for the connection, always set */
 	struct buffer_wait buf_wait; /* wait list for buffer allocations */
 	/* Stats counters */
 	struct h3_counters *prx_counters;
@@ -176,6 +177,8 @@ struct h3s {
 
 	unsigned long long body_len; /* known request body length from content-length header if present */
 	unsigned long long data_len; /* total length of all parsed DATA */
+
+	struct http_hdng_chk hdng_chk;
 
 	int flags;
 	int err; /* used for stream reset */
@@ -2131,11 +2134,22 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		case H3_FT_HEADERS:
 			if (h3s->st_req == H3S_ST_REQ_BEFORE) {
 				if (!conn_is_back(qcs->qcc->conn)) {
+					/* set the global hardening context to our current one */
+					http_hdng_chk = h3s->hdng_chk;
 					ret = h3_req_headers_to_htx(qcs, b, flen, last_stream_frame);
+					/* and collect what was found */
+					h3s->hdng_chk = http_hdng_chk;
+					http_reset_hardening_check(&http_hdng_chk);
+
 					h3s->st_req = H3S_ST_REQ_HEADERS;
 				}
 				else {
+					/* set the global hardening context to our current one */
+					http_hdng_chk = h3s->hdng_chk;
 					ret = h3_resp_headers_to_htx(qcs, b, flen, last_stream_frame);
+					/* and collect what was found */
+					h3s->hdng_chk = http_hdng_chk;
+					http_reset_hardening_check(&http_hdng_chk);
 
 					/* Check if an interim or final response was parsed. */
 					if (h3s->flags & H3_SF_RECV_INTERIM) {
@@ -2157,7 +2171,12 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 					qcs->sd->kip = h3s->body_len;
 			}
 			else {
+				/* set the global hardening context to our current one */
+				http_hdng_chk = h3s->hdng_chk;
 				ret = h3_trailers_to_htx(qcs, b, flen, last_stream_frame);
+				/* and collect what was found */
+				h3s->hdng_chk = http_hdng_chk;
+				http_reset_hardening_check(&http_hdng_chk);
 				h3s->st_req = H3S_ST_REQ_TRAILERS;
 			}
 
@@ -3586,8 +3605,10 @@ static int h3_attach(struct qcs *qcs, void *conn_ctx)
 	h3s->data_len = 0;
 	h3s->flags = 0;
 	h3s->err = 0;
+	http_reset_hardening_check(&h3s->hdng_chk);
 
 	if (quic_stream_is_bidi(qcs->id)) {
+		h3s->hdng_chk.rules = h3c->hdng_prf->mask;
 		h3s->type = H3S_T_REQ;
 		h3s->st_req = H3S_ST_REQ_BEFORE;
 		qcs_wait_http_req(qcs);
@@ -3708,6 +3729,8 @@ static int h3_send_goaway(struct h3c *h3c)
  */
 static int h3_init(struct qcc *qcc)
 {
+	const struct server *srv = objt_server(qcc->conn->target);
+	const struct listener *li = objt_listener(qcc->conn->target);
 	struct h3c *h3c;
 
 	TRACE_ENTER(H3_EV_H3C_NEW, qcc->conn);
@@ -3727,6 +3750,20 @@ static int h3_init(struct qcc *qcc)
 
 	qcc->ctx = h3c;
 	h3c->prx_counters = qc_counters(qcc->conn->target, &h3_stats_module);
+
+	if (srv)
+		h3c->hdng_prf = srv->hdng_prf;
+	else if (li)
+		h3c->hdng_prf = li->bind_conf->hdng_prf;
+
+	/* "auto": untrusted for non-local otherwise trusted */
+	if (!h3c->hdng_prf) {
+		if (conn_get_src(qcc->conn) && is_ip_untrusted(qcc->conn->src))
+			h3c->hdng_prf = &http_hardening_untrusted;
+		else
+			h3c->hdng_prf = &http_hardening_trusted;
+	}
+
 	LIST_INIT(&h3c->buf_wait.list);
 
 	TRACE_LEAVE(H3_EV_H3C_NEW, qcc->conn);
