@@ -334,6 +334,8 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					next = htx_remove_blk(htx, blk);
 				else {
 					blk = htx_replace_blk_value(htx, blk, v, ist2(b_head(&trash), b_data(&trash)));
+					if (!blk)
+						goto error;
 					next = htx_get_next_blk(htx, blk);
 				}
 
