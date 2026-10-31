@@ -1,0 +1,52 @@
+varnishtest "Compression filter: contents that are hard to compress, sent by 4000-byte calls with a content-length"
+
+# The deflater's output may be larger than its input on incompressible data,
+# and the compression filter must reserve enough room in the buffer for this.
+# Here a Lua service sends bodies that are incompressible or barely
+# compressible (random bytes, bytes that cost 9 bits each with the fixed tree,
+# random data mixed with text, random data with short matches, runs of 9-bit
+# literals separated by short matches) or repetitive, sent by 4000-byte calls with a content-length, through 4 kB
+# buffers. They are decompressed by the client, which checks the gzip
+# trailer's CRC and length, and their length is compared to the one announced
+# by the service. See output_margin.lua for the patterns, and the other
+# output_margin_*.vtc files for other chunkings and nearly full buffers.
+#REGTEST_TYPE=slow
+feature cmd "$HAPROXY_PROGRAM -cc '(feature(ZLIB) || feature(SLZ)) && feature(LUA)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 4096
+        tune.lua.bool-sample-conversion normal
+        lua-load ${testdir}/output_margin.lua
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe-gzip
+        bind "fd@${fe_gzip}"
+        compression algo gzip
+        compression type text/plain
+        default_backend be
+
+    backend be
+        server gen ${h1_gen_addr}:${h1_gen_port}
+
+    listen gen
+        bind "fd@${gen}"
+        http-request use-service lua.gen
+} -start
+
+client c1 -connect ${h1_fe_gzip_sock} {
+    loop 10 {
+        txreq -url "/?set=buf" -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        gunzip
+        expect resp.bodylen == resp.http.x-len
+    }
+} -run

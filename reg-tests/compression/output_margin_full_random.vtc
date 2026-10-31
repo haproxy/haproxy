@@ -1,0 +1,57 @@
+varnishtest "Compression filter: random bytes in nearly full buffers"
+
+# The deflater's output may be larger than its input on incompressible data,
+# and the compression filter must reserve enough room in the buffer for this.
+# Before the fixes, libslz could emit far more than its documented worst case
+# on such data, which exceeded the reserve on a nearly full buffer, made
+# htx_replace_blk_value() fail, and crashed the filter which did not check
+# its result.
+#
+# Here, with 16 kB buffers and a tiny maxrewrite, so that buffers can be
+# almost full when the filter compresses them, a Lua service sends random bytes
+# of sizes close to the buffer size in one call, which used to crash. The
+# sizes are chosen so that there is still room for the deflater, so all
+# responses must be compressed (see output_margin.lua). They are decompressed
+# by the client, which checks the gzip trailer's CRC and length, and their
+# length is compared to the one announced by the service.
+#REGTEST_TYPE=slow
+feature cmd "$HAPROXY_PROGRAM -cc '(feature(ZLIB) || feature(SLZ)) && feature(LUA)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 16384
+        tune.maxrewrite 32
+        tune.lua.bool-sample-conversion normal
+        lua-load ${testdir}/output_margin.lua
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe-gzip
+        bind "fd@${fe_gzip}"
+        compression algo gzip
+        compression type text/plain
+        default_backend be
+
+    backend be
+        server gen ${h1_gen_addr}:${h1_gen_port}
+
+    listen gen
+        bind "fd@${gen}"
+        http-request use-service lua.gen
+} -start
+
+client c1 -connect ${h1_fe_gzip_sock} {
+    loop 8 {
+        txreq -url "/?set=full-random" -hdr "Accept-Encoding: gzip"
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        gunzip
+        expect resp.bodylen == resp.http.x-len
+    }
+} -run
