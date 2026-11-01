@@ -807,12 +807,30 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 static int
 htx_compression_buffer_init(struct htx *htx, struct buffer *out)
 {
+#if defined(USE_SLZ) && defined(SLZ_MAX_OVERHEAD)
+	/* SLZ publishes the room each call needs beyond its input length,
+	 * including the stored blocks and the lag of its huffman encoding. All
+	 * the DATA blocks of a pass are queued and compressed in a single call
+	 * when the last one is flushed, so the call covers at most the whole
+	 * buffer, hence the use of its size, which keeps the reserve constant
+	 * (52 bytes for buffers up to 64 kB). It is followed by the finish (up
+	 * to 14 bytes for the queue, the last block and the gzip trailer) or a
+	 * flush (10 bytes), and the gzip header (10 bytes) is sent with the
+	 * first output.
+	 */
+	if (htx_free_space(htx) < 24 + SLZ_MAX_OVERHEAD(htx->size))
+		return -1;
+#else
 	/* output stream requires at least 10 bytes for the gzip header, plus
 	 * at least 8 bytes for the gzip trailer (crc+len), plus at most
-	 * 5 bytes per 32kB block and 2 bytes to close the stream.
+	 * 5 bytes per 32kB block and 2 bytes to close the stream. This only
+	 * covers data sent as stored blocks, and no deflater is guaranteed to
+	 * emit less than its input, so the result of htx_replace_blk_value()
+	 * must still be checked.
 	 */
 	if (htx_free_space(htx) < 20 + 5 * ((htx->data + 32767) >> 15))
 		return -1;
+#endif
 	b_reset(out);
 	return 0;
 }
