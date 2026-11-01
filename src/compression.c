@@ -339,8 +339,8 @@ static int comp_rfc1952_init(struct comp_ctx **comp_ctx, int level)
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
 
-	(*comp_ctx)->cur_lvl = !!level;
-	return slz_rfc1952_init(&(*comp_ctx)->strm, !!level);
+	(*comp_ctx)->cur_lvl = level;
+	return slz_rfc1952_init(&(*comp_ctx)->strm, level);
 }
 
 /* SLZ's raw deflate format (RFC1951). Returns < 0 on error. */
@@ -349,8 +349,8 @@ static int comp_rfc1951_init(struct comp_ctx **comp_ctx, int level)
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
 
-	(*comp_ctx)->cur_lvl = !!level;
-	return slz_rfc1951_init(&(*comp_ctx)->strm, !!level);
+	(*comp_ctx)->cur_lvl = level;
+	return slz_rfc1951_init(&(*comp_ctx)->strm, level);
 }
 
 /* SLZ's zlib format (RFC1950). Returns < 0 on error. */
@@ -359,8 +359,8 @@ static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level)
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
 
-	(*comp_ctx)->cur_lvl = !!level;
-	return slz_rfc1950_init(&(*comp_ctx)->strm, !!level);
+	(*comp_ctx)->cur_lvl = level;
+	return slz_rfc1950_init(&(*comp_ctx)->strm, level);
 }
 
 /* Return the size of consumed data. The caller is responsible for guaranteeing
@@ -407,7 +407,7 @@ static int comp_rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer
 		if (comp_ctx->cur_lvl > 0)
 			strm->level = --comp_ctx->cur_lvl;
 	}
-	else if (comp_ctx->cur_lvl < global.tune.comp_maxlevel && comp_ctx->cur_lvl < 1) {
+	else if (comp_ctx->cur_lvl < global.tune.comp_maxlevel) {
 		strm->level = ++comp_ctx->cur_lvl;
 	}
 
