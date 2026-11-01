@@ -291,7 +291,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_ret htxret = htx_find_offset(htx, offset);
 	struct htx_blk *blk, *next;
-	int ret, consumed = 0, to_forward = 0, last = 0;
+	int ret, consumed = 0, to_forward = 0, last = 0, flush;
 
 	blk = htxret.blk;
 	offset = htxret.ret;
@@ -325,8 +325,20 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					v.len = b_size(&trash);
 				}
 
+				/* The output only needs to be flushed when no other
+				 * DATA block follows in this pass, so that the
+				 * client gets everything while we wait for more.
+				 * Otherwise zlib keeps the last bits for the next
+				 * block, and slz queues the data so that all blocks
+				 * of the pass are compressed at once with their
+				 * whole context. Both save a synchronization point
+				 * per block, which costs up to 5 bytes and closes
+				 * the current huffman block.
+				 */
+				flush = last || v.len == len || !next || htx_get_blk_type(next) != HTX_BLK_DATA;
+
 				ret = htx_compression_buffer_add_data(st, v.ptr, v.len, &trash, dir);
-				if (ret < 0 || htx_compression_buffer_end(st, &trash, last, dir) < 0)
+				if (ret < 0 || (flush && htx_compression_buffer_end(st, &trash, last, dir) < 0))
 					goto error;
 				BUG_ON(v.len != ret);
 
