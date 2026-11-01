@@ -127,6 +127,7 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	struct http_hdr_ctx ctx;
 	struct comp_type *comp_type;
 	unsigned int comp_minsize = 0;
+	int ctype = COMP_CT_GENERIC;
 
 	ctx.blk = NULL;
 	/* Already compressed, don't bother */
@@ -152,6 +153,10 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	 */
 	ctx.blk = NULL;
 	if (http_find_header(htx, ist("Content-Type"), &ctx, 1)) {
+		/* text contents may be encoded differently by the algorithm */
+		if (ctx.value.len >= 5 && strncasecmp("text/", ctx.value.ptr, 5) == 0)
+			ctype = COMP_CT_TEXT;
+
 		if ((s->be->comp && (comp_type = s->be->comp->types_req)) ||
 		    (strm_fe(s)->comp && (comp_type = strm_fe(s)->comp->types_req))) {
 			for (; comp_type; comp_type = comp_type->next) {
@@ -190,7 +195,7 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 		goto fail; /* no algo selected: nothing to do */
 
 	/* initialize compression */
-	if (st->comp_algo->init(&st->comp_ctx, global.tune.comp_maxlevel) < 0)
+	if (st->comp_algo->init(&st->comp_ctx, global.tune.comp_maxlevel, ctype) < 0)
 		goto fail;
 
 	return;
@@ -683,6 +688,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	struct http_hdr_ctx ctx;
 	struct comp_type *comp_type;
 	unsigned int comp_minsize = 0;
+	int ctype = COMP_CT_GENERIC;
 
 	/* no common compression algorithm was found in request header */
 	if (st->comp_algo == NULL)
@@ -754,6 +760,10 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		if (ctx.value.len >= 9 && strncasecmp("multipart", ctx.value.ptr, 9) == 0)
 			goto fail;
 
+		/* text contents may be encoded differently by the algorithm */
+		if (ctx.value.len >= 5 && strncasecmp("text/", ctx.value.ptr, 5) == 0)
+			ctype = COMP_CT_TEXT;
+
 		if ((s->be->comp && (comp_type = s->be->comp->types_res)) ||
 		    (strm_fe(s)->comp && (comp_type = strm_fe(s)->comp->types_res))) {
 			for (; comp_type; comp_type = comp_type->next) {
@@ -783,7 +793,7 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		goto fail;
 
 	/* initialize compression */
-	if (st->comp_algo->init(&st->comp_ctx, global.tune.comp_maxlevel) < 0)
+	if (st->comp_algo->init(&st->comp_ctx, global.tune.comp_maxlevel, ctype) < 0)
 		goto fail;
 	msg->flags |= HTTP_MSGF_COMPRESSING;
 	return 1;
@@ -912,7 +922,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 				goto end;
 			}
 
-			if (proxy->comp->algos_res->init(&ctx, 9) == 0)
+			if (proxy->comp->algos_res->init(&ctx, 9, COMP_CT_GENERIC) == 0)
 				proxy->comp->algos_res->end(&ctx);
 			else {
 				memprintf(err, "'%s' : Can't init '%s' algorithm.",
@@ -941,7 +951,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			goto end;
 		}
 
-		if (proxy->comp->algo_req->init(&ctx, 9) == 0)
+		if (proxy->comp->algo_req->init(&ctx, 9, COMP_CT_GENERIC) == 0)
 			proxy->comp->algo_req->end(&ctx);
 		else {
 			memprintf(err, "'%s' : Can't init '%s' algorithm.",

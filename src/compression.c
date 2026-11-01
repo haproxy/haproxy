@@ -62,7 +62,7 @@ static int global_tune_zlibwindowsize = MAX_WBITS;  /* zlib window size */
 
 unsigned int compress_min_idle = 0;
 
-static int comp_identity_init(struct comp_ctx **comp_ctx, int level);
+static int comp_identity_init(struct comp_ctx **comp_ctx, int level, int ctype);
 static int comp_identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 static int comp_identity_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int comp_identity_finish(struct comp_ctx *comp_ctx, struct buffer *out);
@@ -70,9 +70,9 @@ static int comp_identity_end(struct comp_ctx **comp_ctx);
 
 #if defined(USE_SLZ)
 
-static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level);
-static int comp_rfc1951_init(struct comp_ctx **comp_ctx, int level);
-static int comp_rfc1952_init(struct comp_ctx **comp_ctx, int level);
+static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level, int ctype);
+static int comp_rfc1951_init(struct comp_ctx **comp_ctx, int level, int ctype);
+static int comp_rfc1952_init(struct comp_ctx **comp_ctx, int level, int ctype);
 static int comp_rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 static int comp_rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int comp_rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out);
@@ -87,9 +87,9 @@ static int decomp_uslz_end(struct decomp_ctx **decomp_ctx);
 
 #elif defined(USE_ZLIB)
 
-static int comp_gzip_init(struct comp_ctx **comp_ctx, int level);
-static int comp_raw_def_init(struct comp_ctx **comp_ctx, int level);
-static int comp_deflate_init(struct comp_ctx **comp_ctx, int level);
+static int comp_gzip_init(struct comp_ctx **comp_ctx, int level, int ctype);
+static int comp_raw_def_init(struct comp_ctx **comp_ctx, int level, int ctype);
+static int comp_deflate_init(struct comp_ctx **comp_ctx, int level, int ctype);
 static int comp_deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 static int comp_deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int comp_deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out);
@@ -288,7 +288,7 @@ static inline __maybe_unused int deinit_decomp_ctx(struct decomp_ctx **decomp_ct
 /*
  * Init the identity algorithm
  */
-static int comp_identity_init(struct comp_ctx **comp_ctx, int level)
+static int comp_identity_init(struct comp_ctx **comp_ctx, int level, int ctype)
 {
 	return 0;
 }
@@ -333,34 +333,57 @@ static int comp_identity_end(struct comp_ctx **comp_ctx)
 
 #ifdef USE_SLZ
 
+/* Selects SLZ's content type matching <ctype> on the stream of <comp_ctx>
+ * after its init. libslz has no dedicated macro for the content types, but
+ * they come right after SLZ_MAX_OVERHEAD(), which is thus used to detect an
+ * older external libslz that doesn't support them, in which case the default
+ * encoding is always used.
+ */
+static inline void comp_slz_set_ctype(struct comp_ctx *comp_ctx, int ctype)
+{
+#if defined(SLZ_MAX_OVERHEAD)
+	if (ctype == COMP_CT_TEXT)
+		slz_set_content_type(&comp_ctx->strm, SLZ_CT_TEXT);
+#endif
+}
+
 /* SLZ's gzip format (RFC1952). Returns < 0 on error. */
-static int comp_rfc1952_init(struct comp_ctx **comp_ctx, int level)
+static int comp_rfc1952_init(struct comp_ctx **comp_ctx, int level, int ctype)
 {
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
 
 	(*comp_ctx)->cur_lvl = level;
-	return slz_rfc1952_init(&(*comp_ctx)->strm, level);
+	if (slz_rfc1952_init(&(*comp_ctx)->strm, level) < 0)
+		return -1;
+	comp_slz_set_ctype(*comp_ctx, ctype);
+	return 0;
 }
 
 /* SLZ's raw deflate format (RFC1951). Returns < 0 on error. */
-static int comp_rfc1951_init(struct comp_ctx **comp_ctx, int level)
+static int comp_rfc1951_init(struct comp_ctx **comp_ctx, int level, int ctype)
 {
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
 
 	(*comp_ctx)->cur_lvl = level;
-	return slz_rfc1951_init(&(*comp_ctx)->strm, level);
+	if (slz_rfc1951_init(&(*comp_ctx)->strm, level) < 0)
+		return -1;
+	comp_slz_set_ctype(*comp_ctx, ctype);
+	return 0;
 }
 
 /* SLZ's zlib format (RFC1950). Returns < 0 on error. */
-static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level)
+static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level, int ctype)
 {
 	if (init_comp_ctx(comp_ctx) < 0)
 		return -1;
 
 	(*comp_ctx)->cur_lvl = level;
-	return slz_rfc1950_init(&(*comp_ctx)->strm, level);
+	if (slz_rfc1950_init(&(*comp_ctx)->strm, level) < 0)
+		return -1;
+	comp_slz_set_ctype(*comp_ctx, ctype);
+	return 0;
 }
 
 /* Return the size of consumed data. The caller is responsible for guaranteeing
@@ -657,7 +680,7 @@ static void free_zlib(void *opaque, void *ptr)
 /**************************
 ****  gzip algorithm   ****
 ***************************/
-static int comp_gzip_init(struct comp_ctx **comp_ctx, int level)
+static int comp_gzip_init(struct comp_ctx **comp_ctx, int level, int ctype)
 {
 	z_stream *strm;
 
@@ -677,7 +700,7 @@ static int comp_gzip_init(struct comp_ctx **comp_ctx, int level)
 }
 
 /* Raw deflate algorithm */
-static int comp_raw_def_init(struct comp_ctx **comp_ctx, int level)
+static int comp_raw_def_init(struct comp_ctx **comp_ctx, int level, int ctype)
 {
 	z_stream *strm;
 
@@ -699,7 +722,7 @@ static int comp_raw_def_init(struct comp_ctx **comp_ctx, int level)
 **** Deflate algorithm ****
 ***************************/
 
-static int comp_deflate_init(struct comp_ctx **comp_ctx, int level)
+static int comp_deflate_init(struct comp_ctx **comp_ctx, int level, int ctype)
 {
 	z_stream *strm;
 

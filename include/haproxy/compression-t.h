@@ -70,6 +70,15 @@ struct comp_ctx {
 	int cur_lvl;
 };
 
+/* Content types passed to the algorithms' init() functions, so that they can
+ * adapt their encoding to the contents. Algorithms which don't make any
+ * difference simply ignore them.
+ */
+enum comp_ctype {
+	COMP_CT_GENERIC = 0, /* unknown or binary contents */
+	COMP_CT_TEXT    = 1, /* "text/..." contents */
+};
+
 /* Thanks to MSIE/IIS, the "deflate" name is ambiguous, as according to the RFC
  * it's a zlib-wrapped deflate stream, but MSIE only understands a raw deflate
  * stream. For this reason some people prefer to emit a raw deflate stream on
@@ -83,7 +92,7 @@ struct comp_algo {
 	char *ua_name;  /* name for the user-agent */
 	int ua_name_len;
 
-	int (*init)(struct comp_ctx **comp_ctx, int level);
+	int (*init)(struct comp_ctx **comp_ctx, int level, int ctype);
 	int (*add_data)(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 	int (*flush)(struct comp_ctx *comp_ctx, struct buffer *out);
 	int (*finish)(struct comp_ctx *comp_ctx, struct buffer *out);

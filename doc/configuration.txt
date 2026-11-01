@@ -7463,6 +7463,10 @@ compression type <mime type> ...
   there is Accept-Encoding header in request, HAProxy will compress the
   matching response.
 
+  The Content-Type response header will be inspected, and its contents may be
+  used by some libraries to tune their compression algorithm. For example,
+  libslz uses a more efficient variant for types starting with "text/".
+
   Compression is disabled when:
     * the request does not advertise a supported compression algorithm in the
       "Accept-Encoding" header
