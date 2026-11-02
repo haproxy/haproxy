@@ -2,9 +2,6 @@ name: FreeBSD
 
 on:
   push:
-    branches:
-      - master
-      - next
   workflow_dispatch:
 
 permissions:
