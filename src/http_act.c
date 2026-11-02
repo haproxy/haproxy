@@ -2708,7 +2708,8 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
  * Otherwise ACT_RET_YIELD is returned to wait for more data. ACT_RET_INV is
  * returned if a parsing error is raised by lower level and ACT_RET_ERR if an
  * internal error occurred. Finally ACT_RET_ABRT is returned when a timeout
- * occurred.
+ * occurred, unless the 'no-fail' option is set, in which case ACT_RET_CONT is
+ * returned to continue the analysis.
  */
 static enum act_return http_action_wait_for_body(struct act_rule *rule, struct proxy *px,
 						 struct session *sess, struct stream *s, int flags)
@@ -2717,8 +2718,9 @@ static enum act_return http_action_wait_for_body(struct act_rule *rule, struct p
 	unsigned int time = (uintptr_t)rule->arg.act.p[0];
 	unsigned int bytes = (uintptr_t)rule->arg.act.p[1];
 	unsigned int large_buffer = (uintptr_t)rule->arg.act.p[2];
+	unsigned int no_fail = (uintptr_t)rule->arg.act.p[3];
 
-	switch (http_wait_for_msg_body(s, chn, time, bytes, large_buffer)) {
+	switch (http_wait_for_msg_body(s, chn, time, bytes, large_buffer, no_fail)) {
 	case HTTP_RULE_RES_CONT:
 		return ACT_RET_CONT;
 	case HTTP_RULE_RES_YIELD:
@@ -2756,18 +2758,19 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 						   struct act_rule *rule, char **err)
 {
 	int cur_arg;
-	unsigned int time, bytes, large_buffer;
+	unsigned int time, bytes, large_buffer, no_fail;
 	const char *res;
 
 	cur_arg = *orig_arg;
 	if (!*args[cur_arg]) {
-		memprintf(err, "expects time <time> [ at-least <bytes> ]");
+		memprintf(err, "expects time <time> [ at-least <bytes> ] [use-large-buffer] [no-fail]");
 		return ACT_RET_PRS_ERR;
 	}
 
 	time = UINT_MAX; /* To be sure it is set */
 	bytes = 0; /* Default value, wait all the body */
 	large_buffer = 0; /* Don't use large buffers by default */
+	no_fail = 0; /* Report an error on timeout by default */
 	while (*(args[cur_arg])) {
 		if (strcmp(args[cur_arg], "time") == 0) {
 			if (!*args[cur_arg + 1]) {
@@ -2803,19 +2806,22 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 		}
 		else if (strcmp(args[cur_arg], "use-large-buffer") == 0)
 			large_buffer = 1;
+		else if (strcmp(args[cur_arg], "no-fail") == 0)
+			no_fail = 1;
 		else
 			break;
 		cur_arg++;
 	}
 
 	if (time == UINT_MAX) {
-		memprintf(err, "expects time <time> [ at-least <bytes> ]");
+		memprintf(err, "expects time <time> [ at-least <bytes> ] [use-large-buffer] [no-fail]");
 		return ACT_RET_PRS_ERR;
 	}
 
 	rule->arg.act.p[0] = (void *)(uintptr_t)time;
 	rule->arg.act.p[1] = (void *)(uintptr_t)bytes;
 	rule->arg.act.p[2] = (void *)(uintptr_t)large_buffer;
+	rule->arg.act.p[3] = (void *)(uintptr_t)no_fail;
 
 	*orig_arg = cur_arg;
 

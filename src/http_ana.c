@@ -849,7 +849,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 			&s->txn.http->req);
 
 
-	switch (http_wait_for_msg_body(s, req, s->be->timeout.httpreq, 0, 0)) {
+	switch (http_wait_for_msg_body(s, req, s->be->timeout.httpreq, 0, 0, 0)) {
 	case HTTP_RULE_RES_CONT:
 		s->waiting_entity.type = STRM_ENTITY_NONE;
 		s->waiting_entity.ptr = NULL;
@@ -4353,10 +4353,11 @@ static int http_handle_stats(struct stream *s, struct channel *req, struct proxy
  *
  * If a timeout occurred, this function is responsible to emit the right response
  * to the client, depending on the channel (408 on request side, 504 on response
- * side). All other errors must be handled by the caller.
+ * side), unless <no_fail> is set. All other errors must be handled by the caller.
  */
 enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
-					unsigned int time, unsigned int bytes, unsigned int large_buffer)
+					unsigned int time, unsigned int bytes,
+					unsigned int large_buffer, unsigned int no_fail)
 {
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn.http;
@@ -4417,6 +4418,8 @@ enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
 	}
 
 	if ((chn->flags & CF_READ_TIMEOUT) || tick_is_expired(chn->analyse_exp, now_ms)) {
+		if (no_fail)
+			goto end; /* on timeout, stop waiting and continue the analysis */
 		if (!(chn->flags & CF_ISRESP))
 			goto abort_req;
 		goto abort_res;

@@ -1,0 +1,72 @@
+varnishtest "A test for the no-fail option of the wait-for-body HTTP action"
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=slow
+
+server s1 {
+    rxreq
+    expect req.bodylen == 1000
+    txresp
+} -start
+
+server s2 {
+    rxreq
+    send "HTTP/1.1 200 OK\r\n"
+    send "Content-Length: 1000\r\n\r\n"
+    delay 0.15
+    send_n 13 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request wait-for-body time 50ms no-fail
+        default_backend be1
+
+    backend be1
+        server srv1 ${s1_addr}:${s1_port}
+
+    frontend fe2
+        bind "fd@${fe2}"
+        http-response wait-for-body time 50ms no-fail
+        default_backend be2
+
+    backend be2
+        server srv1 ${s2_addr}:${s2_port}
+} -start
+
+# The wait-for-body timeout expires with only part of the request body
+# received. Thanks to the no-fail option, the request is processed and
+# forwarded to the server anyway. The remaining body bytes are streamed to
+# the server once received.
+client c1 -connect ${h1_fe1_sock} {
+    send "POST / HTTP/1.1\r\n"
+    send "Content-Length: 1000\r\n\r\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    delay 0.15
+    send_n 12 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Same test on the response side. The wait-for-body timeout expires with
+# only part of the response body received, but the response is processed
+# and forwarded to the client anyway. The remaining body bytes are streamed
+# to the client once received.
+client c2 -connect ${h1_fe2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 1000
+} -run
