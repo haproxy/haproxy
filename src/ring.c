@@ -773,21 +773,37 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 {
 	struct show_ring_ctx *ctx = appctx->svcctx;
 	struct ring *ring = ctx->ring;
+	const struct stream *s = appctx_strm(appctx);
+	const int timeout = s->sess->fe->timeout.client;
 	size_t last_ofs;
-	size_t ofs;
+	size_t ofs, processed;
 	int ret;
 
 	MT_LIST_DELETE(&appctx->wait_entry);
 
 	ret = ring_dispatch_messages(ring, appctx, &ctx->ofs, &last_ofs, ctx->flags,
 				     (ctx->flags & RING_WF_SANITIZE) ? show_ring_append_sanitized : applet_append_line,
-				     (ctx->flags & RING_WF_END_ZERO) ? 0 : '\n', NULL);
+				     (ctx->flags & RING_WF_END_ZERO) ? 0 : '\n', &processed);
 
 	if (ret && (ctx->flags & RING_WF_WAIT_MODE)) {
-		/* we've drained everything and are configured to wait for more
-		 * data or an event (keypress, close)
+		if (appctx->cli_ctx.cmd_flags & CLI_CMD_FL_UNINTR) {
+			/* for uninterruptible CLI mode, set inactivity timeout when
+			 * peer is disconnected, or refresh it when new events have
+			 * been retrieved. Note that this requires a non null timeout
+			 * value, otherwise uninterruptible mode won't be activated.
+			 */
+			if (se_fl_test(appctx->sedesc, SE_FL_SHW) && !tick_isset(appctx->t->expire))
+				appctx->t->expire = tick_add_ifset(now_ms, timeout);
+			else if (tick_isset(appctx->t->expire) && processed)
+				appctx->t->expire = tick_add_ifset(now_ms, timeout);
+		}
+
+		/* Everything is drained but wait mode is active. Register on
+		 * new events if peer still connected or if an inactivity
+		 * timeout is set and not yet expired.
 		 */
-		if (!b_data(&appctx->inbuf) && !se_fl_test(appctx->sedesc, SE_FL_SHW)) {
+		if ((!b_data(&appctx->inbuf) && !se_fl_test(appctx->sedesc, SE_FL_SHW)) ||
+		    (tick_isset(appctx->t->expire) && !tick_is_expired(appctx->t->expire, now_ms))) {
 			/* let's be woken up once new data arrive */
 			MT_LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			ofs = ring_tail(ring);
@@ -804,6 +820,9 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		/* always drain all the request */
 		b_reset(&appctx->inbuf);
 		applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
+	}
+	else {
+		appctx->t->expire = TICK_ETERNITY;
 	}
 
 	applet_will_consume(appctx);
