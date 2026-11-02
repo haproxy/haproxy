@@ -2630,7 +2630,7 @@ init_proxies_list_stage2:
 		/* Create the task associated with the proxy. Only necessary
 		 * for frontend or if a stick-table is defined.
 		 */
-		if ((curproxy->cap & PR_CAP_FE) || (curproxy->table && curproxy->table->current)) {
+		if ((curproxy->cap & PR_CAP_FE) || curproxy->table) {
 			curproxy->task = task_new_anywhere();
 			if (curproxy->task) {
 				curproxy->task->context = curproxy;
