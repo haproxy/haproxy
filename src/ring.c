@@ -838,6 +838,7 @@ void cli_io_release_show_ring(struct appctx *appctx)
 	size_t ofs = ctx->ofs;
 
 	ring_detach_appctx(ring, appctx, ofs);
+	cli_dec_unintr(appctx);
 }
 
 /* Returns the MAXIMUM payload len that could theoretically fit into the ring

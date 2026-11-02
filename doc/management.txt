@@ -3247,7 +3247,7 @@ show errors [<iid>|<proxy>] [request|response]
     error was at byte 23. This is the slash ('/') in header name
     "header/bizarre", which is not a valid HTTP character for a header name.
 
-show events  [-[wn0rs]*] [<sink>]
+show events  [-[wun0rs]*] [<sink>]
   With no option, this lists all known event sinks and their types. Arguments
   not starting with "-" are taken for a sink name, whose events will be dumped
   if it is of type buffer. The command also supports a variety of options
@@ -3284,7 +3284,16 @@ show events  [-[wn0rs]*] [<sink>]
         events and display them. It is possible to stop the operation by
         entering any input (which will be discarded) or by closing the session.
         Note that using "echo show events -w | socat ..." does close the input
-        and interrupt the dump.
+        and interrupt the dump; see '-u' option instead in this case.
+
+    -u  executes the command as an uninterruptible job. This is useful when
+        using utilities such as 'socat' to continue running after a half-close
+        of the CLI input. The command will still be stopped in this case if a
+        send error occurs while dumping new events or if no events are detected
+        after a delay based on the configured stats timeout.
+
+    Example :
+          $ echo "show events -u buf0" | socat -t10 - /var/run/haproxy.sock
 
 show fd [-!plcfbs]* [[<tgid>]/[<fd>] | <fd>]
   Dump the list of either all open file descriptors or just the one number <fd>
