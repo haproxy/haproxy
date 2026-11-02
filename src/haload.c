@@ -2010,6 +2010,12 @@ static struct task *hld_usr_task(struct task *t, void *context, unsigned int sta
 		 * count it as a failure, not a success
 		 */
 		thrs_info[tid].tot_perr++;
+		BUG_ON(!thrs_info[tid].cur_req);
+		thrs_info[tid].cur_req--;
+		if (arg_rcon > 0) {
+			BUG_ON(!hs->url->tot_rconn_sent);
+			hs->url->tot_rconn_sent--;
+		}
 		hs->url->mreqs++;
 		usr->nreqs = usr->nreqs == -1 ? -1 : usr->nreqs + 1;
 		LIST_DELETE(&hs->list);
