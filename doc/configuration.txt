@@ -17871,15 +17871,17 @@ wait-for-body time <time> [ at-least <bytes> ] [use-large-buffer]
 
   This will delay the processing of the request or response until one of the
   following conditions occurs:
-  - The full request body is received, in which case processing proceeds
+  - The full message body is received, in which case processing proceeds
     normally.
   - <bytes> bytes have been received, when the "at-least" argument is given and
     <bytes> is non-zero, in which case processing proceeds normally.
-  - The request buffer is full, in which case processing proceeds normally. The
-    size of this buffer is determined by the "tune.bufsize" option.
-  - The request has been waiting for more than <time> milliseconds. In this
-    case HAProxy will respond with a 408 "Request Timeout" error to the client
-    and stop processing the request. Note that if any of the other conditions
+  - The buffer is full, in which case processing proceeds normally. The size
+    of this buffer is determined by the "tune.bufsize" option.
+  - The message has been waiting for more than <time> milliseconds. In this
+    case HAProxy stops the processing and responds to the client with a 408
+    "Request Timeout" error if the timeout occurred while waiting for a
+    request body, or with a 504 "Gateway Timeout" error if it occurred while
+    waiting for a response body. Note that if any of the other conditions
     happens first, this timeout will not occur even if the full body has
     not yet been received.
 
