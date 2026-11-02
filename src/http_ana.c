@@ -503,13 +503,13 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
 		http_set_term_flags(s);
 
-		if (HAS_FILTERS(s))
-			req->analysers |= AN_REQ_FLT_HTTP_HDRS;
-
-		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
-		req->analysers &= (AN_REQ_HTTP_BODY | AN_REQ_FLT_HTTP_HDRS | AN_REQ_FLT_END);
-		req->analysers &= ~AN_REQ_FLT_XFER_DATA;
-		req->analysers |= AN_REQ_HTTP_XFER_BODY;
+		/* inner is usually set only during backend processing, and is
+		 * also needed for applets branched from frontends in order to
+		 * enable compression, cookie processing, unique-id generation,
+		 * or whatever occasional feature they might rely on.
+		 */
+		if (s->be == sess->fe)
+			req->analysers |= AN_REQ_HTTP_INNER;
 
 		s->scb->flags |= SC_FL_SND_ASAP;
 		s->flags |= SF_ASSIGNED;

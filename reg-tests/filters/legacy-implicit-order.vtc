@@ -51,6 +51,18 @@ haproxy h1 -conf {
         http-response cache-store my_cache
         http-response set-header X-Hit %[res.cache_hit]
         server s1 ${s1_addr}:${s1_port}
+
+    listen li2
+        bind "fd@${li2}"
+        # Explicit filter mixed with implicitly declared core filters:
+        # previously a configuration error, now automatically ordered with
+        # the cache filter before the trace filter and the compression
+        # filter after it.
+        filter trace quiet
+        http-request cache-use my_cache
+        http-response cache-store my_cache
+        http-response set-header X-Hit %[res.cache_hit]
+        server s1 ${s1_addr}:${s1_port}
 } -start
 
 # First request: the response is stored in the cache then compressed for the
@@ -68,11 +80,27 @@ client c1 -connect ${h1_li1_sock} {
 # Second request: served from the cache. A cache hit is only possible if the
 # uncompressed body was stored, proving the cache filter was evaluated
 # before the compression filter. And the body is still delivered
-# uncompressed, confirming the stored body was not the compressed one.
+# compressed, because it was recompressed by the compression rules when
+# leaving the cache.
 client c2 -connect ${h1_li1_sock} {
     txreq -url /a -hdr "Accept-Encoding: gzip"
     rxresp
     expect resp.status == 200
     expect resp.http.x-hit == 1
+    expect resp.http.content-encoding == gzip
+    gunzip
+} -run
+
+# Third request: served from the cache. A cache hit is only possible if the
+# uncompressed body was stored, proving the cache filter was evaluated
+# before the compression filter. Here we request via a distinct proxy that
+# does not compress but shares the same cache. By retrieving an uncompressed
+# cached object, it will prove that the cached body was indeed uncompressed.
+client c3 -connect ${h1_li2_sock} {
+    txreq -url /a -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-hit == 1
     expect resp.bodylen == 500
+    expect resp.http.content-encoding == <undef>
 } -run
