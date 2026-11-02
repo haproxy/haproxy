@@ -2945,7 +2945,7 @@ int ckch_inst_rebuild(struct ckch_store *ckch_store, struct ckch_inst *ckchi,
 	if ((*new_inst)->is_server_instance) {
 		retval = ssl_sock_prep_srv_ctx_and_inst(ckchi->server, (*new_inst)->ctx, (*new_inst));
 		if (retval)
-			return 1;
+			goto error;
 	}
 
 	/* create the link to the crtlist_entry */
@@ -2957,11 +2957,19 @@ int ckch_inst_rebuild(struct ckch_store *ckch_store, struct ckch_inst *ckchi,
 		if (!sc0->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
 			errcode |= ssl_sock_prep_ctx_and_inst(ckchi->bind_conf, ckchi->ssl_conf, sc0->ctx, *new_inst, err);
 			if (errcode & ERR_CODE)
-				return 1;
+				goto error;
 		}
 	}
 
 	return 0;
+
+ error:
+	/* the instance is not linked anywhere yet, and its contexts would
+	 * keep what they reference, e.g. the certificate and its key, for ever
+	 */
+	ckch_inst_free(*new_inst);
+	*new_inst = NULL;
+	return 1;
 }
 
 /*
