@@ -217,11 +217,7 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 	*comp_ctx = pool_alloc(pool_comp_ctx);
 	if (*comp_ctx == NULL)
 		return -1;
-#if defined(USE_SLZ)
-	(*comp_ctx)->direct_ptr = NULL;
-	(*comp_ctx)->direct_len = 0;
-	(*comp_ctx)->queued = BUF_NULL;
-#elif defined(USE_ZLIB)
+#if defined(USE_ZLIB)
 	_HA_ATOMIC_ADD(&zlib_used_memory, sizeof(struct comp_ctx));
 	__ha_barrier_atomic_store();
 
@@ -367,42 +363,22 @@ static int comp_rfc1950_init(struct comp_ctx **comp_ctx, int level)
 	return slz_rfc1950_init(&(*comp_ctx)->strm, !!level);
 }
 
-/* Return the size of consumed data or -1. The output buffer is unused at this
- * point, we only keep a reference to the input data or a copy of them if the
- * reference is already used.
+/* Return the size of consumed data. The caller is responsible for guaranteeing
+ * that <out> is large enough to keep a copy of <in_len> bytes plus some
+ * overhead.
  */
 static int comp_rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
-	static THREAD_LOCAL struct buffer tmpbuf = BUF_NULL;
+	struct slz_stream *strm = &comp_ctx->strm;
+	int out_len;
 
 	if (in_len <= 0)
 		return 0;
 
-	if (comp_ctx->direct_ptr && b_is_null(&comp_ctx->queued)) {
-		/* data already being pointed to, we're in front of fragmented
-		 * data and need a buffer now. We reuse the same buffer, as it's
-		 * not used out of the scope of a series of add_data()*, end().
-		 */
-		if (b_alloc(&tmpbuf, DB_PERMANENT) == NULL)
-			return -1; /* no memory */
-		b_reset(&tmpbuf);
-		memcpy(b_tail(&tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
-		b_add(&tmpbuf, comp_ctx->direct_len);
-		comp_ctx->direct_ptr = NULL;
-		comp_ctx->direct_len = 0;
-		comp_ctx->queued = tmpbuf;
-		/* fall through buffer copy */
-	}
+	BUG_ON(!b_room(out));
 
-	if (!b_is_null(&comp_ctx->queued)) {
-		/* data already pending */
-		memcpy(b_tail(&comp_ctx->queued), in_data, in_len);
-		b_add(&comp_ctx->queued, in_len);
-		return in_len;
-	}
-
-	comp_ctx->direct_ptr = in_data;
-	comp_ctx->direct_len = in_len;
+	out_len = slz_encode(strm, b_tail(out), in_data, in_len, 1);
+	b_add(out, out_len);
 	return in_len;
 }
 
@@ -414,22 +390,9 @@ static int comp_rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data,
 static int comp_rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out, int finish)
 {
 	struct slz_stream *strm = &comp_ctx->strm;
-	const char *in_ptr;
-	int in_len;
 	int out_len;
 
-	in_ptr = comp_ctx->direct_ptr;
-	in_len = comp_ctx->direct_len;
-
-	if (!b_is_null(&comp_ctx->queued)) {
-		in_ptr = b_head(&comp_ctx->queued);
-		in_len = b_data(&comp_ctx->queued);
-	}
-
 	out_len = b_data(out);
-
-	if (in_ptr)
-		b_add(out, slz_encode(strm, b_tail(out), in_ptr, in_len, !finish));
 
 	if (finish)
 		b_add(out, slz_finish(strm, b_tail(out)));
@@ -437,11 +400,6 @@ static int comp_rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer
 		b_add(out, slz_flush(strm, b_tail(out)));
 
 	out_len = b_data(out) - out_len;
-
-	/* very important, we must wipe the data we've just flushed */
-	comp_ctx->direct_len = 0;
-	comp_ctx->direct_ptr = NULL;
-	comp_ctx->queued     = BUF_NULL;
 
 	/* Verify compression rate limiting and CPU usage */
 	if ((global.comp_rate_lim > 0 && (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim)) ||    /* rate */
