@@ -11,25 +11,57 @@ jobs:
   clang:
     runs-on: ubuntu-latest
     if: ${{ github.repository_owner == 'haproxy' || github.event_name == 'workflow_dispatch' }}
+    env:
+      FREEBSD_RELEASE: "14.4"
+      FREEBSD_ARCH: "x86_64"
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@v6
 
+      - name: "Get VTest latest commit SHA"
+        id: vtest-sha
+        shell: sh
+        run: |
+          sha=$(git ls-remote https://code.vinyl-cache.org/vtest/VTest2 HEAD | cut -f1)
+          if [ -n "${sha}" ]; then
+            echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "Restore VTest cache"
+        id: cache-vtest
+        if: ${{ steps.vtest-sha.outputs.sha != '' }}
+        uses: actions/cache/restore@v5
+        with:
+          path: vtest
+          key: vtest-freebsd-${{ env.FREEBSD_RELEASE }}-${{ env.FREEBSD_ARCH }}-v1-${{ steps.vtest-sha.outputs.sha }}-${{ hashFiles('scripts/build-vtest.sh') }}
+
       - name: "Build and test on FreeBSD"
         uses: vmactions/freebsd-vm@v1
         with:
-          release: "14.4"
+          release: ${{ env.FREEBSD_RELEASE }}
+          arch: ${{ env.FREEBSD_ARCH }}
+          copyback: true
           prepare: |
             pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua54 socat pcre2 python3
           run: |
             sysctl kern.corefile=/tmp/%N.%P.core
             sysctl kern.sugid_coredump=1
-            scripts/build-vtest.sh
+            if ! "${GITHUB_WORKSPACE}/vtest/vtest" -V >/dev/null 2>&1; then
+              DESTDIR="${GITHUB_WORKSPACE}/vtest" scripts/build-vtest.sh
+            fi
+            "${GITHUB_WORKSPACE}/vtest/vtest" -V
             gmake CC=clang V=1 ERR=1 TARGET=freebsd USE_ZLIB=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_OPENSSL=1 USE_LUA=1 LUA_INC=/usr/local/include/lua54 LUA_LIB=/usr/local/lib LUA_LIB_NAME=lua-5.4
             ./haproxy -vv
             ldd haproxy
-            if ! env VTEST_PROGRAM=../vtest/vtest gmake reg-tests REGTESTS_TYPES=default,bug,devel; then
+            if ! env VTEST_PROGRAM="${GITHUB_WORKSPACE}/vtest/vtest" gmake reg-tests REGTESTS_TYPES=default,bug,devel; then
               for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done
               ls /tmp/haproxy.*.core 2>/dev/null && gdb -ex 'thread apply all bt full' ./haproxy /tmp/haproxy.*.core
               exit 1
             fi
+
+      - name: "Save VTest cache"
+        if: ${{ steps.vtest-sha.outputs.sha != '' && steps.cache-vtest.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v5
+        with:
+          path: vtest
+          key: ${{ steps.cache-vtest.outputs.cache-primary-key }}
