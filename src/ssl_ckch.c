@@ -2900,6 +2900,14 @@ static void cli_release_commit_cert(struct appctx *appctx)
 {
 	struct commit_cert_ctx *ctx = appctx->svcctx;
 
+	if (ctx->new_ckchs) {
+		/* the transaction is over with its store, which is freed below,
+		 * e.g. if the client left before the end of the commit
+		 */
+		ckchs_transaction.new_ckchs = NULL;
+		ckchs_transaction.old_ckchs = NULL;
+		ckchs_transaction.path = NULL;
+	}
 	ckch_store_update_cleanup(ctx->new_ckchs);
 
 	ha_free(&ctx->err);
