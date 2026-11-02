@@ -575,6 +575,13 @@ static void fwlc_set_server_status_down(struct server *srv)
 	fwlc_dequeue_srv(srv);
 	fwlc_remove_from_tree(srv);
 
+	/*
+	 * No more active server, we're switching to backups, let's reset
+	 * the smallest key.
+	 */
+	if (!(srv->flags & SRV_F_BACKUP) && !p->srv_act)
+		fwlc_set_seq_and_smallest(&p->lbprm, p->lbprm.lb_seq, FWLC_LBPRM_SEQ(p->lbprm.lb_seq) + 1, 0);
+
 out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
