@@ -4016,6 +4016,90 @@ int ipcmp2net(const struct sockaddr_storage *addr, const struct net_addr *net)
 	return 1;
 }
 
+/* IPv4 networks that are certainly local, hence trusted, in host order */
+static const struct {
+	uint32_t net, mask;
+} ipv4_trusted[] = {
+	{ 0x00000000, 0xff000000 }, /* 0.0.0.0/8      "this" network (RFC1122) */
+	{ 0x0a000000, 0xff000000 }, /* 10.0.0.0/8     private (RFC1918)        */
+	{ 0x7f000000, 0xff000000 }, /* 127.0.0.0/8    loopback (RFC1122)       */
+	{ 0xa9fe0000, 0xffff0000 }, /* 169.254.0.0/16 link-local (RFC3927)     */
+	{ 0xac100000, 0xfff00000 }, /* 172.16.0.0/12  private (RFC1918)        */
+	{ 0xc0a80000, 0xffff0000 }, /* 192.168.0.0/16 private (RFC1918)        */
+};
+
+/* IPv6 networks that are certainly local, hence trusted, applied to the upper
+ * 64 bits of the address in host order. :: and ::1 are handled separately.
+ */
+static const struct {
+	uint64_t net, mask;
+} ipv6_trusted[] = {
+	{ 0xfc00000000000000ULL, 0xfe00000000000000ULL }, /* fc00::/7  unique local (RFC4193) */
+	{ 0xfe80000000000000ULL, 0xffc0000000000000ULL }, /* fe80::/10 link-local (RFC4291)   */
+	{ 0xfec0000000000000ULL, 0xffc0000000000000ULL }, /* fec0::/10 site-local (RFC3879)   */
+};
+
+/* Returns non-zero if <addr> is an AF_INET or AF_INET6 address that is not
+ * necessarily trusted, otherwise zero. An untrusted address is one which might
+ * possibly belong to a network out of our local authority (i.e. not loopback,
+ * link-local, site-local, rfc1918, etc). Other families (e.g. AF_UNIX) and
+ * local addresses are considered trusted. Those which are not supposed to be
+ * usable (e.g. 224/3) are considered untrusted since we don't know how they'd
+ * arrive here and might result from non-standard network setups. There's a
+ * gray area for those that are not explicitly local but shouldn't be on the
+ * public internet, such as 198.18/15 (benchmark), the documentation ones
+ * (192.0.0/24, 192.0.2/24, etc) and even CGN (100.64/10) but these ones are
+ * not supposed to be used in production on local networks, so either they are
+ * expected to reproduce a public setup and they should be seen as untrusted,
+ * or they may convey traffic from untrusted sources (CGN), so let's consider
+ * them as untrusted.
+ */
+int is_ip_untrusted(const struct sockaddr_storage *addr)
+{
+	const struct in6_addr *a6;
+	uint64_t hi, lo;
+	uint32_t v4;
+	int i;
+
+	if (addr->ss_family == AF_INET) {
+		v4 = ntohl(((const struct sockaddr_in *)addr)->sin_addr.s_addr);
+		/* fall back to network check below */
+	}
+	else if (addr->ss_family == AF_INET6) {
+		a6 = &((const struct sockaddr_in6 *)addr)->sin6_addr;
+		hi = read_n64(&a6->s6_addr[0]);
+		lo = read_n64(&a6->s6_addr[8]);
+
+		/* non-local net ? */
+		if (hi) {
+			for (i = 0; i < sizeof(ipv6_trusted) / sizeof(*ipv6_trusted); i++)
+				if ((hi & ipv6_trusted[i].mask) == ipv6_trusted[i].net)
+					return 0;
+			/* not local hence untrusted */
+			return 1;
+		}
+
+		if ((lo >> 32) != 0xffff) {
+			/* :: (unspecified) and ::1 (loopback) are trusted */
+			return lo > 1;
+		}
+
+		/* IPv4-mapped (RFC4291): ::ffff:a.b.c.d */
+		v4 = (uint32_t)lo;
+		/* fall back to network check below */
+	}
+	else {
+		/* other families are local */
+		return 0;
+	}
+
+	/* check IPv4 networks */
+	for (i = 0; i < sizeof(ipv4_trusted) / sizeof(*ipv4_trusted); i++)
+		if ((v4 & ipv4_trusted[i].mask) == ipv4_trusted[i].net)
+			return 0;
+	return 1;
+}
+
 /* copy IP address from <source> into <dest>
  * The caller must allocate and clear <dest> before calling.
  * The source must be in either AF_INET or AF_INET6 family, or the destination

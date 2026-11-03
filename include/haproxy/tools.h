@@ -887,6 +887,11 @@ int ipcmp(const struct sockaddr_storage *ss1, const struct sockaddr_storage *ss2
  */
 int ipcmp2net(const struct sockaddr_storage *addr, const struct net_addr *net);
 
+/* Returns non-zero if <addr> is an AF_INET or AF_INET6 address that is not
+ * necessarily trusted (i.e. not from a local address plan), otherwise zero.
+ */
+int is_ip_untrusted(const struct sockaddr_storage *addr);
+
 /* copy ip from <source> into <dest>
  * the caller must clear <dest> before calling.
  * Returns a pointer to the destination
