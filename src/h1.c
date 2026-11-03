@@ -1053,7 +1053,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				}
 
 				/* we may have to delete unregistered header names (X-) */
-				if (unlikely(h1m->state != H1_MSG_TRAILERS && http_harden(HTTP_HRD_DEL_UNREG_HDR))) {
+				if (unlikely((h1m->state != H1_MSG_TRAILERS && http_harden(HTTP_HRD_DEL_UNREG_HDR)) ||
+					     (h1m->state == H1_MSG_TRAILERS && http_harden(HTTP_HRD_DEL_UNREG_TLR)))) {
 					if (n.len > 1 && n.ptr[1] == '-' &&
 					    (n.ptr[0] == 'x' || n.ptr[0] == 'X'))
 						break;

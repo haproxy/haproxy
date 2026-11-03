@@ -34558,6 +34558,15 @@ http-hardening <name> [from <name2>]
         not to do it on responses however when applications uses such header
         fields to report information to HAProxy.
 
+  - delete-unregistered-trailer-fields (inbound, request and response)
+        Deletes from requests and responses any trailer field whose name starts
+        with 'x-' (upper or lower case). These trailer fields are not
+        registered with IANA and are not used across the internet by standard
+        components. They may appear in untrusted requests in attacks trying to
+        exploit some backend framework weaknesses however, so it is generally
+        safe and even recommended to delete such trailers from inbound internet
+        requests.
+
   - reject-duplicate-host-header (inbound request)
         Rejects requests containing more than one "Host" header field, even if
         valid and identical. This is recommended on untrusted listeners. Note that
