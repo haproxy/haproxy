@@ -1035,6 +1035,7 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 	if (b_head(srcbuf) + b_data(srcbuf) > b_wrap(srcbuf))
 		b_slow_realign_ofs(srcbuf, trash.area, 0);
 
+	tlr_h1m.state = H1_MSG_TRAILERS;
 	tlr_h1m.flags = (H1_MF_NO_PHDR|H1_MF_HDRS_ONLY);
 	tlr_h1m.err_pos = h1m->err_pos;
 	/* The buffer was realigned above, so <b_stop()> safely points to the
