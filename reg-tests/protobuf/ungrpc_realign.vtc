@@ -1,0 +1,87 @@
+varnishtest "Test that ungrpc() realigns on gRPC message boundaries"
+
+# Regression test for:
+# 3a319e14c BUG/MINOR: sample: realign the ungrpc converter on message boundaries
+#
+# sample_conv_ungrpc() walks the gRPC messages of the body with a read cursor
+# <pos> and a counter <grpc_left>. When protobuf_field_lookup() fails it does
+# not always leave <pos> at the end of the message: for a length-delimited
+# field it stops on the value, after the key and the length. The loop still
+# subtracted the whole message length from <grpc_left> without moving <pos>,
+# so the next iteration decoded a "gRPC header" out of the previous message's
+# payload.
+#
+# grpc.vtc already walks a body of two messages, but its first message is
+# found by the lookup, so the cursor is left at the message end and the bug
+# does not show. Reaching it needs a lookup that FAILS part-way through the
+# first message, which is what the body below does.
+#
+# The body is 23 bytes:
+#
+# 00 0000000a gRPC header, message of 10 bytes
+# 0a 08 field 1, length-delimited, 8 bytes
+# 00 00 00 00 03 <- looks like a gRPC header once misaligned
+# 08 b9 0a <- field 1, varint 1337
+# 00 00000003 gRPC header, message of 3 bytes
+# 08 8f 4e field 1, varint 9999
+#
+# ungrpc(1,int64) asks for field 1 as a varint. In the first message field 1
+# is length-delimited, so the wire types do not match and the lookup fails
+# after the key and the length, leaving the cursor on the value. Before the
+# fix the converter resumed there, read "00 00000003" out of the payload as a
+# header and returned 1337, the value of a field of no message of the body.
+# After the fix it resumes at the real message end and returns 9999, the
+# field 1 of the second message.
+#
+# The 1337 payload is deliberately a valid encoding, so a failure here reports
+# a concrete wrong value rather than an empty sample.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+	global
+		.if feature(THREAD)
+		thread-groups 1
+		.endif
+		chroot /
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe
+		bind "fd@${fe}"
+		option http-buffer-request
+		http-request wait-for-body time "${HAPROXY_TEST_TIMEOUT-5s}"
+
+		# field 1 of the second message, reached only by resuming on a real
+		# message boundary after the failed lookup in the first one
+		http-request set-var(txn.v) req.body,ungrpc(1,int64)
+
+		# the same body, asking for the field with its real wire type: the
+		# lookup succeeds in the first message and never walks further
+		http-request set-var(txn.s) req.body,ungrpc(1),hex
+
+		# a field present in neither message still yields nothing
+		http-request set-var(txn.m) req.body,ungrpc(4,int64)
+
+		http-request return status 200
+
+		http-after-response set-header x-v "%[var(txn.v)]"
+		http-after-response set-header x-s "%[var(txn.s)]"
+		http-after-response set-header x-m "%[var(txn.m)]"
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -req POST -url "/" -hdr "content-length: 23" -nolen
+	sendhex "00 0000000a 0a08 0000000003 08b90a"
+	sendhex "00 00000003 088f4e"
+	rxresp
+	expect resp.status == 200
+	# 1337 here means the converter resumed inside the first message
+	expect resp.http.x-v == "9999"
+	expect resp.http.x-s == "000000000308B90A"
+	expect resp.http.x-m == ""
+} -run
