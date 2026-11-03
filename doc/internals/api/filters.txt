@@ -273,7 +273,8 @@ A filter may also be implicitly declared by another directive, for instance by
 the options of the feature it implements. In the new mode, use
 flt_add_implicit_instance() from the directive parser (see section 3.2.1):
 it creates an enabled instance, with an optional id, that an explicit
-"filter-config" declaration may replace. Unlike the legacy mode, an implicit
+"filter-config" declaration may replace. The id is mandatory when the class
+supports several instances per proxy. Unlike the legacy mode, an implicit
 declaration may coexist with other filters in the same proxy.
 
 
@@ -754,7 +755,10 @@ parsing, from the directive that enables the filter :
 
 where 'cls' is the filter class, 'args' the arguments of the filter instance
 (or NULL), and 'file'/'line' the location of the directive. The instance is
-created enabled and marked FLT_INST_F_IMPLICIT.
+created enabled and marked FLT_INST_F_IMPLICIT. The id is mandatory when the
+class supports several instances per proxy (FLT_CLS_FL_MULTI), like for an
+explicit "filter-config" declaration: without an id, the implicit declaration
+is reported and ignored.
 
 
 3.2.2. THE LEGACY KEYWORD PARSER

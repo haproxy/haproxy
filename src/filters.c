@@ -2359,11 +2359,15 @@ int flt_copy_instances(struct proxy *px, const struct proxy *defpx)
 }
 
 /* Adds an implicit filter instance for the class <cls> to the proxy <px>,
- * with the id <id> (may be NULL) and the arguments <args> (terminated by an
- * empty string). It is used when a filter is implicitly configured by
- * another directive (e.g. with the cache-store action). The instance is
- * marked with FLT_INST_F_IMPLICIT and is enabled, since the directive
- * implies the filter usage.
+ * with the id <id> and the arguments <args> (terminated by an empty
+ * string). It is used when a filter is implicitly configured by another
+ * directive (e.g. with the cache-store action). The instance is marked
+ * with FLT_INST_F_IMPLICIT and is enabled, since the directive implies
+ * the filter usage.
+ *
+ * An id is mandatory when the class supports several instances per proxy:
+ * an id-less instance could not be distinguished from a second one. For
+ * the other classes the id is optional and may be NULL.
  *
  * If a instance with the same class and id already exists, nothing is
  * done: an explicit declaration always wins over an implicit one, and the
@@ -2376,6 +2380,13 @@ int flt_add_implicit_instance(struct proxy *px, struct filter_class *cls, const 
 	struct filter_instance *inst;
 	int argc = 0;
 	int i;
+
+	if ((cls->flags & FLT_CLS_FL_MULTI) && !id) {
+		ha_warning("config: %s '%s' : implicit filter instance of class '%s' without id ignored, an id is required for this filter class (see %s:%d).\n",
+			   proxy_type_str(px), px->id, cls->name,
+			   file, line);
+		return 0;
+	}
 
 	/* a instance already exists for this class and id: explicit or
 	 * implicit, it wins over a new implicit one.
