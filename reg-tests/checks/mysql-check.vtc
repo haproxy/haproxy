@@ -36,6 +36,12 @@ server s5 {
   sendhex "67000002FFE304436C69656E7420646F6573206E6F7420737570706F72742061757468656E7469636174696F6E2070726F746F636F6C20726571756573746564206279207365727665723B20636F6E736964657220757067726164696E67204D7953514C20636C69656E74"
 } -start
 
+server s6 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 69
+  sendhex "0700000200000002000000"
+} -start
+
 syslog S1 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
@@ -59,6 +65,11 @@ syslog S4 -level notice {
 syslog S5 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv failed, reason: Layer7 wrong status.+code: 1251.+info: \"Client does not support authentication protocol requested by server; consider upgrading MySQL client\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S6 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be6/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 
@@ -104,6 +115,12 @@ haproxy h1 -conf {
         option mysql-check user pouet post-41
         server srv ${s5_addr}:${s5_port} check inter 1s rise 1 fall 1
 
+    backend be6
+        log ${S6_addr}:${S6_port} daemon
+        option log-health-checks
+        option mysql-check user user post-80-sha2
+        server srv ${h1_mysql3_addr}:${h1_mysql3_port} check inter 1s rise 1 fall 1
+
     listen mysql1
         bind "fd@${mysql1}"
         tcp-request inspect-delay 100ms
@@ -118,6 +135,13 @@ haproxy h1 -conf {
         tcp-request content reject
         server srv ${s3_addr}:${s3_port}
 
+    listen mysql3
+        bind "fd@${mysql3}"
+        tcp-request inspect-delay 100ms
+        tcp-request content accept if { req.len eq 69 } { req.payload(0,69) -m bin "3C000001008208000080000121000000000000000000000000000000000000000000000075736572000063616368696E675F736861325F70617373776F7264000100000001" }
+        tcp-request content reject
+        server srv ${s6_addr}:${s6_port}
+
 } -start
 
 syslog S1 -wait
@@ -125,3 +149,4 @@ syslog S2 -wait
 syslog S3 -wait
 syslog S4 -wait
 syslog S5 -wait
+syslog S6 -wait

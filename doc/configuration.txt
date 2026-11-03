@@ -11973,7 +11973,7 @@ no option logasap
              logging.
 
 
-option mysql-check [ user <username> [ { post-41 | pre-41 | post-80 } ] ]
+option mysql-check [ user <username> [ { post-41 | pre-41 | post-80 | post-80-sha2 } ] ]
   Use MySQL health checks for server testing
 
   May be used in the following contexts: tcp
@@ -11992,6 +11992,23 @@ option mysql-check [ user <username> [ { post-41 | pre-41 | post-80 } ] ]
                where the health check user is created with mysql_native_password
                authentication. Example:
                  CREATE USER 'haproxy'@'%' IDENTIFIED WITH mysql_native_password BY '';
+    post-80-sha2
+               Send post v8.0 client compatible checks with CLIENT_PLUGIN_AUTH
+               capability set and caching_sha2_password as the authentication
+               plugin. Use this option when connecting to MySQL 8.0+ servers
+               where the health check user is created with caching_sha2_password
+               authentication, which is the default plugin since MySQL 8.0 and
+               the only one enabled by default since MySQL 8.4. Example:
+                 CREATE USER 'haproxy'@'%' IDENTIFIED WITH caching_sha2_password BY '';
+
+  The authentication plugin announced by the check must match the one of the
+  check user. Otherwise the server either rejects the handshake (error 1251
+  with pre-41 and post-41) or replies with an authentication method switch
+  request that the check cannot answer (post-80, in which case the check is
+  still reported as passed). In both cases the server aborts the handshake and
+  counts it as a connection error for the HAProxy host. Once the host reaches
+  MySQL "max_connect_errors", the server refuses all connections from it,
+  including proxied client connections, until "FLUSH HOSTS" is issued.
 
   If you specify a username, the check consists of sending two MySQL packet,
   one Client Authentication packet, and one QUIT packet, to correctly close

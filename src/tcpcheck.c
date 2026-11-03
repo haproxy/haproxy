@@ -4944,6 +4944,46 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 		"01"                           /* COM_QUIT command */
 	};
 
+	/* MySQL >=8.0 client Authentication packet with CLIENT_PLUGIN_AUTH capability
+	 * and caching_sha2_password as the auth plugin. This is the default
+	 * authentication plugin since MySQL 8.0, and the only one enabled by default
+	 * since MySQL 8.4 (mysql_native_password is disabled and removed in 9.0).
+	 *
+	 * When the client does not announce the plugin used by the account, the
+	 * server answers the handshake response with an AuthSwitchRequest. Since
+	 * the COM_QUIT packet is pipelined right after the handshake response, the
+	 * server then reads it as the auth switch reply, fails the handshake with a
+	 * "packets out of order" error and counts it as a connection error for the
+	 * client host in the host cache. After max_connect_errors such checks, the
+	 * server blocks the HAProxy host (ER_HOST_IS_BLOCKED) and every connection
+	 * from it, including proxied client traffic, is refused.
+	 *
+	 * Announcing caching_sha2_password with an empty auth response lets the
+	 * server authenticate a password-less caching_sha2_password account in a
+	 * single round trip: it answers with an OK packet and the pipelined COM_QUIT
+	 * closes the session cleanly, so no connection error is recorded.
+	 *
+	 * Client capabilities: 0x00088200 (little-endian: 00820800)
+	 *   - CLIENT_PROTOCOL_41       (0x00000200)
+	 *   - CLIENT_SECURE_CONNECTION (0x00008000)
+	 *   - CLIENT_PLUGIN_AUTH       (0x00080000)
+	 */
+	static char mysql80_sha2_req[] = {
+		"%[var(check.header),hex]"     /* 3 bytes for the packet length and 1 byte for the sequence ID */
+		"00820800"                     /* client capabilities with CLIENT_PLUGIN_AUTH */
+		"00800001"                     /* max packet */
+		"21"                           /* character set (UTF-8) */
+		"000000000000000000000000"     /* 23 bytes, all zeroes */
+		"0000000000000000000000"
+		"%[var(check.username),hex]00" /* the username */
+		"00"                           /* auth response length (0 = no password) */
+		"63616368696e675f736861325f"   /* auth plugin name: "caching_sha2_password\0" */
+		"70617373776f726400"
+		"010000"                       /* packet length */
+		"00"                           /* sequence ID */
+		"01"                           /* COM_QUIT command */
+	};
+
 	struct tcpcheck *tc = &curpx->tcpcheck;
 	struct tcpcheck_rule *chk;
 	struct tcpcheck_var *var = NULL;
@@ -4993,8 +5033,13 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 			packetlen = userlen + 7 + 27 + 22;
 			mysql_req = mysql80_req;
 		}
+		else if (strcmp(args[cur_arg+2], "post-80-sha2") == 0) {
+			/* post-80-sha2: CLIENT_PLUGIN_AUTH + caching_sha2_password (22 bytes) */
+			packetlen = userlen + 7 + 27 + 22;
+			mysql_req = mysql80_sha2_req;
+		}
 		else  {
-			ha_alert("parsing [%s:%d] : keyword '%s' only supports 'post-41', 'pre-41' and 'post-80' (got '%s').\n",
+			ha_alert("parsing [%s:%d] : keyword '%s' only supports 'post-41', 'pre-41', 'post-80' and 'post-80-sha2' (got '%s').\n",
 				 file, line, args[cur_arg], args[cur_arg+2]);
 			goto error;
 		}
@@ -5614,6 +5659,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	static char mysql40_rsname[] = "*mysql40-check";
 	static char mysql41_rsname[] = "*mysql41-check";
 	static char mysql80_rsname[] = "*mysql80-check";
+	static char mysql80_sha2_rsname[] = "*mysql80-sha2-check";
 	char *mysql_rsname = "*mysql-check";
 	struct tcpcheck_ruleset *rs = NULL;
 	int err_code = 0;
@@ -5646,8 +5692,10 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 			mysql_rsname  = mysql40_rsname;
 		else if (strcmp(args[cur_arg+2], "post-80") == 0)
 			mysql_rsname  = mysql80_rsname;
+		else if (strcmp(args[cur_arg+2], "post-80-sha2") == 0)
+			mysql_rsname  = mysql80_sha2_rsname;
 		else  {
-			ha_alert("parsing [%s:%d] : keyword '%s' only supports 'post-41', 'pre-41' and 'post-80' (got '%s').\n",
+			ha_alert("parsing [%s:%d] : keyword '%s' only supports 'post-41', 'pre-41', 'post-80' and 'post-80-sha2' (got '%s').\n",
 				 file, line, args[cur_arg], args[cur_arg+2]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
