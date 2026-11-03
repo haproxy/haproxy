@@ -29,10 +29,11 @@
 #include "tables.h"
 
 /* if PRECOMPUTE_TABLES not set, then tables.h does not provide fh_dist_table
- * table as we need to recompute it.
+ * nor text_dist_table as we need to recompute them.
  */
 #ifndef PRECOMPUTE_TABLES
 static uint32_t fh_dist_table[32768];
+static uint32_t text_dist_table[32768];
 #endif // ifndef PRECOMPUTE_TABLES
 
 /* The enqueue functions have two possible implementations. The default one
@@ -578,39 +579,101 @@ static inline void copy_32b(struct slz_stream *__restrict strm, uint32_t x)
 	strm->outbuf += 4;
 }
 
+/* Everything below that depends on the huffman tree takes a <ctype> argument
+ * (SLZ_CT_*), that must be a constant in the encoder, so that each of its
+ * specialisations only contains the code for its own tree and names the
+ * tables directly. Passing the tables by pointer instead was measured to cost
+ * 5.7% on the fixed tree since gcc doesn't propagate the constant pointer's
+ * contents into the loop. Out of the encoder (flush, finish), it may vary.
+ */
+
 /* Using long because faster on 64-bit (can save one shift) */
-static inline void send_huff(struct slz_stream *__restrict strm, unsigned long code)
+static inline void send_huff(struct slz_stream *__restrict strm, unsigned long code, int ctype)
 {
 	uint32_t bits;
 
-	code = fixed_huff[code];
+	if (ctype == SLZ_CT_TEXT)
+		code = text_huff[code];
+	else
+		code = fixed_huff[code];
 	bits = code & 15;
 	code >>= 4;
 	enqueue24(strm, code, bits);
 }
 
-static inline void send_eob(struct slz_stream *__restrict strm)
+static inline void send_eob(struct slz_stream *__restrict strm, int ctype)
 {
-	enqueue8(strm, 0, 7); // direct encoding of 256 = EOB (cf RFC1951)
+	if (ctype == SLZ_CT_TEXT)
+		enqueue24(strm, text_huff[256] >> 4, TEXT_EOB_BITS);
+	else
+		enqueue8(strm, 0, 7); // direct encoding of 256 = EOB (cf RFC1951)
+}
+
+/* Opens a dynamic block (BTYPE=10) with BFINAL set to <bfinal>, and sends the
+ * definition of the text tree. The whole round trip is charged to the debt
+ * (SLZ_TEXT_SWITCH_COST, see SLZ_TEXT_MAX_DEBT): the block type and the
+ * header, and the EOB and stored block header needed to leave it later. It's
+ * rare enough not to deserve being inlined.
+ */
+static void send_text_hdr(struct slz_stream *__restrict strm, int bfinal)
+{
+	uint32_t i;
+
+	enqueue8(strm, 4 + bfinal, 3); // BFINAL = bfinal ; BTYPE = 10
+	for (i = 0; i < TEXT_HDR_BITS / 8; i++)
+		enqueue8(strm, text_hdr[i], 8);
+	if (TEXT_HDR_BITS & 7)
+		enqueue8(strm, text_hdr[i], TEXT_HDR_BITS & 7);
+	strm->text_debt += TEXT_EOB_BITS + 42 + 3 + TEXT_HDR_BITS;
+}
+
+/* Opens a huffman block for <ctype> with BFINAL set to <bfinal> */
+static inline void open_huff_block(struct slz_stream *__restrict strm, int bfinal, int ctype)
+{
+	if (ctype == SLZ_CT_TEXT)
+		send_text_hdr(strm, bfinal);
+	else
+		enqueue8(strm, 2 + bfinal, 3); // BFINAL = bfinal ; BTYPE = 01
+}
+
+/* returns the length code for match length <mlen> in the tree for <ctype>, in
+ * the len_fh[] format.
+ */
+static inline uint32_t len_code(long mlen, int ctype)
+{
+	if (ctype == SLZ_CT_TEXT)
+		return text_len[mlen];
+	else
+		return len_fh[mlen];
 }
 
 /* copies <len> litterals from <buf>. at once. <len> must not be null and must
  * be lower than or equal to 65535, which can be guaranteed when using
  * SLZ_LITERAL_SKIP with limited literal lengths. <more> indicates that there
- * are data past buf + <len>. Only supports fixed encoding.
+ * are data past buf + <len>. Use copy_lit_small() instead.
  */
-__attribute__((unused))
-static void copy_lit_small(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
+static inline __attribute__((always_inline))
+void _copy_lit_small(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more, int ctype)
 {
-	int eob_shift = (strm->state == SLZ_ST_EOB) ? 0 : 7;
+	if (ctype == SLZ_CT_TEXT) {
+		/* same as below with the text tree's EOB, which is not
+		 * zero: 3 to 21 bits.
+		 */
+		uint32_t eob_bits = (strm->state == SLZ_ST_EOB) ? 0 : TEXT_EOB_BITS;
+		uint32_t eob_code = eob_bits ? text_huff[256] >> 4 : 0;
 
-	/* explanation: if there is no EOB yet, we have to send one.
-	 * It's 0 encoded over 7 bits. Then we have to copy !more into BFINAL
-	 * (one bit), and 00 in btype (two bits). Finally we pad to the next
-	 * byte. So we add 0 or 7 bits for EOB, followed by 3 then by 0 to 7
-	 * bits for alignment. That's 3 to 17 bits.
-	 */
-	enqueue24(strm, (!more) << eob_shift, 3 + eob_shift + (7 & -(3 + eob_shift + strm->qbits))); // EOB + BFINAL + BTYPE
+		enqueue24(strm, eob_code + ((!more) << eob_bits), 3 + eob_bits + (7 & -(3 + eob_bits + strm->qbits)));
+	} else {
+		int eob_shift = (strm->state == SLZ_ST_EOB) ? 0 : 7;
+
+		/* explanation: if there is no EOB yet, we have to send one.
+		 * It's 0 encoded over 7 bits. Then we have to copy !more into BFINAL
+		 * (one bit), and 00 in btype (two bits). Finally we pad to the next
+		 * byte. So we add 0 or 7 bits for EOB, followed by 3 then by 0 to 7
+		 * bits for alignment. That's 3 to 17 bits.
+		 */
+		enqueue24(strm, (!more) << eob_shift, 3 + eob_shift + (7 & -(3 + eob_shift + strm->qbits))); // EOB + BFINAL + BTYPE
+	}
 	strm->state = more ? SLZ_ST_EOB : SLZ_ST_DONE;
 
 #if !SLZ_DIRECT_ENQUEUE24
@@ -625,19 +688,44 @@ static void copy_lit_small(struct slz_stream *__restrict strm, const void *buf, 
 	strm->outbuf += len;
 }
 
-/* copies <len> litterals from <buf>. <more> indicates that there are data past
- * buf + <len>. <len> must not be null.
+/* out-of-line versions of _copy_lit_small() for each content type. They must
+ * not be inlined in the encoder, which is sensitive to register pressure.
  */
-__attribute__((unused))
-static void copy_lit(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
+static __attribute__((noinline))
+void copy_lit_small_generic(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
+{
+	_copy_lit_small(strm, buf, len, more, SLZ_CT_GENERIC);
+}
+
+static __attribute__((noinline))
+void copy_lit_small_text(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
+{
+	_copy_lit_small(strm, buf, len, more, SLZ_CT_TEXT);
+}
+
+/* calls the version of _copy_lit_small() for <ctype> */
+static inline __attribute__((always_inline))
+void copy_lit_small(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more, int ctype)
+{
+	if (ctype == SLZ_CT_TEXT)
+		copy_lit_small_text(strm, buf, len, more);
+	else
+		copy_lit_small_generic(strm, buf, len, more);
+}
+
+/* copies <len> litterals from <buf>. <more> indicates that there are data past
+ * buf + <len>. <len> must not be null. Use copy_lit() instead.
+ */
+static inline __attribute__((always_inline))
+void _copy_lit(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more, int ctype)
 {
 	uint32_t len2;
 
 	if (len <= 65535)
-		return copy_lit_small(strm, buf, len, more);
+		return copy_lit_small(strm, buf, len, more, ctype);
 
 	if (strm->state != SLZ_ST_EOB)
-		send_eob(strm);
+		send_eob(strm, ctype);
 
 	len2 = 65535;
 	len -= len2;
@@ -662,10 +750,34 @@ static void copy_lit(struct slz_stream *__restrict strm, const void *buf, uint32
 	strm->state = more ? SLZ_ST_EOB : SLZ_ST_DONE;
 }
 
+/* out-of-line versions of _copy_lit() for each content type */
+static __attribute__((noinline,unused))
+void copy_lit_generic(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
+{
+	_copy_lit(strm, buf, len, more, SLZ_CT_GENERIC);
+}
+
+static __attribute__((noinline,unused))
+void copy_lit_text(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more)
+{
+	_copy_lit(strm, buf, len, more, SLZ_CT_TEXT);
+}
+
+/* calls the version of _copy_lit() for <ctype> */
+static inline __attribute__((always_inline))
+void copy_lit(struct slz_stream *__restrict strm, const void *buf, uint32_t len, int more, int ctype)
+{
+	if (ctype == SLZ_CT_TEXT)
+		copy_lit_text(strm, buf, len, more);
+	else
+		copy_lit_generic(strm, buf, len, more);
+}
+
 /* copies <len> litterals from <buf>. <more> indicates that there are data past
- * buf + <len>. <len> must not be null.
+ * buf + <len>. <len> must not be null. Use copy_lit_huff() instead.
  */
-static void copy_lit_huff(struct slz_stream *__restrict strm, const unsigned char *buf, uint32_t len, int more)
+static inline __attribute__((always_inline))
+void _copy_lit_huff(struct slz_stream *__restrict strm, const unsigned char *buf, uint32_t len, int more, int ctype)
 {
 	uint32_t pos;
 
@@ -675,17 +787,40 @@ static void copy_lit_huff(struct slz_stream *__restrict strm, const unsigned cha
 	if (strm->state == SLZ_ST_EOB) {
 	eob:
 		strm->state = more ? SLZ_ST_FIXED : SLZ_ST_LAST;
-		enqueue8(strm, 2 + !more, 3); // BFINAL = !more ; BTYPE = 01
+		open_huff_block(strm, !more, ctype);
 	}
 	else if (!more) {
-		send_eob(strm);
+		send_eob(strm, ctype);
 		goto eob;
 	}
 
 	pos = 0;
 	do {
-		send_huff(strm, buf[pos++]);
+		send_huff(strm, buf[pos++], ctype);
 	} while (pos < len);
+}
+
+/* out-of-line versions of _copy_lit_huff() for each content type */
+static __attribute__((noinline))
+void copy_lit_huff_generic(struct slz_stream *__restrict strm, const unsigned char *buf, uint32_t len, int more)
+{
+	_copy_lit_huff(strm, buf, len, more, SLZ_CT_GENERIC);
+}
+
+static __attribute__((noinline))
+void copy_lit_huff_text(struct slz_stream *__restrict strm, const unsigned char *buf, uint32_t len, int more)
+{
+	_copy_lit_huff(strm, buf, len, more, SLZ_CT_TEXT);
+}
+
+/* calls the version of _copy_lit_huff() for <ctype> */
+static inline __attribute__((always_inline))
+void copy_lit_huff(struct slz_stream *__restrict strm, const unsigned char *buf, uint32_t len, int more, int ctype)
+{
+	if (ctype == SLZ_CT_TEXT)
+		copy_lit_huff_text(strm, buf, len, more);
+	else
+		copy_lit_huff_generic(strm, buf, len, more);
 }
 
 /* Marks all <count> bytes worth of entries in <refs> as unusable, so that any
@@ -743,19 +878,169 @@ static inline void insert_ref(union ref *refs, const unsigned char *in, unsigned
 #define SLZ_LAST_COST        42
 #define SLZ_LAST_COST_EOB    32
 
-/* Maximum number of bits the fixed huffman encoding is allowed to be behind
- * the equivalent stored blocks before the encoder stops trusting the local
- * decisions above and falls back to stored blocks only (see <debt> in
- * slz_rfc1951_encode_blk()). This bounds by 25 bytes the amount by which a
- * stream may exceed the size of the same data sent as stored blocks. It must
- * be large enough not to trigger on regular data, where the debt oscillates
- * around zero: measured on the 212 MB silesia.tar, no value from 196 up
- * changes the output by a single byte, while 52 costs 2331 bytes and 192
- * costs 615. It must also leave room for one last group of literals in the
- * 8-bit counter that holds the debt, which is why it may not exceed
- * 255 - (SLZ_SWITCH_COST - 1) = 204.
+/* The same for the text tree, whose EOB is longer, and whose blocks start with
+ * the tree's definition, which makes leaving such a block for a stored one a
+ * much bigger decision: EOB + block type + alignment + LEN and NLEN (42 bits)
+ * + block type and header of the next block. On the other hand, a stored block
+ * started in EOB state only costs 42 bits more than the literals it contains,
+ * and opening a text block costs the block type and the header. The literals
+ * are not compared by number of 9-bit ones but by their exact cost relative
+ * to 8 bits, which is negative for text (see <lit_excess>), so that these
+ * costs can be negative as well when it takes saving bits to pay for opening
+ * a block.
+ */
+#define SLZ_TEXT_STORED_COST  42
+#define SLZ_TEXT_OPEN_COST    (3 + TEXT_HDR_BITS)
+#define SLZ_TEXT_SWITCH_COST  (TEXT_EOB_BITS + SLZ_TEXT_STORED_COST + SLZ_TEXT_OPEN_COST)
+
+/* The encoder keeps a running balance <bal> of how many bits the output is
+ * above the same data sent as stored blocks (5 bytes per 65535), offset by
+ * SLZ_CREDIT so that it remains unsigned. Literals sent in fixed huffman mode
+ * add one bit per byte >= 144, entering fixed huffman mode adds the
+ * SLZ_SWITCH_COST needed to leave it later, and references subtract the bits
+ * they save compared to the same bytes sent as literals. Pending literals are
+ * sent as a stored block once the balance reaches SLZ_SWITCH_COST above the
+ * credit, and they are then removed from it. The balance is not allowed to
+ * drop below zero, i.e. to accumulate more than SLZ_CREDIT bits of savings:
+ * these allow a few groups of literals to remain in fixed huffman instead of
+ * paying for a return to it, which improves the compression ratio at levels
+ * 2 and 3 (from 32 to 300 it only grows, but costs more CPU past 64, since
+ * more literals are huffman-encoded). The balance is carried between calls in
+ * <strm->debt>, and a stream starts with no savings at all.
+ *
+ * SLZ_MAX_DEBT is the number of bits above the credit past which a reference
+ * met in fixed huffman mode must also pay for the return to it, as if it were
+ * met in stored mode, because the pending literals will leave as a stored
+ * block. Below it, such references are accepted for what they save by
+ * themselves, which is better for the ratio. Thus the balance never exceeds
+ * SLZ_CREDIT + SLZ_MAX_DEBT + SLZ_SWITCH_COST, which is what bounds the excess
+ * of a stream over the same data sent as stored blocks to 252 bits. In
+ * practice it reaches 154 bits on crafted data and 149 on silesia.tar, where
+ * values 100 to 1000 trade a little ratio between levels 2 and 3.
+ *
+ * The same threshold also marks the stored mode inside a call: whenever the
+ * encoder leaves fixed huffman mode (literal skip, full stored block), the
+ * balance is raised to at least SLZ_CREDIT + SLZ_MAX_DEBT, so that the test
+ * on references does not need to load the state for each candidate, and so
+ * that the pending literals leave as a stored block. Entering fixed huffman
+ * mode restarts from the balance saved in <strm->debt>, which drops the mark.
+ * A call starting in stored mode is not marked, as this would force its first
+ * literals into a stored block. Its first reference is then accepted for what
+ * it saves by itself, and the switch to fixed huffman is charged when it is
+ * performed by that reference, but not when the first literals perform it.
+ *
+ * At level 1, literals are not counted one at a time, which costs too much in
+ * the main loop. Instead, a group of literals sent in fixed huffman mode before
+ * a reference is charged one bit per byte as if all of them took 9 bits, once
+ * the decision to send it in fixed huffman mode is taken. The balance is thus
+ * still an upper bound of the excess, and the group itself, whose decision did
+ * not include it, is shorter than 64 bytes there (longer ones are skipped and
+ * leave as a stored block), so it adds less than 64 bits to the bound, which
+ * is thus 315 bits, published in bytes as SLZ_MAX_DEBT_BYTES in slz.h. On real
+ * data, the reference that follows almost always saves more than the charge,
+ * so this rarely changes a decision.
  */
 #define SLZ_MAX_DEBT        200
+#define SLZ_CREDIT           64
+
+/* fails to build if SLZ_MAX_DEBT_BYTES doesn't cover the bound above */
+typedef char slz_max_debt_bytes_check[(SLZ_MAX_DEBT_BYTES * 8 >= SLZ_MAX_DEBT + SLZ_SWITCH_COST + 63) ? 1 : -1];
+
+/* With the text tree, opening a block charges the whole round trip to the
+ * debt (SLZ_TEXT_SWITCH_COST: the header, and the EOB and stored block header
+ * needed to leave it). The header is part of the encoding, not of the
+ * overhead: a block is only opened if the bits already known to be saved, by
+ * the pending literals that will join it and by the reference that opens it,
+ * repay it enough for the debt to remain below SLZ_TEXT_MAX_DEBT, which is
+ * the same as SLZ_MAX_DEBT. Similarly, the pending literals and the reference
+ * that follows them are only sent in an open block if the debt remains below
+ * it, or if together they save bits, so that the debt never exceeds it once
+ * they are sent. The literals sent at the end of a call follow the same rule.
+ * Thus, as with the fixed tree, the excess over the same data sent as stored
+ * blocks is bounded to SLZ_MAX_DEBT bits, whatever the tree's header.
+ *
+ * The debt is offset by SLZ_TEXT_CREDIT, which allows it to keep up to that
+ * many bits of savings, so that a block closed for incompressible data can be
+ * reopened with what the previous ones saved instead of waiting for a single
+ * reference to repay the whole round trip, which kept mixed contents such as
+ * silesia.tar in stored blocks. Since the output of each call must also stay
+ * within SLZ_MAX_OVERHEAD(), only the savings of the current call may be used,
+ * and those carried from previous calls are dropped when a call starts (see
+ * _slz_rfc1951_encode_text()). Past 2000 bits, little is gained. This needs a
+ * larger counter, <text_debt>, which is only used with the text tree so that
+ * the code for the fixed one doesn't have to deal with 16-bit values.
+ */
+#define SLZ_TEXT_CREDIT     4096
+#define SLZ_TEXT_MAX_DEBT   (SLZ_MAX_DEBT + SLZ_TEXT_CREDIT)
+
+/* fails to build if send_text_hdr() doesn't charge SLZ_TEXT_SWITCH_COST */
+typedef char slz_text_switch_cost_check[(SLZ_TEXT_SWITCH_COST == TEXT_EOB_BITS + 42 + 3 + TEXT_HDR_BITS) ? 1 : -1];
+
+/* fails to build if SLZ_MAX_DEBT_BYTES doesn't cover the text bound above */
+typedef char slz_max_text_debt_bytes_check[(SLZ_MAX_DEBT_BYTES * 8 >= SLZ_TEXT_MAX_DEBT - SLZ_TEXT_CREDIT) ? 1 : -1];
+
+/* With the text tree, while no block is open, the references that cannot
+ * repay the opening yet are not turned into literals but recorded, up to
+ * SLZ_TEXT_VREFS of them, and their exact cost relative to 8 bits per byte is
+ * added to <lit_excess> with the pending literals, which also cover their
+ * bytes. If the pending bytes are sent as a stored block, the references are
+ * simply dropped. If a block is opened for them, they're replayed by
+ * text_replay() between their literals. Thus the decision to open a block
+ * still only depends on bits known to be saved, but these include those of
+ * the first references, which otherwise were lost until the literals alone
+ * could repay the opening.
+ */
+#define SLZ_TEXT_VREFS 32
+
+struct text_vref {
+	uint32_t code;   /* length code, as returned by len_code() */
+	uint32_t dist;   /* distance code, as in text_dist_table */
+	uint16_t lits;   /* literals before this reference */
+	uint16_t mlen;   /* match length */
+};
+
+/* sends the <len> pending bytes at <buf> in a text block, as literals except
+ * for the <n> references recorded in <vref>, opening the block if needed with
+ * BFINAL set if <more> is null.
+ */
+static __attribute__((noinline))
+void text_replay(struct slz_stream *__restrict strm, const unsigned char *buf, uint32_t len,
+                 const struct text_vref *vref, uint32_t n, int more)
+{
+	const unsigned char *end = buf + len;
+	uint32_t i, l;
+
+	if (strm->state == SLZ_ST_EOB) {
+		strm->state = more ? SLZ_ST_FIXED : SLZ_ST_LAST;
+		open_huff_block(strm, !more, SLZ_CT_TEXT);
+	}
+
+	for (i = 0; i < n; i++) {
+		for (l = vref[i].lits; l; l--)
+			send_huff(strm, *buf++, SLZ_CT_TEXT);
+		enqueue24(strm, vref[i].code & 0xFFFF, vref[i].code >> 16);
+		enqueue24(strm, vref[i].dist >> 5, vref[i].dist & 0x1f);
+		buf += vref[i].mlen;
+	}
+
+	while (buf < end)
+		send_huff(strm, *buf++, SLZ_CT_TEXT);
+}
+
+/* returns non-zero if the pending literals of text stream <strm>, which cost
+ * <excess> bits more than 8 bits each, must be sent as a stored block, either
+ * because it's cheaper, or because keeping them in the open huffman block
+ * would bring the debt to SLZ_TEXT_MAX_DEBT. They are compared to the lowest
+ * cost first, which text literals never reach, so that the common case is a
+ * single test against a constant: making the test depend on the state let gcc
+ * test the match length first in the encoder, which is a mispredicted branch.
+ */
+static inline int text_lit_stored(const struct slz_stream *strm, int32_t excess)
+{
+	return __builtin_expect(excess >= SLZ_TEXT_STORED_COST, 0) &&
+	       (strm->state == SLZ_ST_EOB || excess >= SLZ_TEXT_SWITCH_COST ||
+	        (int32_t)strm->text_debt + excess >= SLZ_TEXT_MAX_DEBT);
+}
 
 /* Compresses <ilen> bytes from <in> into <out> according to RFC1951. The
  * output result may be up to 5 bytes larger than the input for each 65535
@@ -763,9 +1048,14 @@ static inline void insert_ref(union ref *refs, const unsigned char *in, unsigned
  * to BFINAL+EOB encoding (10 bits) when <more> is not set. This is a property
  * of the whole stream, not of each call: since up to 31 bits are retained in
  * the queue from one call to the next, a single call may emit up to 5 bytes
- * more than its own share, which the following ones will not emit. The caller
- * is responsible for ensuring there is enough room in the output buffer for
- * this. The amount of output bytes is returned, and no CRC is computed.
+ * more than its own share, which the following ones will not emit. In
+ * addition, the fixed huffman encoding may be behind the same data sent as
+ * stored blocks by up to SLZ_MAX_DEBT_BYTES, which may all be reached within a
+ * single call, so each call must also have that much room. SLZ_MAX_OVERHEAD()
+ * in slz.h sums all of this, including the text tree's header and debt when
+ * <ctype> is SLZ_CT_TEXT (see SLZ_TEXT_MAX_DEBT). The caller is responsible
+ * for ensuring there is enough room in the output buffer for this. The amount
+ * of output bytes is returned, and no CRC is computed.
  *
  * Note: this function uses a lot of registers due to local variables that
  * hold pre-computed values that need to be kept very long. Be extremely
@@ -779,7 +1069,7 @@ static inline void insert_ref(union ref *refs, const unsigned char *in, unsigned
  * unaligned, short memcpy() calls must not be translated to AVX512 code.
  */
 static inline __attribute__((always_inline))
-long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more, int level)
+long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more, int level, int ctype)
 {
 	long rem = ilen;
 	unsigned long pos = 0;
@@ -794,7 +1084,12 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 	long skip_ratio = 0;
 #endif
 	uint32_t plit = 0;
-	uint32_t bit9 = 0;
+	uint32_t bal; /* see SLZ_MAX_DEBT, generic tree only */
+	uint32_t lit_excess = 0; /* text tree only, see SLZ_TEXT_STORED_COST */
+	int lit_stored = 0;      /* text tree only, pending literals go to a stored block */
+	uint32_t nvref = 0;      /* text tree only, recorded references, see SLZ_TEXT_VREFS */
+	uint32_t vplit = 0;      /* text tree only, <plit> after the last recorded reference */
+	struct text_vref vref[SLZ_TEXT_VREFS];
 	uint32_t dist, code;
 	union ref refs[1 << SLZ_HASH_BITS];
 
@@ -802,11 +1097,12 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		/* force to send as literals (eg to preserve CPU) */
 		strm->outbuf = out;
 		if (ilen)
-			copy_lit(strm, in, ilen, more);
+			copy_lit(strm, in, ilen, more, ctype);
 		goto leave;
 	}
 
 	reset_refs(refs, sizeof(refs));
+	bal = strm->debt;
 
 	strm->outbuf = out;
 
@@ -888,25 +1184,43 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		send_as_lit:
 			rem--;
 			plit++;
-			bit9 += ((unsigned char)word >= 144);
+			/* for the text tree, <lit_excess> is the exact number of
+			 * bits the pending literals cost over 8 bits each, as a
+			 * signed value.
+			 */
+			if (ctype == SLZ_CT_TEXT)
+				lit_excess += (text_huff[(unsigned char)word] & 15) - 8;
+			else if (level >= 2) // level 1 charges whole groups, see SLZ_MAX_DEBT
+				bal += ((unsigned char)word >= 144);
 			pos++;
 
 			/* Incompressible data: once enough literals have accumulated
 			 * without a single match, stop looking for a while and just
-			 * dump what follows as literal blocks, doubling the amount
-			 * skipped each time so that a long incompressible block
-			 * costs less and less to walk over. A match resets it.
+			 * add what follows to the pending literals, doubling the
+			 * amount skipped each time so that a long incompressible block
+			 * costs less and less to walk over. A match resets it. The
+			 * skipped bytes are not emitted here, as closing a stored
+			 * block at each step would cost 5 bytes every few kB and
+			 * break the promise of 5 bytes per 65535. Since they were not
+			 * inspected, <bal> is raised so that they may only leave as
+			 * a stored block, and so that a reference is only accepted if
+			 * it pays for the return to FIXED (see SLZ_MAX_DEBT). The EOB
+			 * is sent by copy_lit() along with them. <plit> may thus
+			 * exceed 65535, the pending literals are always sent with
+			 * copy_lit() which splits them into full stored blocks.
 			 */
 #if SLZ_LITERAL_SKIP
-			if (level <= 1 && !(plit & 63)) {
-				/* be careful: plit+skip must never be >= 65535 */
-				long skip;
-				skip_ratio = (skip_ratio * 2 + 1) & 255; // capped exponential: 0,1,3,7,... and stays at 255
-				skip = rem >= skip_ratio * 32 ? skip_ratio * 32 : rem;
-				copy_lit_small(strm, in + pos - plit, plit + skip, more || skip < rem);
+			/* never on text, where it would be too expensive to
+			 * leave the huffman block for so few literals.
+			 */
+			if (ctype == SLZ_CT_GENERIC && level <= 1 && !(plit & 63)) {
+				long skip = rem >= skip_ratio * 64 ? skip_ratio * 64 : rem; // 0,64,192,...,8128: keeps plit aligned
+				skip_ratio = (skip_ratio * 2 + 1) & 127; // capped exponential: 0,1,3,7,... and stays at 127
 				pos += skip;
 				rem -= skip;
-				plit = 0;
+				plit += skip;
+				/* skipped bytes may only leave as a stored block */
+				bal += SLZ_MAX_DEBT + SLZ_CREDIT;
 # ifndef UNALIGNED_FASTER
 				/* we'll need to update the current word since we skipped some bytes */
 				goto reload_word;
@@ -914,14 +1228,17 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 				continue;
 # endif
 			}
-			else if (level == 2 && !(plit & 2047)) {
-				/* be careful: plit+skip must never be >= 65535 */
+			else if (__builtin_expect(ctype == SLZ_CT_GENERIC && level == 2 && !(plit & 2047), 0)) {
 				long skip = rem >= skip_ratio * 4096 ? skip_ratio * 4096 : rem;
 				skip_ratio = (skip_ratio * 2 + 1) & 7; // capped exponential: 0,1,3,7 and stays at 7
-				copy_lit_small(strm, in + pos - plit, plit + skip, more || skip < rem);
 				pos += skip;
 				rem -= skip;
-				plit = 0;
+				plit += skip;
+				/* skipped bytes may only leave as a stored block. Also done
+				 * on the first test, where <skip> is 0, like the stored
+				 * block sent there before: it keeps the same matches.
+				 */
+				bal += SLZ_MAX_DEBT + SLZ_CREDIT;
 # ifndef UNALIGNED_FASTER
 				/* we'll need to update the current word since we skipped some bytes */
 				goto reload_word;
@@ -929,13 +1246,24 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 				continue;
 # endif
 			}
-			else if (level >= 3) // no literal skip at levels >= 3
+			else if (ctype != SLZ_CT_GENERIC || level >= 3) // no literal skip at levels >= 3
 #endif
 			{
-				/* either no literal_skip at build time, or high enough level */
+				/* either no literal_skip at build time, or high enough
+				 * level. With the text tree, the stored blocks are as
+				 * large as possible since each split costs 5 bytes on
+				 * top of the debt.
+				 */
 				if (__builtin_expect(plit == 0xffc0, 0)) {
-					copy_lit_small(strm, in + pos - plit, plit, 1);
+					copy_lit_small(strm, in + pos - plit, plit, 1, ctype);
 					plit = 0;
+					/* the text tree's <lit_excess> may be negative */
+					if (ctype == SLZ_CT_TEXT) {
+						lit_excess = 0;
+						nvref = vplit = 0;
+					}
+					else
+						bal = strm->debt + SLZ_MAX_DEBT + SLZ_CREDIT;
 				}
 			}
 			continue;
@@ -953,16 +1281,29 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 
 		/* found a matching entry */
 
-		if (bit9 >= 52 && mlen < 6)
+		/* if the pending literals are going to be sent as a stored
+		 * block, a short match is not worth splitting it.
+		 */
+		if (ctype == SLZ_CT_TEXT) {
+			if (text_lit_stored(strm, lit_excess) && mlen < 6)
+				goto send_as_lit;
+		}
+		else if (bal >= SLZ_SWITCH_COST + SLZ_CREDIT && mlen < 6)
 			goto send_as_lit;
 
 		/* compute the output code, its size and the length's size in
 		 * bits to know if the reference is cheaper than literals.
 		 */
-		code = len_fh[mlen];
+		code = len_code(mlen, ctype);
 
-		/* direct mapping of dist->huffman code */
-		dist = fh_dist_table[pos - last - 1];
+		/* direct mapping of dist->huffman code. Computing the text
+		 * tree's one from the fixed one instead was measured 3 to 5%
+		 * slower than a second table.
+		 */
+		if (ctype == SLZ_CT_TEXT)
+			dist = text_dist_table[pos - last - 1];
+		else
+			dist = fh_dist_table[pos - last - 1];
 
 		/* If encoding the dist+length is more expensive than sending
 		 * the equivalent as bytes, lets keep the literals. This is
@@ -1012,7 +1353,54 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		 * is what guarantees that once switched to FIXED we can stay
 		 * in it for as long as needed.
 		 */
-		if ((strm->state == SLZ_ST_EOB || strm->debt >= SLZ_MAX_DEBT) &&
+		if (ctype == SLZ_CT_TEXT) {
+			/* With the text tree, the decision is taken here for
+			 * the pending literals and the reference together, and
+			 * <lit_stored> keeps it for when the literals are sent,
+			 * since extending the match backwards may change their
+			 * cost. The literals that don't leave as a stored block
+			 * join the reference's block, and if it has to be
+			 * (re)opened, its round trip is charged. The reference
+			 * is accepted if the debt remains below the limit (see
+			 * SLZ_TEXT_MAX_DEBT), or if it doesn't open a block and
+			 * saves bits together with the literals.
+			 */
+			int32_t cost = (int32_t)((dist & 0x1f) + (code >> 16) + lit_excess) - 8 * (int32_t)mlen;
+
+			/* <lit_excess> is null when there are no literals */
+			lit_stored = text_lit_stored(strm, lit_excess);
+			if (__builtin_expect(strm->state != SLZ_ST_EOB && !lit_stored, 1)) {
+				/* literals and reference in the open block */
+				if (cost > 0 && (int32_t)strm->text_debt + cost >= SLZ_TEXT_MAX_DEBT)
+					goto send_as_lit;
+			}
+			else {
+				/* the reference (re)opens the block */
+				if (lit_stored)
+					cost -= (int32_t)lit_excess;
+				if ((int32_t)strm->text_debt + cost + SLZ_TEXT_SWITCH_COST >= SLZ_TEXT_MAX_DEBT) {
+					if (strm->state != SLZ_ST_EOB || lit_stored ||
+					    nvref >= SLZ_TEXT_VREFS || plit + mlen >= 0xffc0 ||
+					    plit - vplit > 0xffff)
+						goto send_as_lit;
+
+					/* record it, see SLZ_TEXT_VREFS */
+					vref[nvref].code = code;
+					vref[nvref].dist = dist;
+					vref[nvref].lits = plit - vplit;
+					vref[nvref].mlen = mlen;
+					nvref++;
+					lit_excess += (dist & 0x1f) + (code >> 16) - 8 * (uint32_t)mlen;
+					plit += mlen;
+					vplit = plit;
+					goto skip_ref;
+				}
+			}
+		}
+		/* Note: <bal> is at least SLZ_MAX_DEBT + SLZ_CREDIT in stored
+		 * mode, except at the beginning of a call (see SLZ_MAX_DEBT).
+		 */
+		else if (bal >= SLZ_MAX_DEBT + SLZ_CREDIT &&
 		    (dist & 0x1f) + (code >> 16) + SLZ_SWITCH_COST > 8 * mlen)
 			goto send_as_lit;
 
@@ -1030,7 +1418,7 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		 * on a wole word at once. It may miss some rare matches on the
 		 * edge of the buffer that we don't care about.
 		 *
-		 * It's worth noting that we *do not* fixup <bit9> if a match
+		 * It's worth noting that we *do not* fixup <bal> if a match
 		 * is found, as this would be too complicated and counter-
 		 * productive. This means that literals that were finally
 		 * encoded might still count towards the budget limit, but this
@@ -1041,9 +1429,10 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		 * that it's both easier and faster this way than changing then
 		 * rolling back offsets when we finally give up and send_as_lit.
 		 */
-		if (__builtin_expect(plit != 0, 1) &&
+		if (((ctype == SLZ_CT_TEXT && __builtin_expect(plit != vplit, 1)) ||
+		     (ctype != SLZ_CT_TEXT && __builtin_expect(plit != 0, 1))) &&
 		    (last >= MAX_C(sizeof(long), SLZ_BACKWARD_MATCH[level]))) {
-			long bmax = MIN(plit, 8); // keep it at 8, always faster
+			long bmax = MIN(plit - (ctype == SLZ_CT_TEXT ? vplit : 0), 8); // keep it at 8, always faster
 			long back = 0;
 
 			if (bmax > 258 - mlen)
@@ -1098,7 +1487,20 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 				 * extension only makes the match cheaper per
 				 * byte, never more expensive.
 				 */
-				code = len_fh[mlen];
+				code = len_code(mlen, ctype);
+
+				/* Not fixing <lit_excess> above is only safe when it
+				 * overestimates the cost of the literals. With
+				 * the text tree, these ones most likely saved
+				 * bits, which would be counted twice since the
+				 * match is credited 8 bits per byte as well.
+				 */
+				if (ctype == SLZ_CT_TEXT) {
+					long i;
+
+					for (i = 0; i < back; i++)
+						lit_excess -= (text_huff[in[pos + i]] & 15) - 8;
+				}
 			}
 		}
 #endif // SLZ_BACKWARD_MATCH // otherwise 43.83%
@@ -1109,17 +1511,35 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 			 * is a waste of space for binary data. Switching between Huffman
 			 * and no-comp then huffman consumes 52 bits (7 for EOB + 3 for
 			 * block type + 7 for alignment + 32 for LEN+NLEN + 3 for next
-			 * block. Only use plain literals if there are more than 52 bits
-			 * to save then, or if we're already too much in debt, in which
-			 * case only stored blocks may be emitted, see <debt> below.
-			 * Literals sent in a stored block do not cost anything extra,
-			 * only those sent in huffman mode add to the debt.
+			 * block). The balance already counts these literals, so once
+			 * it is SLZ_SWITCH_COST above the credit, the literals leave
+			 * as a stored block and are removed from it by restoring the
+			 * value it had after the last reference. Literals sent in a
+			 * stored block do not cost anything extra.
 			 */
-			if (bit9 >= SLZ_SWITCH_COST || strm->debt >= SLZ_MAX_DEBT)
-				copy_lit_small(strm, in + pos - plit, plit, 1);
+			if (ctype == SLZ_CT_TEXT) {
+				if (lit_stored)
+					copy_lit_small(strm, in + pos - plit, plit, 1, ctype);
+				else {
+					int32_t debt;
+
+					if (__builtin_expect(nvref != 0, 0))
+						text_replay(strm, in + pos - plit, plit, vref, nvref, 1);
+					else
+						copy_lit_huff(strm, in + pos - plit, plit, 1, ctype);
+					debt = strm->text_debt + (int32_t)lit_excess;
+					strm->text_debt = debt > 0 ? debt : 0;
+				}
+				nvref = vplit = 0;
+			}
+			else if (bal >= SLZ_SWITCH_COST + SLZ_CREDIT) {
+				copy_lit(strm, in + pos - plit, plit, 1, ctype);
+				bal = strm->debt;
+			}
 			else {
-				copy_lit_huff(strm, in + pos - plit, plit, 1);
-				strm->debt += bit9;
+				if (level <= 1)
+					bal += plit; // worst case: all of them take 9 bits
+				copy_lit_huff(strm, in + pos - plit, plit, 1, ctype);
 			}
 
 			plit = 0;
@@ -1131,7 +1551,12 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		/* use mode 01 - fixed huffman */
 		if (strm->state == SLZ_ST_EOB) {
 			strm->state = SLZ_ST_FIXED;
-			enqueue8(strm, 0x02, 3); // BTYPE = 01, BFINAL = 0
+			open_huff_block(strm, 0, ctype);
+			/* restart from the saved balance (drops the stored mode mark)
+			 * plus what leaving fixed huffman will cost
+			 */
+			if (ctype == SLZ_CT_GENERIC)
+				bal = strm->debt + SLZ_SWITCH_COST;
 		}
 
 		/* copy the length first */
@@ -1150,26 +1575,25 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		enqueue24(strm, dist >> 5, dist & 0x1f);
 #endif
 
-		/* <bit9> only measures the current group of literals, which is
-		 * what the decisions above compare against, and it restarts
-		 * from zero after each reference. <debt> accumulates how much
-		 * the literals already emitted in fixed huffman mode are still
-		 * costing us compared to the same bytes sent as stored blocks,
-		 * and is what bounds the growth of the output: the reference
-		 * just used (code>>16)+(dist&0x1f) bits in place of the 8*mlen
-		 * bits these bytes would have taken as literals, so it repays
-		 * that much of the debt. Without this, a stream made of series
-		 * of 9-bit literals interleaved with cheap references would
-		 * never reach the threshold above and would keep inflating. The
-		 * debt is saturated at zero since we're not interested in
-		 * accumulating credits. The update is unconditional because a
-		 * test on a debt that is often null but not always turns into
-		 * a mispredicted branch on binary data.
+		/* The reference just used (code>>16)+(dist&0x1f) bits in place
+		 * of the 8*mlen bits these bytes would have taken as literals,
+		 * so it saves that much on the balance, which is saturated at
+		 * zero (no more than SLZ_CREDIT bits of savings) and saved
+		 * there for the next group of literals and the next calls. The
+		 * update is unconditional because a test on a value that is
+		 * often null but not always turns into a mispredicted branch
+		 * on binary data.
 		 */
-		code = strm->debt + (code >> 16) + (dist & 0x1f);
-		strm->debt = (code > 8 * (uint32_t)mlen) ? code - 8 * (uint32_t)mlen : 0;
-
-		bit9 = 0;
+		if (ctype == SLZ_CT_TEXT) {
+			code = strm->text_debt + (code >> 16) + (dist & 0x1f);
+			strm->text_debt = (code > 8 * (uint32_t)mlen) ? code - 8 * (uint32_t)mlen : 0;
+			lit_excess = 0;
+		} else {
+			code = bal + (code >> 16) + (dist & 0x1f);
+			bal = (code > 8 * (uint32_t)mlen) ? code - 8 * (uint32_t)mlen : 0;
+			strm->debt = bal;
+		}
+	skip_ref:
 		rem -= mlen;
 		pos += mlen;
 
@@ -1203,7 +1627,10 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		/* we're reading the 1..3 last bytes */
 		plit += rem;
 		do {
-			bit9 += ((unsigned char)in[pos++] >= 144);
+			if (ctype == SLZ_CT_TEXT)
+				lit_excess += (text_huff[in[pos++]] & 15) - 8;
+			else
+				bal += ((unsigned char)in[pos++] >= 144);
 		} while (--rem);
 	}
 
@@ -1211,7 +1638,44 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 	 * a stored block depends on the current state and on the presence of
 	 * data after these literals, see the SLZ_*_COST definitions above.
 	 */
-	if (plit) {
+	if (plit && ctype == SLZ_CT_TEXT) {
+		int32_t lit_cost;
+
+		/* same with the text tree, in EOB state the huffman encoding
+		 * has to pay for the block type and the header, and the EOB
+		 * when nothing follows. When nothing follows and a text block
+		 * is already open, the literals stay in it, as reopening one
+		 * only to set BFINAL would cost a second header. The stream
+		 * is then terminated by slz_finish() with an EOB and an empty
+		 * final fixed block (10 bits), while leaving the block for a
+		 * final stored one costs the EOB and SLZ_TEXT_STORED_COST.
+		 */
+		if (more)
+			lit_cost = (strm->state == SLZ_ST_EOB) ?
+				SLZ_TEXT_STORED_COST - SLZ_TEXT_OPEN_COST : SLZ_TEXT_SWITCH_COST;
+		else
+			lit_cost = (strm->state == SLZ_ST_EOB) ?
+				SLZ_TEXT_STORED_COST - SLZ_TEXT_OPEN_COST - TEXT_EOB_BITS : SLZ_TEXT_STORED_COST - 10;
+
+		if ((int32_t)lit_excess >= lit_cost ||
+		    (int32_t)strm->text_debt + (int32_t)lit_excess +
+		    (strm->state == SLZ_ST_EOB ? SLZ_TEXT_SWITCH_COST : 0) >= SLZ_TEXT_MAX_DEBT)
+			copy_lit_small(strm, in + pos - plit, plit, more, ctype);
+		else {
+			int32_t debt;
+
+			/* the header, if any, is charged when opening the block */
+			if (nvref)
+				text_replay(strm, in + pos - plit, plit, vref, nvref, more);
+			else
+				copy_lit_huff(strm, in + pos - plit, plit, more || strm->state != SLZ_ST_EOB, ctype);
+			debt = strm->text_debt + (int32_t)lit_excess;
+			strm->text_debt = debt > 0 ? debt : 0;
+		}
+
+		plit = 0;
+	}
+	else if (plit) {
 		uint32_t cost;
 
 		if (more)
@@ -1219,10 +1683,12 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 		else
 			cost = (strm->state == SLZ_ST_EOB) ? SLZ_LAST_COST_EOB : SLZ_LAST_COST;
 
-		if (bit9 >= cost || strm->debt >= SLZ_MAX_DEBT)
-			copy_lit_small(strm, in + pos - plit, plit, more);
-		else
-			copy_lit_huff(strm, in + pos - plit, plit, more);
+		if (bal >= cost + SLZ_CREDIT)
+			copy_lit(strm, in + pos - plit, plit, more, ctype);
+		else {
+			copy_lit_huff(strm, in + pos - plit, plit, more, ctype);
+			strm->debt = bal;
+		}
 
 		plit = 0;
 	}
@@ -1234,23 +1700,40 @@ long _slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out,
 static __attribute__((noinline))
 long _slz_rfc1951_encode_lev1(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
 {
-	return _slz_rfc1951_encode(strm, out, in, ilen, more, 1);
+	return _slz_rfc1951_encode(strm, out, in, ilen, more, 1, SLZ_CT_GENERIC);
 }
 
 static __attribute__((noinline))
 long _slz_rfc1951_encode_lev2(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
 {
-	return _slz_rfc1951_encode(strm, out, in, ilen, more, 2);
+	return _slz_rfc1951_encode(strm, out, in, ilen, more, 2, SLZ_CT_GENERIC);
 }
 
 static __attribute__((noinline))
 long _slz_rfc1951_encode_lev3(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
 {
-	return _slz_rfc1951_encode(strm, out, in, ilen, more, 3);
+	return _slz_rfc1951_encode(strm, out, in, ilen, more, 3, SLZ_CT_GENERIC);
+}
+
+/* With the text tree, we encode everything at level 2 which proves to be both
+ * better and faster on all tests.
+ */
+static __attribute__((noinline))
+long _slz_rfc1951_encode_text(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
+{
+	/* only the savings of this call may pay for its blocks, see
+	 * SLZ_TEXT_CREDIT.
+	 */
+	if (strm->text_debt < SLZ_TEXT_CREDIT)
+		strm->text_debt = SLZ_TEXT_CREDIT;
+	return _slz_rfc1951_encode(strm, out, in, ilen, more, 2, SLZ_CT_TEXT);
 }
 
 long slz_rfc1951_encode(struct slz_stream *__restrict strm, unsigned char *out, const unsigned char *in, long ilen, int more)
 {
+	if (strm->content_type == SLZ_CT_TEXT)
+		return _slz_rfc1951_encode_text(strm, out, in, ilen, more);
+
 	if (strm->level <= 1)
 		return _slz_rfc1951_encode_lev1(strm, out, in, ilen, more);
 	else if (strm->level <= 2)
@@ -1269,11 +1752,13 @@ int slz_rfc1951_init(struct slz_stream *strm, int level)
 	strm->state = SLZ_ST_EOB; // no header
 	strm->level = MIN(MAX(level, 0), 15);
 	strm->format = SLZ_FMT_DEFLATE;
+	strm->content_type = SLZ_CT_GENERIC;
 	strm->crc32 = 0;
 	strm->ilen  = 0;
 	strm->qbits = 0;
 	strm->queue = 0;
-	strm->debt  = 0;
+	strm->debt  = SLZ_CREDIT;
+	strm->text_debt = SLZ_TEXT_CREDIT;
 	return 0;
 }
 
@@ -1301,7 +1786,7 @@ int slz_rfc1951_flush(struct slz_stream *strm, unsigned char *buf)
 	/* we may need to terminate a huffman output. Lit is always in EOB state */
 	if (strm->state != SLZ_ST_EOB) {
 		strm->state = (strm->state == SLZ_ST_LAST) ? SLZ_ST_DONE : SLZ_ST_EOB;
-		send_eob(strm);
+		send_eob(strm, strm->content_type);
 	}
 
 	if (strm->state == SLZ_ST_DONE) {
@@ -1342,13 +1827,15 @@ int slz_rfc1951_finish(struct slz_stream *strm, unsigned char *buf)
 
 	if (strm->state == SLZ_ST_FIXED || strm->state == SLZ_ST_LAST) {
 		strm->state = (strm->state == SLZ_ST_LAST) ? SLZ_ST_DONE : SLZ_ST_EOB;
-		send_eob(strm);
+		send_eob(strm, strm->content_type);
 	}
 
 	if (strm->state != SLZ_ST_DONE) {
-		/* send BTYPE=1, BFINAL=1 */
+		/* send BTYPE=1, BFINAL=1. This is an empty fixed block whatever
+		 * the content type since it's the cheapest one.
+		 */
 		enqueue8(strm, 3, 3);
-		send_eob(strm);
+		send_eob(strm, SLZ_CT_GENERIC);
 		strm->state = SLZ_ST_DONE;
 	}
 
@@ -1521,11 +2008,13 @@ int slz_rfc1952_init(struct slz_stream *strm, int level)
 	strm->state  = SLZ_ST_INIT;
 	strm->level  = MIN(MAX(level, 0), 15);
 	strm->format = SLZ_FMT_GZIP;
+	strm->content_type = SLZ_CT_GENERIC;
 	strm->crc32  = 0;
 	strm->ilen   = 0;
 	strm->qbits  = 0;
 	strm->queue  = 0;
-	strm->debt   = 0;
+	strm->debt   = SLZ_CREDIT;
+	strm->text_debt = SLZ_TEXT_CREDIT;
 	return 0;
 }
 
@@ -1732,11 +2221,13 @@ int slz_rfc1950_init(struct slz_stream *strm, int level)
 	strm->state  = SLZ_ST_INIT;
 	strm->level  = MIN(MAX(level, 0), 15);
 	strm->format = SLZ_FMT_ZLIB;
+	strm->content_type = SLZ_CT_GENERIC;
 	strm->crc32  = 1; // rfc1950/zlib starts with initial crc=1
 	strm->ilen   = 0;
 	strm->qbits  = 0;
 	strm->queue  = 0;
-	strm->debt   = 0;
+	strm->debt   = SLZ_CREDIT;
+	strm->text_debt = SLZ_TEXT_CREDIT;
 	return 0;
 }
 
@@ -1787,6 +2278,17 @@ int slz_rfc1950_finish(struct slz_stream *strm, unsigned char *buf)
 }
 
 #ifndef PRECOMPUTE_TABLES
+/* Converts <dist>, an entry of fh_dist_table[], to the same for the text tree.
+ * The two only differ by the huffman code and its length, the extra bits are
+ * the same, so the code is looked up from the 5-bit fixed one in bits 5..9.
+ */
+static inline uint32_t text_dist(uint32_t dist)
+{
+	uint32_t c = (dist >> 5) & 31;
+
+	return ((dist >> 10) << text_dist_shift[c]) + text_dist_add[c] + (dist & 31);
+}
+
 /* Returns code for lengths 1 to 32768. The bit size for the next value can be
  * found this way :
  *
@@ -1860,6 +2362,7 @@ static inline void __slz_prepare_dist_table()
 
 		code += (dist & ((1 << bits) - 1)) << 5;
 		fh_dist_table[dist] = (code << 5) + bits + 5;
+		text_dist_table[dist] = text_dist(fh_dist_table[dist]);
 	}
 #endif
 }

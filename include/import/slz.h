@@ -49,7 +49,7 @@ uint32_t slz_adler32_block(uint32_t crc, const unsigned char *buf, long len);
 enum slz_state {
 	SLZ_ST_INIT,  /* stream initialized */
 	SLZ_ST_EOB,   /* header or end of block already sent */
-	SLZ_ST_FIXED, /* inside a fixed huffman sequence */
+	SLZ_ST_FIXED, /* inside a huffman block (fixed or text tree) */
 	SLZ_ST_LAST,  /* last block, BFINAL sent */
 	SLZ_ST_DONE,  /* BFINAL+EOB sent BFINAL */
 	SLZ_ST_END    /* end sent (BFINAL, EOB, CRC + len) */
@@ -66,6 +66,19 @@ enum {
 	SLZ_FMT_DEFLATE, /* RFC1951: raw deflate, and no crc */
 };
 
+/* Content types, which select the huffman tree used to encode the data. The
+ * default one uses the fixed tree from RFC1951. The text one uses a tree
+ * trained on web contents (html, css, js, json, svg...), which saves about 15%
+ * of the huffman-coded bits on such contents and still works on any text, at
+ * the expense of a header of about 80 bytes each time a block is opened. It
+ * is not suited to binary contents, and is not worth it below 1-2 kB. It is
+ * set using slz_set_content_type().
+ */
+enum {
+	SLZ_CT_GENERIC = 0, /* default: fixed huffman tree */
+	SLZ_CT_TEXT,        /* text contents: tree trained on web contents */
+};
+
 struct slz_stream {
 #if defined(__SIZEOF_LONG__) && (__SIZEOF_LONG__ - 0 > 4)
 	/* Note below: the queue never contains more than 32 bits for the
@@ -80,19 +93,43 @@ struct slz_stream {
 	unsigned char *outbuf; /* set by encode() */
 	uint32_t qbits; /* number of bits in queue, < 8 on 32-bit, < 32 on 64-bit */
 	uint32_t state;   /* one of slz_state */
-	uint8_t unused:2; /* free for future use */
+	uint8_t unused:1; /* free for future use */
+	uint8_t content_type:1; /* SLZ_CT_*, see slz_set_content_type() */
 	uint8_t format:2; /* SLZ_FMT_* */
 	uint8_t level:4;  /* 0 = no compression, 1..15 = compression */
-	uint8_t debt;    /* number of bits by which the fixed huffman encoding is
-	                  * currently behind the equivalent stored blocks, see
+	uint16_t debt;   /* number of bits by which the output is above the
+	                  * equivalent stored blocks, offset by SLZ_CREDIT, see
 	                  * SLZ_MAX_DEBT in slz.c
 	                  */
+	uint16_t text_debt; /* same as <debt> for the text tree, which needs more
+	                     * room, see SLZ_TEXT_MAX_DEBT in slz.c
+	                     */
 	uint32_t crc32;
 	uint32_t ilen;
 };
 
+/* Maximum number of bytes by which the encoder's output may exceed the same
+ * data sent as stored blocks, which is the input plus 5 bytes per 65535. It
+ * comes from the 9-bit literals of the fixed huffman encoding, or from the
+ * literals and the block headers of the text content type, may be reached
+ * within a single call, and has to be added to the output buffer size of each
+ * call. It is checked against SLZ_MAX_DEBT at build time in slz.c.
+ */
+#define SLZ_MAX_DEBT_BYTES 40
+
+/* Maximum number of bytes a single call to slz_encode() may emit beyond the
+ * <len> input bytes it is passed: 5 bytes per started 65535 bytes for the
+ * stored blocks, 2 bytes to close the stream when <more> is not set, up to 5
+ * bytes still queued from previous calls, and SLZ_MAX_DEBT_BYTES. This is 52
+ * bytes for up to 64 kB, i.e. roughly 47 bytes plus 5 per 64 kB. The format's
+ * header (10 bytes for gzip, 2 for zlib) must be added for the first call, and
+ * slz_flush() and slz_finish() have their own bounds documented below.
+ */
+#define SLZ_MAX_OVERHEAD(len) (5 * (((len) + 65534) / 65535) + 2 + 5 + SLZ_MAX_DEBT_BYTES)
+
 /* Note about output buffer sizing: encode functions below do not take an
- * output len, instead the caller must provide a "large enough" output buffer.
+ * output len, instead the caller must provide a "large enough" output buffer,
+ * which must be at least <len> + SLZ_MAX_OVERHEAD(<len>) bytes for each call.
  * When enabling direct queuing via SLZ_DIRECT_ENQUEUE24, the 3 bytes following
  * the end of the buffer may be written to, and the caller must take that into
  * account by allocating a buffer that is at least 3 bytes larger than needed.
@@ -209,6 +246,24 @@ static inline int slz_flush(struct slz_stream *strm, void *buf)
 		ret = slz_rfc1951_flush(strm, (unsigned char *) buf);
 
 	return ret;
+}
+
+/* Sets the content type of stream <strm> to <type>, one of SLZ_CT_*, which
+ * selects the huffman tree used to encode the next blocks. It is meant to be
+ * called right after one of the init functions, which reset it to
+ * SLZ_CT_GENERIC. It may also be called later, but only works when no block
+ * is open, which is not guaranteed even after a flush since a flush doesn't
+ * close a block if the output is already aligned. It returns 0 on success, or
+ * -1 if a block is still open or the type is unknown, in which case nothing
+ * is changed.
+ */
+static inline int slz_set_content_type(struct slz_stream *strm, int type)
+{
+	if ((unsigned int)type > SLZ_CT_TEXT ||
+	    strm->state == SLZ_ST_FIXED || strm->state == SLZ_ST_LAST)
+		return -1;
+	strm->content_type = type;
+	return 0;
 }
 
 /*

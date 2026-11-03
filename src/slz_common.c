@@ -320,6 +320,98 @@ uint32_t slz_adler32_block(uint32_t crc, const unsigned char *buf, long len)
 	long blk;
 	long n;
 
+#if defined(__SSE2__) || defined(__ARM_NEON)
+	/* The naive loop below (s1 += buf[n]; s2 += s1) is one long chain of
+	 * dependent additions, which caps it at about one byte per cycle.
+	 * Here we process all the blocks of 32 bytes at once, and for each
+	 * offset <i> (0..31) we sum the bytes found at this offset in all
+	 * blocks into sum[i], and the values sum[i] had before each block
+	 * into prev[i]. Over <tot> bytes, the byte at offset <i> of block <b>
+	 * is added tot - 32*b - i times to s2, which gives:
+	 *
+	 *   s2 += s1 * tot + 32 * sum(prev[i]) + sum((32-i) * sum[i])
+	 *   s1 += sum(sum[i])
+	 *
+	 * all modulo 65521. The additions for the 32 offsets are independent,
+	 * so the compiler vectorizes them. They are done on 16-bit sums for
+	 * groups of up to 16 blocks (512 bytes), where sum[] <= 16*255 and
+	 * prev[] <= 255*16*15/2 = 30600, which are then added to 32-bit sums
+	 * that are reduced modulo 65521 every 32 groups (16kB) and are never
+	 * reset. So it is the same as the naive loop, but with 32 sums in
+	 * parallel, which are only summed at the end. The remaining bytes go
+	 * through the naive loop below.
+	 *
+	 * This is only enabled where it was verified to be vectorized (x86
+	 * with SSE2, aarch64 and armv7 with NEON). Without vector registers,
+	 * sum[] and prev[] live in memory and this is about twice as slow as
+	 * the naive loop.
+	 */
+	if (len >= 32) {
+		uint32_t sum32[32] = { 0 }, prev32[32] = { 0 };
+		const unsigned char *vec, *end, *stop;
+		uint64_t sum1 = 0, sump = 0, sumw = 0;
+		unsigned long tot = len & -32L;
+		int grp = 0;
+		int i;
+
+		stop = buf + tot;
+		for (vec = buf; vec < stop; ) {
+			uint16_t sum[32] = { 0 }, prev[32] = { 0 };
+			uint32_t nblk;
+
+			end = vec + 512;
+			if (end > stop)
+				end = stop;
+			nblk = (end - vec) / 32;
+
+			for (; vec < end; vec += 32) {
+				for (i = 0; i < 32; i++) {
+					prev[i] += sum[i];
+					sum[i] += vec[i];
+				}
+			}
+
+			/* the sums of the previous groups were present before
+			 * each of the <nblk> blocks of this one.
+			 */
+			for (i = 0; i < 32; i++) {
+				prev32[i] += prev[i] + sum32[i] * nblk;
+				sum32[i] += sum[i];
+			}
+
+			/* reduce the 32-bit sums modulo 65521 every 32 groups.
+			 * They are at most 65520 + 32 * 4080 = 196080 for sum32[]
+			 * and 65520 + 32 * (30600 + 196080 * 16) ~= 101.4M for
+			 * prev32[], so one fold leaves less than 2 * 65521.
+			 */
+			if (++grp == 32 || vec >= stop) {
+				grp = 0;
+				for (i = 0; i < 32; i++) {
+					uint32_t x = sum32[i], y = prev32[i];
+
+					x = (x & 0xffff) + 15 * (x >> 16);
+					y = (y & 0xffff) + 15 * (y >> 16);
+					x -= (x >= 65521) ? 65521 : 0;
+					y -= (y >= 65521) ? 65521 : 0;
+					sum32[i] = x;
+					prev32[i] = y;
+				}
+			}
+		}
+
+		/* all values are below 65521 here */
+		for (i = 0; i < 32; i++) {
+			sum1 += sum32[i];
+			sump += prev32[i];
+			sumw += (uint64_t)(32 - i) * sum32[i];
+		}
+		s2 = (s2 + (uint64_t)s1 * (tot % 65521) + 32 * sump + sumw) % 65521;
+		s1 = (s1 + sum1) % 65521;
+		buf += tot;
+		len -= tot;
+	}
+#endif /* __SSE2__ || __ARM_NEON */
+
 	do {
 		blk = len;
 		/* ensure we never overflow s2 (limit is about 2^((32-8)/2) */
