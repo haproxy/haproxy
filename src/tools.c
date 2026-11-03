@@ -3527,10 +3527,8 @@ unsigned int inetaddr_host_lim(const char *text, const char *stop)
 
 	p = text;
 	while (1) {
-		if (((unsigned)(*p - '0')) <= 9 && p < stop) {
+		while (p < stop && ((unsigned)(*p - '0')) <= 9)
 			p++;
-			continue;
-		}
 
 		/* here, we have a complete byte between <text> and <p> (exclusive) */
 		if (p == text)
@@ -3578,10 +3576,8 @@ unsigned int inetaddr_host_lim_ret(char *text, char *stop, char **ret)
 
 	p = text;
 	while (1) {
-		if (((unsigned)(*p - '0')) <= 9 && p < stop) {
+		while (p < stop && ((unsigned)(*p - '0')) <= 9)
 			p++;
-			continue;
-		}
 
 		/* here, we have a complete byte between <text> and <p> (exclusive) */
 		if (p == text)
