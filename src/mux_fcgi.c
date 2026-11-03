@@ -834,6 +834,15 @@ static int fcgi_conn_read0_pending(struct fcgi_conn *fconn)
 }
 
 
+/* returns true if the connection may expire, i.e. if no stream connector is
+ * attached anymore. As long as one is attached, the timeouts are enforced by
+ * the stream layer, which knows if it waits for the server or for the client.
+ */
+static inline int fcgi_conn_may_expire(const struct fcgi_conn *fconn)
+{
+	return !fconn->nb_sc;
+}
+
 /* Returns true if the FCGI connection must be release */
 static inline int fcgi_conn_is_dead(struct fcgi_conn *fconn)
 {
@@ -3247,7 +3256,10 @@ static int fcgi_process(struct fcgi_conn *fconn)
 		fcgi_release_mbuf(fconn);
 
 	if (fconn->task) {
-		fconn->task->expire = tick_add(now_ms, (fconn->state == FCGI_CS_CLOSED ? fconn->shut_timeout : fconn->timeout));
+		if (fcgi_conn_may_expire(fconn))
+			fconn->task->expire = tick_add(now_ms, (fconn->state == FCGI_CS_CLOSED ? fconn->shut_timeout : fconn->timeout));
+		else
+			fconn->task->expire = TICK_ETERNITY;
 		task_queue(fconn->task);
 	}
 
@@ -3355,6 +3367,16 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state
 		if (!expired) {
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			TRACE_DEVEL("leaving (not expired)", FCGI_EV_FCONN_WAKE, fconn->conn);
+			return t;
+		}
+
+		if (!fcgi_conn_may_expire(fconn)) {
+			/* streams are still attached, they may be waiting for
+			 * the client, so the timeout is not ours to enforce.
+			 */
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			t->expire = TICK_ETERNITY;
+			TRACE_DEVEL("leaving (streams attached)", FCGI_EV_FCONN_WAKE, fconn->conn);
 			return t;
 		}
 
