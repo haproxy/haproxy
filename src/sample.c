@@ -4402,6 +4402,7 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 
 	while (grpc_left > GRPC_MSG_HEADER_SZ) {
 		size_t grpc_msg_len, left;
+		unsigned char *msg_end;
 
 		grpc_msg_len = left = ntohl(read_u32(pos + GRPC_MSG_COMPRESS_FLAG_SZ));
 
@@ -4411,9 +4412,19 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 		if (grpc_left < left)
 			return 0;
 
+		/* protobuf_field_lookup() walks the message and advances <pos>,
+		 * but on failure it leaves it wherever it stopped, for instance
+		 * on the value of a length-delimited field whose type does not
+		 * match, or at the end of a narrowed sub-message. The next
+		 * message must be decoded from the end of the current one, so
+		 * remember that position rather than relying on the lookup.
+		 */
+		msg_end = pos + grpc_msg_len;
+
 		if (protobuf_field_lookup(arg_p, smp, &pos, &left))
 			return 1;
 
+		pos = msg_end;
 		grpc_left -= grpc_msg_len;
 	}
 
