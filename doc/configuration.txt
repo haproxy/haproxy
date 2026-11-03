@@ -34548,6 +34548,15 @@ http-hardening <name> [from <name2>]
         access-control policy for example. No standard HTTP header uses this,
         so it is safe to enable on untrusted listeners.
 
+  - reject-underscore-in-trailer-name (inbound, request and response)
+        Rejects requests and responses in which one tailer field name contains
+        an underscore character ('_' or \x5C). This character is perfectly
+        permitted, but some application frameworks which create automatic
+        variables tend to already turn the dash ('-') into an underscore in
+        variable names, leading to an ambiguity with the underscore which can
+        result in the same variable name. No standard HTTP trailer uses this,
+        so it is safe to enable on untrusted listeners.
+
 /*
  * Local variables:
  *  fill-column: 79

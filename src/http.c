@@ -1778,6 +1778,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-duplicate-host-header",   HTTP_HRD_REJ_DUP_HOST_HDR, HTTP_DIR_REQ  },
 	{ "reject-lowercase-method",        HTTP_HRD_REJ_LCASE_METHOD, HTTP_DIR_REQ  },
 	{ "reject-underscore-in-header-name", HTTP_HRD_REJ_USCORE_HDR_NAM, HTTP_DIR_BOTH },
+	{ "reject-underscore-in-trailer-name", HTTP_HRD_REJ_USCORE_TLR_NAM, HTTP_DIR_BOTH },
 	/* insert new hardening options above this line */
 	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }

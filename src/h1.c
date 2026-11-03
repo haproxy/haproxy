@@ -857,7 +857,8 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				if (isupper((unsigned char)*ptr) && h1m->flags & H1_MF_TOLOWER)
 					*ptr = tolower((unsigned char)*ptr);
 				else if (unlikely(*ptr == '_')) {
-					if ((h1m->state != H1_MSG_TRAILERS && http_harden(HTTP_HRD_REJ_USCORE_HDR_NAM))) {
+					if ((h1m->state != H1_MSG_TRAILERS && http_harden(HTTP_HRD_REJ_USCORE_HDR_NAM)) ||
+					    (h1m->state == H1_MSG_TRAILERS && http_harden(HTTP_HRD_REJ_USCORE_TLR_NAM))) {
 						state = H1_MSG_RQMETH;
 						goto http_msg_invalid;
 					}

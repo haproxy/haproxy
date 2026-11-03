@@ -2030,6 +2030,12 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 				ret = HTTP_PRS_INV_HNAME;
 				goto fail;
 			}
+
+			if (list[idx].n.ptr[i] == '_' &&
+			    http_harden(HTTP_HRD_REJ_USCORE_TLR_NAM)) {
+				ret = HTTP_PRS_INV_HNAME;
+				goto fail;
+			}
 		}
 
 		/* All field names affecting decoding or routing are forbidden
