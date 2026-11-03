@@ -1045,7 +1045,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				 */
 				if (unlikely(http_hdng_chk.found & HTTP_HRD_REJ_USCORE_HDR_NAM) &&
 				    ((h1m->state != H1_MSG_TRAILERS && istlen(istfind(n, '_')) &&
-				      http_harden(HTTP_HRD_DEL_USCORE_HDR_NAM)))) {
+				      http_harden(HTTP_HRD_DEL_USCORE_HDR_NAM)) ||
+				     (h1m->state == H1_MSG_TRAILERS && istlen(istfind(n, '_')) &&
+				      http_harden(HTTP_HRD_DEL_USCORE_TLR_NAM)))) {
 					/* skip it, so it won't be added */
 					break;
 				}

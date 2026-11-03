@@ -2074,6 +2074,17 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 			goto fail;
 		}
 
+		/* we may have to delete trailers with underscores
+		 * in their names. These ones are already marked
+		 * as found when not rejected so we can avoid a
+		 * costly lookup in normal times.
+		 */
+		if (unlikely(http_hdng_chk.found & HTTP_HRD_REJ_USCORE_TLR_NAM) &&
+		    istlen(istfind(list[idx].n, '_')) && http_harden(HTTP_HRD_DEL_USCORE_TLR_NAM)) {
+			/* skip it, so it won't be added */
+			continue;
+		}
+
 		/* trim leading/trailing LWS as per RC9113#8.2.1 */
 		for (v = list[idx].v; v.len; v.len--) {
 			if (unlikely(HTTP_IS_LWS(*v.ptr)))

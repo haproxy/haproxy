@@ -34536,6 +34536,16 @@ http-hardening <name> [from <name2>]
         so it is recommended to enable on untrusted listeners. Note that this
         applies only after "reject-underscore-in-header-name" was accepted.
 
+  - delete-underscore-in-trailer-name (inbound, request and response)
+        Deletes from requests and responses any trailer field whose name
+        contains an underscore character ('_' or \x5C). While this character is
+        perfectly permitted, some application frameworks which create automatic
+        variables already turn the dash ('-') into an underscore in variable
+        names, leading to an ambiguity with the underscore which can result in
+        the same variable name. No standard HTTP trailer uses this, so it is
+        recommended to enable on untrusted listeners. Note that this applies
+        only after "reject-underscore-in-trailer-name" was accepted.
+
   - reject-duplicate-host-header (inbound request)
         Rejects requests containing more than one "Host" header field, even if
         valid and identical. This is recommended on untrusted listeners. Note that
@@ -34567,7 +34577,8 @@ http-hardening <name> [from <name2>]
         variables tend to already turn the dash ('-') into an underscore in
         variable names, leading to an ambiguity with the underscore which can
         result in the same variable name. No standard HTTP trailer uses this,
-        so it is safe to enable on untrusted listeners.
+        so it is safe to enable on untrusted listeners. See also the
+        "delete-underscore-in-trailer-name" variant.
 
 /*
  * Local variables:
