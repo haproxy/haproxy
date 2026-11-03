@@ -3221,7 +3221,7 @@ int ckch_store_load_payload(char *path, char *payload, char **err)
 	 * manipulate ckch_store and ckch_inst */
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock)) {
 		memprintf(err, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
-		goto end;
+		return ERR_ALERT | ERR_FATAL;
 	}
 
 	pathbuf = alloc_trash_chunk();
