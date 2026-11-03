@@ -34525,6 +34525,17 @@ http-hardening <name> [from <name2>]
         This keyword covers all known keywords together. It is essentially used
         to enable or disable all checks at once.
 
+  - delete-all-trailer-fields (inbound, request and response)
+        Deletes from requests and responses any trailer field, regardless of
+        its content or syntax. This is done after syntactic checks though. The
+        vast majority of public facing applications do not use trailers because
+        they are not reliable (intermediaries are allowed to drop or fold them)
+        and their presence on public networks is generally associated with
+        attack attempts. It is generally safe to drop them by default on public
+        facing listeners, and even on servers meant to deliver public contents,
+        in order to avoid any information leakage. Note that gRPC services use
+        them, in responses only.
+
   - delete-underscore-in-header-name (inbound, request and response)
         Deletes from requests and responses any header field whose name
         contains an underscore character ('_' or \x5C). While this character is

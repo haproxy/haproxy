@@ -2074,6 +2074,12 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 			goto fail;
 		}
 
+		/* we may have to delete any trailer (we do that after syntax check) */
+		if (unlikely(http_harden(HTTP_HRD_DEL_ALL_TLR))) {
+			/* skip it, so it won't be added */
+			continue;
+		}
+
 		/* we may have to delete trailers with underscores
 		 * in their names. These ones are already marked
 		 * as found when not rejected so we can avoid a
