@@ -34584,6 +34584,18 @@ http-hardening <name> [from <name2>]
         even if not rejected, duplicate host header fields are folded into a
         single one.
 
+  - reject-header-trailer-folding (inbound request and response)
+        Rejects requests and responses which contain folded header fields or
+        trailer fields. Folding consists in having a single field span multiple
+        lines. This practice is obsoleted by modern HTTP standards, absolutely
+        not seen anymore in valid messages over the internet but might still be
+        present in a few antique internal services dealing with large cookies.
+        On untrusted networks, they are always associated with attacks trying
+        to inject headers into non-compliant components, and should be rejected
+        as a sign of break-in attempt. Note that HAProxy does not have problems
+        with them and systematically unfolds these messages before forwarding
+        them.
+
   - reject-lowercase-method (inbound request)
         Rejects requests whose method contains a lower-case character. No
         standard HTTP method uses lower-case characters and these ones are

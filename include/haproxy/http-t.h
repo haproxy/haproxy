@@ -249,6 +249,7 @@ struct http_violation {
 #define HTTP_HRD_DEL_UNREG_HDR              0x00000040
 #define HTTP_HRD_DEL_UNREG_TLR              0x00000080
 #define HTTP_HRD_DEL_ALL_TLR                0x00000100
+#define HTTP_HRD_REJ_HDR_FOLD               0x00000200
 /* insert new masks above this line */
 #define HTTP_HRD_ALL                        0xFFFFFFFF
 

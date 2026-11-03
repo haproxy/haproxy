@@ -914,6 +914,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_HDR_L1_LWS:
 	http_msg_hdr_l1_lws:
 		if (likely(HTTP_IS_SPHT(*ptr))) {
+			/* OBS-fold: either reject header folding or transform CR/LF to LWS */
+			if (http_harden(HTTP_HRD_REJ_HDR_FOLD)) {
+				state = H1_MSG_HDR_L1_LWS;
+				goto http_msg_invalid;
+			}
 			if (!skip_update) {
 				/* replace HT,CR,LF with spaces */
 				for (; start + sov < ptr; sov++)
@@ -988,6 +993,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 	case H1_MSG_HDR_L2_LWS:
 	http_msg_hdr_l2_lws:
 		if (unlikely(HTTP_IS_SPHT(*ptr))) {
+			/* OBS-fold: either reject header folding or transform CR/LF to LWS */
+			if (http_harden(HTTP_HRD_REJ_HDR_FOLD)) {
+				state = H1_MSG_HDR_L2_LWS;
+				goto http_msg_invalid;
+			}
 			if (!skip_update) {
 				/* LWS: replace HT,CR,LF with spaces */
 				for (; start + eol < ptr; eol++)
