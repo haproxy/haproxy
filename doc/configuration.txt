@@ -5962,6 +5962,7 @@ tune.ssl.keyupdate-rate-limit <limit>
   KeyUpdate is cpu-expensive, and there is little reason to receive a lot of
   them. Using a value of "0" disables the rate limiting.
   The default value is 100.
+
 tune.ssl.ktls-unsafe
   Use kTLS even on OpenSSL versions affected by a bug that corrupts streams
   when a pending record's buffer is reused (fixed in 3.4.6 and 3.5.7). On
