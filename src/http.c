@@ -813,7 +813,10 @@ int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
 			if (unlikely(!cl && n > word.ptr)) {
 				/* There was a leading zero before this digit,
 				 * let's trim it.
+				 * In strict mode we reject it though.
 				 */
+				if (http_harden(HTTP_HRD_REJ_CL_LEAD_ZERO))
+					goto fail;
 				word.ptr = n;
 			}
 
@@ -1787,6 +1790,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-header-trailer-folding",     HTTP_HRD_REJ_HDR_FOLD, HTTP_DIR_BOTH },
 	{ "reject-ctl-in-header-trailer",      HTTP_HRD_REJ_CTL_IN_HDR, HTTP_DIR_BOTH },
 	{ "reject-content-length-with-te",     HTTP_HRD_REJ_CL_TE, HTTP_DIR_BOTH },
+	{ "reject-content-length-leading-zero",HTTP_HRD_REJ_CL_LEAD_ZERO, HTTP_DIR_BOTH },
 	/* insert new hardening options above this line */
 	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }

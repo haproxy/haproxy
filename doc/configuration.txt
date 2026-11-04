@@ -34578,6 +34578,17 @@ http-hardening <name> [from <name2>]
         safe and even recommended to delete such trailers from inbound internet
         requests.
 
+  - reject-content-length-leading-zero (inbound request and response)
+        Rejects requests and responses having a Content-Length header field
+        whose value contains a leading zero before a digit. Some client and
+        server applications tend to parse this as an octal value giving a
+        different body size (e.g. "0300" = 192). This can be used in attacks
+        trying to desynchronize a client or server from the rest of the
+        communication, and for example for cache poisionning attacks. These may
+        seldom be seen on legacy applications but not on standard components
+        found on the internet, so it is generally safe to reject them on public
+        facing listeners.
+
   - reject-content-length-with-te (inbound request and response)
         Rejects requests and responses having both a Content-Length header
         field and a Transfer-Encoding header field. While these are permitted

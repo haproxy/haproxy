@@ -252,6 +252,7 @@ struct http_violation {
 #define HTTP_HRD_REJ_HDR_FOLD               0x00000200
 #define HTTP_HRD_REJ_CTL_IN_HDR             0x00000400
 #define HTTP_HRD_REJ_CL_TE                  0x00000800
+#define HTTP_HRD_REJ_CL_LEAD_ZERO           0x00001000
 /* insert new masks above this line */
 #define HTTP_HRD_ALL                        0xFFFFFFFF
 
