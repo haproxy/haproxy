@@ -1785,6 +1785,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "delete-unregistered-trailer-fields",HTTP_HRD_DEL_UNREG_TLR, HTTP_DIR_BOTH },
 	{ "delete-all-trailer-fields",         HTTP_HRD_DEL_ALL_TLR, HTTP_DIR_BOTH },
 	{ "reject-header-trailer-folding",     HTTP_HRD_REJ_HDR_FOLD, HTTP_DIR_BOTH },
+	{ "reject-ctl-in-header-trailer",      HTTP_HRD_REJ_CTL_IN_HDR, HTTP_DIR_BOTH },
 	/* insert new hardening options above this line */
 	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }

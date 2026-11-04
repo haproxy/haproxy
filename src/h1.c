@@ -985,6 +985,15 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l2_lf, http_msg_ood, state, H1_MSG_HDR_L2_LF);
 				goto http_msg_hdr_l2_lf;
 			}
+
+			/* CR/LF/NUL have already been deal with, only remain
+			 * CTL/HT/DEL, OK in default mode, but only HT is
+			 * allowed in strict mode.
+			 */
+			if (*ptr != 9 && http_harden(HTTP_HRD_REJ_CTL_IN_HDR)) {
+				state = H1_MSG_HDR_VAL;
+				goto http_msg_invalid;
+			}
 		}
 
 		/* OK, not < 0x20 or a valid one (e.g. tab) */

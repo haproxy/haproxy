@@ -244,8 +244,23 @@ static inline int http_header_has_forbidden_char(const struct ist ist, const cha
 	 * remains is HT (rare), CTL, CR/LF (forbidden), or obs-text.
 	 */
 	for (; start < istend(ist); start++) {
-		if ((uint8_t)*start <= 0x0d &&
+		/* speed-up: SP, VCHAR, obs-text are always OK,
+		 * i.e. anything not CTL nor DEL.
+		 */
+		if ((uint8_t)*start >= 0x20 && *start != 0x7f)
+			continue;
+
+		/* CR/LF/NUL are always forbidden */
+		if ((uint8_t)*start < 0x20 &&
 		    (1U << (uint8_t)*start) & ((1<<13) | (1<<10) | (1<<0)))
+			return 1;
+
+		/* the rest (CTL, DEL) is OK in default mode */
+		if (!(http_hdng_chk.rules & HTTP_HRD_REJ_CTL_IN_HDR))
+			continue;
+
+		/* strict mode: DEL and all CTL but HT are forbidden */
+		if (*start != 0x9 && http_harden(HTTP_HRD_REJ_CTL_IN_HDR))
 			return 1;
 	}
 	return 0;
