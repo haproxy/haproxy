@@ -96,6 +96,7 @@ Arguments "c" are of type "char", and "n" are of type size_t.
   ist2str_uc(s,i1):ist   like ist2str() but turning turning to upper case
   ist_find(i1,c):ist     return first occurrence of char <c> in <i1>
   ist_find_ctl(i1):char* return pointer to first CTL char in <i1> or NULL
+  ist_find_http_ctl(i1):char* like ist_find_ctl() but also matches 0x7F (DEL)
   ist_skip(i1,c):ist     return first occurrence of char not <c> in <i1>
   istadv(i1,n):ist       advance the string by <n> characters
   istalloc(n):ist        return allocated string of zero initial length
