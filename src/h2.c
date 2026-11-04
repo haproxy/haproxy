@@ -367,7 +367,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			if (unlikely(ctl) && http_path_has_forbidden_char(list[idx].v, ctl))
 				goto fail;
 		} else {
-			ctl = ist_find_ctl(list[idx].v);
+			ctl = ist_find_http_ctl(list[idx].v);
 			if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl))
 				goto fail;
 		}
@@ -685,7 +685,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		/* RFC7540#10.3: intermediaries forwarding to HTTP/1 must take care of
 		 * rejecting NUL, CR and LF characters.
 		 */
-		ctl = ist_find_ctl(list[idx].v);
+		ctl = ist_find_http_ctl(list[idx].v);
 		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl))
 			goto fail;
 

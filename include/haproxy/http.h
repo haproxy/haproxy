@@ -186,7 +186,7 @@ static inline struct http_uri_parser http_uri_parser_init(const struct ist uri)
  * 0x0D), starting at pointer <start> which must be within <ist>. Returns
  * non-zero if such a character is found, 0 otherwise. When run on unlikely
  * header match, it's recommended to first check for the presence of control
- * chars using ist_find_ctl().
+ * chars using ist_find_http_ctl().
  */
 static inline int http_header_has_forbidden_char(const struct ist ist, const char *start)
 {
@@ -218,7 +218,7 @@ static inline int http_method_has_forbidden_char(const struct ist ist)
  * 0x20, 0x23), starting at pointer <start> which must be within <ist>.
  * Returns non-zero if such a character is found, 0 otherwise. When run on
  * unlikely header match, it's recommended to first check for the presence
- * of control chars using ist_find_ctl().
+ * of control chars using ist_find_http_ctl().
  */
 static inline int http_path_has_forbidden_char(const struct ist ist, const char *start)
 {

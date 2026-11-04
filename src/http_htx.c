@@ -2062,7 +2062,7 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 		 *   response that contains a character not permitted in a field
 		 *   value MUST be treated as malformed
 		 */
-		ctl = ist_find_ctl(list[idx].v);
+		ctl = ist_find_http_ctl(list[idx].v);
 		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl)) {
 			ret = HTTP_PRS_INV_HVAL;
 			goto fail;
