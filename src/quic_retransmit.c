@@ -106,6 +106,9 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 			TRACE_DEVEL("duplicated from lost packet", QUIC_EV_CONN_PRSAFRM, qc);
 		}
 
+		/* Append to <tmp> so that the duplicated frames are prepended
+		 * to <out_frm_list> below, ahead of the frames already pending.
+		 */
 		LIST_APPEND(&tmp, &dup_frm->list);
 	}
 
@@ -114,8 +117,8 @@ static void qc_dup_pkt_frms(struct quic_conn *qc,
 	TRACE_LEAVE(QUIC_EV_CONN_PRSAFRM, qc);
 }
 
-/* Boolean function which returns 1 if <pkt> TX packet is only made of
- * already acknowledged frames.
+/* Boolean function which returns 1 if <pkt> TX packet has no retransmittable
+ * frame, that is if it is empty or only made of already acknowledged frames.
  */
 static inline int qc_pkt_with_only_acked_frms(struct quic_tx_packet *pkt)
 {
@@ -128,7 +131,10 @@ static inline int qc_pkt_with_only_acked_frms(struct quic_tx_packet *pkt)
 	return 1;
 }
 
-/* Prepare a fast retransmission from <qel> encryption level */
+/* Prepare a fast retransmission for the packets of <pktns> packet number space.
+ * The frames to be retransmitted are duplicated into <frms1>, then into <frms2>
+ * if not NULL, so that they may be sent in two distinct datagrams.
+ */
 void qc_prep_fast_retrans(struct quic_conn *qc,
                           struct quic_pktns *pktns,
                           struct list *frms1, struct list *frms2)
@@ -142,6 +148,10 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
 
 	BUG_ON(frms1 == frms2);
 
+	/* <pkt> is deliberately not reset at the <start> label: if no other
+	 * packet may be retransmitted, the frames of <pkt> are duplicated
+	 * again into <frms2> so that a second probe datagram is sent.
+	 */
 	pkt = NULL;
 	node = eb64_first(pkts);
  start:
@@ -150,7 +160,9 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
 
 		p = eb64_entry(node, struct quic_tx_packet, pn_node);
 		node = eb64_next(node);
-		/* Skip the empty and coalesced packets */
+		/* Skip the empty packets and those made only of already
+		 * acknowledged frames. Coalesced packets are kept here.
+		 */
 		TRACE_PRINTF(TRACE_LEVEL_PROTO, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
 		             "--> pn=%llu (%d %d %d)", (ull)p->pn_node.key,
 		             LIST_ISEMPTY(&p->frms), !!(p->flags & QUIC_FL_TX_PACKET_COALESCED),
@@ -242,6 +254,10 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 			TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
 			if (pkt->next)
 				TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt->next);
+			/* The Initial packet number space may still be probed
+			 * with a PING frame if a full-size datagram fits in what
+			 * the anti-amplification limit allows to send.
+			 */
 			if (qel == iqel && may_send >= QUIC_INITIAL_PACKET_MINLEN)
 				TRACE_PROTO("will probe Initial packet number space", QUIC_EV_CONN_SPPKTS, qc);
 			else
