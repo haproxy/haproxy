@@ -34525,6 +34525,16 @@ http-hardening <name> [from <name2>]
         This keyword covers all known keywords together. It is essentially used
         to enable or disable all checks at once.
 
+  - all-reject
+        This keyword covers all keywords below whose name starts with "reject".
+        It may be used on the CLI or in the config to quickly disable any rule
+        that rejects traffic in case of issues.
+
+  - all-delete
+        This keyword covers all keywords below whose name starts with "delete".
+        It may be used on the CLI or in the config to quickly disable any rule
+        that deletes elements in case of issues.
+
   - delete-all-trailer-fields (inbound, request and response)
         Deletes from requests and responses any trailer field, regardless of
         its content or syntax. This is done after syntactic checks though. The

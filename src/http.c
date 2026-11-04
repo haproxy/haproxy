@@ -1792,6 +1792,8 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-content-length-with-te",     HTTP_HRD_REJ_CL_TE, HTTP_DIR_BOTH },
 	{ "reject-content-length-leading-zero",HTTP_HRD_REJ_CL_LEAD_ZERO, HTTP_DIR_BOTH },
 	/* insert new hardening options above this line */
+	{ "all-reject",                     HTTP_HRD_ALL_REJECT,       HTTP_DIR_BOTH },
+	{ "all-delete",                     HTTP_HRD_ALL_DELETE,       HTTP_DIR_BOTH },
 	{ "all",                            HTTP_HRD_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }
 };

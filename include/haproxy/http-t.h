@@ -254,6 +254,22 @@ struct http_violation {
 #define HTTP_HRD_REJ_CL_TE                  0x00000800
 #define HTTP_HRD_REJ_CL_LEAD_ZERO           0x00001000
 /* insert new masks above this line */
+/* update this one with new rejects */
+#define HTTP_HRD_ALL_REJECT                 (HTTP_HRD_REJ_DUP_HOST_HDR   | \
+                                             HTTP_HRD_REJ_LCASE_METHOD   | \
+                                             HTTP_HRD_REJ_USCORE_HDR_NAM | \
+                                             HTTP_HRD_REJ_USCORE_TLR_NAM | \
+                                             HTTP_HRD_REJ_HDR_FOLD       | \
+                                             HTTP_HRD_REJ_CTL_IN_HDR     | \
+                                             HTTP_HRD_REJ_CL_TE          | \
+                                             HTTP_HRD_REJ_CL_LEAD_ZERO)
+
+#define HTTP_HRD_ALL_DELETE                 (HTTP_HRD_DEL_USCORE_HDR_NAM         | \
+                                             HTTP_HRD_DEL_USCORE_TLR_NAM         | \
+                                             HTTP_HRD_DEL_UNREG_HDR              | \
+                                             HTTP_HRD_DEL_UNREG_TLR              | \
+                                             HTTP_HRD_DEL_ALL_TLR)
+
 #define HTTP_HRD_ALL                        0xFFFFFFFF
 
 /* default policy for a new profile: permissive */
