@@ -21,6 +21,7 @@ int qc_stream_frm_is_acked(struct quic_conn *qc, struct quic_frame *f)
 {
 	const struct qf_stream *frm = &f->stream;
 	const struct qc_stream_desc *s = frm->stream;
+	const uint64_t frm_end = frm->offset + frm->len;
 	const int frm_fin = f->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
 
 	if (!eb64_lookup(&qc->streams_by_id, frm->id)) {
@@ -29,17 +30,17 @@ int qc_stream_frm_is_acked(struct quic_conn *qc, struct quic_frame *f)
 	}
 
 	/* Frame cannot advertise FIN for a smaller data range. */
-	BUG_ON(frm_fin && frm->offset + frm->len < s->ack_offset);
+	BUG_ON(frm_fin && frm_end < s->ack_offset);
 
-	if (frm->offset + frm->len < s->ack_offset ||
-	    (frm->offset + frm->len == s->ack_offset &&
+	if (frm_end < s->ack_offset ||
+	    (frm_end == s->ack_offset &&
 	     (!frm_fin || !(s->flags & QC_SD_FL_WAIT_FOR_FIN)))) {
 		TRACE_DEVEL("STREAM frame already acked : fully acked range", QUIC_EV_CONN_PRSAFRM, qc, f);
 		return 1;
 	}
 
 	if (frm->offset < s->ack_offset &&
-	    frm->offset + frm->len > s->ack_offset) {
+	    frm_end > s->ack_offset) {
 		/* Data range partially acked, remove it from STREAM frame. */
 		const uint64_t diff = s->ack_offset - frm->offset;
 		TRACE_DEVEL("updated partially acked frame", QUIC_EV_CONN_PRSAFRM, qc, f);
