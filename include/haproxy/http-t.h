@@ -276,7 +276,12 @@ struct http_violation {
 #define HTTP_HRD_DEFAULT  HTTP_HRD_NONE
 
 /* default contents of the implicit "untrusted" and "trusted" profiles */
-#define HTTP_HRD_UNTRUSTED_DEFAULT             HTTP_HRD_DEFAULT
+#define HTTP_HRD_UNTRUSTED_DEFAULT             (HTTP_HRD_REJ_LCASE_METHOD | \
+                                                HTTP_HRD_REJ_HDR_FOLD     | \
+                                                HTTP_HRD_REJ_CTL_IN_HDR   | \
+                                                HTTP_HRD_REJ_CL_TE        | \
+                                                HTTP_HRD_REJ_CL_LEAD_ZERO)
+
 #define HTTP_HRD_TRUSTED_DEFAULT               HTTP_HRD_DEFAULT
 
 /* a hardening keyword */

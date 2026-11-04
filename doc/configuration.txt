@@ -34597,7 +34597,7 @@ http-hardening <name> [from <name2>]
         communication, and for example for cache poisionning attacks. These may
         seldom be seen on legacy applications but not on standard components
         found on the internet, so it is generally safe to reject them on public
-        facing listeners.
+        facing listeners. It is enabled by default on untrusted connections.
 
   - reject-content-length-with-te (inbound request and response)
         Rejects requests and responses having both a Content-Length header
@@ -34608,7 +34608,8 @@ http-hardening <name> [from <name2>]
         the rest of the communication. These are still seldom seen in legacy
         client or server applications, sometimes in relation with compression
         and/or caching. While HAProxy properly normalizes them, it is generally
-        safe to reject them on public facing listeners.
+        safe to reject them on public facing listeners. It is enabled by
+        default on untrusted connections.
 
   - reject-ctl-in-header-trailer (inbound request and response)
         Rejects requests and responses which contain control characters in
@@ -34621,6 +34622,7 @@ http-hardening <name> [from <name2>]
         which can make certain backend applications trigger connection errors.
         As such, it is both safe and recommended to block them on public facing
         listeners. See also the has_ctl() converter used for detecting them.
+        It is enabled by default on untrusted connections.
 
   - reject-duplicate-host-header (inbound request)
         Rejects requests containing more than one "Host" header field, even if
@@ -34638,14 +34640,15 @@ http-hardening <name> [from <name2>]
         to inject headers into non-compliant components, and should be rejected
         as a sign of break-in attempt. Note that HAProxy does not have problems
         with them and systematically unfolds these messages before forwarding
-        them.
+        them. It is enabled by default on untrusted connections.
 
   - reject-lowercase-method (inbound request)
         Rejects requests whose method contains a lower-case character. No
         standard HTTP method uses lower-case characters and these ones are
         essentially used in desynchronization attack scenarios, by trying to
         exploit different case matching schemes along the chain. This is
-        recommended on untrusted listeners.
+        recommended on untrusted listeners. It is enabled by default on
+        untrusted connections.
 
   - reject-underscore-in-header-name (inbound, request and response)
         Rejects requests and responses in which one header field name contains
