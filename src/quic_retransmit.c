@@ -167,7 +167,7 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
 		             "--> pn=%llu (%d %d %d)", (ull)p->pn_node.key,
 		             LIST_ISEMPTY(&p->frms), !!(p->flags & QUIC_FL_TX_PACKET_COALESCED),
 		             qc_pkt_with_only_acked_frms(p));
-		if (!LIST_ISEMPTY(&p->frms) && !qc_pkt_with_only_acked_frms(p)) {
+		if (!qc_pkt_with_only_acked_frms(p)) {
 			pkt = p;
 			break;
 		}
@@ -228,7 +228,7 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 		TRACE_PRINTF(TRACE_LEVEL_PROTO, QUIC_EV_CONN_SPPKTS, qc, 0, 0, 0,
 		             "--> pn=%llu (%d %d)", (ull)p->pn_node.key,
 		             LIST_ISEMPTY(&p->frms), !!(p->flags & QUIC_FL_TX_PACKET_COALESCED));
-		if (!LIST_ISEMPTY(&p->frms) && !(p->flags & QUIC_FL_TX_PACKET_COALESCED) &&
+		if (!(p->flags & QUIC_FL_TX_PACKET_COALESCED) &&
 		    !qc_pkt_with_only_acked_frms(p)) {
 			pkt = p;
 			break;
