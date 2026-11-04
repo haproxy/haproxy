@@ -1,0 +1,1184 @@
+varnishtest "HTTP hardening checks on HTTP/1 and HTTP/2 trailers"
+
+# Each trailer-related http-hardening check gets its own profile, applied to
+# a bind line for request trailers, or to a server line for response
+# trailers, with both HTTP/1 and HTTP/2 on the receiving side. The "off"
+# profile has everything disabled and serves as the reference, and the "hdr"
+# profile enables header checks which must not affect trailers.
+#
+# vtest cannot parse HTTP/1 trailers, so the request trailers are forwarded
+# by the proxy in HTTP/1 to the "obs" frontend of the same instance, which
+# waits for the whole chunked message in TCP mode, then switches to HTTP and
+# replies with the list of trailer and header fields it received. The
+# response trailers are delivered to HTTP/2 clients which can parse them,
+# and the response body is waited for so that a rejected trailer results in
+# a 502 instead of an aborted response.
+#
+# Rejected request trailers result in a 400 in HTTP/1 and in a stream error in
+# HTTP/2.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev10)'"
+feature ignore_unknown_macro
+
+server s_res0_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+} -start
+
+server s_res0_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+	} -run
+} -start
+
+server s_res1_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+} -start
+
+server s_res1_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+	} -run
+} -start
+
+server s_res2_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+} -start
+
+server s_res2_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+	} -run
+} -start
+
+server s_res3_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+} -start
+
+server s_res3_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+	} -run
+} -start
+
+server s_res4_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+} -start
+
+server s_res4_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+	} -run
+} -start
+
+server s_res5_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\n\r\n"
+} -start
+
+server s_res5_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1"
+	} -run
+} -start
+
+server s_res6_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt_b: 2\r\n\r\n"
+} -start
+
+server s_res6_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t_b" "2"
+	} -run
+} -start
+
+server s_res7_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a:\r\n 1\r\n\r\n"
+} -start
+
+server s_res8_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\n 2\r\n\r\n"
+} -start
+
+server s_res9_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\t2\r\n\r\n"
+} -start
+
+server s_res9_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1\t2"
+	} -run
+} -start
+
+server s_res10_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\x012\r\n\r\n"
+} -start
+
+server s_res10_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1\x012"
+	} -run
+} -start
+
+server s_res11_h1 {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\x7f2\r\n\r\n"
+} -start
+
+server s_res11_h2 {
+	rxpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		rxreq
+		txresp -status 200 -nostrend
+		txdata -data "ok" -nostrend
+		txresp -noadd -hdr "t-a" "1\x7f2"
+	} -run
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+	thread-groups 1
+    .endif
+
+    http-hardening off
+	all off
+
+    http-hardening us-rej-t
+	reject-underscore-in-trailer-name on
+
+    http-hardening us-del-t
+	delete-underscore-in-trailer-name on
+
+    http-hardening unreg-t
+	delete-unregistered-trailer-fields on
+
+    http-hardening all-t
+	delete-all-trailer-fields on
+
+    http-hardening fold
+	reject-header-trailer-folding on
+
+    http-hardening ctl
+	reject-ctl-in-header-trailer on
+
+    http-hardening hdr
+	reject-underscore-in-header-name on
+	delete-unregistered-header-fields on
+
+    defaults
+	mode http
+	http-reuse never
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # receives the chunked requests forwarded in HTTP/1 by the proxy, and
+    # reports which header and trailer fields are present in the raw bytes.
+    frontend obs
+	mode tcp
+	bind "fd@${obs}"
+	tcp-request inspect-delay 5s
+	tcp-request content set-var(txn.raw) req.payload(0,0) if { req.payload(0,0) -m reg "\r\n0\r\n([^\r]*\r\n)*\r\n\$" }
+	tcp-request content set-var(txn.ta) int(1) if { var(txn.raw) -m reg "\r\n0\r\n([^\r]*\r\n)*t-a:" }
+	tcp-request content set-var(txn.tb) int(1) if { var(txn.raw) -m reg "\r\n0\r\n([^\r]*\r\n)*t_b:" }
+	tcp-request content set-var(txn.xc) int(1) if { var(txn.raw) -m reg "\r\n0\r\n([^\r]*\r\n)*x-c:" }
+	tcp-request content set-var(txn.xh) int(1) if { var(txn.raw) -m sub "\r\nx-h: 1\r\n" }
+	tcp-request content set-var(txn.hh) int(1) if { var(txn.raw) -m sub "\r\nh_h: 1\r\n" }
+	tcp-request content switch-mode http if { var(txn.raw) -m found }
+	http-request return status 200 hdr x-obs "ta=%[var(txn.ta,0)] tb=%[var(txn.tb,0)] xc=%[var(txn.xc,0)] xh=%[var(txn.xh,0)] hh=%[var(txn.hh,0)]"
+
+    # request side: one frontend per profile, for HTTP/1 and HTTP/2, all
+    # forwarding to the observer. Rejected requests are waited for so that
+    # the error is reported before the request is forwarded.
+    listen req_off
+	bind "fd@${req_off_h1}" http-hardening off
+	bind "fd@${req_off_h2}" proto h2 http-hardening off
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    listen req_us_rej_t
+	bind "fd@${req_us_rej_t_h1}" http-hardening us-rej-t
+	bind "fd@${req_us_rej_t_h2}" proto h2 http-hardening us-rej-t
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    listen req_us_del_t
+	bind "fd@${req_us_del_t_h1}" http-hardening us-del-t
+	bind "fd@${req_us_del_t_h2}" proto h2 http-hardening us-del-t
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    listen req_unreg_t
+	bind "fd@${req_unreg_t_h1}" http-hardening unreg-t
+	bind "fd@${req_unreg_t_h2}" proto h2 http-hardening unreg-t
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    listen req_all_t
+	bind "fd@${req_all_t_h1}" http-hardening all-t
+	bind "fd@${req_all_t_h2}" proto h2 http-hardening all-t
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    listen req_fold
+	bind "fd@${req_fold_h1}" http-hardening fold
+	bind "fd@${req_fold_h2}" proto h2 http-hardening fold
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    listen req_ctl
+	bind "fd@${req_ctl_h1}" http-hardening ctl
+	bind "fd@${req_ctl_h2}" proto h2 http-hardening ctl
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    listen req_hdr
+	bind "fd@${req_hdr_h1}" http-hardening hdr
+	bind "fd@${req_hdr_h2}" proto h2 http-hardening hdr
+	option http-buffer-request
+	server obs ${h1_obs_addr}:${h1_obs_port}
+
+    # response side: one listener per origin
+    listen s_res0_h1
+	bind "fd@${s_res0_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res0_h1_addr}:${s_res0_h1_port} http-hardening off
+
+    listen s_res0_h2
+	bind "fd@${s_res0_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res0_h2_addr}:${s_res0_h2_port} proto h2 http-hardening off
+
+    listen s_res1_h1
+	bind "fd@${s_res1_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res1_h1_addr}:${s_res1_h1_port} http-hardening us-del-t
+
+    listen s_res1_h2
+	bind "fd@${s_res1_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res1_h2_addr}:${s_res1_h2_port} proto h2 http-hardening us-del-t
+
+    listen s_res2_h1
+	bind "fd@${s_res2_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res2_h1_addr}:${s_res2_h1_port} http-hardening unreg-t
+
+    listen s_res2_h2
+	bind "fd@${s_res2_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res2_h2_addr}:${s_res2_h2_port} proto h2 http-hardening unreg-t
+
+    listen s_res3_h1
+	bind "fd@${s_res3_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res3_h1_addr}:${s_res3_h1_port} http-hardening all-t
+
+    listen s_res3_h2
+	bind "fd@${s_res3_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res3_h2_addr}:${s_res3_h2_port} proto h2 http-hardening all-t
+
+    listen s_res4_h1
+	bind "fd@${s_res4_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res4_h1_addr}:${s_res4_h1_port} http-hardening hdr
+
+    listen s_res4_h2
+	bind "fd@${s_res4_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res4_h2_addr}:${s_res4_h2_port} proto h2 http-hardening hdr
+
+    listen s_res5_h1
+	bind "fd@${s_res5_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res5_h1_addr}:${s_res5_h1_port} http-hardening us-rej-t
+
+    listen s_res5_h2
+	bind "fd@${s_res5_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res5_h2_addr}:${s_res5_h2_port} proto h2 http-hardening us-rej-t
+
+    listen s_res6_h1
+	bind "fd@${s_res6_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res6_h1_addr}:${s_res6_h1_port} http-hardening us-rej-t
+
+    listen s_res6_h2
+	bind "fd@${s_res6_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res6_h2_addr}:${s_res6_h2_port} proto h2 http-hardening us-rej-t
+
+    listen s_res7_h1
+	bind "fd@${s_res7_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res7_h1_addr}:${s_res7_h1_port} http-hardening fold
+
+    listen s_res8_h1
+	bind "fd@${s_res8_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res8_h1_addr}:${s_res8_h1_port} http-hardening fold
+
+    listen s_res9_h1
+	bind "fd@${s_res9_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res9_h1_addr}:${s_res9_h1_port} http-hardening ctl
+
+    listen s_res9_h2
+	bind "fd@${s_res9_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res9_h2_addr}:${s_res9_h2_port} proto h2 http-hardening ctl
+
+    listen s_res10_h1
+	bind "fd@${s_res10_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res10_h1_addr}:${s_res10_h1_port} http-hardening ctl
+
+    listen s_res10_h2
+	bind "fd@${s_res10_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res10_h2_addr}:${s_res10_h2_port} proto h2 http-hardening ctl
+
+    listen s_res11_h1
+	bind "fd@${s_res11_h1}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res11_h1_addr}:${s_res11_h1_port} http-hardening ctl
+
+    listen s_res11_h2
+	bind "fd@${s_res11_h2}" proto h2 http-hardening off
+	http-response wait-for-body time 5s
+	server s ${s_res11_h2_addr}:${s_res11_h2_port} proto h2 http-hardening ctl
+
+} -start
+
+#
+# Request trailers
+#
+
+client c_req0_h1 -connect ${h1_req_off_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=1 tb=1 xc=1 xh=1 hh=1"
+} -run
+
+client c_req0_h2 -connect ${h1_req_off_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		txreq -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-obs == "ta=1 tb=1 xc=1 xh=1 hh=1"
+	} -run
+} -run
+
+client c_req1_h1 -connect ${h1_req_us_del_t_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=1 tb=0 xc=1 xh=1 hh=1"
+} -run
+
+client c_req1_h2 -connect ${h1_req_us_del_t_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		txreq -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-obs == "ta=1 tb=0 xc=1 xh=1 hh=1"
+	} -run
+} -run
+
+client c_req2_h1 -connect ${h1_req_unreg_t_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=1 tb=1 xc=0 xh=1 hh=1"
+} -run
+
+client c_req2_h2 -connect ${h1_req_unreg_t_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		txreq -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-obs == "ta=1 tb=1 xc=0 xh=1 hh=1"
+	} -run
+} -run
+
+client c_req3_h1 -connect ${h1_req_all_t_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=0 tb=0 xc=0 xh=1 hh=1"
+} -run
+
+client c_req3_h2 -connect ${h1_req_all_t_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		txreq -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-obs == "ta=0 tb=0 xc=0 xh=1 hh=1"
+	} -run
+} -run
+
+client c_req4_h1 -connect ${h1_req_hdr_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nt_b: 2\r\nx-c: 3\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=1 tb=1 xc=1 xh=0 hh=0"
+} -run
+
+client c_req4_h2 -connect ${h1_req_hdr_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -nostrend
+		txreq -noadd -hdr "t-a" "1" -hdr "t_b" "2" -hdr "x-c" "3"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-obs == "ta=1 tb=1 xc=1 xh=0 hh=0"
+	} -run
+} -run
+
+client c_req5_h1 -connect ${h1_req_us_rej_t_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\nx-c: 3\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=1 tb=0 xc=1 xh=1 hh=1"
+} -run
+
+client c_req5_h2 -connect ${h1_req_us_rej_t_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		txreq -noadd -hdr "t-a" "1" -hdr "x-c" "3"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-obs == "ta=1 tb=0 xc=1 xh=1 hh=1"
+	} -run
+} -run
+
+client c_req6_h1 -connect ${h1_req_us_rej_t_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt_b: 2\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_req6_h2 -connect ${h1_req_us_rej_t_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		rxwinup
+		txreq -noadd -hdr "t_b" "2"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
+
+client c_req7_h1 -connect ${h1_req_fold_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=1 tb=0 xc=0 xh=1 hh=1"
+} -run
+
+client c_req8_h1 -connect ${h1_req_fold_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a:\r\n 1\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_req9_h1 -connect ${h1_req_fold_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\r\n 2\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_req10_h1 -connect ${h1_req_ctl_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\t2\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-obs == "ta=1 tb=0 xc=0 xh=1 hh=1"
+} -run
+
+client c_req10_h2 -connect ${h1_req_ctl_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		txreq -noadd -hdr "t-a" "1\t2"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-obs == "ta=1 tb=0 xc=0 xh=1 hh=1"
+	} -run
+} -run
+
+client c_req11_h1 -connect ${h1_req_ctl_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\x012\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_req11_h2 -connect ${h1_req_ctl_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		rxwinup
+		txreq -noadd -hdr "t-a" "1\x012"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
+
+client c_req12_h1 -connect ${h1_req_ctl_h1_sock} {
+	txreq -req POST -nolen -hdr "x-h: 1" -hdr "h_h: 1" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\x7f2\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_req12_h2 -connect ${h1_req_ctl_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "x-h" "1" -hdr "h_h" "1" -nostrend
+		rxwinup
+		txreq -noadd -hdr "t-a" "1\x7f2"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
+
+#
+# Response trailers
+#
+
+client c_s_res0_h1 -connect ${h1_s_res0_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == "2"
+		expect resp.http.x-c == "3"
+	} -run
+} -run
+
+client c_s_res0_h2 -connect ${h1_s_res0_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == "2"
+		expect resp.http.x-c == "3"
+	} -run
+} -run
+
+client c_s_res1_h1 -connect ${h1_s_res1_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == <undef>
+		expect resp.http.x-c == "3"
+	} -run
+} -run
+
+client c_s_res1_h2 -connect ${h1_s_res1_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == <undef>
+		expect resp.http.x-c == "3"
+	} -run
+} -run
+
+client c_s_res2_h1 -connect ${h1_s_res2_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == "2"
+		expect resp.http.x-c == <undef>
+	} -run
+} -run
+
+client c_s_res2_h2 -connect ${h1_s_res2_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == "2"
+		expect resp.http.x-c == <undef>
+	} -run
+} -run
+
+client c_s_res3_h1 -connect ${h1_s_res3_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata -all
+		expect resp.body == "ok"
+	} -run
+} -run
+
+client c_s_res3_h2 -connect ${h1_s_res3_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata -all
+		expect resp.body == "ok"
+	} -run
+} -run
+
+client c_s_res4_h1 -connect ${h1_s_res4_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == "2"
+		expect resp.http.x-c == "3"
+	} -run
+} -run
+
+client c_s_res4_h2 -connect ${h1_s_res4_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+		expect resp.http.t_b == "2"
+		expect resp.http.x-c == "3"
+	} -run
+} -run
+
+client c_s_res5_h1 -connect ${h1_s_res5_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+	} -run
+} -run
+
+client c_s_res5_h2 -connect ${h1_s_res5_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1"
+	} -run
+} -run
+
+client c_s_res6_h1 -connect ${h1_s_res6_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+client c_s_res6_h2 -connect ${h1_s_res6_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+client c_s_res7_h1 -connect ${h1_s_res7_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+client c_s_res8_h1 -connect ${h1_s_res8_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+client c_s_res9_h1 -connect ${h1_s_res9_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1\t2"
+	} -run
+} -run
+
+client c_s_res9_h2 -connect ${h1_s_res9_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxhdrs
+		expect resp.status == 200
+		rxdata
+		expect resp.body == "ok"
+		rxhdrs
+		expect resp.http.t-a == "1\t2"
+	} -run
+} -run
+
+client c_s_res10_h1 -connect ${h1_s_res10_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+client c_s_res10_h2 -connect ${h1_s_res10_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+client c_s_res11_h1 -connect ${h1_s_res11_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
+
+client c_s_res11_h2 -connect ${h1_s_res11_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 502
+	} -run
+} -run
