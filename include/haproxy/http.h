@@ -220,18 +220,34 @@ static inline struct http_uri_parser http_uri_parser_init(const struct ist uri)
 
 /* Looks into <ist> for forbidden characters for header values (0x00, 0x0A,
  * 0x0D), starting at pointer <start> which must be within <ist>. Returns
- * non-zero if such a character is found, 0 otherwise. When run on unlikely
- * header match, it's recommended to first check for the presence of control
- * chars using ist_find_http_ctl().
+ * non-zero if such a character is found, 0 otherwise.
  */
 static inline int http_header_has_forbidden_char(const struct ist ist, const char *start)
 {
-	do {
+	/* speed-up: skip 4 or 8 non-offending chars at once when possible.
+	 * We only skip 0x20-0x7e here. The rest is handled one byte at a time.
+	 */
+#ifdef HA_UNALIGNED_LE64
+	while (start <= istend(ist) - sizeof(long)) {
+		if (is_char8_outside(*(ulong *)start, 0x20, 0x7e))
+			break;
+		start += sizeof(long);
+	}
+#elif defined(HA_UNALIGNED_LE)
+	while (start <= istend(ist) - sizeof(int)) {
+		if (is_char4_outside(*(uint *)start, 0x20, 0x7e))
+			break;
+		start += sizeof(int);
+	}
+#endif
+	/* here we might have skipped most SP+VCHAR (0x20-0x7e). What commonly
+	 * remains is HT (rare), CTL, CR/LF (forbidden), or obs-text.
+	 */
+	for (; start < istend(ist); start++) {
 		if ((uint8_t)*start <= 0x0d &&
 		    (1U << (uint8_t)*start) & ((1<<13) | (1<<10) | (1<<0)))
 			return 1;
-		start++;
-	} while (start < istend(ist));
+	}
 	return 0;
 }
 
