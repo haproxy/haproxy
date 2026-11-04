@@ -209,16 +209,15 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 
 	struct quic_enc_level *iqel = qc->iel;
 	struct quic_enc_level *hqel = qc->hel;
-	struct quic_enc_level *qel = iqel;
 	struct eb_root *pkts;
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
 	struct list *tmp = &itmp;
 
 	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
- start:
+
 	pkt = NULL;
-	pkts = &qel->pktns->tx.pkts;
+	pkts = &iqel->pktns->tx.pkts;
 	node = eb64_first(pkts);
 	/* Skip the empty packet (they have already been retransmitted) */
 	while (node) {
@@ -258,27 +257,24 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 			 * with a PING frame if a full-size datagram fits in what
 			 * the anti-amplification limit allows to send.
 			 */
-			if (qel == iqel && may_send >= QUIC_INITIAL_PACKET_MINLEN)
-				TRACE_PROTO("will probe Initial packet number space", QUIC_EV_CONN_SPPKTS, qc);
-			else
+			if (may_send < QUIC_INITIAL_PACKET_MINLEN)
 				goto end;
+			TRACE_PROTO("will probe Initial packet number space", QUIC_EV_CONN_SPPKTS, qc);
 		}
 	}
 
-	qel->pktns->tx.pto_probe += 1;
+	iqel->pktns->tx.pto_probe++;
 
 	/* No risk to loop here, #packets per datagram is bounded */
  requeue:
 	TRACE_PROTO("duplicating packet", QUIC_EV_CONN_PRSAFRM, qc, NULL, &pkt->pn_node.key);
 	qc_dup_pkt_frms(qc, &pkt->frms, tmp);
-	if (qel == iqel) {
-		if (pkt->next && pkt->next->type == QUIC_PACKET_TYPE_HANDSHAKE) {
-			pkt = pkt->next;
-			tmp = &htmp;
-			hqel->pktns->tx.pto_probe += 1;
-			TRACE_DEVEL("looping for next packet", QUIC_EV_CONN_SPPKTS, qc);
-			goto requeue;
-		}
+	if (pkt->next && pkt->next->type == QUIC_PACKET_TYPE_HANDSHAKE) {
+		pkt = pkt->next;
+		tmp = &htmp;
+		hqel->pktns->tx.pto_probe++;
+		TRACE_DEVEL("looping for next packet", QUIC_EV_CONN_SPPKTS, qc);
+		goto requeue;
 	}
 
  end:
