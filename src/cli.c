@@ -1320,6 +1320,35 @@ void cli_io_handler(struct appctx *appctx)
 		goto out;
 	}
 
+	if (unlikely(appctx->cli_ctx.cmd_flags & CLI_CMD_FL_KILLED)) {
+		if (appctx->cli_ctx.io_release) {
+			struct cli_print_ctx *ctx;
+			EXEC_CTX_NO_RET(appctx->cli_ctx.kw->exec_ctx, appctx->cli_ctx.io_release(appctx));
+
+			/* Clear any message allocated during io_release before replacing it with "Killed." */
+			switch (appctx->st0) {
+			case CLI_ST_PRINT_DYN:
+			case CLI_ST_PRINT_DYNERR:
+				ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
+				ha_free(&ctx->err);
+				break;
+
+			case CLI_ST_PRINT_UMSG:
+			case CLI_ST_PRINT_UMSGERR:
+				usermsgs_clr(NULL);
+				break;
+
+			default:
+				break;
+			}
+		}
+
+		if (appctx->cli_ctx.kw)
+			cli_msg(appctx, LOG_INFO, "Killed.\n");
+		cli_reset_cmd(appctx);
+		appctx->t->expire = TICK_ETERNITY;
+	}
+
 	if (applet_fl_test(appctx, APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL) ||
 	    !appctx_get_buf(appctx, &appctx->outbuf)) {
                 applet_wont_consume(appctx);
@@ -2773,6 +2802,44 @@ static void cli_release_wait(struct appctx *appctx)
 		cli_dynmsg(appctx, LOG_INFO, msg);
 	else
 		cli_dynerr(appctx, msg);
+}
+
+static int cli_parse_kill(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct appctx *cli_session;
+	struct mt_list back;
+	char *msg = NULL;
+	int count = 0;
+	int unintr_fltr = 0;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[1])
+		return cli_err(appctx, "Expects an argument.\n");
+
+	if (strcmp(args[1], "unintr") == 0)
+		unintr_fltr = 1;
+	else
+		return cli_err(appctx, "Unsupported target value.\n");
+
+	if (*args[2])
+		return cli_err(appctx, "Invalid extra argument.\n");
+
+	thread_isolate_full();
+
+	MT_LIST_FOR_EACH_ENTRY_LOCKED(cli_session, &cli_session_list, cli_ctx.sess_el, back) {
+		if (unintr_fltr && cli_session->cli_ctx.cmd_flags & CLI_CMD_FL_UNINTR) {
+			cli_session->cli_ctx.cmd_flags |= CLI_CMD_FL_KILLED;
+			appctx_wakeup(cli_session);
+			++count;
+		}
+	}
+
+	thread_release();
+
+	memprintf(&msg, "Killed %d %s.\n", count, count == 1 ? "job" : "jobs");
+	return cli_dynmsg(appctx, LOG_INFO, msg);
 }
 
 /* parse the "expose-fd" argument on the bind lines */
@@ -4644,6 +4711,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "wait", NULL },                      "wait {-h|[-u] <delay_ms>} cond [args...] : wait the specified delay or condition (-h to see list)", cli_parse_wait, cli_io_handler_wait, cli_release_wait, NULL },
+	{ { "kill", NULL },                      "kill <target>                           : kill matching CLI jobs",                                  cli_parse_kill, NULL },
 	{ { "_send_status", NULL },              NULL,  											      _send_status, NULL, NULL, NULL, ACCESS_MASTER_ONLY },
 	{{},}
 }};

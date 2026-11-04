@@ -56,6 +56,7 @@
 #define CLI_MAX_HELP_ENTRIES 1024
 
 #define CLI_CMD_FL_UNINTR        0x0001  /* runs as uninterruptible */
+#define CLI_CMD_FL_KILLED        0x0002  /* immediate stop requested */
 
 /* CLI states */
 enum {

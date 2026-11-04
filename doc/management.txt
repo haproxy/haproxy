@@ -2541,6 +2541,13 @@ httpclient [--htx] <method> <URI>
   The --htx option allow to use the haproxy internal htx representation using
   the htx_dump() function, mainly used for debugging.
 
+kill <target>
+  Interrupts execution of currently running CLI commands. The mandatory
+  argument acts as a filter on which jobs to stop. Only the value "unintr" is
+  supported, which selects commands running as an uninterruptible job.
+
+  This command requires level "admin".
+
 new ssl ca-file <cafile>
   Create a new empty CA file tree entry to be filled with a set of CA
   certificates and added to a crt-list. This command should be used in
