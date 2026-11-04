@@ -1993,7 +1993,6 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 {
 	uint32_t data_ofs = htx->data; /* used to rollback on error */
 	enum http_parser_status ret = HTTP_PRS_SUCCESS;
-	const char *ctl;
 	struct ist v;
 	uint32_t idx;
 	int i;
@@ -2068,8 +2067,7 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 		 *   response that contains a character not permitted in a field
 		 *   value MUST be treated as malformed
 		 */
-		ctl = ist_find_http_ctl(list[idx].v);
-		if (unlikely(ctl) && http_header_has_forbidden_char(list[idx].v, ctl)) {
+		if (unlikely(http_header_has_forbidden_char(list[idx].v, istptr(list[idx].v)))) {
 			ret = HTTP_PRS_INV_HVAL;
 			goto fail;
 		}

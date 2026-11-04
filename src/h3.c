@@ -566,8 +566,7 @@ static int h3_set_authority(struct qcs *qcs, struct ist *auth, const struct ist 
 static int _h3_handle_phdr(struct qcs *qcs, const struct http_hdr *h)
 {
 	/* look for forbidden control characters in the pseudo-header value */
-	const char *ctl = ist_find_http_ctl(h->v);
-	if (unlikely(ctl) && http_header_has_forbidden_char(h->v, ctl)) {
+	if (unlikely(http_header_has_forbidden_char(h->v, istptr(h->v)))) {
 		TRACE_ERROR("control character present in pseudo-header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		goto err;
 	}
@@ -583,7 +582,6 @@ static int _h3_handle_hdr(struct qcs *qcs, const struct http_hdr *hdr)
 {
 	const struct ist name = hdr->n;
 	const struct ist value = hdr->v;
-	const char *ctl;
 	int i;
 
 	if (isteq(name, ist("")))
@@ -617,8 +615,7 @@ static int _h3_handle_hdr(struct qcs *qcs, const struct http_hdr *hdr)
 	 */
 
 	/* look for forbidden control characters in the header value */
-	ctl = ist_find_http_ctl(value);
-	if (unlikely(ctl) && http_header_has_forbidden_char(value, ctl)) {
+	if (unlikely(http_header_has_forbidden_char(value, istptr(value)))) {
 		TRACE_ERROR("control character present in header value", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
 		goto err;
 	}
