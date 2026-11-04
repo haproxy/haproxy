@@ -1,0 +1,540 @@
+varnishtest "HTTP hardening checks on HTTP/1 headers"
+
+# Each http-hardening check gets its own profile containing only that check,
+# applied to a dedicated bind line for requests, or to a dedicated server line
+# for responses. The "off" profile has everything disabled and serves as the
+# reference showing that each offending message is accepted by default.
+#
+# On the request side there is no server: the frontend replies itself and
+# reports the method, the header names it saw and the hex-encoded value of
+# header "foo", which reflect what remains after the checks ran in the H1
+# parser.
+#
+# On the response side, each profile's server first sends a valid response,
+# then the offending ones, which must turn into 502 when the check is enabled.
+# Each response is on its own server connection ("http-reuse never") and each
+# client request on its own client connection.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev10)'"
+feature ignore_unknown_macro
+
+# reference server: all offending responses, all expected to pass
+server s_off {
+	rxreq
+	txresp -hdr "x_a: 1" -hdr "x-b: 2"
+	accept
+	rxreq
+	txresp -hdr "X-Foo: 1" -hdr "foo: 2"
+	accept
+	rxreq
+	txresp -hdr "foo:\r\n b"
+	accept
+	rxreq
+	txresp -hdr "foo: a\r\n b"
+	accept
+	rxreq
+	txresp -hdr "foo: a\x01b"
+	accept
+	rxreq
+	txresp -nolen -hdr "content-length: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+	accept
+	rxreq
+	txresp -nolen -hdr "content-length: 02" -body "ok"
+} -start
+
+server s_us_rej {
+	rxreq
+	txresp -hdr "x-b: 2"
+	accept
+	rxreq
+	txresp -hdr "x_a: 1"
+} -start
+
+server s_us_del {
+	rxreq
+	txresp -hdr "x_a: 1" -hdr "x-b: 2"
+} -start
+
+server s_us_both {
+	rxreq
+	txresp -hdr "x_a: 1"
+} -start
+
+server s_unreg {
+	rxreq
+	txresp -hdr "X-Foo: 1" -hdr "x-bar: 2" -hdr "foo: 3" -hdr "xa: 4"
+} -start
+
+server s_fold {
+	rxreq
+	txresp -hdr "foo: a b"
+	accept
+	rxreq
+	txresp -hdr "foo:\r\n b"
+	accept
+	rxreq
+	txresp -hdr "foo: a\r\n b"
+} -start
+
+server s_ctl {
+	rxreq
+	txresp -hdr "foo: a\tb\xe9c"
+	accept
+	rxreq
+	txresp -hdr "foo: a\x01b"
+	accept
+	rxreq
+	txresp -hdr "foo: a\x7fb"
+	accept
+	rxreq
+	txresp -hdr "foo: abcdefghijklmnopq\x1fb"
+} -start
+
+server s_clte {
+	rxreq
+	txresp -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+	accept
+	rxreq
+	txresp -nolen -hdr "content-length: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+} -start
+
+server s_cl0 {
+	rxreq
+	txresp -nolen -hdr "content-length: 0"
+	accept
+	rxreq
+	txresp -nolen -hdr "content-length: 20" -body "01234567890123456789"
+	accept
+	rxreq
+	txresp -nolen -hdr "content-length: 02" -body "ok"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+	thread-groups 1
+    .endif
+
+    http-hardening off
+	all off
+
+    http-hardening dup-host
+	reject-duplicate-host-header on
+
+    http-hardening lc-meth
+	reject-lowercase-method on
+
+    http-hardening us-rej
+	reject-underscore-in-header-name on
+
+    http-hardening us-del
+	delete-underscore-in-header-name on
+
+    # reject must have precedence over delete
+    http-hardening us-both
+	reject-underscore-in-header-name on
+	delete-underscore-in-header-name on
+
+    http-hardening unreg
+	delete-unregistered-header-fields on
+
+    http-hardening fold
+	reject-header-trailer-folding on
+
+    http-hardening ctl
+	reject-ctl-in-header-trailer on
+
+    http-hardening clte
+	reject-content-length-with-te on
+
+    http-hardening cl0
+	reject-content-length-leading-zero on
+
+    defaults
+	mode http
+	http-reuse never
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    # request side: the frontend replies with what it parsed
+    frontend fe_req
+	bind "fd@${req_off}"      http-hardening off
+	bind "fd@${req_dup_host}" http-hardening dup-host
+	bind "fd@${req_lc_meth}"  http-hardening lc-meth
+	bind "fd@${req_us_rej}"   http-hardening us-rej
+	bind "fd@${req_us_del}"   http-hardening us-del
+	bind "fd@${req_us_both}"  http-hardening us-both
+	bind "fd@${req_unreg}"    http-hardening unreg
+	bind "fd@${req_fold}"     http-hardening fold
+	bind "fd@${req_ctl}"      http-hardening ctl
+	bind "fd@${req_clte}"     http-hardening clte
+	bind "fd@${req_cl0}"      http-hardening cl0
+	http-request return status 200 hdr x-meth "%[method]" hdr x-hdrs "%[req.hdr_names]" hdr x-foo "%[req.hdr(foo),hex]"
+
+    # response side: one listener per server profile
+    listen res_off
+	bind "fd@${res_off}" http-hardening off
+	server s ${s_off_addr}:${s_off_port} http-hardening off
+
+    listen res_us_rej
+	bind "fd@${res_us_rej}" http-hardening off
+	server s ${s_us_rej_addr}:${s_us_rej_port} http-hardening us-rej
+
+    listen res_us_del
+	bind "fd@${res_us_del}" http-hardening off
+	server s ${s_us_del_addr}:${s_us_del_port} http-hardening us-del
+
+    listen res_us_both
+	bind "fd@${res_us_both}" http-hardening off
+	server s ${s_us_both_addr}:${s_us_both_port} http-hardening us-both
+
+    listen res_unreg
+	bind "fd@${res_unreg}" http-hardening off
+	server s ${s_unreg_addr}:${s_unreg_port} http-hardening unreg
+
+    listen res_fold
+	bind "fd@${res_fold}" http-hardening off
+	server s ${s_fold_addr}:${s_fold_port} http-hardening fold
+
+    listen res_ctl
+	bind "fd@${res_ctl}" http-hardening off
+	server s ${s_ctl_addr}:${s_ctl_port} http-hardening ctl
+
+    listen res_clte
+	bind "fd@${res_clte}" http-hardening off
+	server s ${s_clte_addr}:${s_clte_port} http-hardening clte
+
+    listen res_cl0
+	bind "fd@${res_cl0}" http-hardening off
+	server s ${s_cl0_addr}:${s_cl0_port} http-hardening cl0
+} -start
+
+#
+# Requests
+#
+
+# reference: everything is accepted with all checks off
+client c_req_off -connect ${h1_req_off_sock} {
+	txreq -nouseragent -nohost -hdr "host: a" -hdr "host: a"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "host"
+
+	txreq -nouseragent -req get
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-meth == "get"
+
+	txreq -nouseragent -nohost -hdr "x_a: 1" -hdr "X-Foo: 2"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "x_a,x-foo"
+
+	txreq -nouseragent -hdr "foo:\r\n b"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-foo == "62"
+
+	txreq -nouseragent -hdr "foo: a\r\n b"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-foo == "6120202062"
+
+	txreq -nouseragent -hdr "foo: a\x01b"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-foo == "610162"
+
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 02" -body "ok"
+	rxresp
+	expect resp.status == 200
+
+	# T-E + C-L forces a close
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c_req_dup_host -connect ${h1_req_dup_host_sock} {
+	txreq -nouseragent -nohost -hdr "host: a"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -nohost -hdr "host: a" -hdr "host: a"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_lc_meth -connect ${h1_req_lc_meth_sock} {
+	txreq -nouseragent -req GET
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-meth == "GET"
+
+	# non-standard methods are fine as long as they're upper case
+	txreq -nouseragent -req MY-METH_1
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-meth == "MY-METH_1"
+
+	txreq -nouseragent -req gET
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_lc_meth2 -connect ${h1_req_lc_meth_sock} {
+	txreq -nouseragent -req GEt
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_us_rej -connect ${h1_req_us_rej_sock} {
+	txreq -nouseragent -nohost -hdr "x-a: 1"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "x-a"
+
+	# underscores in values are not concerned
+	txreq -nouseragent -nohost -hdr "x-a: _"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -nohost -hdr "x-a: 1" -hdr "x_b: 2"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_us_rej2 -connect ${h1_req_us_rej_sock} {
+	txreq -nouseragent -nohost -hdr "xb_: 2"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_us_del -connect ${h1_req_us_del_sock} {
+	txreq -nouseragent -nohost -hdr "x_a: 1" -hdr "x-b: 2" -hdr "_c: 3" -hdr "d: 4"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "x-b,d"
+} -run
+
+client c_req_us_both -connect ${h1_req_us_both_sock} {
+	txreq -nouseragent -nohost -hdr "x_a: 1"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_unreg -connect ${h1_req_unreg_sock} {
+	txreq -nouseragent -nohost -hdr "X-Foo: 1" -hdr "x-bar: 2" -hdr "foo: 3" -hdr "xa: 4" -hdr "x: 5" -hdr "a-x-b: 6"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "foo,xa,x,a-x-b"
+} -run
+
+client c_req_fold -connect ${h1_req_fold_sock} {
+	txreq -nouseragent -hdr "foo: a b"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-foo == "612062"
+
+	txreq -nouseragent -hdr "foo:\r\n b"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_fold2 -connect ${h1_req_fold_sock} {
+	txreq -nouseragent -hdr "foo: a\r\n b"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_fold3 -connect ${h1_req_fold_sock} {
+	txreq -nouseragent -hdr "foo: a\r\n\tb"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+# HT, SP and obs-text remain valid, other CTLs and DEL are rejected wherever
+# they are in the value, including past the first 8 bytes.
+client c_req_ctl -connect ${h1_req_ctl_sock} {
+	txreq -nouseragent -hdr "foo: a\tb c\xe9d"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-foo == "6109622063E964"
+
+	txreq -nouseragent -hdr "foo: a\x01b"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_ctl2 -connect ${h1_req_ctl_sock} {
+	txreq -nouseragent -hdr "foo: a\x7fb"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_ctl3 -connect ${h1_req_ctl_sock} {
+	txreq -nouseragent -hdr "foo: abcdefghijklmnopq\x1fb"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_ctl4 -connect ${h1_req_ctl_sock} {
+	txreq -nouseragent -hdr "foo: abcdefghijklmnopqrstuvw\x08"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_clte -connect ${h1_req_clte_sock} {
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req POST -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_cl0 -connect ${h1_req_cl0_sock} {
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 0"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 20" -body "01234567890123456789"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 02" -body "ok"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_cl02 -connect ${h1_req_cl0_sock} {
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 00"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+#
+# Responses
+#
+
+client c_res_off -connect ${h1_res_off_sock} -repeat 7 {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c_res_us_rej1 -connect ${h1_res_us_rej_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-b == "2"
+} -run
+
+client c_res_us_rej2 -connect ${h1_res_us_rej_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_res_us_del -connect ${h1_res_us_del_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x_a == <undef>
+	expect resp.http.x-b == "2"
+} -run
+
+client c_res_us_both -connect ${h1_res_us_both_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_res_unreg -connect ${h1_res_unreg_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-foo == <undef>
+	expect resp.http.x-bar == <undef>
+	expect resp.http.foo == "3"
+	expect resp.http.xa == "4"
+} -run
+
+client c_res_fold1 -connect ${h1_res_fold_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.foo == "a b"
+} -run
+
+client c_res_fold2 -connect ${h1_res_fold_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_res_fold3 -connect ${h1_res_fold_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_res_ctl1 -connect ${h1_res_ctl_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.foo == "a\tb\xe9c"
+} -run
+
+client c_res_ctl2 -connect ${h1_res_ctl_sock} -repeat 3 {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_res_clte1 -connect ${h1_res_clte_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.body == "ok"
+} -run
+
+client c_res_clte2 -connect ${h1_res_clte_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_res_cl0_1 -connect ${h1_res_cl0_sock} -repeat 2 {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c_res_cl0_2 -connect ${h1_res_cl0_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
