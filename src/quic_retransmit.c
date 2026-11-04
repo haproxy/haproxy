@@ -180,7 +180,7 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
 	 * packet size is the packet number. And the maximum increase is 4 bytes.
 	 */
 	if (!quic_peer_validated_addr(qc) && !qc_is_back(qc) &&
-	    pkt->len + 4 > quic_may_send_bytes(qc)) {
+	    pkt->len + QUIC_PACKET_PN_MAXLEN > quic_may_send_bytes(qc)) {
 		qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 		TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
 		goto leave;
@@ -244,11 +244,11 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	 * packet size is the packet number. And the maximum increase is 4 bytes.
 	 */
 	if (!quic_peer_validated_addr(qc) && !qc_is_back(qc)) {
-		size_t dglen = pkt->len + 4;
+		size_t dglen = pkt->len + QUIC_PACKET_PN_MAXLEN;
 		size_t may_send;
 
 		may_send = quic_may_send_bytes(qc);
-		dglen += pkt->next ? pkt->next->len + 4 : 0;
+		dglen += pkt->next ? pkt->next->len + QUIC_PACKET_PN_MAXLEN : 0;
 		if (dglen > may_send) {
 			qc->flags |= QUIC_FL_CONN_ANTI_AMPLIFICATION_REACHED;
 			TRACE_PROTO("anti-amplification limit would be reached", QUIC_EV_CONN_SPPKTS, qc, pkt);
