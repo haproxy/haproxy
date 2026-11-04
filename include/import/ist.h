@@ -861,6 +861,44 @@ static inline const char *ist_find_range(const struct ist ist, unsigned char min
 	return NULL;
 }
 
+/* Returns a pointer to the first character from <ist> that is outside of the
+ * range [min:max] inclusive, or NULL if none is present. The function is
+ * optimized for strings having no such chars by processing up to sizeof(long)
+ * bytes at once on architectures supporting efficient unaligned accesses.
+ * It requires that (max - min) < 0x80, and does support them being >= 0x80
+ * just like input bytes. It's optimized for min and max to be known at build
+ * time.
+ */
+static inline const char *ist_find_outside(const struct ist ist, unsigned char min, unsigned char max)
+{
+	const union { unsigned long v; } __attribute__((packed)) *u;
+	const char *curr = (void *)ist.ptr - sizeof(long);
+	const char *last = curr + ist.len;
+	unsigned long m  = (~0UL / 255) * 0x80;   /* 0x8080...8080 */
+	unsigned long l1 = ((~0UL / 255) * min);  /* 0x<min><min>...<min>*/
+	unsigned long l2 = ((~0UL / 255) * max);  /* 0x<max><max>...<max>*/
+	unsigned long r;
+
+	do {
+		curr += sizeof(long);
+		if (curr > last)
+			break;
+		u = (void *)curr;
+		r = ((u->v - l1) | (l2 - u->v)) & m;
+		/* now r has 0x80 for each offending byte */
+	} while (!r);
+
+	last += sizeof(long); // we started with last off by this
+	if (__builtin_expect(curr < last, 0)) {
+		do {
+			if ((unsigned char)(*curr - min) > (unsigned char)(max - min))
+				return curr;
+			curr++;
+		} while (curr < last);
+	}
+	return NULL;
+}
+
 /* looks for first occurrence of character <chr> in string <ist> and returns
  * the tail of the string starting with this character, or (ist.end,0) if not
  * found.
