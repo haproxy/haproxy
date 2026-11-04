@@ -936,21 +936,21 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		 * points to the first character of the value.
 		 */
 
-		/* speedup: we'll skip packs of 4 or 8 bytes not containing bytes 0x0D
+		/* speedup: we'll skip packs of 4 or 8 bytes not containing bytes 0x1F
 		 * and lower. In fact since most of the time is spent in the loop, we
-		 * also remove the sign bit test so that bytes 0x8e..0x0d break the
+		 * also remove the sign bit test so that bytes 0xA0..0x1F break the
 		 * loop, but we don't care since they're very rare in header values.
 		 */
 #ifdef HA_UNALIGNED_LE64
 		while (ptr <= end - sizeof(long)) {
-			if (is_char8_below_opt(*(ulong *)ptr, 0x0e))
+			if (is_char8_outside(*(ulong *)ptr, 0x20, 0x7e))
 				goto http_msg_hdr_val2;
 			ptr += sizeof(long);
 		}
 #endif
 #ifdef HA_UNALIGNED_LE
 		while (ptr <= end - sizeof(int)) {
-			if (is_char4_below_opt(*(uint *)ptr, 0x0e))
+			if (is_char4_outside(*(uint *)ptr, 0x20, 0x7e))
 				goto http_msg_hdr_val2;
 			ptr += sizeof(int);
 		}
@@ -960,30 +960,35 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			goto http_msg_ood;
 		}
 	http_msg_hdr_val2:
-		if (likely(!*ptr)) {
-			/* RFC9110 clarified that NUL is explicitly forbidden in header values
-			 * (like CR and LF).
-			 */
-			if (h1m->err_pos < -1 || /* PR_O2_R*BUG_OK not set */
-			    (!(h1m->flags & H1_MF_RESP) && !(global.acc_hreq_vio & HTTP_VIO_HDR_VALUE_NUL)) ||
-			    ((h1m->flags & H1_MF_RESP) && !(global.acc_hres_vio & HTTP_VIO_HDR_VALUE_NUL))) {
-				state = H1_MSG_HDR_VAL;
-				goto http_msg_invalid;
+		if (unlikely((uchar)*ptr < 0x20 || *ptr == 0x7f)) { /* NUL, CTL, TAB, CR/LF */
+			if (likely(!*ptr)) {
+				/* RFC9110 clarified that NUL is explicitly forbidden in header values
+				 * (like CR and LF).
+				 */
+				if (h1m->err_pos < -1 || /* PR_O2_R*BUG_OK not set */
+				    (!(h1m->flags & H1_MF_RESP) && !(global.acc_hreq_vio & HTTP_VIO_HDR_VALUE_NUL)) ||
+				    ((h1m->flags & H1_MF_RESP) && !(global.acc_hres_vio & HTTP_VIO_HDR_VALUE_NUL))) {
+					state = H1_MSG_HDR_VAL;
+					goto http_msg_invalid;
+				}
+				if (h1m->err_pos == -1) /* PR_O2_REQBUG_OK set: just log */
+					h1m->err_pos = ptr - start + skip;
 			}
-			if (h1m->err_pos == -1) /* PR_O2_REQBUG_OK set: just log */
-				h1m->err_pos = ptr - start + skip;
-		}
-		if (likely(!HTTP_IS_CRLF(*ptr)))
-			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_val2, http_msg_ood, state, H1_MSG_HDR_VAL);
 
-		eol = ptr - start;
-		/* Note: we could also copy eol into ->eoh so that we have the
-		 * real header end in case it ends with lots of LWS, but is this
-		 * really needed ?
-		 */
-		if (likely(*ptr == '\r'))
-			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l2_lf, http_msg_ood, state, H1_MSG_HDR_L2_LF);
-		goto http_msg_hdr_l2_lf;
+			if (likely(HTTP_IS_CRLF(*ptr))) {
+				eol = ptr - start;
+				/* Note: we could also copy eol into ->eoh so that we have the
+				 * real header end in case it ends with lots of LWS, but is this
+				 * really needed ?
+				 */
+				if (likely(*ptr == '\r'))
+					EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_l2_lf, http_msg_ood, state, H1_MSG_HDR_L2_LF);
+				goto http_msg_hdr_l2_lf;
+			}
+		}
+
+		/* OK, not < 0x20 or a valid one (e.g. tab) */
+		EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_val2, http_msg_ood, state, H1_MSG_HDR_VAL);
 
 	case H1_MSG_HDR_L2_LF:
 	http_msg_hdr_l2_lf:
