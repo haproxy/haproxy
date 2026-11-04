@@ -766,46 +766,49 @@ static inline const char *ist_find_ctl(const struct ist ist)
 	return NULL;
 }
 
-/* Returns a pointer to the first character found <ist> that belongs to the
+/* Returns a pointer to the first character from <ist> that belongs to the
  * range [min:max] inclusive, or NULL if none is present. The function is
  * optimized for strings having no such chars by processing up to sizeof(long)
  * bytes at once on architectures supporting efficient unaligned accesses.
  * Despite this it is not very fast (~0.43 byte/cycle) and should mostly be
  * used on low match probability when it can save a call to a much slower
- * function. Will not work for characters 0x80 and above. It's optimized for
- * min and max to be known at build time.
+ * function. The range must satisfy min <= max <= 0x7f, but the string may
+ * contain any byte value. It's optimized for min and max to be known at build
+ * time.
  */
 static inline const char *ist_find_range(const struct ist ist, unsigned char min, unsigned char max)
 {
 	const union { unsigned long v; } __attribute__((packed)) *u;
 	const char *curr = (void *)ist.ptr - sizeof(long);
 	const char *last = curr + ist.len;
-	unsigned long l1, l2;
-
-	/* easier with an exclusive boundary */
-	max++;
+	const unsigned long m = (~0UL / 255) * 0x80; /* 0x808080...80 */
+	const unsigned long l1 = (~0UL / 255) * min; /* 0x<min><min>...<min> */
+	const unsigned long l2 = (~0UL / 255) * max; /* 0x<max><max>...<max> */
+	unsigned long x, r;
 
 	do {
 		curr += sizeof(long);
 		if (curr > last)
 			break;
 		u = (void *)curr;
-		/* add 0x<min><min><min><min>..<min> then subtract
-		 * 0x<max><max><max><max>..<max> to the value to generate a
-		 * carry in the lower byte if the byte contains a lower value.
-		 * If we generate a bit 7 that was not there, it means the byte
-		 * was min..max.
+		/* Bit 7 of each byte of r is set if the byte may be in the
+		 * range, and the word is then rescanned one byte at a time.
+		 * The word test may only give false positives, never false
+		 * negatives:
+		 *  - (x | m) - <min>: all bytes are >= 0x80 >= min, so no carry
+		 *    propagates to upper bytes and bit 7 reports (b & 0x7f) >= min;
+		 *  - (<max> | m) - x: bytes < 0x80 so bit 7 reports b <= max.
+		 *    Bytes >= 0x80 + max may cause a carry to appear, which
+		 *    will end the loop for per-byte check.
 		 */
-		l2  = u->v;
-		l1  = ~l2 & ((~0UL / 255) * 0x80); /* 0x808080...80 */
-		l2 += (~0UL / 255) * min;          /* 0x<min><min>..<min> */
-		l2 -= (~0UL / 255) * max;          /* 0x<max><max>..<max> */
-	} while ((l1 & l2) == 0);
+		x = u->v;
+		r = ((x | m) - l1) & ((l2 | m) - x) & m;
+	} while (!r);
 
 	last += sizeof(long);
 	if (__builtin_expect(curr < last, 0)) {
 		do {
-			if ((unsigned char)(*curr - min) < (unsigned char)(max - min))
+			if ((unsigned char)(*curr - min) <= (unsigned char)(max - min))
 				return curr;
 			curr++;
 		} while (curr < last);
