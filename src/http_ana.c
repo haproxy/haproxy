@@ -3047,7 +3047,7 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 
 	if (final)
 		act_opts |= ACT_OPT_FINAL;
-	if ((s->scf->flags & SC_FL_ERROR) ||
+	if ((s->scf->flags & SC_FL_ERROR) || (s->scb->flags & SC_FL_ERROR) ||
 	    ((s->scf->flags & SC_FL_EOS) && proxy_abrt_close_def(px, 1)))
 		act_opts |= ACT_OPT_FINAL | ACT_OPT_FINAL_EARLY;
 
