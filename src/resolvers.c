@@ -1372,9 +1372,13 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				/* TXT: sequence of [1-byte length | string bytes] *.
 				 * Only the first string is kept, further data is ignored.
 				 */
-				int slen = (unsigned char)reader[0];
+				int slen;
 
-				if (answer_record->data_len < 1 || 1 + slen > answer_record->data_len)
+				if (answer_record->data_len < 1)
+					goto invalid_resp;
+
+				slen = (unsigned char)reader[0];
+				if (1 + slen > answer_record->data_len)
 					goto invalid_resp;
 				offset = answer_record->data_len;
 				memcpy(answer_record->data.target, reader + 1, slen);
