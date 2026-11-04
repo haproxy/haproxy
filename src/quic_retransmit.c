@@ -139,7 +139,6 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
                           struct quic_pktns *pktns,
                           struct list *frms1, struct list *frms2)
 {
-	struct eb_root *pkts = &pktns->tx.pkts;
 	struct list *frms = frms1;
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
@@ -153,7 +152,7 @@ void qc_prep_fast_retrans(struct quic_conn *qc,
 	 * again into <frms2> so that a second probe datagram is sent.
 	 */
 	pkt = NULL;
-	node = eb64_first(pkts);
+	node = eb64_first(&pktns->tx.pkts);
  start:
 	while (node) {
 		struct quic_tx_packet *p;
@@ -209,7 +208,6 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 
 	struct quic_enc_level *iqel = qc->iel;
 	struct quic_enc_level *hqel = qc->hel;
-	struct eb_root *pkts;
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
 	struct list *tmp = &itmp;
@@ -217,8 +215,7 @@ void qc_prep_hdshk_fast_retrans(struct quic_conn *qc,
 	TRACE_ENTER(QUIC_EV_CONN_SPPKTS, qc);
 
 	pkt = NULL;
-	pkts = &iqel->pktns->tx.pkts;
-	node = eb64_first(pkts);
+	node = eb64_first(&iqel->pktns->tx.pkts);
 	/* Skip the empty packet (they have already been retransmitted) */
 	while (node) {
 		struct quic_tx_packet *p;
