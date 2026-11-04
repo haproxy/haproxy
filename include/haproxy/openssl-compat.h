@@ -624,6 +624,17 @@ static inline unsigned long ERR_peek_error_func(const char **func)
 #define HA_USE_KTLS
 #endif /* OPENSSL_IS_BORINGSSL || OPENSSL_IS_AWSLC */
 
+/* OpenSSL 3.4.6 and 3.5.7 fixed a kTLS bug where a blocked send kept
+ * referencing the caller's buffer; earlier versions corrupt streams.
+ */
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#define HAVE_KTLS_TX_RETRY_FIX
+#elif defined(HAVE_VANILLA_OPENSSL) && \
+      (OPENSSL_VERSION_NUMBER >= 0x30500070L || \
+       (OPENSSL_VERSION_NUMBER >= 0x30400060L && OPENSSL_VERSION_NUMBER < 0x30500000L))
+#define HAVE_KTLS_TX_RETRY_FIX
+#endif
+
 #endif /* USE_KTLS */
 
 #endif /* USE_OPENSSL */

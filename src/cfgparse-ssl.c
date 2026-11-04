@@ -547,6 +547,17 @@ static int ssl_parse_global_keyupdate_ratelimit(char **args, int section_type, s
 	return 0;
 }
 
+static int ssl_parse_global_ktls_unsafe(char **args, int section_type, struct proxy *curpx,
+                                         const struct proxy *defpx, const char *file, int line,
+                                         char **err)
+{
+	if (too_many_args(0, args, err, NULL))
+		return -1;
+
+	global_ssl.ktls_unsafe = 1;
+	return 0;
+}
+
 /* Allow to explicitly disable certificate compression when set to "off" */
 #ifdef SSL_OP_NO_RX_CERTIFICATE_COMPRESSION
 static int ssl_parse_certificate_compression(char **args, int section_type, struct proxy *curpx,
@@ -1030,7 +1041,7 @@ static int ssl_bind_parse_ktls(char **args, int cur_arg, struct proxy *px, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 	if (strcasecmp(args[cur_arg + 1], "on") == 0) {
-		conf->ktls = 1;
+		conf->ktls = ssl_sock_ktls_allowed();
 	} else if (strcasecmp(args[cur_arg + 1], "off") == 0) {
 		conf->ktls = 0;
 	} else {
@@ -2116,7 +2127,8 @@ static int srv_parse_ktls(char **args, int *cur_arg, struct proxy *px, struct se
 	}
 
 	if (strcasecmp(args[*cur_arg + 1], "on") == 0) {
-		newsrv->ssl_ctx.options |= SRV_SSL_O_KTLS;
+		if (ssl_sock_ktls_allowed())
+			newsrv->ssl_ctx.options |= SRV_SSL_O_KTLS;
 	} else if (strcasecmp(args[*cur_arg + 1], "off") == 0) {
 		newsrv->ssl_ctx.options &= ~SRV_SSL_O_KTLS;
 	} else {
@@ -2894,6 +2906,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_buffer },
 	{ CFG_GLOBAL, "tune.ssl.capture-buffer-size", ssl_parse_global_capture_buffer },
+	{ CFG_GLOBAL, "tune.ssl.ktls-unsafe", ssl_parse_global_ktls_unsafe },
 	{ CFG_GLOBAL, "tune.ssl.keylog", ssl_parse_global_keylog },
 	{ CFG_GLOBAL, "tune.ssl.keyupdate-rate-limit", ssl_parse_global_keyupdate_ratelimit },
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },

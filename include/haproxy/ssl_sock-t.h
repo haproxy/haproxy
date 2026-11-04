@@ -292,6 +292,7 @@ struct global_ssl {
 	int  skip_self_issued_ca;
 
 	int  async;                 /* whether we use ssl async mode */
+	int ktls_unsafe;             /* allow kTLS despite the library kTLS bug */
 
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;

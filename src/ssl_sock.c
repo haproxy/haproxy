@@ -6348,6 +6348,29 @@ void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
  * handshake flag on the connection. It is safe to call it multiple times.
  * It returns 0 on success and -1 in error case.
  */
+/* kTLS silently corrupts streams on libraries that keep referencing the caller's
+ * buffer after a blocked send (fixed in 3.4.6 and 3.5.7), so it is refused by
+ * default and the user has to opt in.
+ */
+int ssl_sock_ktls_allowed(void)
+{
+#ifdef HAVE_KTLS_TX_RETRY_FIX
+	return 1;
+#else
+	static char warned;
+
+	if (global_ssl.ktls_unsafe)
+		return 1;
+	if (!warned) {
+		warned = 1;
+		ha_notice("kTLS disabled: this OpenSSL version is affected by a known "
+		          "kTLS bug; upgrade to at least 3.4.6 or 3.5.7, or set "
+		          "'tune.ssl.ktls-unsafe' to use it anyway.\n");
+	}
+	return 0;
+#endif
+}
+
 static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 {
 	struct ssl_sock_ctx *ctx;
@@ -6427,7 +6450,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		ssl_sock_srv_try_reuse_sess(ctx, srv);
 
 #ifdef HA_USE_KTLS
-		if ((srv->ssl_ctx.options & SRV_SSL_O_KTLS) && !(global.tune.options & GTUNE_NO_KTLS)) {
+		if ((srv->ssl_ctx.options & SRV_SSL_O_KTLS) &&
+		    !(global.tune.options & GTUNE_NO_KTLS) && ssl_sock_ktls_allowed()) {
 #ifdef HAVE_VANILLA_OPENSSL
 			SSL_set_options(ctx->ssl, SSL_OP_ENABLE_KTLS);
 #endif
@@ -6474,7 +6498,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 #endif
 
 #ifdef HA_USE_KTLS
-		if (bc->ssl_conf.ktls && !(global.tune.options & GTUNE_NO_KTLS)) {
+		if (bc->ssl_conf.ktls &&
+		    !(global.tune.options & GTUNE_NO_KTLS) && ssl_sock_ktls_allowed()) {
 #ifdef HAVE_VANILLA_OPENSSL
 			SSL_set_options(ctx->ssl, SSL_OP_ENABLE_KTLS);
 #endif

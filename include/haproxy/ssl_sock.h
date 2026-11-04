@@ -40,6 +40,8 @@ extern struct eb_root crtlists_tree;
 extern struct eb_root cafile_tree;
 extern int sctl_ex_index;
 extern struct global_ssl global_ssl;
+
+int ssl_sock_ktls_allowed(void);
 extern struct ssl_crtlist_kw ssl_crtlist_kws[];
 extern struct methodVersions methodVersions[];
 __decl_thread(extern HA_SPINLOCK_T ckch_lock);
