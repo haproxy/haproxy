@@ -563,7 +563,7 @@ static size_t hstream_add_ff_data(struct hstream *hs, struct sedesc *sd, unsigne
 		modulo = HS_COMMON_RESPONSE_LINE_SZ;
 	}
 
-	offset = (hs->req_size - len) % modulo;
+	offset = (hs->req_size - hs->to_write) % modulo;
 	data_ptr = buffer + offset;
 	if (len > (unsigned long long)(buffer_len - offset))
 		len = (unsigned long long)(buffer_len - offset);
