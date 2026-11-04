@@ -1,0 +1,345 @@
+varnishtest "HTTP hardening profiles: declaration, inheritance, selection and CLI"
+
+# This checks how http-hardening profiles are built and selected, using a few
+# checks which are easy to observe on HTTP/1 requests:
+#   - "get" as a method          (reject-lowercase-method)
+#   - a duplicate Host header     (reject-duplicate-host-header)
+#   - a header named "x_a"        (reject/delete-underscore-in-header-name)
+#   - a header named "X-Foo"      (delete-unregistered-header-fields)
+# The frontend replies itself and reports the header names it saw. Then the
+# "show http-hardening" and "set http-hardening" CLI commands are tested, as
+# well as the configuration errors.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev10)'"
+feature ignore_unknown_macro
+
+# response with an underscore in a header name, for the server side
+server s1 -repeat 3 {
+	rxreq
+	txresp -hdr "x_a: 1"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+	thread-groups 1
+    .endif
+
+    # the implicit profiles may be redefined, in which case they start from
+    # their defaults: none for "trusted", and a few rejections including
+    # reject-lowercase-method for "untrusted". The test runs over the
+    # loopback, so "trusted" is the one used by default.
+    http-hardening trusted
+	reject-lowercase-method on
+
+    http-hardening untrusted
+	reject-duplicate-host-header on
+
+    # everything but one check
+    http-hardening base
+	all on
+	reject-lowercase-method off
+
+    # inherits everything from "base", and turns the underscore rejection
+    # into a deletion since the latter is still enabled.
+    http-hardening child from base
+	reject-underscore-in-header-name off
+
+    # the aliases only cover their own family
+    http-hardening norej
+	all on
+	all-reject off
+
+    http-hardening nodel
+	all on
+	all-delete off
+
+    # starts empty, modified from the CLI
+    http-hardening cli
+	all off
+
+    http-hardening srvp
+	reject-underscore-in-header-name on
+
+    defaults
+	mode http
+	http-reuse never
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${auto}"
+	bind "fd@${autokw}"    http-hardening auto
+	bind "fd@${untrusted}" http-hardening untrusted
+	bind "fd@${base}"      http-hardening base
+	bind "fd@${child}"     http-hardening child
+	bind "fd@${norej}"     http-hardening norej
+	bind "fd@${nodel}"     http-hardening nodel
+	bind "fd@${clip}"      http-hardening cli
+	http-request return status 200 hdr x-hdrs "%[req.hdr_names]"
+
+    # the server profile is inherited from default-server, and may be reset
+    # to "auto", which is "trusted" for servers.
+    listen srv_inherit
+	bind "fd@${srv_inherit}" http-hardening cli
+	default-server http-hardening srvp
+	server s1 ${s1_addr}:${s1_port}
+
+    listen srv_auto
+	bind "fd@${srv_auto}" http-hardening cli
+	default-server http-hardening srvp
+	server s1 ${s1_addr}:${s1_port} http-hardening auto
+} -start
+
+# no profile or "auto" on a local connection: "trusted"
+client c_auto -connect ${h1_auto_sock} {
+	txreq -nouseragent -nohost -hdr "host: a" -hdr "host: a"
+	rxresp
+	expect resp.status == 200
+
+	txreq -req get
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_autokw -connect ${h1_autokw_sock} {
+	txreq -req get
+	rxresp
+	expect resp.status == 400
+} -run
+
+# the redefined "untrusted" keeps its defaults and adds its own rules
+client c_untrusted -connect ${h1_untrusted_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -nohost -hdr "host: a" -hdr "host: a"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_untrusted2 -connect ${h1_untrusted_sock} {
+	txreq -req get
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_base -connect ${h1_base_sock} {
+	txreq -req get
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -hdr "x_a: 1"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_child -connect ${h1_child_sock} {
+	txreq -req get -nouseragent -nohost -hdr "x_a: 1" -hdr "X-Foo: 2" -hdr "b: 3"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "b"
+} -run
+
+client c_norej -connect ${h1_norej_sock} {
+	txreq -req get -nouseragent -nohost -hdr "x_a: 1" -hdr "X-Foo: 2" -hdr "b: 3" -hdr "host: a" -hdr "host: a"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "b,host"
+} -run
+
+client c_nodel -connect ${h1_nodel_sock} {
+	txreq -nouseragent -nohost -hdr "X-Foo: 2"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "x-foo"
+
+	txreq -nouseragent -hdr "x_a: 1"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_srv_inherit -connect ${h1_srv_inherit_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_srv_auto -connect ${h1_srv_auto_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x_a == "1"
+} -run
+
+#
+# CLI
+#
+
+haproxy h1 -cli {
+	# both implicit profiles were declared, none is reported as implicit
+	send "show http-hardening"
+	expect ~ "^base\nchild\ncli\nnodel\nnorej\nsrvp\ntrusted\nuntrusted\n"
+
+	send "show http-hardening child"
+	expect ~ " 1 reject-duplicate-host-header +req +on\n 2 reject-lowercase-method +req +off\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +on\n 5 delete-underscore-in-header-name +- +on\n"
+
+	send "show http-hardening cli"
+	expect !~ " on\n"
+
+	send "show http-hardening nope"
+	expect ~ "Unknown http-hardening profile"
+
+	send "set http-hardening nope all on"
+	expect ~ "Unknown http-hardening profile"
+
+	send "set http-hardening cli nope on"
+	expect ~ "Unknown http-hardening option"
+
+	send "set http-hardening cli reject-lowercase-meth on"
+	expect ~ "Maybe you meant 'reject-lowercase-method'"
+
+	send "set http-hardening cli all maybe"
+	expect ~ "Expects 'on' or 'off'"
+
+	send "set http-hardening cli all"
+	expect ~ "Usage: set http-hardening"
+
+	send "set http-hardening cli reject-lowercase-method on"
+	expect ~ "^$"
+
+	send "show http-hardening cli"
+	expect ~ " 2 reject-lowercase-method +req +on\n 3 reject-underscore-in-header-name +- +off\n"
+}
+
+client c_cli1 -connect ${h1_clip_sock} {
+	txreq -req get
+	rxresp
+	expect resp.status == 400
+} -run
+
+haproxy h1 -cli {
+	# options may be designated by their number
+	send "set http-hardening cli 2 off"
+	expect ~ "^$"
+
+	send "set http-hardening cli 3 on"
+	expect ~ "^$"
+
+	send "show http-hardening cli"
+	expect ~ " 2 reject-lowercase-method +req +off\n 3 reject-underscore-in-header-name +- +on\n"
+}
+
+client c_cli2 -connect ${h1_clip_sock} {
+	txreq -req get
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -hdr "x_a: 1"
+	rxresp
+	expect resp.status == 400
+} -run
+
+# the change applies to the servers using the profile as well
+haproxy h1 -cli {
+	send "set http-hardening srvp all off"
+	expect ~ "^$"
+}
+
+client c_srv_inherit2 -connect ${h1_srv_inherit_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x_a == "1"
+} -run
+
+# without declaration, the two implicit profiles are reported as such, with
+# their default settings, which are inherited by "from".
+haproxy h2 -conf {
+    global
+    .if feature(THREAD)
+	thread-groups 1
+    .endif
+
+    http-hardening other from untrusted
+	reject-lowercase-method off
+
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+	bind "fd@${fe}" http-hardening untrusted
+	http-request return status 200
+} -start
+
+haproxy h2 -cli {
+	send "show http-hardening"
+	expect ~ "^untrusted \\(implicit\\)\ntrusted \\(implicit\\)\nother\n"
+
+	send "show http-hardening trusted"
+	expect !~ " on\n"
+
+	send "show http-hardening untrusted"
+	expect ~ " 1 reject-duplicate-host-header +req +off\n 2 reject-lowercase-method +req +on\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +off\n 5 delete-underscore-in-header-name +- +off\n 6 delete-underscore-in-trailer-name +- +off\n 7 delete-unregistered-header-fields +- +off\n 8 delete-unregistered-trailer-fields +- +off\n 9 delete-all-trailer-fields +- +off\n10 reject-header-trailer-folding +- +on\n11 reject-ctl-in-header-trailer +- +on\n12 reject-content-length-with-te +- +on\n13 reject-content-length-leading-zero +- +on\n"
+
+	send "show http-hardening other"
+	expect ~ " 2 reject-lowercase-method +req +off\n(.*\n)*10 reject-header-trailer-folding +- +on\n"
+}
+
+#
+# Configuration errors
+#
+
+# profiles must be declared before being referenced
+haproxy h3 -conf-BAD {unknown http-hardening profile 'later'} {
+    defaults
+	mode http
+    frontend fe
+	bind "fd@${fe}" http-hardening later
+    http-hardening later
+	all on
+}
+
+haproxy h4 -conf-BAD {unknown http-hardening profile 'nope'} {
+    defaults
+	mode http
+    backend be
+	server s1 127.0.0.1:1 http-hardening nope
+}
+
+haproxy h5 -conf-BAD {'http-hardening' name 'auto' is reserved} {
+    http-hardening auto
+	all on
+}
+
+haproxy h6 -conf-BAD {has same name as another one} {
+    http-hardening dup
+	all on
+    http-hardening dup
+	all off
+}
+
+haproxy h7 -conf-BAD {cannot inherit from 'nope' (not found)} {
+    http-hardening p1 from nope
+	all on
+}
+
+haproxy h8 -conf-BAD {cannot inherit from itself} {
+    http-hardening trusted from trusted
+	all on
+}
+
+haproxy h9 -conf-BAD {Maybe you meant 'reject-lowercase-method'} {
+    http-hardening p1
+	reject-lowercase-meth on
+}
+
+haproxy h10 -conf-BAD {expects 'on' or 'off'} {
+    http-hardening p1
+	all yes
+}
