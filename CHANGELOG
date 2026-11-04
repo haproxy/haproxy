@@ -1,6 +1,104 @@
 ChangeLog :
 ===========
 
+2026/11/04 : 3.5-dev11
+    - BUILD: sym: Fix build on recent glibc
+    - BUG/MINOR: checks/log: force implicit UDP checks as TCP for log backend
+    - CLEANUP: sym: factor out the short object name extraction
+    - MINOR: sym: use the symbol table to resolve a DSO name
+    - BUG/MINOR: errors: reset diagnostic buffers after thread cleanup
+    - BUG/MINOR: sample: fix NULL dereference in the ltime/utime converters
+    - BUILD: Makefile: extend the capabilities of EXTRA_MAKE
+    - MINOR: thread: add EXTRAS_LOCK so addons can name their locks
+    - BUG/MINOR: debug: fix "debug dev fd" crash on unknown address families
+    - BUILD: Makefile: allow external makefiles to provide build targets
+    - BUG/MEDIUM: ssl: skip TLS 1.3 suites in the FIPS TLS 1.2 cipher check
+    - REGTESTS: ssl: skip AWS-LC FIPS rejected crypto in ciphersuites/curves tests
+    - CI: github: add AWS-LC FIPS testing workflow
+    - BUILD: github: run FreeBSD CI on every branch
+    - CI: github: cache VTest binary in FreeBSD workflow
+    - BUG/MEDIUM: proxy: fix stick table expired entries cleanup on stopping
+    - BUG/MINOR: http-ana: fix response compression for applets
+    - DOC: configuration: Clarify wait-for-body doc for the response side
+    - MINOR: http-act: Add 'no-fail' option on 'wait-for-body' action
+    - BUG/MEDIUM: leastconn: reset the smallest key when backups take over
+    - CLEANUP: quic: remove duplicated key phase pointer assignments
+    - MINOR: quic: use the right trace event in quic_tls_key_update()
+    - CLEANUP: quic: remove duplicated rx offset initialization in quic_cstream_new()
+    - CLEANUP: quic: remove the unused tx part of struct quic_cstream
+    - CLEANUP: quic: remove unused tx crypto size and offset counters
+    - BUG/MINOR: quic: fix the header protection key length dump with AWS-LC
+    - CLEANUP: quic: remove the unused key parameter from quic_tls_decrypt()
+    - CLEANUP: quic: remove the unused count and flags from struct quic_tls_kp
+    - CLEANUP: quic: remove the stale initial_salt declaration
+    - CLEANUP: quic: remove duplicated quic_cstream_new() declaration
+    - CLEANUP: quic: remove the unneeded quic_rx.h include from quic_tls.c
+    - CLEANUP: quic: update the outdated comment of quic_tls_derive_keys()
+    - BUG/MINOR: sample: realign the ungrpc converter on message boundaries
+    - BUG/MEDIUM: compression: fix incompatibility between compression and large-buffers
+    - CLEANUP: tools: make inetaddr_host_lim*() usable on untrusted inputs
+    - BUG/MINOR: flt-http-comp: check the block returned by htx_replace_blk_value()
+    - BUG/MINOR: compression: pass the configured level to slz
+    - OPTIM: flt-http-comp: only flush the compressor after the last DATA block
+    - IMPORT: slz: update slz to version 1.4-dev4
+    - MINOR: compression: pass the content type to the algorithms' init function
+    - MINOR: flt-http-comp: size the compression reserve using SLZ_MAX_OVERHEAD()
+    - REGTESTS: compression: check hard to compress contents and nearly full buffers
+    - BUG/MEDIUM: mux-h1: don't drop pending output on a short content-length
+    - BUG/MINOR: filters: Reject id-less implicit instances of multi-instance classes
+    - BUG/MINOR: ssl/ckch: free the new instance when ckch_inst_rebuild() fails
+    - BUG/MEDIUM: ssl/cli: reset the ongoing transaction when "commit ssl cert" is interrupted
+    - BUG/MEDIUM: ssl/cli: don't unlock the certificate lock after a failed trylock
+    - BUG/MINOR: httpclient/lua: fix stack overread when copying the headers
+    - BUG/MINOR: httpclient/lua: raise an error on too many request headers
+    - BUG/MINOR: resolvers: validate TXT RDATA before reading
+    - MINOR: stream: add per-stream memory slots
+    - BUG/MINOR: haterm: fix the response body phase on short writes
+    - BUG/MEDIUM: haload: restore request accounting after user timeouts
+    - BUG/MEDIUM: ssl: disable kTLS on OpenSSL versions affected by a known bug
+    - DOC: config: add missing empty line before tune.ssl.ktls-unsafe
+    - BUG/MINOR: ist: make ist_find_range() accept non-zero min boundaries
+    - MINOR: ist: add ist_find_http_ctl() to match http CTL chars
+    - MINOR: ist: add ist_find_outside() to find offending characters
+    - MINOR: http: use ist_find_http_ctl() instead of ist_find_ctl()
+    - MINOR: h1: indicate the trailers state to h1_parse_msg_tlrs()
+    - MINOR: http: introduce the notion of http-hardening flags and sections
+    - MINOR: cfgparse/http: add a simple parser for new section "http-fingerprint"
+    - MINOR: http: support default hardening names "untrusted" and "trusted"
+    - MINOR: cfgparse: dump the "http-hardening" keywords with -dKcfg
+    - MINOR: cli/http: add the "show http-hardening" CLI command
+    - MINOR: listener: add the "http-hardening" bind keyword
+    - MINOR: server: add the "http-hardening" server keyword
+    - MINOR: tools: add is_ip_untrusted() to check for non-local addresses
+    - DOC: config: document the "http-hardening" section and server/bind options
+    - MINOR: http: define http_hdng_chk for ambient hardening checks to be run
+    - MINOR: mux-h1: pass the profile's HTTP hardening checks into the h1c and h1s
+    - MINOR: mux-h2: pass the profile's HTTP hardening checks into the h2c and h2s
+    - MINOR: h3: pass the HTTP hardening checks to the h3s and h3c
+    - MINOR: http: add the "set http-hardening" CLI command
+    - MINOR: http/hardening: implement hardening "reject-duplicate-host-header"
+    - MINOR: http/hardening: implement hardening "reject-lowercase-method"
+    - MINOR: http/hardening: implement hardening "reject-underscore-in-header-name"
+    - MINOR: http/hardening: implement hardening "reject-underscore-in-trailer-name"
+    - MINOR: http/harderning: implement "delete-underscore-in-header-name"
+    - MINOR: http/harderning: implement "delete-underscore-in-trailer-name"
+    - MINOR: http/hardening: add "delete-unregistered-header-fields"
+    - MINOR: http/hardening: add "delete-unregistered-trailer-fields"
+    - MINOR: http/hardening: add "delete-all-trailer-fields"
+    - MINOR: http/hardening: implement hardening "reject-header-trailer-folding"
+    - MINOR: h1: rearrange the header value parser to better deal with CTL chars
+    - MINOR: http: speed up http_header_has_forbidden_char() to make it work alone
+    - MINOR: http: don't call ist_find_http_ctl() before up http_header_has_forbidden_char()
+    - MEDIUM: http/hardening: implement hardening "reject-ctl-in-header-trailer"
+    - MINOR: http/hardening: implement hardening "reject-content-length-with-te"
+    - MINOR: http/hardening: implement hardening "reject-content-length-leading-zero"
+    - MINOR: http/hardening: add aliases "all-reject" and "all-delete"
+    - MEDIUM: http: enable a few important hardening rules on untrusted connections
+    - REGTESTS: http-messaging: test the http-hardening checks on HTTP/1 headers
+    - REGTESTS: http-messaging: test the http-hardening checks on HTTP/2 headers
+    - REGTESTS: http-messaging: test the http-hardening checks on trailers
+    - REGTESTS: http-messaging: test http-hardening profiles and their CLI
+
 2026/10/28 : 3.5-dev10
     - BUG/MEDIUM: stats-file: shm-stats-file be counters not working anymore
     - BUG/MINOR: quic: rearm packet on packet received even non ack-eliciting
