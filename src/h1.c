@@ -1356,6 +1356,11 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 		state = H1_MSG_DATA;
 		if (h1m->flags & H1_MF_XFER_ENC) {
 			if (h1m->flags & H1_MF_CLEN) {
+				if (http_harden(HTTP_HRD_REJ_CL_TE)) {
+					/* strict mode: we don't want to accept that one */
+					goto http_msg_invalid;
+				}
+
 				/* T-E + C-L: force close and remove C-L */
 				if (!h1_do_not_close_on_insecure_t_e)
 					h1m->flags |= H1_MF_CONN_CLO;

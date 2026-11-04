@@ -34578,6 +34578,17 @@ http-hardening <name> [from <name2>]
         safe and even recommended to delete such trailers from inbound internet
         requests.
 
+  - reject-content-length-with-te (inbound request and response)
+        Rejects requests and responses having both a Content-Length header
+        field and a Transfer-Encoding header field. While these are permitted
+        by HTTP/1.1 (Transfer-Encoding wins), it can cause problems when the
+        message first passed through an HTTP/1.0 gateway that does not
+        recognize Transfer-Encoding, and can desynchronize this gateway from
+        the rest of the communication. These are still seldom seen in legacy
+        client or server applications, sometimes in relation with compression
+        and/or caching. While HAProxy properly normalizes them, it is generally
+        safe to reject them on public facing listeners.
+
   - reject-ctl-in-header-trailer (inbound request and response)
         Rejects requests and responses which contain control characters in
         their header or trailer field values (codes 0-8,10-31,127). These ones
