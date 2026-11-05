@@ -1264,9 +1264,9 @@ int stktable_init(struct stktable *t, char **err_msg)
 	return 0;
 }
 
-/* Performs stick table cleanup: it's meant to be called after the table
- * has been initialized ith stktable_init(), else it will lead to undefined
- * behavior.
+/* Performs stick table cleanup. It may be called on a table that was never
+ * initialized with stktable_init(), e.g. the table of a disabled proxy, which
+ * is skipped at init time: its buckets were never set up and are left alone.
  *
  * However it does not free the table pointer itself
  */
@@ -1276,7 +1276,8 @@ void stktable_deinit(struct stktable *t)
 
 	if (!t)
 		return;
-	for (i = 0; i < CONFIG_HAP_TBL_BUCKETS; i++) {
+	/* t->pool is only set once stktable_init() has set up the buckets */
+	for (i = 0; t->pool && i < CONFIG_HAP_TBL_BUCKETS; i++) {
 		HA_SPIN_LOCK(OTHER_LOCK, &per_bucket[i].lock);
 		eb32_delete(&t->buckets[i].in_bucket);
 		MT_LIST_DELETE(&t->buckets[i].in_bucket_toadd);
