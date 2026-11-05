@@ -1069,13 +1069,13 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		}
 
 		/* we may have to delete unregistered header names (X-) */
-		if (unlikely(http_harden(HTTP_HRD_DEL_UNREG_HDR))) {
-			if (list[hdr_idx].n.len > 1 && list[hdr_idx].n.ptr[1] == '-' &&
-			    (list[hdr_idx].n.ptr[0] == 'x' || list[hdr_idx].n.ptr[0] == 'X')) {
-				/* skip it, so it won't be added */
-				++hdr_idx;
-				continue;
-			}
+		if (unlikely((http_hdng_chk.rules & HTTP_HRD_DEL_UNREG_HDR) &&
+			     (list[hdr_idx].n.len > 1 && list[hdr_idx].n.ptr[1] == '-' &&
+			      (list[hdr_idx].n.ptr[0] == 'x' || list[hdr_idx].n.ptr[0] == 'X'))) &&
+		    http_harden(HTTP_HRD_DEL_UNREG_HDR)) {
+			/* skip it, so it won't be added */
+			++hdr_idx;
+			continue;
 		}
 
 		if (isteq(list[hdr_idx].n, ist("host"))) {

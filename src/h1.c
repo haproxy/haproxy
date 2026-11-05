@@ -1076,12 +1076,23 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 					break;
 				}
 
+
 				/* we may have to delete unregistered header names (X-) */
-				if (unlikely((h1m->state != H1_MSG_TRAILERS && http_harden(HTTP_HRD_DEL_UNREG_HDR)) ||
-					     (h1m->state == H1_MSG_TRAILERS && http_harden(HTTP_HRD_DEL_UNREG_TLR)))) {
-					if (n.len > 1 && n.ptr[1] == '-' &&
-					    (n.ptr[0] == 'x' || n.ptr[0] == 'X'))
-						break;
+				if (h1m->state != H1_MSG_TRAILERS &&
+				    unlikely((http_hdng_chk.rules & HTTP_HRD_DEL_UNREG_HDR) &&
+					     (n.len > 1 && n.ptr[1] == '-' &&
+					      (n.ptr[0] == 'x' || n.ptr[0] == 'X'))) &&
+				    http_harden(HTTP_HRD_DEL_UNREG_HDR)) {
+					/* skip it, so it won't be added */
+					break;
+				}
+				else if (h1m->state == H1_MSG_TRAILERS &&
+				    unlikely((http_hdng_chk.rules & HTTP_HRD_DEL_UNREG_TLR) &&
+					     (n.len > 1 && n.ptr[1] == '-' &&
+					      (n.ptr[0] == 'x' || n.ptr[0] == 'X'))) &&
+				    http_harden(HTTP_HRD_DEL_UNREG_TLR)) {
+					/* skip it, so it won't be added */
+					break;
 				}
 
 				if (isteqi(n, ist("transfer-encoding"))) {

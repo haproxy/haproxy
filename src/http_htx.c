@@ -2090,11 +2090,12 @@ enum http_parser_status http_trailers_to_htx(struct http_hdr *list, struct htx *
 		}
 
 		/* we may have to delete unregistered header names (X-) */
-		if (unlikely(http_harden(HTTP_HRD_DEL_UNREG_TLR))) {
-			if (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
-			    (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X'))
-				/* skip it, so it won't be added */
-				continue;
+		if (unlikely(http_hdng_chk.rules & HTTP_HRD_DEL_UNREG_TLR) &&
+		    (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
+		     (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X')) &&
+		    http_harden(HTTP_HRD_DEL_UNREG_TLR)) {
+			/* skip it, so it won't be added */
+			continue;
 		}
 
 		/* trim leading/trailing LWS as per RC9113#8.2.1 */

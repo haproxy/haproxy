@@ -405,11 +405,12 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		}
 
 		/* we may have to delete unregistered header names (X-) */
-		if (unlikely(http_harden(HTTP_HRD_DEL_UNREG_HDR))) {
-			if (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
-			    (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X'))
-				/* skip it, so it won't be added */
-				continue;
+		if (unlikely((http_hdng_chk.rules & HTTP_HRD_DEL_UNREG_HDR) &&
+			     (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
+			      (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X'))) &&
+		    http_harden(HTTP_HRD_DEL_UNREG_HDR)) {
+			/* skip it, so it won't be added */
+			continue;
 		}
 
 		if (unlikely(!(fields & H2_PHDR_FND_NONE))) {
@@ -747,11 +748,12 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 		}
 
 		/* we may have to delete unregistered header names (X-) */
-		if (unlikely(http_harden(HTTP_HRD_DEL_UNREG_HDR))) {
-			if (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
-			    (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X'))
-				/* skip it, so it won't be added */
-				continue;
+		if (unlikely((http_hdng_chk.rules & HTTP_HRD_DEL_UNREG_HDR) &&
+			     (list[idx].n.len > 1 && list[idx].n.ptr[1] == '-' &&
+			      (list[idx].n.ptr[0] == 'x' || list[idx].n.ptr[0] == 'X'))) &&
+		    http_harden(HTTP_HRD_DEL_UNREG_HDR)) {
+			/* skip it, so it won't be added */
+			continue;
 		}
 
 		if (!(fields & H2_PHDR_FND_NONE)) {
