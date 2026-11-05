@@ -24,11 +24,11 @@ vtest installation
 ------------------------
 
 To use vtest you will have to download and compile the recent vtest
-sources found at https://github.com/vtest/VTest2.
+sources found at https://code.vinyl-cache.org/vtest/VTest2.
 
 To compile vtest:
 
-    $ cd VTest
+    $ cd VTest2
     $ make vtest
 
 Note that varnishtest may be also compiled but not without the varnish cache
