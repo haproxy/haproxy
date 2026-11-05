@@ -363,7 +363,7 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 
 		if (next)
 			blk = next; // next override requested
-		else
+		else if (blk)
 			blk = htx_get_next_blk(htx, blk);
 		offset = 0;
 	}
