@@ -970,26 +970,32 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 	/* make sure we never interleave writes and we never block. This means
 	 * we prefer to fail on collision than to block. But we don't want to
 	 * lose too many logs so we just perform a few lock attempts then give
-	 * up.
+	 * up. Note that fdtab may not be allocated yet during the earliest
+	 * boot stages (before init_pollers()), where traces may already be
+	 * emitted (e.g. via "-dt" or a "traces" section). In this case the
+	 * process is still single-threaded, so writes cannot be interleaved
+	 * and the per-fd lock is not needed.
 	 */
-
-	while (HA_ATOMIC_BTS(&fdtab[fd].state, FD_EXCL_SYSCALL_BIT)) {
-		if (++attempts >= 200) {
-			/* so that the caller knows the message couldn't be delivered */
-			sent = -1;
-			errno = EAGAIN;
-			goto leave;
+	if (fdtab) {
+		while (HA_ATOMIC_BTS(&fdtab[fd].state, FD_EXCL_SYSCALL_BIT)) {
+			if (++attempts >= 200) {
+				/* so that the caller knows the message couldn't be delivered */
+				sent = -1;
+				errno = EAGAIN;
+				goto leave;
+			}
+			ha_thread_relax();
 		}
-		ha_thread_relax();
-	}
 
-	if (unlikely(!(fdtab[fd].state & FD_INITIALIZED))) {
-		HA_ATOMIC_OR(&fdtab[fd].state, FD_INITIALIZED);
-		if (!isatty(fd))
-			fd_set_nonblock(fd);
+		if (unlikely(!(fdtab[fd].state & FD_INITIALIZED))) {
+			HA_ATOMIC_OR(&fdtab[fd].state, FD_INITIALIZED);
+			if (!isatty(fd))
+				fd_set_nonblock(fd);
+		}
 	}
 	sent = writev(fd, iovec, vec);
-	HA_ATOMIC_BTR(&fdtab[fd].state, FD_EXCL_SYSCALL_BIT);
+	if (fdtab)
+		HA_ATOMIC_BTR(&fdtab[fd].state, FD_EXCL_SYSCALL_BIT);
 
  leave:
 	/* sent > 0 if the message was delivered */
