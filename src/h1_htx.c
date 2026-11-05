@@ -732,6 +732,10 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 		lmax = htx_get_blksz(htxret.blk) - dpos;
 
 	while (1) {
+		int quote = 0;
+		int equal = 0;
+		int bws = 0;
+
 		/* The chunk size is in the following form, though we are only
 		 * interested in the size and CRLF :
 		 *    1*HEXDIGIT *WSP *[ ';' extensions ] CRLF
@@ -772,18 +776,19 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 			goto parsing_error;
 		}
 
-		/* Skip spaces */
-		while (HTTP_IS_SPHT(end[ridx])) {
-			if (!++ridx)
-				goto end_parsing;
-		}
-
 		/* Up to there, we know that at least one byte is present. Check
-		 * for the end of chunk size.
+		 * for the end of chunk size. We may run into optional extensions
+		 * (fairly unlikely), the syntax of the extension after the size
+		 * must be strictly followed:
+		 *     *( BWS ';' BWS <name> [ BWS '=' BWS <value> ] )
 		 */
 		while (1) {
 			if (likely(end[ridx] == '\r')) {
 				/* Parse CRLF */
+				if (unlikely(bws || equal || quote)) {
+					/* BWS or equal or quote before the end */
+					goto parsing_error;
+				}
 				if (!++ridx)
 					goto end_parsing;
 				if (unlikely(end[ridx] != '\n')) {
@@ -797,42 +802,114 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 			}
 			else if (likely(end[ridx] == ';')) {
 				int backslash = 0;
-				int quote = 0;
+				int token = 0;
 
 				/* chunk extension, ends at next CRLF */
 				if (!++ridx)
 					goto end_parsing;
 
-				/* The loop seeks the first CRLF or non-tab CTL char
-				 * and stops there. If a backslash/quote is active,
-				 * it's an error. If none, we assume it's the CRLF
-				 * and go back to the top of the loop checking for
-				 * CR then LF. This way CTLs, lone LF etc are handled
-				 * in the fallback path. This allows to protect
-				 * remotes against their own possibly non-compliant
-				 * chunk-ext parser which could mistakenly skip a
-				 * quoted CRLF. Chunk-ext are not used anyway, except
-				 * by attacks.
-				 */
-				while (!HTTP_IS_CTL(end[ridx]) || HTTP_IS_SPHT(end[ridx])) {
-					if (backslash)
-						backslash = 0; // escaped char
-					else if (end[ridx] == '\\' && quote)
-						backslash = 1;
-					else if (end[ridx] == '\\') // backslash not permitted outside quotes
-						goto parsing_error;
-					else if (end[ridx] == '"')  // begin/end of quoted-pair
-						quote = !quote;
+				/* skip second BWS (before name) */
+				bws = 0;
+				while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+					bws = 1;
 					if (!++ridx)
 						goto end_parsing;
 				}
 
-				/* mismatched quotes / backslashes end here */
-				if (quote || backslash)
+				/* token */
+				token = 0;
+				while (HTTP_IS_TOKEN(end[ridx])) {
+					token = 1;
+					if (!++ridx)
+						goto end_parsing;
+				}
+
+				if (!token) // empty name
 					goto parsing_error;
 
-				/* CTLs (CRLF) fall to the common check */
+				/* BWS before '=' */
+				bws = 0;
+				while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+					bws = 1;
+					if (!++ridx)
+						goto end_parsing;
+				}
+
+				/* if not '=', must be another ext or CR. Pending
+				 * bws will be handled there.
+				 */
+				if (end[ridx] != '=')
+					continue;
+
+				if (!++ridx)
+					goto end_parsing;
+
+				/* We have a value; it must be a non-empty token
+				 * or quoted string after BWS.
+				 */
+				equal = 1;
+
+				/* BWS after '=' */
+				bws = 0;
+				while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+					bws = 1;
+					if (!++ridx)
+						goto end_parsing;
+				}
+
+				if (HTTP_IS_TOKEN(end[ridx])) {
+					token = 1;
+					bws = equal = 0;
+					do {
+						if (!++ridx)
+							goto end_parsing;
+					} while (HTTP_IS_TOKEN(end[ridx]));
+
+					/* we have a token, the rest will be validated
+					 * with the next ext or the CR. bws is zero in
+					 * this case.
+					 */
+					equal = 0;
+					continue;
+				}
+
+				/* not a token ? must be a quoted string then */
+				if (end[ridx] != '"')
+					goto parsing_error;
+
+				if (!++ridx)
+					goto end_parsing;
+
+				quote = 1;
+				bws = 0;
+				while (!HTTP_IS_CTL(end[ridx]) || HTTP_IS_SPHT(end[ridx])) {
+					if (backslash)
+						backslash = 0; // escaped char
+					else if (end[ridx] == '"') { // end of quoted-pair
+						quote = 0;
+						if (!++ridx)
+							goto end_parsing;
+						break;
+					}
+					else if (quote && end[ridx] == '\\')
+						backslash = 1;
+					if (!++ridx)
+						goto end_parsing;
+				}
+
+				/* closing quote met, here we must have CR, BWS or ';',
+				 * ready for another run.
+				 */
+				equal = 0;
 				continue;
+			}
+			else if (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+				/* Skip spaces; they're only allowed before the ';' */
+				bws = 1;
+				do {
+					if (!++ridx)
+						goto end_parsing;
+				} while (HTTP_IS_SPHT(end[ridx]));
 			}
 			else {
 				/* all other characters are unexpected, especially LF alone */
