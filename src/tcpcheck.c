@@ -563,8 +563,8 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 
 	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
-	/* 3 Bytes for the packet length and 1 byte for the sequence id */
-	if (b_data(&check->bi) < offset+4) {
+	/* 3 Bytes for the packet length, 1 byte for the sequence id and 1 byte for the type */
+	if (b_data(&check->bi) < offset+5) {
 		if (!last_read)
 			goto wait_more_data;
 
@@ -587,6 +587,16 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 	}
 
 	if (*b_peek(&check->bi, offset+4) == '\xff') {
+		/* The shortest error packet carries at least 4 payload bytes:
+		 * the packet type (0xff), a 2-byte error code and the
+		 * description (at least one byte).
+		 */
+		if (plen < 4) {
+			/* invalid length */
+			status = HCHK_STATUS_L7RSP;
+			goto error;
+		}
+
 		/* MySQL Error packet always begin with field_count = 0xff */
 		status = HCHK_STATUS_L7STS;
 		err = ((unsigned char) *b_peek(&check->bi, offset+5)) +
