@@ -124,15 +124,25 @@ static inline void http_reset_hardening_check(struct http_hdng_chk *chk)
  *             goto fail;
  *
  * Make sure to pass it single-bit options to keep found/fixed easy to grasp.
+ * Note: this is now written as a macro so that we can count the number of
+ * matches per call place. We try hard not to report multiple matches (e.g.
+ * CTL chars in header values), so we report only once per found type if no
+ * remediation is enabled.
  */
-static inline int http_harden(uint32_t flag)
-{
-	http_hdng_chk.found |= flag;
-	if (!(http_hdng_chk.rules & flag))
-		return 0;
-	http_hdng_chk.fixed |= flag;
-	return 1;
-}
+#define http_harden(flag) ({                                                  \
+	uint32_t _flag = (flag);                                              \
+	int _ret = 0;                                                         \
+	if (unlikely((http_hdng_chk.rules | ~http_hdng_chk.found) & _flag)) { \
+		http_hdng_chk.found |= _flag;                                 \
+		COUNT_IF(1, "hardening " #flag " condition met");             \
+		if (http_hdng_chk.rules & _flag) {                            \
+			COUNT_IF(1, "hardening " #flag " enforced");          \
+			http_hdng_chk.fixed |= _flag;                         \
+			_ret = 1;                                             \
+	        }                                                             \
+	}                                                                     \
+	_ret;                                                                 \
+})
 
 /* Match language range with language tag. RFC2616 14.4:
  *
