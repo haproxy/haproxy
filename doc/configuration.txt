@@ -2271,11 +2271,14 @@ acceptable-http-response-violations { [-+]<http-violation>[,...] }
       originating from untrusted clients.
 
     - "invalid-version-string" (both): this controls the acceptance of an HTTP
-      version that is not strictly made of one digit, a dot, and another digit.
-      It should not be needed but might help to work around scripts emittng a
-      version based on an improperly rounded floating point number, such as
-      "HTTP/1.099999875" or "HTTP/0.9999999". This should never be needed, but
-      the risk is low (the string is rebuilt on output).
+      version received on an HTTP/1 connection that is not strictly "1.0" or
+      "1.1". The standard says a version is made of one digit, a dot, and
+      another digit, and since no versions strings other than "1.0" and "1.1"
+      have been standardized. It should not be needed but might help to work
+      around scripts emittng a version based on an improperly rounded floating
+      point number, such as "HTTP/1.2", "HTTP/1.099999875" or "HTTP/0.9999999".
+      This should never be needed, but the risk is low (the string is rebuilt
+      on output).
 
     - "invalid-websocket-key" (both): this controls the acceptance of WebSocket
       protocol Upgrade requests lacking a valid "sec-websocket-key" header, or

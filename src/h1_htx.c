@@ -59,9 +59,9 @@ static int h1_process_req_vsn(struct h1m *h1m, union h1_sl *sl)
 			return 0;
 
 		if (!istnmatch(sl->rq.v, ist("HTTP/"), 5) ||
-		    !isdigit((unsigned char)*(sl->rq.v.ptr + 5)) ||
+		    *(sl->rq.v.ptr + 5) != '1' ||
 		    *(sl->rq.v.ptr + 6) != '.' ||
-		    !isdigit((unsigned char)*(sl->rq.v.ptr + 7)))
+		    (*(sl->rq.v.ptr + 7) & ~1) != '0') // 1.0 or 1.1 exclusively
 			return 0;
 	}
 	else if (!sl->rq.v.len) {
