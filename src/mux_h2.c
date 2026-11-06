@@ -1016,8 +1016,12 @@ static void h2c_update_timeout(struct h2c *h2c)
 
 	if (h2c_may_expire(h2c)) {
 		/* no more streams attached */
-		if (br_data(h2c->mbuf)) {
-			/* pending output data: always the regular data timeout */
+		if (br_data(h2c->mbuf) || !LIST_ISEMPTY(&h2c->send_list)) {
+			/* pending output data, or streams still queued to send
+			 * some (blocked on a missing mux buffer, their data
+			 * being still in their own iobuf): always the regular
+			 * data timeout.
+			 */
 			h2c->task->expire = tick_add_ifset(now_ms, h2c->timeout);
 		}
 		else {
