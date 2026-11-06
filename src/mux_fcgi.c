@@ -3845,10 +3845,17 @@ static void fcgi_detach(struct sedesc *sd)
 
 	fcgi_strm_destroy(fstrm);
 
-	/* the stream connector left, so the connection may expire again: arm
-	 * the timeout before the connection may be moved to an idle list below,
-	 * otherwise it would stay there without any.
+	/* Don't close unless the last stream is gone and either the
+	 * connection is in error, or it may not be kept alive
+	 * (fcgi_conn_is_dead() documents this).
 	 */
+	if (fcgi_conn_is_dead(fconn)) {
+		TRACE_DEVEL("leaving, killing dead connection", FCGI_EV_STRM_END, fconn->conn);
+		fcgi_release(fconn);
+		return;
+	}
+
+	/* A stream left, refresh the timeout if necessary. */
 	fcgi_conn_update_timeout(fconn);
 
 	if (!(fconn->flags & (FCGI_CF_EOS|FCGI_CF_ERR_PENDING|FCGI_CF_ERROR)) &&
@@ -3923,16 +3930,7 @@ static void fcgi_detach(struct sedesc *sd)
 		}
 	}
 
-	/* We don't want to close right now unless we're removing the last
-	 * stream and the connection is in error.
-	 */
-	if (fcgi_conn_is_dead(fconn)) {
-		/* no more stream will come, kill it now */
-		TRACE_DEVEL("leaving, killing dead connection", FCGI_EV_STRM_END, fconn->conn);
-		fcgi_release(fconn);
-	}
-	else
-		TRACE_DEVEL("leaving", FCGI_EV_STRM_END, fconn->conn);
+	TRACE_DEVEL("leaving", FCGI_EV_STRM_END, fconn->conn);
 }
 
 
