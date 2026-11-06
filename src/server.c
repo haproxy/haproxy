@@ -3962,6 +3962,9 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			newsrv = cebuis_item_lookup(&curproxy->defsrv_by_name,
 			                            conf.name_node, id, name,
 			                            struct server);
+			/* an existing default-server already owns its name */
+			if (newsrv)
+				ha_free(&name);
 		}
 		else {
 			/* unnamed default-server instance */
