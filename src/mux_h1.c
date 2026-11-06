@@ -3158,7 +3158,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 		if (h1m->flags & H1_MF_CLEN) {
 			if (count > h1m->curr_len) {
-				COUNT_IF(1, "more payload than announced (0-copy)");
+				COUNT("more payload than announced (0-copy)");
 				TRACE_ERROR("more payload than announced",
 					    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				goto error;
@@ -3182,7 +3182,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			/* If is a new chunk, prepend the chunk size */
 			if (h1m->state == H1_MSG_CHUNK_CRLF || h1m->state == H1_MSG_CHUNK_SIZE) {
 				if (h1m->curr_len) {
-					COUNT_IF(1, "chunk bigger than announced (0-copy)");
+					COUNT("chunk bigger than announced (0-copy)");
 					TRACE_ERROR("chunk bigger than announced",
 						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 					goto error;
@@ -3211,7 +3211,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			/* It is the end of the message, add the last chunk with the extra CRLF */
 			if (eom) {
 				if (h1m->curr_len) {
-					COUNT_IF(1, "chunk smaller than announced (0-copy)");
+					COUNT("chunk smaller than announced (0-copy)");
 					TRACE_ERROR("chunk smaller than announced",
 						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 					goto error;
@@ -3236,7 +3236,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 	/* Handle now case of CRLF at the end of a chun. */
 	if ((h1m->flags & H1_MF_CHNK) && h1m->state == H1_MSG_CHUNK_CRLF) {
 		if (h1m->curr_len) {
-			COUNT_IF(1, "chunk bigger than announced");
+			COUNT("chunk bigger than announced");
 			TRACE_ERROR("chunk bigger than announced",
 				    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 			goto error;
@@ -3311,7 +3311,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 
 			if (h1m->flags & H1_MF_CLEN) {
 				if (vlen > h1m->curr_len) {
-					COUNT_IF(1, "more payload than announced");
+					COUNT("more payload than announced");
 					TRACE_ERROR("more payload than announced",
 						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 					goto error;
@@ -3328,7 +3328,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				}
 				if (last_data) {
 					if (h1m->curr_len) {
-						COUNT_IF(1, "chunk smaller than announced");
+						COUNT("chunk smaller than announced");
 						TRACE_ERROR("chunk smaller than announced",
 							    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 						goto error;
@@ -3349,7 +3349,7 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			}
 			else if (h1m->flags & H1_MF_CHNK) {
 				if (h1m->curr_len) {
-					COUNT_IF(1, "chunk smaller than announced");
+					COUNT("chunk smaller than announced");
 					TRACE_ERROR("chunk smaller than announced",
 						    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 					goto error;
@@ -4863,7 +4863,7 @@ static void h1_detach(struct sedesc *sd)
 		h1c->state = H1_CS_DRAINING;
 		h1c->flags &= ~H1C_F_WANT_FASTFWD;
 		h1c_report_term_evt(h1c, muxc_tevt_type_graceful_shut);
-		COUNT_IF(1, "Deferring H1S destroy to drain message");
+		COUNT("Deferring H1S destroy to drain message");
 		TRACE_DEVEL("Deferring H1S destroy to drain message", H1_EV_STRM_END, h1s->h1c->conn, h1s);
 		/* If we have a pending data, process it immediately or
 		 * subscribe for reads waiting for new data
@@ -5539,7 +5539,7 @@ static int h1_fastfwd(struct stconn *sc, unsigned int count, unsigned int flags)
 		if ((uint64_t)total > h1m->curr_len) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
 			se_fl_set(h1s->sd, SE_FL_ERROR);
-			COUNT_IF(1, "more payload than announced");
+			COUNT("more payload than announced");
 			TRACE_ERROR("too much payload, more than announced",
 				    H1_EV_STRM_RECV|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 			goto end;

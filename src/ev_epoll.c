@@ -293,7 +293,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 					 * events for statistics purposes.
 					 */
 					if (e & (EPOLLRDHUP|EPOLLHUP|EPOLLERR))
-						COUNT_IF(1, "epoll report of HUP/ERR on a stale fd reopened on another thread (harmless)");
+						COUNT("epoll report of HUP/ERR on a stale fd reopened on another thread (harmless)");
 				} else {
 					/* same thread but different generation, this smells bad,
 					 * maybe that could be caused by crossed takeovers with a
@@ -303,16 +303,16 @@ static void _do_poll(struct poller *p, int exp, int wake)
 					 * once we've read all pending data.
 					 */
 					if (e & EPOLLERR)
-						COUNT_IF(1, "epoll report of ERR on a stale fd reopened on the same thread (suspicious)");
+						COUNT("epoll report of ERR on a stale fd reopened on the same thread (suspicious)");
 					else if (e & (EPOLLRDHUP|EPOLLHUP))
-						COUNT_IF(1, "epoll report of HUP on a stale fd reopened on the same thread (suspicious)");
+						COUNT("epoll report of HUP on a stale fd reopened on the same thread (suspicious)");
 					else
-						COUNT_IF(1, "epoll report of a harmless event on a stale fd reopened on the same thread (suspicious)");
+						COUNT("epoll report of a harmless event on a stale fd reopened on the same thread (suspicious)");
 				}
 			} else if (ev_gen + 1 != fd_gen) {
-				COUNT_IF(1, "epoll report of event on a closed recycled fd (rare)");
+				COUNT("epoll report of event on a closed recycled fd (rare)");
 			} else {
-				COUNT_IF(1, "epoll report of event on a just closed fd (harmless)");
+				COUNT("epoll report of event on a just closed fd (harmless)");
 			}
 			continue;
 		} else if (fd_tgid(fd) != tgid) {

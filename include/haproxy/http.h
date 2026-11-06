@@ -134,9 +134,9 @@ static inline void http_reset_hardening_check(struct http_hdng_chk *chk)
 	int _ret = 0;                                                         \
 	if (unlikely((http_hdng_chk.rules | ~http_hdng_chk.found) & _flag)) { \
 		http_hdng_chk.found |= _flag;                                 \
-		(void)COUNT_IF(1, "hardening " #flag " condition met");       \
+		COUNT("hardening " #flag " condition met");                   \
 		if (http_hdng_chk.rules & _flag) {                            \
-			(void)COUNT_IF(1, "hardening " #flag " enforced");    \
+			COUNT("hardening " #flag " enforced");                \
 			http_hdng_chk.fixed |= _flag;                         \
 			_ret = 1;                                             \
 	        }                                                             \

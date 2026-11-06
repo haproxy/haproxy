@@ -2724,7 +2724,7 @@ static void qcs_destroy(struct qcs *qcs)
 	 * the connection flow control consistency
 	 */
 	if (!qcs_is_close_remote(qcs) && qcs->rx.offset_max > qcs->rx.offset) {
-		COUNT_IF(1, "QCS is released while not remotely closed. "
+		COUNT("QCS is released while not remotely closed. "
 		            "This may cause miscalculation in conn flow control.");
 		qcc_account_for_conn_fctl(qcc, qcs->rx.offset_max - qcs->rx.offset);
 	}

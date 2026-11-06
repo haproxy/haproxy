@@ -1020,7 +1020,7 @@ int sock_conn_check(struct connection *conn)
 		 *   - https://www.spinics.net/lists/netdev/msg876470.html
 		 */
 		if (unlikely((fdtab[fd].state & (FD_POLL_HUP|FD_POLL_ERR)) == FD_POLL_HUP)) {
-			COUNT_IF(1, "Removing FD_POLL_HUP if no FD_POLL_ERR to let connect() decide");
+			COUNT("Removing FD_POLL_HUP if no FD_POLL_ERR to let connect() decide");
 			fdtab[fd].state &= ~FD_POLL_HUP;
 		}
 

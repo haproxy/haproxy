@@ -757,7 +757,7 @@ static int qc_handle_crypto_frm(struct quic_conn *qc,
 		 */
 		if (ncbmb_head(ncbuf) + data >= ncbmb_wrap(ncbuf)) {
 			TRACE_ERROR("unsupported wrapping CRYPTO frames", QUIC_EV_CONN_PRSHPKT, qc);
-			COUNT_IF(1, "connection closed on unsupported wrapping CRYPTO content");
+			COUNT("connection closed on unsupported wrapping CRYPTO content");
 			quic_set_connection_close(qc, quic_err_transport(QC_ERR_CRYPTO_BUFFER_EXCEEDED));
 			quic_free_ncbuf(ncbuf);
 			goto err;

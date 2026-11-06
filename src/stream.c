@@ -2049,7 +2049,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			sc_abort(scf);
 			sc_shutdown(scf);
 			if (!(req->analysers) && !(res->analysers)) {
-				COUNT_IF(1, "Report a client abort (no analysers)");
+				COUNT("Report a client abort (no analysers)");
 				if (s->be_tgcounters)
 					_HA_ATOMIC_INC(&s->be_tgcounters->cli_aborts);
 				if (sess->fe_tgcounters)
@@ -2075,7 +2075,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			if (s->sv_tgcounters)
 				_HA_ATOMIC_INC(&s->sv_tgcounters->failed_resp);
 			if (!(req->analysers) && !(res->analysers)) {
-				COUNT_IF(1, "Report a client abort (no analysers)");
+				COUNT("Report a client abort (no analysers)");
 				if (s->be_tgcounters)
 					_HA_ATOMIC_INC(&s->be_tgcounters->srv_aborts);
 				if (sess->fe_tgcounters)
@@ -2396,7 +2396,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (s->sv_tgcounters)
 					_HA_ATOMIC_INC(&s->sv_tgcounters->cli_aborts);
 				s->flags |= SF_ERR_CLICL;
-				COUNT_IF(1, "Report unhandled client error");
+				COUNT("Report unhandled client error");
 			}
 			else if (req->flags & CF_READ_TIMEOUT) {
 				if (s->be_tgcounters)
@@ -2408,7 +2408,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (s->sv_tgcounters)
 					_HA_ATOMIC_INC(&s->sv_tgcounters->cli_aborts);
 				s->flags |= SF_ERR_CLITO;
-				COUNT_IF(1, "Report unhandled client timeout (RD)");
+				COUNT("Report unhandled client timeout (RD)");
 			}
 			else {
 				if (s->be_tgcounters)
@@ -2420,7 +2420,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (s->sv_tgcounters)
 					_HA_ATOMIC_INC(&s->sv_tgcounters->srv_aborts);
 				s->flags |= SF_ERR_SRVTO;
-				COUNT_IF(1, "Report unhandled server timeout (WR)");
+				COUNT("Report unhandled server timeout (WR)");
 			}
 			sess_set_term_flags(s);
 
@@ -2452,7 +2452,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (s->sv_tgcounters)
 					_HA_ATOMIC_INC(&s->sv_tgcounters->srv_aborts);
 				s->flags |= SF_ERR_SRVCL;
-				COUNT_IF(1, "Report unhandled server error");
+				COUNT("Report unhandled server error");
 			}
 			else if (res->flags & CF_READ_TIMEOUT) {
 				if (s->be_tgcounters)
@@ -2464,7 +2464,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (s->sv_tgcounters)
 					_HA_ATOMIC_INC(&s->sv_tgcounters->srv_aborts);
 				s->flags |= SF_ERR_SRVTO;
-				COUNT_IF(1, "Report unhandled server timeout (RD)");
+				COUNT("Report unhandled server timeout (RD)");
 			}
 			else {
 				if (s->be_tgcounters)
@@ -2476,7 +2476,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				if (s->sv_tgcounters)
 					_HA_ATOMIC_INC(&s->sv_tgcounters->cli_aborts);
 				s->flags |= SF_ERR_CLITO;
-				COUNT_IF(1, "Report unhandled client timeout (WR)");
+				COUNT("Report unhandled client timeout (WR)");
 			}
 			sess_set_term_flags(s);
 		}
