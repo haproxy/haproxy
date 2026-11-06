@@ -894,7 +894,6 @@ static inline int fcgi_conn_is_dead(struct fcgi_conn *fconn)
 	     (fconn->flags & FCGI_CF_ERR_PENDING &&
 	      fconn->state < FCGI_CS_RECORD_H) || /* early error during connect */
 	     (fconn->state == FCGI_CS_CLOSED && !fconn->task) ||/* a timeout stroke earlier */
-	     (!(fconn->conn->owner)) ||                         /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(fconn->mbuf) &&                          /* mux buffer empty, also process clean events below */
 	      (fconn->flags & FCGI_CF_EOS))))
 	      return 1;
