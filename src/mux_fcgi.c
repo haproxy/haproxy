@@ -3859,6 +3859,7 @@ static void fcgi_detach(struct sedesc *sd)
 	fcgi_conn_update_timeout(fconn);
 
 	if (!(fconn->flags & (FCGI_CF_EOS|FCGI_CF_ERR_PENDING|FCGI_CF_ERROR)) &&
+	    (fconn->state != FCGI_CS_CLOSED) &&
 	    (fconn->flags & FCGI_CF_KEEP_CONN)) {
 		if (fconn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session serverlist, if not already done */
