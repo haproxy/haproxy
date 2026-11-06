@@ -843,6 +843,48 @@ static inline int fcgi_conn_may_expire(const struct fcgi_conn *fconn)
 	return !fconn->nb_sc;
 }
 
+/* Arms the connection's timeout if it has data left to send, disarms it
+ * otherwise, and requeues the task. Does nothing if the connection has no
+ * task.
+ *
+ * While stream connectors are attached, the timeouts are enforced by the
+ * stream layer, which knows if it waits for the server or for the client, so
+ * the connection timeout must stay disabled. Once they are all gone, the
+ * connection timeout is only meaningful if some data remains to be sent:
+ * a connection with nothing left to send is an idle one, watching for a new
+ * request, and its lifetime is then governed by the idle connections pool
+ * (see "pool-purge-delay"), not by "timeout server". Arming it there would
+ * kill still-reusable idle connections after the server timeout.
+ */
+static void fcgi_conn_update_timeout(struct fcgi_conn *fconn)
+{
+	if (!fconn->task)
+		return;
+
+	if (!fcgi_conn_may_expire(fconn)) {
+		/* streams are attached: timeouts belong to the stream layer */
+		fconn->task->expire = TICK_ETERNITY;
+	}
+	else if (br_data(fconn->mbuf) || !LIST_ISEMPTY(&fconn->send_list)) {
+		/* pending output data, or streams still queued to send some
+		 * (blocked on a missing mux buffer, their data being still in
+		 * their own buffer): always the regular data timeout.
+		 */
+		fconn->task->expire = tick_add_ifset(now_ms, (fconn->state == FCGI_CS_CLOSED ? fconn->shut_timeout : fconn->timeout));
+	}
+	else if (fconn->state == FCGI_CS_CLOSED) {
+		/* closing in progress without any stream left: still honor the
+		 * shutdown timeout, otherwise nothing would close it.
+		 */
+		fconn->task->expire = tick_add_ifset(now_ms, fconn->shut_timeout);
+	}
+	else {
+		/* nothing to send and no stream attached: idle connection */
+		fconn->task->expire = TICK_ETERNITY;
+	}
+	task_queue(fconn->task);
+}
+
 /* Returns true if the FCGI connection must be release */
 static inline int fcgi_conn_is_dead(struct fcgi_conn *fconn)
 {
@@ -3255,13 +3297,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 	    (!br_data(fconn->mbuf) && ((fconn->flags & FCGI_CF_MUX_BLOCK_ANY) || LIST_ISEMPTY(&fconn->send_list))))
 		fcgi_release_mbuf(fconn);
 
-	if (fconn->task) {
-		if (fcgi_conn_may_expire(fconn))
-			fconn->task->expire = tick_add(now_ms, (fconn->state == FCGI_CS_CLOSED ? fconn->shut_timeout : fconn->timeout));
-		else
-			fconn->task->expire = TICK_ETERNITY;
-		task_queue(fconn->task);
-	}
+	fcgi_conn_update_timeout(fconn);
 
 	fcgi_send(fconn);
 	TRACE_LEAVE(FCGI_EV_FCONN_WAKE, conn);
@@ -3792,6 +3828,11 @@ static void fcgi_detach(struct sedesc *sd)
 	    (fstrm->flags & (FCGI_SF_BLK_MBUSY|FCGI_SF_BLK_MROOM)) &&
 	    (fstrm->subs || (fstrm->flags & (FCGI_SF_WANT_SHUTR|FCGI_SF_WANT_SHUTW)))) {
 		TRACE_DEVEL("leaving on stream blocked", FCGI_EV_STRM_END|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
+		/* refresh the timeout if none was active, so that the last
+		 * leaving stream may arm it.
+		 */
+		if (fconn->task && !tick_isset(fconn->task->expire))
+			fcgi_conn_update_timeout(fconn);
 		return;
 	}
 
@@ -3802,6 +3843,12 @@ static void fcgi_detach(struct sedesc *sd)
 	}
 
 	fcgi_strm_destroy(fstrm);
+
+	/* the stream connector left, so the connection may expire again: arm
+	 * the timeout before the connection may be moved to an idle list below,
+	 * otherwise it would stay there without any.
+	 */
+	fcgi_conn_update_timeout(fconn);
 
 	if (!(fconn->flags & (FCGI_CF_EOS|FCGI_CF_ERR_PENDING|FCGI_CF_ERROR)) &&
 	    (fconn->flags & FCGI_CF_KEEP_CONN)) {
@@ -3882,11 +3929,6 @@ static void fcgi_detach(struct sedesc *sd)
 		/* no more stream will come, kill it now */
 		TRACE_DEVEL("leaving, killing dead connection", FCGI_EV_STRM_END, fconn->conn);
 		fcgi_release(fconn);
-	}
-	else if (fconn->task) {
-		fconn->task->expire = tick_add(now_ms, (fconn->state == FCGI_CS_CLOSED ? fconn->shut_timeout : fconn->timeout));
-		task_queue(fconn->task);
-		TRACE_DEVEL("leaving, refreshing connection's timeout", FCGI_EV_STRM_END, fconn->conn);
 	}
 	else
 		TRACE_DEVEL("leaving", FCGI_EV_STRM_END, fconn->conn);
