@@ -390,6 +390,19 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define _COUNT_IF(cond, file, line, ...) DISGUISE(unlikely(cond) ? 1 : 0)
 # endif
 
+/* Core of the COUNT() macro, it just counts an unconditional pass. It's a void
+ * statement.
+ */
+# if defined(DEBUG_COUNTERS) && (DEBUG_COUNTERS >= 1)
+#  define _COUNT(file, line, ...)                                             \
+	do {                                                                  \
+		if (debug_enable_counters)                                    \
+			__DBG_COUNT(, file, line, DBG_COUNT_IF, __VA_ARGS__); \
+	} while (0)
+# else
+#  define _COUNT(file, line, ...) do { } while (0)
+# endif
+
 /* DEBUG_COUNTERS enables counting the number of glitches per line of code. The
  * condition is empty (nothing to write there), except maybe __VA_ARGS at the
  * end.
@@ -477,24 +490,28 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_WRN, __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
+#  define COUNT(...)          _COUNT      (__FILE__, __LINE__, __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION == 1)
 /* default level: BUG_ON() crashes, WARN_ON() warns, CHECK_IF() warns */
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_WARN_WRN, __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
+#  define COUNT(...)          _COUNT      (__FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION == 2)
 /* Stricter level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() warns */
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_WRN, __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
+#  define COUNT(...)          _COUNT      (__FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, WARN_ON() crashes, CHECK_IF() crashes */
 #  define BUG_ON(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
 #  define WARN_ON(cond, ...)  _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_WRN, __VA_ARGS__)
 #  define CHECK_IF(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_FATL_CHK, __VA_ARGS__)
 #  define COUNT_IF(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
+#  define COUNT(...)          _COUNT      (__FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else /* DEBUG_STRICT not defined below */
 /* We want BUG_ON() to evaluate the expression sufficiently for next lines
@@ -507,6 +524,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define WARN_ON(cond, ...)  do { (void)sizeof(cond); } while (0)
 #  define CHECK_IF(cond, ...) do { (void)sizeof(cond); } while (0)
 #  define COUNT_IF(cond, ...) DISGUISE(cond)
+#  define COUNT(...)          do { } while (0)
 #endif
 
 /* These macros are only for hot paths and remain disabled unless DEBUG_STRICT is 2 or above.
@@ -519,16 +537,19 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define BUG_ON_HOT(cond, ...)   _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_BUG, __VA_ARGS__)
 #  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
+#  define COUNT_HOT(...)          _COUNT      (__FILE__, __LINE__, __VA_ARGS__)
 # elif !defined(DEBUG_STRICT_ACTION) || (DEBUG_STRICT_ACTION < 3)
 /* default level: BUG_ON() crashes, CHECK_IF() warns */
 #  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
 #  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_WARN_CHK, __VA_ARGS__)
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
+#  define COUNT_HOT(...)          _COUNT      (__FILE__, __LINE__, __VA_ARGS__)
 # elif defined(DEBUG_STRICT_ACTION) && (DEBUG_STRICT_ACTION >= 3)
 /* Developer/CI level: BUG_ON() crashes, CHECK_IF() crashes */
 #  define BUG_ON_HOT(cond, ...)   _BUG_ON     (cond, __FILE__, __LINE__, DBG_FATL_BUG, __VA_ARGS__)
 #  define CHECK_IF_HOT(cond, ...) _BUG_ON_ONCE(cond, __FILE__, __LINE__, DBG_FATL_CHK, __VA_ARGS__)
 #  define COUNT_IF_HOT(cond, ...) _COUNT_IF   (cond, __FILE__, __LINE__, __VA_ARGS__)
+#  define COUNT_HOT(...)          _COUNT      (__FILE__, __LINE__, __VA_ARGS__)
 # endif
 #else /* DEBUG_STRICT <= 1 below */
 /* Contrary to BUG_ON(), we do *NOT* want BUG_ON_HOT() to evaluate the
@@ -538,6 +559,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 #  define BUG_ON_HOT(cond, ...)   do { (void)sizeof(cond) ; } while (0)
 #  define CHECK_IF_HOT(cond, ...) do { (void)sizeof(cond) ; } while (0)
 #  define COUNT_IF_HOT(cond, ...) DISGUISE(cond)
+#  define COUNT_HOT(...)          do { } while (0)
 #endif
 
 /* turn BUG_ON_STRESS() into a real statement when DEBUG_STRESS is set,
