@@ -798,6 +798,14 @@ static int cli_get_severity_output(struct appctx *appctx)
 	return strm_li(appctx_strm(appctx))->bind_conf->severity_output;
 }
 
+/* Reset the current command info in <appctx> context. */
+static void cli_reset_cmd(struct appctx *appctx)
+{
+	appctx->cli_ctx.kw = NULL;
+	appctx->cli_ctx.io_handler = NULL;
+	appctx->cli_ctx.io_release = NULL;
+}
+
 /* Processes the CLI interpreter on the stats socket. This function is called
  * from the CLI's IO handler running in an appctx context. The function returns
  * 1 if the request was understood, otherwise zero (in which case an error
@@ -939,10 +947,7 @@ int cli_process_cmdline(struct appctx *appctx)
 	goto end;
 
   fail:
-	appctx->cli_ctx.kw = NULL;
-	appctx->cli_ctx.io_handler = NULL;
-	appctx->cli_ctx.io_release = NULL;
-
+	cli_reset_cmd(appctx);
   end:
 	/* Skip the command */
 	b_del(appctx->cli_ctx.cmdline, end - orig + 1);
@@ -1386,14 +1391,14 @@ void cli_io_handler(struct appctx *appctx)
 						appctx->st0 = CLI_ST_PROMPT;
 						if (appctx->cli_ctx.io_release) {
 							EXEC_CTX_NO_RET(appctx->cli_ctx.kw->exec_ctx, appctx->cli_ctx.io_release(appctx));
-							appctx->cli_ctx.io_release = NULL;
-							appctx->cli_ctx.kw = NULL;
+							cli_reset_cmd(appctx);
 							/* some release handlers might have
 							 * pending output to print.
 							 */
 							continue;
 						}
-						appctx->cli_ctx.kw = NULL;
+
+						cli_reset_cmd(appctx);
 					}
 				break;
 			default: /* abnormal state */
@@ -1508,8 +1513,7 @@ static void cli_release_handler(struct appctx *appctx)
 
 	if (appctx->cli_ctx.io_release) {
 		EXEC_CTX_NO_RET(appctx->cli_ctx.kw->exec_ctx, appctx->cli_ctx.io_release(appctx));
-		appctx->cli_ctx.io_release = NULL;
-		appctx->cli_ctx.kw = NULL;
+		cli_reset_cmd(appctx);
 	}
 	else if (appctx->st0 == CLI_ST_PRINT_DYN || appctx->st0 == CLI_ST_PRINT_DYNERR) {
 		struct cli_print_ctx *ctx = applet_reserve_svcctx(appctx, sizeof(*ctx));
