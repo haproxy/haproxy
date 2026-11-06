@@ -63,8 +63,14 @@ struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
 
 	do {
 		TRACE_PROTO("TX loss pktns", QUIC_EV_CONN_SPTO, qc, p);
-		if (!tick_isset(pktns->tx.loss_time) ||
-		    tick_is_lt(p->tx.loss_time, pktns->tx.loss_time)) {
+		/* Select a loss time only if it is set: TICK_ETERNITY (0)
+		 * means "no loss time", and tick_is_lt(0, T) is true when T
+		 * lies in the low half of the tick circle, so an unset loss
+		 * time could hide a real one.
+		 */
+		if (tick_isset(p->tx.loss_time) &&
+		    (!tick_isset(pktns->tx.loss_time) ||
+		     tick_is_lt(p->tx.loss_time, pktns->tx.loss_time))) {
 			pktns = p;
 		}
 		p = LIST_NEXT(&p->list, struct quic_pktns *, list);
