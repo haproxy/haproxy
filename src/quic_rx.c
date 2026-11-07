@@ -2117,9 +2117,9 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 				goto drop;
 			}
 
-			if (!l && pkt->token_len) {
+			if (!l && token_len) {
 				/* A server must sent Initial packets with a null token length. */
-				TRACE_PROTO("Packet dropped",
+				TRACE_PROTO("RX Initial packet with non-zero token length on backend",
 				            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
 				goto drop;
 			}
