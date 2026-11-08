@@ -1,0 +1,64 @@
+varnishtest "Compression filter: incompressible contents in large buffers"
+
+# The compressed output replaces the input in the HTX buffer, and is built in
+# a trash chunk. With large buffers, a DATA block may be larger than the
+# regular trash, so the chunk must be as large as the buffer, otherwise the
+# deflater's output exceeds it on incompressible data (input + 5 bytes per
+# stored block + the gzip header). Here the response is waited for into a
+# large buffer, so that its body forms a single DATA block of up to 200 kB,
+# well beyond the 16 kB of the regular buffers. The client decompresses it,
+# which checks the gzip trailer's CRC and length, and compares the length to
+# the one announced by the service.
+feature cmd "$HAPROXY_PROGRAM -cc '(feature(ZLIB) || feature(SLZ)) && feature(LUA)'"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 16384
+        tune.bufsize.large 262144
+        tune.lua.bool-sample-conversion normal
+        lua-load ${testdir}/output_margin.lua
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe-gzip
+        bind "fd@${fe_gzip}"
+        compression algo gzip
+        compression type text/plain
+        default_backend be
+
+    backend be
+        http-response wait-for-body time 5s use-large-buffer
+        server gen ${h1_gen_addr}:${h1_gen_port}
+
+    listen gen
+        bind "fd@${gen}"
+        http-request use-service lua.gen
+} -start
+
+client c1 -connect ${h1_fe_gzip_sock} {
+    txreq -url "/?p=random&c=whole&n=20000" -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-encoding == "gzip"
+    gunzip
+    expect resp.bodylen == 20000
+
+    txreq -url "/?p=random&c=whole&n=200000" -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-encoding == "gzip"
+    gunzip
+    expect resp.bodylen == 200000
+
+    txreq -url "/?p=mixed&c=whole&n=200000" -hdr "Accept-Encoding: gzip"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.content-encoding == "gzip"
+    gunzip
+    expect resp.bodylen == 200000
+} -run

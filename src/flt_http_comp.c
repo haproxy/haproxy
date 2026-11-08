@@ -296,6 +296,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_ret htxret = htx_find_offset(htx, offset);
 	struct htx_blk *blk, *next;
+	struct buffer *out;
 	int ret, consumed = 0, to_forward = 0, last = 0, flush;
 
 	blk = htxret.blk;
@@ -311,7 +312,14 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		if (!(st->flags & COMP_STATE_PROCESSING))
 			goto consume;
 
-		if (htx_compression_buffer_init(htx, &trash) < 0) {
+		/* The output replaces the input in the HTX, so the chunk must
+		 * be as large as the buffer, which may be a large one.
+		 */
+		out = get_best_trash_chunk(&msg->chn->buf, b_size(&msg->chn->buf));
+		if (!out)
+			goto error;
+
+		if (htx_compression_buffer_init(htx, out) < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
 			goto end;
 		}
@@ -325,9 +333,9 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					last = 0;
 					v.len = len;
 				}
-				if (v.len > b_size(&trash)) {
+				if (v.len > b_size(out)) {
 					last = 0;
-					v.len = b_size(&trash);
+					v.len = b_size(out);
 				}
 
 				/* The output only needs to be flushed when no other
@@ -342,15 +350,15 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 				 */
 				flush = last || v.len == len || !next || htx_get_blk_type(next) != HTX_BLK_DATA;
 
-				ret = htx_compression_buffer_add_data(st, v.ptr, v.len, &trash, dir);
-				if (ret < 0 || (flush && htx_compression_buffer_end(st, &trash, last, dir) < 0))
+				ret = htx_compression_buffer_add_data(st, v.ptr, v.len, out, dir);
+				if (ret < 0 || (flush && htx_compression_buffer_end(st, out, last, dir) < 0))
 					goto error;
 				BUG_ON(v.len != ret);
 
-				if (ret == sz && !b_data(&trash))
+				if (ret == sz && !b_data(out))
 					next = htx_remove_blk(htx, blk);
 				else {
-					blk = htx_replace_blk_value(htx, blk, v, ist2(b_head(&trash), b_data(&trash)));
+					blk = htx_replace_blk_value(htx, blk, v, ist2(b_head(out), b_data(out)));
 					if (!blk)
 						goto error;
 					next = htx_get_next_blk(htx, blk);
@@ -358,7 +366,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 				len -= ret;
 				consumed += ret;
-				to_forward += b_data(&trash);
+				to_forward += b_data(out);
 				if (last) {
 					st->flags &= ~COMP_STATE_PROCESSING;
 
@@ -379,17 +387,17 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOT:
-				if (htx_compression_buffer_end(st, &trash, 1, dir) < 0)
+				if (htx_compression_buffer_end(st, out, 1, dir) < 0)
 					goto error;
-				if (b_data(&trash)) {
-					struct htx_blk *last = htx_add_last_data(htx, ist2(b_head(&trash), b_data(&trash)));
+				if (b_data(out)) {
+					struct htx_blk *last = htx_add_last_data(htx, ist2(b_head(out), b_data(out)));
 					if (!last)
 						goto error;
 					blk = htx_get_next_blk(htx, last);
 					if (!blk)
 						goto error;
 					next = htx_get_next_blk(htx, blk);
-					to_forward += b_data(&trash);
+					to_forward += b_data(out);
 				}
 				st->flags &= ~COMP_STATE_PROCESSING;
 				__fallthrough;
