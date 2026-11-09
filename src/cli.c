@@ -96,6 +96,9 @@ struct show_env_ctx {
 	int show_one;    /* stop after showing the first one */
 };
 
+/* Currently active CLI sessions. */
+static struct mt_list cli_session_list = MT_LIST_HEAD_INIT(cli_session_list);
+
 /* CLI context for the "show fd" command */
 /* flags for show_fd_ctx->show_mask */
 #define CLI_SHOWFD_F_PI  0x00000001   /* pipes             */
@@ -1011,6 +1014,7 @@ int cli_init(struct appctx *appctx)
 	appctx->cli_ctx.cmdline = NULL;
 	appctx->cli_ctx.payload = BUF_NULL;
 	appctx->cli_ctx.max_payload_sz = global.tune.cli_max_payload_sz;
+	MT_LIST_APPEND(&cli_session_list, &appctx->cli_ctx.sess_el);
 
 	/* Wakeup the applet ASAP. */
         applet_need_more_data(appctx);
@@ -1275,6 +1279,11 @@ void cli_io_handler(struct appctx *appctx)
 {
 	appctx->st1 &= ~APPCTX_CLI_ST1_YIELD;
 
+	if (appctx->st0 == CLI_ST_INIT) {
+		/* Init global CLI sess list attach element. Ensure safe delete in release handler. */
+		MT_LIST_INIT(&appctx->cli_ctx.sess_el);
+	}
+
 	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
 		appctx->st0 = CLI_ST_END;
 		goto out;
@@ -1523,6 +1532,10 @@ static void cli_release_handler(struct appctx *appctx)
 	else if (appctx->st0 == CLI_ST_PRINT_UMSG || appctx->st0 == CLI_ST_PRINT_UMSGERR) {
 		usermsgs_clr(NULL);
 	}
+
+	/* Removes from global list unless release is called early before first cli_io_handler() invocation. */
+	if (appctx->st0 > CLI_ST_INIT)
+		MT_LIST_DELETE(&appctx->cli_ctx.sess_el);
 }
 
 /* This function dumps all environment variables to the buffer. It returns 0
