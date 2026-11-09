@@ -382,7 +382,8 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 		ret = decomp_stream_blk_drain(s, f, chn, NULL, NULL, 0);
 		total += ret;
 
-		if (!(st->decomp_ctx->flags & DECOMP_CTX_FL_DONE)) {
+		if (!st->decomp_ctx->drain_len &&
+		    !(st->decomp_ctx->flags & DECOMP_CTX_FL_DONE)) {
 			char *data = "";
 
 			/* ensure there isn't remaining data in the decomp state buffer:
