@@ -1,0 +1,60 @@
+# Test uninterruptible CLI jobs
+
+varnishtest "Test uninterruptible CLI jobs"
+
+feature cmd "command -v socat"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+	global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+	stats socket "${tmpdir}/h1/stats" level admin
+	stats timeout 10s
+
+	defaults
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe_int
+		mode http
+		bind "fd@${fint}"
+		http-request return status 200
+} -start
+
+# wait for haproxy startup
+client c0 -connect ${h1_fint_sock} {
+	txreq
+	rxresp
+} -run
+
+shell {
+	echo "wait -u 1s" | socat -t5 - "${tmpdir}/h1/stats" &
+	echo "wait -u 1s" | socat -t5 - "${tmpdir}/h1/stats" &
+	echo "wait -u 1s" | socat -t5 - "${tmpdir}/h1/stats" &
+	# pause to ensure command parsing has been completed
+    sleep 0.1
+
+	out=$(echo "wait -u 1s" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Cannot start a new uninterruptible job." ] || \
+	  { echo "expect failure: uninterruptible job limit not respected: ${out}"; exit 1; }
+
+	wait
+}
+
+shell {
+	echo "wait -u 5s" | socat - "${tmpdir}/h1/stats" > "${tmpdir}/h1/out" 2>&1 &
+	# pause to ensure command parsing has been completed
+    sleep 0.1
+
+	out=$(echo "kill unintr" | socat - "${tmpdir}/h1/stats")
+	[ "$out" = "Killed 1 job." ] || \
+	  { echo "expect failure: kill command invalid status: ${out}"; exit 1; }
+
+	wait $pid && out=$(cat "${tmpdir}/h1/out")
+	[ "$out" = "Killed." ] || \
+	  { echo "expect failure: kill not reported: ${out}"; exit 1; }
+	pid=$!
+}
