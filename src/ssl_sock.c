@@ -344,7 +344,7 @@ static int ha_ssl_write(BIO *h, const char *buf, int num)
 	tmpbuf.area = (void *)(uintptr_t)buf;
 	tmpbuf.data = num;
 	tmpbuf.head = 0;
-	flags = (ctx->xprt_st & SSL_SOCK_SEND_MORE) ? CO_SFL_MSG_MORE : 0;
+	flags = (!msg_control && (ctx->xprt_st & SSL_SOCK_SEND_MORE)) ? CO_SFL_MSG_MORE : 0;
 	ret = ctx->xprt->snd_buf(ctx->conn, ctx->xprt_ctx, &tmpbuf, num, msg_control, msg_controllen, flags);
 	BIO_clear_retry_flags(h);
 #ifdef HA_USE_KTLS
