@@ -7238,6 +7238,18 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
 	outbuf.data = 9;
 
+	if ((h2c->flags & (H2_CF_SHTS_UPDATED|H2_CF_DTSU_EMITTED)) == H2_CF_SHTS_UPDATED) {
+		/* SETTINGS_HEADER_TABLE_SIZE changed, we must send an HPACK
+		 * dynamic table size update at the beginning of the next
+		 * header block. See h2s_snd_fhdrs() for more details.
+		 */
+		if (b_room(&outbuf) < 1)
+			goto full;
+		outbuf.area[outbuf.data++] = 0x20; // HPACK DTSU 0 bytes
+
+		/* flags will only be updated once the buffer is committed */
+	}
+
 	/* encode the method, which necessarily is the first one */
 	if (!hpack_encode_method(&outbuf, sl->info.req.meth, meth)) {
 		if (b_space_wraps(mbuf))
@@ -7480,6 +7492,13 @@ static size_t h2s_snd_bhdrs(struct h2s *h2s, struct htx *htx)
 	/* commit the H2 response */
 	b_add(mbuf, outbuf.data);
 	h2c->flags |= H2_CF_MBUF_HAS_DATA;
+
+	if (h2c->flags & H2_CF_SHTS_UPDATED) {
+		/* was sent above */
+		h2c->flags |= H2_CF_DTSU_EMITTED;
+		h2c->flags &= ~H2_CF_SHTS_UPDATED;
+	}
+
 	h2s->flags |= H2_SF_HEADERS_SENT;
 	h2s->st = H2_SS_OPEN;
 
