@@ -1296,6 +1296,7 @@ static int h2_buf_available(void *target)
 	return 0;
 }
 
+/* note that bptr may not be NULL here */
 static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
@@ -6640,7 +6641,7 @@ static int h2_frt_transfer_data(struct h2s *h2s)
 
  next_buffer:
 	/* now we have a non-full rxbuf */
-	scbuf = h2_get_buf(h2c, h2s_rxbuf_tail(h2s));
+	scbuf = h2_get_buf(h2c, _h2s_rxbuf_tail(h2s));
 	if (!scbuf) {
 		h2c->flags |= H2_CF_DEM_SALLOC;
 		TRACE_STATE("waiting for an h2s rxbuf", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
