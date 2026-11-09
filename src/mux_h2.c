@@ -8020,6 +8020,23 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
+	if (outbuf.data > 9 &&
+	    (h2c->flags & (H2_CF_SHTS_UPDATED|H2_CF_DTSU_EMITTED)) == H2_CF_SHTS_UPDATED) {
+		/* SETTINGS_HEADER_TABLE_SIZE changed, we must send an HPACK
+		 * dynamic table size update at the beginning of the next
+		 * header block (see h2s_snd_fhdrs()). It's inserted before the
+		 * encoded fields.
+		 */
+		if (b_room(&outbuf) < 1) {
+			if (b_space_wraps(mbuf))
+				goto realign_again;
+			goto full;
+		}
+		memmove(outbuf.area + 10, outbuf.area + 9, outbuf.data - 9);
+		outbuf.area[9] = 0x20; // HPACK DTSU 0 bytes
+		outbuf.data++;
+	}
+
 	if (outbuf.data == 9) {
 		/* here we have a problem, we have nothing to emit (either we
 		 * received an empty trailers block followed or we removed its
@@ -8048,6 +8065,12 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	b_add(mbuf, outbuf.data);
 	h2c->flags |= H2_CF_MBUF_HAS_DATA;
 	h2s->flags |= H2_SF_ES_SENT;
+
+	if (outbuf.data > 9 && (h2c->flags & H2_CF_SHTS_UPDATED)) {
+		/* was sent above (only in a HEADERS frame) */
+		h2c->flags |= H2_CF_DTSU_EMITTED;
+		h2c->flags &= ~H2_CF_SHTS_UPDATED;
+	}
 
 	if (h2s->st == H2_SS_OPEN)
 		h2s->st = H2_SS_HLOC;
