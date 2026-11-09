@@ -422,6 +422,7 @@ extern __attribute__((__weak__)) struct debug_count __stop_dbg_cnt  HA_SECTION_S
 # define __DBG_COUNT(cond, file, line, type, ...) do { } while (0)
 # define _COUNT_IF(cond, file, line, ...) DISGUISE(unlikely(cond) ? 1 : 0)
 # define _COUNT_GLITCH(file, line, ...) do { } while (0)
+# define _COUNT(file, line, ...) do { } while (0)
 
 /* This is called by _BUG_ON() and _BUG_ON_ONCE() to handle the event. */
 #define __BUG_ON(cond, file, line, type, details, ...) {		\
