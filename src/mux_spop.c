@@ -2792,6 +2792,16 @@ static struct task *spop_timeout_task(struct task *t, void *context, unsigned in
 			return t;
 		}
 
+		if (!spop_conn_may_expire(spop_conn)) {
+			/* streams are still attached, they may be waiting for
+			 * the agent, so the timeout is not ours to enforce.
+			 */
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			t->expire = TICK_ETERNITY;
+			TRACE_DEVEL("leaving (streams attached)", SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn);
+			return t;
+		}
+
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
