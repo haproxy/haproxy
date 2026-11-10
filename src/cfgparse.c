@@ -1006,9 +1006,11 @@ int cfg_parse_users_user(char **args, int section_type, struct proxy *curproxy, 
 #ifdef USE_LIBCRYPT
 			struct timeval tv_before, tv_after;
 			ulong ms_elapsed;
+			char *hash;
 
 			gettimeofday(&tv_before, NULL);
-			if (!crypt("", args[cur_arg + 1])) {
+			hash = crypt("", args[cur_arg + 1]);
+			if (!hash || hash[0] == '*') {
 				ha_alert("parsing [%s:%d]: the encrypted password used for user '%s' is not supported by crypt(3).\n",
 					 file, linenum, newuser->user);
 				err_code |= ERR_ALERT | ERR_FATAL;
