@@ -457,6 +457,33 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 	return 1;
 }
 
+/* Turns an integer made of HTTP_HRD_* flags (e.g. from fs.hdng.fixed) into the
+ * name of the lowest "reject" rule it contains. Since a reject stops the
+ * processing, at most one such rule is normally present. Other flags are
+ * ignored. The converter fails if no reject rule is found.
+ */
+static int sample_conv_hdng_rej_name(const struct arg *args, struct sample *smp, void *private)
+{
+	const struct http_hardening_kw *kw;
+	uint32_t mask = smp->data.u.sint & HTTP_HRD_ALL_REJECT;
+
+	if (!mask)
+		return 0;
+
+	mask &= -mask; // keep the lowest bit only
+	for (kw = http_hardening_kws; kw->name; kw++) {
+		if (kw->mask == mask) {
+			smp->data.type = SMP_T_STR;
+			smp->flags |= SMP_F_CONST;
+			smp->data.u.str.area = (char *)kw->name;
+			smp->data.u.str.data = strlen(kw->name);
+			smp->data.u.str.size = 0;
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /************************************************************************/
 /*        All supported converter keywords must be declared here.       */
 /************************************************************************/
@@ -465,6 +492,7 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "http_date",      sample_conv_http_date,    ARG2(0,SINT,STR),     smp_check_http_date_unit,   SMP_T_SINT, SMP_T_STR},
 	{ "date",           sample_conv_http2epoch,   0,             NULL,   SMP_T_STR,  SMP_T_SINT},
+	{ "hdng_rej_name",  sample_conv_hdng_rej_name,0,                NULL,   SMP_T_SINT, SMP_T_STR},
 	{ "language",       sample_conv_q_preferred,  ARG2(1,STR,STR),  NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "capture-req",    smp_conv_req_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "capture-res",    smp_conv_res_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},

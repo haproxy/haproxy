@@ -22252,6 +22252,7 @@ field(index,delimiters[,count])                    string       string
 fix_is_valid                                       binary       boolean
 fix_tag_value(tag)                                 binary       binary
 has_ctl([mask])                                    binary       boolean
+hdng_rej_name                                      integer      string
 hex                                                binary       string
 hex2i                                              binary       integer
 hmac(algorithm,key)                                binary       binary
@@ -22896,6 +22897,23 @@ has_ctl([mask])
     http-request deny if { req.fhdr(referer),has_ctl(0x100002401) }
     # reject presence of any control char but tab in any HTTP header value
     http-request deny if { req.hdr(),has_ctl }
+
+hdng_rej_name
+  Takes an integer made of HTTP hardening flags such as returned by the
+  "fs.hdng.fixed" or "bs.hdng.fixed" sample fetches, and returns the name of
+  the "reject" rule it contains, as shown in section 12.10 (e.g.
+  "reject-ctl-in-header-trailer"). Other rules (e.g. "delete" ones) are
+  ignored. Since a rejection stops the processing, at most one "reject" rule
+  is normally present. Should there be several, the one with the lowest bit
+  is reported. The converter fails if the input contains no "reject" rule,
+  which makes it possible to log nothing when nothing was rejected. Note that
+  it does not make much sense to use it with the ".found" variant of the sample
+  fetches because multiple bits will often be set. Example:
+
+     log-format "$HAPROXY_HTTP_LOG_FMT cli_hdng=%[fs.hdng.found,htonl,hex],\
+                 %[fs.hdng.fixed,hdng_rej_name]"
+
+  See also "fs.hdng.fixed", "bs.hdng.fixed".
 
 hex
   Converts a binary input sample to a hex string containing two hex digits per
@@ -27333,9 +27351,12 @@ bs.hdng.fixed : integer
   "show http-hardening". Note that bit numbers are subject to change between
   major versions and that new options may occasionally be introduced in minor
   versions. The sample fetch fails if the server side does not use an HTTP
-  multiplexer supporting HTTP hardening (H1, H2, H3). Example:
+  multiplexer supporting HTTP hardening (H1, H2, H3). Since rejects stop the
+  processing, at most one "reject" rule may appear, which may then be turned
+  into its name using the "hdng_rej_name" converter. Example:
 
-     log-format "$HAPROXY_HTTP_LOG_FMT srv_hdng=%[bs.hdng.found,htonl,hex]"
+     log-format "$HAPROXY_HTTP_LOG_FMT srv_hdng=%[bs.hdng.found,htonl,hex],\
+                 %[bs.hdng.fixed,hdng_rej_name]"
 
   See also "bs.hdng.found", "fs.hdng.fixed".
 
@@ -27395,7 +27416,8 @@ fs.hdng.fixed : integer
   only be reported here when the rejection happens later (e.g. on trailers
   received after the headers). Example:
 
-     log-format "$HAPROXY_HTTP_LOG_FMT cli_hdng=%[fs.hdng.found,htonl,hex]"
+     log-format "$HAPROXY_HTTP_LOG_FMT cli_hdng=%[fs.hdng.found,htonl,hex],\
+                 %[fs.hdng.fixed,hdng_rej_name]"
 
   See also "fs.hdng.found", "bs.hdng.fixed".
 
