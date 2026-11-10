@@ -597,7 +597,7 @@ EXTRA_OBJS =
 # This should work with GNU binutils, LLVM tools, elftoolchain, and OpenBSD's
 # nm.
 ifeq ($(origin USE_MINIDEBUG),undefined)
-USE_MINIDEBUG := $(if $(and $(shell command -v $(XZ)),$(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep __ELF__),$(shell \
+USE_MINIDEBUG := $(if $(and $(shell command -v $(XZ) 2>/dev/null || :),$(shell $(CC) -dM -E -xc - </dev/null 2>/dev/null | grep __ELF__),$(shell \
 	printf 'static int _probe_local;\nint _probe_global;\nint main(void){ return _probe_local + _probe_global; }\n' > .minidbg_probe.c && \
 	$(CC) -rdynamic .minidbg_probe.c -o .minidbg_probe >/dev/null 2>&1 && \
 	$(NM) -P .minidbg_probe 2>/dev/null | grep -q '^_probe_local ' && \
