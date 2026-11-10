@@ -3939,7 +3939,19 @@ static void h3_stats_inc_err_cnt(void *ctx, int err_code)
  */
 static int h3_sctl(struct qcs *qcs, enum mux_sctl_type mux_sctl, void *output)
 {
+	const struct h3s *h3s = qcs->ctx;
+
 	switch (mux_sctl) {
+	case MUX_SCTL_GET_HDNG_FOUND:
+		if (!h3s)
+			return -1;
+		*((uint32_t *)output) = h3s->hdng_chk.found;
+		return 0;
+	case MUX_SCTL_GET_HDNG_FIXED:
+		if (!h3s)
+			return -1;
+		*((uint32_t *)output) = h3s->hdng_chk.fixed;
+		return 0;
 	default:
 		return -1;
 	}
