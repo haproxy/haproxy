@@ -847,7 +847,6 @@ static inline int spop_conn_is_dead(struct spop_conn *spop_conn)
 	    ((spop_conn->flags & SPOP_CF_ERROR) ||                      /* errors close immediately */
 	     (spop_conn->flags & SPOP_CF_ERR_PENDING && spop_conn->state < SPOP_CS_RUNNING) || /* early error during connect */
 	     (spop_conn->state == SPOP_CS_CLOSED && !spop_conn->task) ||/* a timeout stroke earlier */
-	     (!(spop_conn->conn->owner)) ||                             /* Nobody's left to take care of the connection, drop it now */
 	     (!br_data(spop_conn->mbuf) &&                              /* mux buffer empty, also process clean events below */
 	      (spop_conn->flags & SPOP_CF_RCVD_SHUT))))
 	      return 1;
