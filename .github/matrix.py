@@ -179,7 +179,7 @@ def main(ref_name):
         os_i686 = "ubuntu-26.04"    # stable branch
     else:
         os = "ubuntu-latest"         # development branch
-        os_arm = "ubuntu-latest-arm" # development branch
+        os_arm = "ubuntu-26.04-arm" # development branch
         os_i686 = "ubuntu-latest"    # development branch
 
     TARGET = "linux-glibc"
