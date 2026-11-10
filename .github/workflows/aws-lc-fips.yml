@@ -15,14 +15,14 @@ jobs:
     strategy:
       matrix:
         include:
-          # Same AWS-LC sources as in the VTest job, built in FIPS mode
-          - name: AWS-LC 3.x (FIPS)
-            ssl: AWS_LC_VERSION=branch-fips-2024-09-27
-            # Shared by runs-on and the cache key for all three jobs.
-            os: &runner ubuntu-latest
+          # disabled: aws-lc 3.x compile error, see https://github.com/aws/aws-lc/issues/3759
+          # - name: AWS-LC 3.x (FIPS)
+          #   ssl: AWS_LC_VERSION=branch-fips-2024-09-27
+          #   # Shared by runs-on and the cache key for all three jobs.
+          #   os: &runner ubuntu-latest
           - name: AWS-LC 4.x (FIPS)
             ssl: AWS_LC_VERSION=branch-fips-2025-09-12-lts
-            os: *runner
+            os: &runner ubuntu-latest
           - name: AWS-LC latest (FIPS)
             ssl: AWS_LC_VERSION=latest
             os: *runner
