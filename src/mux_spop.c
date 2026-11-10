@@ -3011,6 +3011,19 @@ static void spop_detach(struct sedesc *sd)
 
 	spop_strm_destroy(spop_strm);
 
+	/* Don't close unless the last stream is gone and either the
+	 * connection is in error, or it was closed (spop_conn_is_dead()
+	 * documents this).
+	 */
+	if (spop_conn_is_dead(spop_conn)) {
+		TRACE_DEVEL("leaving, killing dead connection", SPOP_EV_STRM_END, spop_conn->conn);
+		spop_release(spop_conn);
+		return;
+	}
+
+	/* A stream left, refresh the timeout if necessary. */
+	spop_conn_update_timeout(spop_conn);
+
 	if (!(spop_conn->flags & (SPOP_CF_RCVD_SHUT|SPOP_CF_ERR_PENDING|SPOP_CF_ERROR))) {
 		if (spop_conn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session server list, if not already done */
@@ -3082,20 +3095,7 @@ static void spop_detach(struct sedesc *sd)
 		}
 	}
 
-	/* We don't want to close right now unless we're removing the last
-	 * stream and the connection is in error.
-	 */
-	if (spop_conn_is_dead(spop_conn)) {
-		/* no more stream will come, kill it now */
-		TRACE_DEVEL("leaving, killing dead connection", SPOP_EV_STRM_END, spop_conn->conn);
-		spop_release(spop_conn);
-	}
-	else if (spop_conn->task) {
-		spop_conn_update_timeout(spop_conn);
-		TRACE_DEVEL("leaving, refreshing connection's timeout", SPOP_EV_STRM_END, spop_conn->conn);
-	}
-	else
-		TRACE_DEVEL("leaving", SPOP_EV_STRM_END, spop_conn->conn);
+	TRACE_DEVEL("leaving", SPOP_EV_STRM_END, spop_conn->conn);
 }
 
 /* Performs a synchronous or asynchronous shutr(). */
