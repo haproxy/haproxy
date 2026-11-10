@@ -5809,6 +5809,12 @@ static int h2_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 		return ret;
 	case MUX_SCTL_TEVTS:
 		return h2s->sd->term_evts_log;
+	case MUX_SCTL_GET_HDNG_FOUND:
+		*((uint32_t *)output) = h2s->hdng_chk.found;
+		return ret;
+	case MUX_SCTL_GET_HDNG_FIXED:
+		*((uint32_t *)output) = h2s->hdng_chk.fixed;
+		return ret;
 
 	default:
 		return -1;

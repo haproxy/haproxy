@@ -400,6 +400,8 @@ enum mux_sctl_type {
 	MUX_SCTL_SID, /* Return the mux stream ID as output, as a signed 64bits integer */
 	MUX_SCTL_DBG_STR,    /* takes a mux_sctl_dbg_str_ctx argument, reads flags and returns debug info */
 	MUX_SCTL_TEVTS, /* Return the termination events log of the mux stream */
+	MUX_SCTL_GET_HDNG_FOUND, /* Return in output the HTTP_HRD_* hardening conditions met, as an uint32_t */
+	MUX_SCTL_GET_HDNG_FIXED, /* Return in output the HTTP_HRD_* hardening rules enforced, as an uint32_t */
 };
 
 #define MUX_SCTL_DBG_STR_L_MUXS  0x00000001  // info from mux stream

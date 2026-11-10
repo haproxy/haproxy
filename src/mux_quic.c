@@ -4918,7 +4918,7 @@ static int qcm_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *out
 static int qcm_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output)
 {
 	int ret = 0;
-	const struct qcs *qcs = __sc_mux_strm(sc);
+	struct qcs *qcs = __sc_mux_strm(sc);
 	const struct qcc *qcc = qcs->qcc;
 	const struct connection *conn = qcc->conn;
 	union mux_sctl_dbg_str_ctx *dbg_ctx;
@@ -4954,6 +4954,13 @@ static int qcm_sctl(struct stconn *sc, enum mux_sctl_type mux_sctl, void *output
 
 	case MUX_SCTL_TEVTS:
 		return qcs->sd->term_evts_log;
+
+	case MUX_SCTL_GET_HDNG_FOUND:
+	case MUX_SCTL_GET_HDNG_FIXED:
+		/* only known to the H3 layer */
+		if (qcc->app_ops != &h3_ops || !qcc->app_ops->sctl)
+			return -1;
+		return qcc->app_ops->sctl(qcs, mux_sctl, output);
 
 	default:
 		return -1;
