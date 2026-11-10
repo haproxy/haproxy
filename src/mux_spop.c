@@ -3024,7 +3024,8 @@ static void spop_detach(struct sedesc *sd)
 	/* A stream left, refresh the timeout if necessary. */
 	spop_conn_update_timeout(spop_conn);
 
-	if (!(spop_conn->flags & (SPOP_CF_RCVD_SHUT|SPOP_CF_ERR_PENDING|SPOP_CF_ERROR))) {
+	if (!(spop_conn->flags & (SPOP_CF_RCVD_SHUT|SPOP_CF_ERR_PENDING|SPOP_CF_ERROR)) &&
+	    (spop_conn->state < SPOP_CS_ERROR)) {
 		if (spop_conn->conn->flags & CO_FL_PRIVATE) {
 			/* Add the connection in the session server list, if not already done */
 			session_add_conn(sess, spop_conn->conn);
