@@ -768,7 +768,12 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 	SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
 	SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 	SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION);
-	        
+	/* Reflect the effective TLS version bounds for certificate selection,
+	 * as ssl_sock_initial_ctx() does for TCP binds.
+	 */
+	bind_conf->ssl_conf.ssl_methods.min = CONF_TLSV13;
+	bind_conf->ssl_conf.ssl_methods.max = CONF_TLSV13;
+
 	if (SSL_CTX_set_ciphersuites(ctx, ciphersuites) != 1) {
 		ha_warning("Binding [%s:%d] for %s %s: default QUIC cipher"
 		           " suites setting failed.\n",
