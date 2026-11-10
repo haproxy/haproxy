@@ -76,7 +76,7 @@ jobs:
           ${{ case(contains(matrix.FLAGS, 'USE_LUA=1'), 'liblua5.4-dev', '') }} \
           ${{ case(contains(matrix.FLAGS, 'USE_PCRE2=1'), 'libpcre2-dev', '') }} \
           ${{ case(contains(matrix.ssl, 'BORINGSSL=yes'), 'ninja-build', '') }} \
-          ${{ case(matrix.CC == 'i686-linux-gnu-gcc', 'gcc-i686-linux-gnu libc6-dev-i386-cross libssl-dev:i386 libpcre2-dev:i386', '') }} \
+          ${{ case(matrix.CC == 'i686-linux-gnu-gcc', 'gcc-i686-linux-gnu libc6-dev-i386-cross libcrypt-dev:i386 libssl-dev:i386 libpcre2-dev:i386', '') }} \
           socat \
           gdb \
           jose
