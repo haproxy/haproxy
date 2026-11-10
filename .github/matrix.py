@@ -174,13 +174,13 @@ def main(ref_name):
     # Ubuntu
 
     if is_stable:
-        os = "ubuntu-24.04"         # stable branch
-        os_arm = "ubuntu-24.04-arm" # stable branch
-        os_i686 = "ubuntu-24.04"    # stable branch
+        os = "ubuntu-26.04"         # stable branch
+        os_arm = "ubuntu-26.04-arm" # stable branch
+        os_i686 = "ubuntu-26.04"    # stable branch
     else:
-        os = "ubuntu-24.04"         # development branch
-        os_arm = "ubuntu-24.04-arm" # development branch
-        os_i686 = "ubuntu-24.04"    # development branch
+        os = "ubuntu-latest"         # development branch
+        os_arm = "ubuntu-latest-arm" # development branch
+        os_i686 = "ubuntu-latest"    # development branch
 
     TARGET = "linux-glibc"
     for CC in ["gcc", "clang"]:
