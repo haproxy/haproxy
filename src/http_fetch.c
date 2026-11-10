@@ -2340,6 +2340,44 @@ int val_query(struct arg *args, char **err_msg)
 	return 1;
 
 }
+/* Returns the HTTP hardening conditions met ("found") or rules enforced
+ * ("fixed") on the frontend ("fs.") or backend ("bs.") mux stream, as a mask
+ * of HTTP_HRD_* flags. The sample fetch fails if the mux doesn't support HTTP
+ * hardening.
+ */
+static int smp_fetch_hdng(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	enum mux_sctl_type sctl;
+	struct connection *conn;
+	struct stconn *sc;
+	uint32_t mask = 0;
+
+	if (!smp->strm)
+		return 0;
+
+	/* kw is either "{f,b}s.hdng.found" or "{f,b}s.hdng.fixed" */
+	sctl = (kw[9] == 'o') ? MUX_SCTL_GET_HDNG_FOUND : MUX_SCTL_GET_HDNG_FIXED;
+	sc = (kw[0] == 'f' ? smp->strm->scf : smp->strm->scb);
+	conn = sc_conn(sc);
+
+	if (!conn)
+		return 0;
+
+	/* a missing mux is necessarily on the backend, and may arrive later */
+	if (!conn->mux) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (!conn->mux->sctl || conn->mux->sctl(sc, sctl, &mask) == -1)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = mask;
+	return 1;
+}
+
 /************************************************************************/
 /*      All supported sample fetch keywords must be declared here.      */
 /************************************************************************/
@@ -2350,6 +2388,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base32",             smp_fetch_base32,             0,                NULL,   SMP_T_SINT, SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
 	{ "base32+src",         smp_fetch_base32_src,         0,                NULL,   SMP_T_BIN,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
 	{ "baseq",              smp_fetch_base,               0,                NULL,   SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+
+	{ "bs.hdng.fixed",      smp_fetch_hdng,               0,                NULL,   SMP_T_SINT, SMP_USE_L5SRV },
+	{ "bs.hdng.found",      smp_fetch_hdng,               0,                NULL,   SMP_T_SINT, SMP_USE_L5SRV },
 
 	/* capture are allocated and are permanent in the stream */
 	{ "capture.req.hdr",    smp_fetch_capture_req_hdr,    ARG1(1,SINT),     val_cap_id, SMP_T_STR,  SMP_USE_HRQHP },
@@ -2370,6 +2411,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "cookie",             smp_fetch_chn_cookie,         ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV|SMP_USE_HRSHV },
 	{ "cook_cnt",           smp_fetch_cookie_cnt,         ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "cook_val",           smp_fetch_cookie_val,         ARG1(0,STR),      NULL,    SMP_T_SINT, SMP_USE_HRQHV },
+
+	{ "fs.hdng.fixed",      smp_fetch_hdng,               0,                NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+	{ "fs.hdng.found",      smp_fetch_hdng,               0,                NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 
 	/* hdr is valid in both directions (eg: for "stick ...") but hdr_* are
 	 * only here to match the ACL's name, are request-only and are used for
