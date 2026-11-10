@@ -3933,6 +3933,18 @@ static void h3_stats_inc_err_cnt(void *ctx, int err_code)
 	h3_inc_err_cnt(h3c->prx_counters, err_code);
 }
 
+/* Application-specific stream controls for <qcs>, called by the QUIC mux for
+ * the mux_sctl_type values it does not handle itself. <output> depends on the
+ * request. Returns -1 when not supported.
+ */
+static int h3_sctl(struct qcs *qcs, enum mux_sctl_type mux_sctl, void *output)
+{
+	switch (mux_sctl) {
+	default:
+		return -1;
+	}
+}
+
 static void h3_report_susp(void *ctx)
 {
 	struct h3c *h3c = ctx;
@@ -4056,4 +4068,5 @@ const struct qcc_app_ops h3_ops = {
 	.report_susp = h3_report_susp,
 	.release     = h3_release,
 	.strm_reject = h3_reject,
+	.sctl        = h3_sctl,
 };
