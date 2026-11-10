@@ -27166,10 +27166,14 @@ Summary of sample fetch methods in this section and their respective types:
 51d.all(<prop>[,<prop>*])                          string
 bs.aborted                                         boolean
 bs.debug_str([<bitmap>])                           string
+bs.hdng.fixed                                      integer
+bs.hdng.found                                      integer
 bs.id                                              integer
 bs.rst_code                                        integer
 fs.aborted                                         boolean
 fs.debug_str([<bitmap>])                           string
+fs.hdng.fixed                                      integer
+fs.hdng.found                                      integer
 fs.id                                              integer
 fs.rst_code                                        integer
 ssl_bc                                             boolean
@@ -27320,7 +27324,33 @@ bs.debug_str([<bitmap>]) : string
   typical use case is to concatenate these information at the very end of a
   log-format, along with fs.debug_str(). Example:
 
-     log-format "$HAPROXY_HTTP_LOG_FMT fs=<%[fs.debug_str]> bs=<%[bs.debug_str]>"
+     log-format "$HAPROXY_HTTP_LOG_FMT \
+                 fs=<%[fs.debug_str]> bs=<%[bs.debug_str]>"
+
+bs.hdng.fixed : integer
+  Returns the mask of the HTTP hardening rules that were enforced on the
+  traffic received from the server for the current stream, i.e. the elements
+  that were rejected or deleted (see section 12.10). Each rule is designated
+  by one bit, whose position starting at 1 is reported by "haproxy -dKcfg" and
+  "show http-hardening". Note that bit numbers are subject to change between
+  major versions and that new options may occasionally be introduced in minor
+  versions. The sample fetch fails if the server side does not use an HTTP
+  multiplexer supporting HTTP hardening (H1, H2, H3). Example:
+
+     log-format "$HAPROXY_HTTP_LOG_FMT srv_hdng=%[bs.hdng.found,htonl,hex]"
+
+  See also "bs.hdng.found", "fs.hdng.fixed".
+
+bs.hdng.found : integer
+  Returns the mask of the HTTP hardening conditions that were met on the
+  traffic received from the server for the current stream, regardless of
+  whether the corresponding rules were enabled or not (see section 12.10).
+  This allows to figure what would be blocked or modified before enabling a
+  rule. The bits are the same as for "bs.hdng.fixed". Note that bit numbers
+  are subject to change between major versions and that new options may
+  occasionally be introduced in minor versions. The sample fetch fails if the
+  server side does not use an HTTP multiplexer supporting HTTP hardening (H1,
+  H2, H3). See also "bs.hdng.fixed", "fs.hdng.found".
 
 bs.id : integer
   Returns the multiplexer's stream ID on the server side. It is the
@@ -27357,6 +27387,26 @@ fs.debug_str([<bitmap>]) : string
   log-format, along with bs.debug_str(). Example:
 
      log-format "$HAPROXY_HTTP_LOG_FMT fs=<%[fs.debug_str]> bs=<%[bs.debug_str]>"
+
+fs.hdng.fixed : integer
+  Returns the mask of the HTTP hardening rules that were enforced on the
+  traffic received from the client for the current stream. This is the same as
+  "bs.hdng.fixed" but for the client side. Note that a request rejected before
+  the stream is created (e.g. on its headers, or on trailers received at the
+  same time) is handled and logged by the multiplexer alone, so that it can
+  only be reported here when the rejection happens later (e.g. on trailers
+  received after the headers). Example:
+
+     log-format "$HAPROXY_HTTP_LOG_FMT cli_hdng=%[fs.hdng.found,htonl,hex]"
+
+  See also "fs.hdng.found", "bs.hdng.fixed".
+
+fs.hdng.found : integer
+  Returns the mask of the HTTP hardening conditions that were met on the
+  traffic received from the client for the current stream, regardless of
+  whether the corresponding rules were enabled or not. This is the same as
+  "bs.hdng.found" but for the client side. See also "fs.hdng.fixed",
+  "bs.hdng.found".
 
 fs.id : integer
   Returns the multiplexer's stream ID on the client side. It is the
