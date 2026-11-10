@@ -45,18 +45,6 @@ jobs:
             libs: libc6-dev-m68k-cross,
             target: -static -m68040 linux-latomic
           }, {
-            arch: mips-linux-gnu,
-            libs: libc6-dev-mips-cross,
-            target: -static linux-mips32
-          }, {
-            arch: mips64-linux-gnuabi64,
-            libs: libc6-dev-mips64-cross,
-            target: -static linux64-mips64
-          }, {
-            arch: mipsel-linux-gnu,
-            libs: libc6-dev-mipsel-cross,
-            target: linux-mips32
-          }, {
             arch: powerpc64le-linux-gnu,
             libs: libc6-dev-ppc64el-cross,
             target: linux-ppc64le
@@ -80,14 +68,6 @@ jobs:
             arch: m68k-linux-gnu,
             libs: libc6-dev-m68k-cross,
             target: -mcfv4e linux-latomic
-          }, {
-            arch: mips-linux-gnu,
-            libs: libc6-dev-mips-cross,
-            target: linux-mips32
-          }, {
-            arch: mips64-linux-gnuabi64,
-            libs: libc6-dev-mips64-cross,
-            target: linux64-mips64
           }, {
             arch: sparc64-linux-gnu,
             libs: libc6-dev-sparc64-cross,
