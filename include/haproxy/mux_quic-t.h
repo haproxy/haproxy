@@ -264,6 +264,12 @@ struct qcc_app_ops {
 
 	/* Free function to close a stream after MUX layer shutdown. */
 	int (*strm_reject)(struct list *out, uint64_t id);
+
+	/* Application-specific stream controls, called by the mux for the
+	 * mux_sctl_type values it doesn't handle itself. Works like
+	 * mux->sctl(): returns -1 if not supported.
+	 */
+	int (*sctl)(struct qcs *qcs, enum mux_sctl_type mux_sctl, void *output);
 };
 
 #endif /* USE_QUIC */
