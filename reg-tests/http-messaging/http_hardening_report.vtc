@@ -1,0 +1,143 @@
+varnishtest "HTTP hardening reporting: fs/bs.hdng.found/fixed and hdng_rej_name"
+
+# This checks that the HTTP hardening conditions met and rules enforced on
+# each side are reported by the {fs,bs}.hdng.{found,fixed} sample fetches, and
+# that the hdng_rej_name converter turns a "fixed" mask into the name of the reject
+# rule. Each message carries the same anomalies:
+#   - a header named "x_a"           (underscore-in-header-name)
+#   - a header named "X-Foo"         (unregistered-header-fields)
+#   - a trailer with a CTL in its value (reject-ctl-in-header-trailer)
+# The trailer is rejected late, once the stream exists, so that the stream
+# logs it (a rejection before that is handled and logged by the mux alone).
+# The "trusted" profile (the default over the loopback) lets everything pass
+# and only reports what was found. The "strict" profile deletes the headers
+# and rejects the trailer, so only the reject is named by hdng_rej_name.
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev11)'"
+feature ignore_unknown_macro
+
+# HTTP_HRD_* bits met here:
+#   0x004 reject-underscore-in-header-name
+#   0x010 delete-underscore-in-header-name
+#   0x040 delete-unregistered-header-fields (only looked up when enabled)
+#   0x100 delete-all-trailer-fields         (any trailer)
+#   0x400 reject-ctl-in-header-trailer
+# The masks are logged in hex after htonl. The H2 frontend has no
+# backend, so "bs" is not available there.
+
+# vtest cannot parse the CTL in the trailer, so only the headers are read
+server s_trusted {
+	rxreqhdrs
+	expect req.http.x_a == "1"
+	expect req.http.x-foo == "2"
+	txresp -nolen -hdr "x_a: 1" -hdr "X-Foo: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\x012\r\n\r\n"
+} -start
+
+server s_strict {
+	rxreq
+	txresp -nolen -hdr "x_a: 1" -hdr "X-Foo: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\x012\r\n\r\n"
+} -start
+
+syslog Strusted -level info {
+	recv
+	expect ~ "fe_trusted .* fs=00000514/00000000/- bs=00000514/00000000/-$"
+} -start
+
+syslog Sreq -level info {
+	recv
+	expect ~ "fe_req .* fs=00000454/00000450/reject-ctl-in-header-trailer bs=-/-/-$"
+} -start
+
+syslog Sres -level info {
+	recv
+	expect ~ "fe_res .* fs=00000000/00000000/- bs=00000454/00000450/reject-ctl-in-header-trailer$"
+} -start
+
+syslog Sh2 -level info {
+	recv
+	expect ~ "fe_h2 .* fs=00000054/00000050/- bs=-/-/-$"
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+	thread-groups 1
+    .endif
+
+    http-hardening strict
+	delete-underscore-in-header-name on
+	delete-unregistered-header-fields on
+	reject-ctl-in-header-trailer on
+
+    defaults
+	mode http
+	http-reuse never
+	option http-buffer-request
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+	log-format "%f %ST fs=%[fs.hdng.found,htonl,hex]/%[fs.hdng.fixed,htonl,hex]/%[fs.hdng.fixed,hdng_rej_name] bs=%[bs.hdng.found,htonl,hex]/%[bs.hdng.fixed,htonl,hex]/%[bs.hdng.fixed,hdng_rej_name]"
+
+    # everything passes, only reported as found
+    listen fe_trusted
+	log ${Strusted_addr}:${Strusted_port} local0
+	bind "fd@${fe_trusted}" http-hardening trusted
+	http-response wait-for-body time 5s
+	server s1 ${s_trusted_addr}:${s_trusted_port}
+
+    # the request trailer is rejected after the deletion of the headers
+    frontend fe_req
+	log ${Sreq_addr}:${Sreq_port} local0
+	bind "fd@${fe_req}" http-hardening strict
+	http-request return status 200
+
+    # the response trailer is rejected after the deletion of the headers
+    listen fe_res
+	log ${Sres_addr}:${Sres_port} local0
+	bind "fd@${fe_res}" http-hardening strict
+	http-response wait-for-body time 5s
+	server s1 ${s_strict_addr}:${s_strict_port} http-hardening strict
+
+    # H2 only deletes here, so nothing is named
+    frontend fe_h2
+	log ${Sh2_addr}:${Sh2_port} local0
+	bind "fd@${fe_h2}" proto h2 http-hardening strict
+	http-request return status 200
+} -start
+
+client c_trusted -connect ${h1_fe_trusted_sock} {
+	txreq -req POST -nolen -hdr "x_a: 1" -hdr "X-Foo: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\nt-a: 1\x012\r\n\r\n"
+	rxresphdrs
+	expect resp.status == 200
+	expect resp.http.x_a == "1"
+	expect resp.http.x-foo == "2"
+} -run
+
+# the trailers are sent apart so that the stream exists when they're parsed,
+# otherwise the error would be handled by the mux before the stream is created.
+client c_req -connect ${h1_fe_req_sock} {
+	txreq -req POST -nolen -hdr "x_a: 1" -hdr "X-Foo: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n"
+	delay 0.2
+	send "0\r\nt-a: 1\x012\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_res -connect ${h1_fe_res_sock} {
+	txreq
+	rxresp
+	expect resp.status == 502
+} -run
+
+client c_h2 -connect ${h1_fe_h2_sock} {
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a" -hdr "x_a" "1" -hdr "x-foo" "2"
+		rxresp
+		expect resp.status == 200
+	} -run
+} -run
+
+syslog Strusted -wait
+syslog Sreq -wait
+syslog Sres -wait
+syslog Sh2 -wait
