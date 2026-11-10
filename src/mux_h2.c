@@ -5836,6 +5836,106 @@ static void h2_destroy(void *ctx)
 	TRACE_LEAVE(H2_EV_H2C_END);
 }
 
+/* Performs the idle/avail list management of a backend connection after one
+ * of its streams was destroyed. It is called from h2_detach(), and from
+ * h2_deferred_shut() for orphaned streams that were blocked at detach time.
+ * The connection must not be dead and its timeout must already have been
+ * refreshed. <sess> is the session owning the connection if it is private. It
+ * may be NULL if the session is already gone, in which case an idle private
+ * connection cannot be reused anymore and is destroyed.
+ *
+ * Returns 1 if the connection was moved to an idle list or destroyed, in which
+ * case the caller must not use <h2c> anymore. Otherwise 0 is returned.
+ */
+static int h2_may_idle_conn(struct h2c *h2c, struct session *sess)
+{
+	if (!(h2c->flags & H2_CF_IS_BACK) ||
+	    (h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERR_PENDING|H2_CF_ERROR)))
+		return 0;
+
+	if (h2c->conn->flags & CO_FL_PRIVATE) {
+		if (!sess) {
+			if (!eb_is_empty(&h2c->streams_by_id))
+				return 0;
+
+			/* The session is gone and the connection is idle, nobody can reuse it */
+			CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
+			TRACE_DEVEL("leaving after killing orphaned private connection", H2_EV_STRM_END);
+			return 1;
+		}
+
+		/* Add the connection in the session server list, if not already done */
+		session_add_conn(sess, h2c->conn);
+
+		if (eb_is_empty(&h2c->streams_by_id)) {
+			if (!LIST_INLIST(&h2c->conn->sess_el)) {
+				/* Session insertion above has failed and connection is idle, remove it. */
+				CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
+				TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
+				return 1;
+			}
+
+			/* mark that the tasklet may lose its context to another thread and
+			 * that the handler needs to check it under the idle conns lock.
+			 */
+			HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
+			xprt_set_idle(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
+
+			/* Ensure session can keep a new idle connection. */
+			if (session_check_idle_conn(sess, h2c->conn) != 0) {
+				CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
+				TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);
+				return 1;
+			}
+
+			/* At this point, the connection is inserted into
+			 * session list and marked as idle, so it may already
+			 * have been purged from another thread.
+			 */
+			TRACE_DEVEL("private connection marked as idle", H2_EV_STRM_END);
+			return 1;
+		}
+	}
+	else {
+		if (eb_is_empty(&h2c->streams_by_id)) {
+			/* If the connection is owned by the session, first remove it
+			 * from its list
+			 */
+			if (h2c->conn->owner) {
+				session_unown_conn(h2c->conn->owner, h2c->conn);
+				h2c->conn->owner = NULL;
+			}
+
+			/* mark that the tasklet may lose its context to another thread and
+			 * that the handler needs to check it under the idle conns lock.
+			 */
+			HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
+			xprt_set_idle(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
+
+			if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn, 1)) {
+				/* The server doesn't want it, let's kill the connection right away */
+				CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
+				TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
+				return 1;
+			}
+			/* At this point, the connection has been added to the
+			 * server idle list, so another thread may already have
+			 * hijacked it, so we can't do anything with it.
+			 */
+			TRACE_DEVEL("reusable idle connection", H2_EV_STRM_END);
+			return 1;
+
+		}
+		else if (!ceb_intree(&h2c->conn->hash_node.node) &&
+			 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
+			 !LIST_INLIST(&h2c->conn->sess_el)) {
+			srv_add_to_avail_list(__objt_server(h2c->conn->target), h2c->conn);
+		}
+	}
+
+	return 0;
+}
+
 /*
  * Detach the stream from the connection and possibly release the connection.
  */
@@ -5908,79 +6008,8 @@ static void h2_detach(struct sedesc *sd)
 	/* A stream left, refresh the timeout if necessary. */
 	h2c_update_timeout(h2c);
 
-	if (h2c->flags & H2_CF_IS_BACK) {
-		if (!(h2c->flags & (H2_CF_RCVD_SHUT|H2_CF_ERR_PENDING|H2_CF_ERROR))) {
-			if (h2c->conn->flags & CO_FL_PRIVATE) {
-				/* Add the connection in the session server list, if not already done */
-				session_add_conn(sess, h2c->conn);
-
-				if (eb_is_empty(&h2c->streams_by_id)) {
-					if (!LIST_INLIST(&h2c->conn->sess_el)) {
-						/* Session insertion above has failed and connection is idle, remove it. */
-						CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
-						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
-						return;
-					}
-
-					/* mark that the tasklet may lose its context to another thread and
-					 * that the handler needs to check it under the idle conns lock.
-					 */
-					HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
-					xprt_set_idle(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
-
-					/* Ensure session can keep a new idle connection. */
-					if (session_check_idle_conn(sess, h2c->conn) != 0) {
-						CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
-						TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);
-						return;
-					}
-
-					/* At this point, the connection is inserted into
-					 * session list and marked as idle, so it may already
-					 * have been purged from another thread.
-					 */
-					TRACE_DEVEL("private connection marked as idle", H2_EV_STRM_END);
-					return;
-				}
-			}
-			else {
-				if (eb_is_empty(&h2c->streams_by_id)) {
-					/* If the connection is owned by the session, first remove it
-					 * from its list
-					 */
-					if (h2c->conn->owner) {
-						session_unown_conn(h2c->conn->owner, h2c->conn);
-						h2c->conn->owner = NULL;
-					}
-
-					/* mark that the tasklet may lose its context to another thread and
-					 * that the handler needs to check it under the idle conns lock.
-					 */
-					HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
-					xprt_set_idle(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
-
-					if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn, 1)) {
-						/* The server doesn't want it, let's kill the connection right away */
-						CALL_MUX_NO_RET(h2c->conn->mux, destroy(h2c));
-						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
-						return;
-					}
-					/* At this point, the connection has been added to the
-					 * server idle list, so another thread may already have
-					 * hijacked it, so we can't do anything with it.
-					 */
-					TRACE_DEVEL("reusable idle connection", H2_EV_STRM_END);
-					return;
-
-				}
-				else if (!ceb_intree(&h2c->conn->hash_node.node) &&
-					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
-					 !LIST_INLIST(&h2c->conn->sess_el)) {
-					srv_add_to_avail_list(__objt_server(h2c->conn->target), h2c->conn);
-				}
-			}
-		}
-	}
+	if (h2_may_idle_conn(h2c, sess))
+		return;
 
 	TRACE_DEVEL("leaving", H2_EV_STRM_END, h2c->conn);
 }
@@ -6181,8 +6210,24 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 			/* note: this frees the tasklet as well */
 			h2s_destroy(h2s);
 			t = NULL;
-			if (h2c_is_dead(h2c))
+			if (h2c_is_dead(h2c)) {
 				h2_release(h2c);
+				goto end;
+			}
+
+			/* A stream left, refresh the timeout if necessary. */
+			h2c_update_timeout(h2c);
+
+			/* The stream was blocked in h2_detach() which left before
+			 * the connection could be made idle or available again,
+			 * let's do it now. The stream's session cannot be used
+			 * here because it may have been released in the mean
+			 * time. The connection owner is only reliable if the
+			 * connection is still attached to its session, because
+			 * session_free() only resets it in this case.
+			 */
+			if (h2_may_idle_conn(h2c, (LIST_INLIST(&h2c->conn->sess_el) ? h2c->conn->owner : NULL)))
+				goto end;
 		}
 	}
  end:
