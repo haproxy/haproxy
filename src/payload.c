@@ -806,6 +806,10 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 				goto not_ssl_hello;
 
 			if (name_type == 0) { /* hostname */
+				/* a host name never contains a \0 */
+				if (memchr(data + 9, 0, name_len))
+					goto not_ssl_hello;
+
 				smp->data.type = SMP_T_STR;
 				smp->data.u.str.area = (char *)data + 9;
 				smp->data.u.str.data = name_len;
@@ -890,10 +894,20 @@ smp_fetch_ssl_hello_alpn(const struct arg *args, struct sample *smp, const char 
 
 			/* Name cursor in ctx, must begin after protocol_names_len */
 			name_offset = smp->ctx.i < 6 ? 6 : smp->ctx.i;
+		next_name:
 			name_len = data[name_offset];
 
 			if (name_len + name_offset - 3 > ext_len)
 				goto not_ssl_hello;
+
+			/* skip the protocol names containing a \0 */
+			if (memchr(data + name_offset + 1, 0, name_len)) {
+				if (name_len + name_offset - 3 < ext_len) {
+					name_offset += name_len + 1;
+					goto next_name;
+				}
+				goto not_ssl_hello;
+			}
 
 			smp->data.type = SMP_T_STR;
 			smp->data.u.str.area = (char *)data + name_offset + 1; /* +1 to skip name_len */
@@ -1001,6 +1015,11 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 		goto not_cookie;
 
 	smp->data.u.str.data = (char *)data - smp->data.u.str.area;
+
+	/* a string sample cannot contain a \0 */
+	if (memchr(smp->data.u.str.area, 0, smp->data.u.str.data))
+		goto not_cookie;
+
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 	return 1;
 

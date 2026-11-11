@@ -1994,6 +1994,7 @@ static int smp_fetch_param(char delim, const char *name, int name_len, const str
 	struct buffer *temp;
 	const char **chunks = (const char **)smp->ctx.a;
 
+  next_param:
 	if (!http_find_next_url_param(chunks, name, name_len,
 	                         &vstart, &vend, delim, insensitive))
 		return 0;
@@ -2029,6 +2030,10 @@ static int smp_fetch_param(char delim, const char *name, int name_len, const str
 		chunks[1] = chunks[3];
 		chunks[2] = NULL;
 	}
+
+	/* a string sample cannot contain a \0 */
+	if (memchr(smp->data.u.str.area, 0, smp->data.u.str.data))
+		goto next_param;
 
 	if (chunks[0] < chunks[1])
 		smp->flags |= SMP_F_NOT_LAST;

@@ -1,0 +1,132 @@
+varnishtest "string samples taken from raw client bytes must not contain a NUL"
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=bug
+
+# req.ssl_sni, req.ssl_alpn, req.rdp_cookie and req.body_param return client
+# bytes as a string sample. A \0 in them made "-m str" (and map_str) match on
+# the prefix only, through the pattern tree. These samples must fail instead,
+# like url_dec and json_query do since commit 37204a71a, while the following
+# occurrences remain visible to iterating ACLs.
+
+# Every accepted TCP connection reaches s1, which answers "yes". Rejected
+# ones are closed by haproxy without any data.
+server s1 -repeat 4 {
+    recv 1
+    send "yes"
+} -start
+
+haproxy h1 -conf {
+  global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+  defaults
+    mode tcp
+    timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+  frontend fe_sni
+    bind "fd@${fe_sni}"
+    tcp-request inspect-delay 5s
+    tcp-request content reject unless { req.ssl_sni -m str allowed.example.com }
+    default_backend be
+
+  frontend fe_alpn
+    bind "fd@${fe_alpn}"
+    tcp-request inspect-delay 5s
+    tcp-request content reject unless { req.ssl_alpn -m str h2 }
+    default_backend be
+
+  frontend fe_alpn_deny
+    bind "fd@${fe_alpn_deny}"
+    tcp-request inspect-delay 5s
+    tcp-request content reject if { req.ssl_alpn -m str evil }
+    tcp-request content accept if { req.ssl_alpn -m found }
+    default_backend be
+
+  frontend fe_rdp
+    bind "fd@${fe_rdp}"
+    tcp-request inspect-delay 5s
+    tcp-request content reject unless { req.rdp_cookie(mstshash) -m str alice }
+    default_backend be
+
+  backend be
+    server s1 ${s1_addr}:${s1_port}
+
+  frontend fe_body
+    mode http
+    bind "fd@${fe_body}"
+    option http-buffer-request
+    http-request deny deny_status 401 if { req.body_param(x) -m str bad }
+    http-request deny deny_status 403 unless { req.body_param(role) -m str user }
+    http-request return status 200
+} -start
+
+# ClientHello, SNI "allowed.example.com": accepted
+client c1 -connect ${h1_fe_sni_sock} {
+    sendhex "160301004b010000470303111111111111111111111111111111111111111111111111111111111111111100000213010100001c000000180016000013616c6c6f7765642e6578616d706c652e636f6d"
+    recv 3
+} -run
+
+# ClientHello, SNI "allowed.example.com\0.evil.net": rejected
+client c2 -connect ${h1_fe_sni_sock} {
+    sendhex "1603010055010000510303111111111111111111111111111111111111111111111111111111111111111100000213010100002600000022002000001d616c6c6f7765642e6578616d706c652e636f6d002e6576696c2e6e6574"
+    expect_close
+} -run
+
+# ClientHello, ALPN "h2": accepted
+client c3 -connect ${h1_fe_alpn_sock} {
+    sendhex "16030100380100003403031111111111111111111111111111111111111111111111111111111111111111000002130101000009001000050003026832"
+    recv 3
+} -run
+
+# ClientHello, ALPN "h2\0zz": rejected
+client c4 -connect ${h1_fe_alpn_sock} {
+    sendhex "160301003b010000370303111111111111111111111111111111111111111111111111111111111111111100000213010100000c001000080006056832007a7a"
+    expect_close
+} -run
+
+# ClientHello, ALPN "h2": not denied
+client c5 -connect ${h1_fe_alpn_deny_sock} {
+    sendhex "16030100380100003403031111111111111111111111111111111111111111111111111111111111111111000002130101000009001000050003026832"
+    recv 3
+} -run
+
+# ClientHello, ALPN "h2\0zz" then "evil": the name after the skipped one is
+# still seen, so the connection is denied
+client c6 -connect ${h1_fe_alpn_deny_sock} {
+    sendhex "16030100400100003c030311111111111111111111111111111111111111111111111111111111111111110000021301010000110010000d000b056832007a7a046576696c"
+    expect_close
+} -run
+
+# RDP, "Cookie: mstshash=alice": accepted
+client c7 -connect ${h1_fe_rdp_sock} {
+    sendhex "0300002b26e00000000000436f6f6b69653a206d737473686173683d616c6963650d0a0100080000000000"
+    recv 3
+} -run
+
+# RDP, "Cookie: mstshash=alice\0admin": rejected
+client c8 -connect ${h1_fe_rdp_sock} {
+    sendhex "030000312ce00000000000436f6f6b69653a206d737473686173683d616c6963650061646d696e0d0a0100080000000000"
+    expect_close
+} -run
+
+client c9 -connect ${h1_fe_body_sock} {
+    txreq -req POST -url "/" -body "role=user"
+    rxresp
+    expect resp.status == 200
+
+    # POST / with body "role=user\0admin"
+    sendhex "504f5354202f20485454502f312e310d0a686f73743a20780d0a636f6e74656e742d6c656e6774683a2031350d0a0d0a726f6c653d757365720061646d696e"
+    rxresp
+    expect resp.status == 403
+
+    # POST / with body "role=user&x=a\0b&x=bad": the value after the skipped
+    # one is still seen
+    sendhex "504f5354202f20485454502f312e310d0a686f73743a20780d0a636f6e74656e742d6c656e6774683a2032310d0a0d0a726f6c653d7573657226783d61006226783d626164"
+    rxresp
+    expect resp.status == 401
+} -run
