@@ -142,6 +142,16 @@ enum {
 	/* This composite one is useful to detect if an http_txn needs to be allocated */
 	SMP_USE_HTTP_ANY = SMP_USE_HRQHV | SMP_USE_HRQHP | SMP_USE_HRQBO |
 	                   SMP_USE_HRSHV | SMP_USE_HRSHP | SMP_USE_HRSBO,
+
+	/* The values below are not sources but properties of the fetched
+	 * contents. Their names start with "SMP_USE__" to distinguish them from
+	 * the sources. They are not mapped to any SMP_SRC_* value and are thus
+	 * ignored when computing the validity domain. They are allocated from
+	 * the topmost bit downwards, and the sources must never reach them. They
+	 * are or'ed into the ACLs' and conditions' ->use like sources, which
+	 * allows to quickly check whether a condition depends on such contents.
+	 */
+	SMP_USE__MAY_ALIAS = 1U << 31,  /* contents may be aliased: multiple equivalent forms (eg: %-encoding, case, "/./") */
 };
 
 /* Sample validity is computed from the fetch sources above when keywords

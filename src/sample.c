@@ -94,6 +94,9 @@ static struct sample_conv_kw_list sample_convs = {
 	.list = LIST_HEAD_INIT(sample_convs.list)
 };
 
+/* the sources must never reach the content properties (SMP_USE__*) */
+BUG_ON_STATIC(SMP_SRC_ENTRIES > 31);
+
 const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	[SMP_SRC_CONST] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
