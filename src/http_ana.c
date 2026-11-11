@@ -2400,6 +2400,17 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	return 0;
 }
 
+/* Don't emit a path which browsers would resolve as a network-path reference
+ * ("//host" or "/\host"): prepend "/." so it stays on the same host. Returns
+ * 0 if <chunk> is too small.
+ */
+static int http_redirect_protect_self_path(struct buffer *chunk, const struct ist path)
+{
+	if (path.len >= 2 && path.ptr[0] == '/' && (path.ptr[1] == '/' || path.ptr[1] == '\\'))
+		return chunk_memcat(chunk, "/.", 2);
+	return 1;
+}
+
 /* Perform an HTTP redirect based on the information in <rule>. The function
  * returns zero in case of an irrecoverable error such as too large a request
  * to build a valid response, 1 in case of successful redirect (hence the rule
@@ -2523,6 +2534,10 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 							     chunk->size - chunk->data,
 							     &rule->rdr_fmt);
 			}
+
+			/* no prefix (special prefix "/" or empty log format) */
+			if (!chunk->data && !http_redirect_protect_self_path(chunk, path))
+				goto fail;
 
 			/* add path */
 			if (!chunk_memcat(chunk, path.ptr, path.len))
@@ -4498,6 +4513,10 @@ void http_perform_server_redirect(struct stream *s, struct stconn *sc)
 	parser = http_uri_parser_init(htx_sl_req_uri(sl));
 	path = http_parse_path(&parser);
 	if (!isttest(path))
+		return;
+
+	/* no prefix (special prefix "/") */
+	if (!trash.data && !http_redirect_protect_self_path(&trash, path))
 		return;
 
 	if (!chunk_memcat(&trash, path.ptr, path.len))

@@ -1,0 +1,102 @@
+varnishtest "redirect to the same path must not produce a network-path reference"
+
+# With the special prefix "/" (and with a prefix which evaluates to an empty
+# string), the Location header carries the request path alone. A path starting
+# with "//" or "/\" must not be emitted as is, otherwise browsers redirect to
+# the host which follows ("//evil.example/x" -> https://evil.example/x).
+
+feature ignore_unknown_macro
+
+server s1 {
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe1
+        bind "fd@${fe1}"
+        redirect prefix / set-cookie SEEN=1
+
+    frontend fe2
+        bind "fd@${fe2}"
+        http-request redirect prefix / code 301 drop-query append-slash
+
+    frontend fe3
+        bind "fd@${fe3}"
+        http-request redirect prefix "%[var(txn.nope)]"
+
+    frontend fe4
+        bind "fd@${fe4}"
+        http-request redirect prefix //cdn.example
+
+    frontend fe5
+        bind "fd@${fe5}"
+        default_backend be5
+
+    backend be5
+        server s1 ${s1_addr}:${s1_port} redir /
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -url "//evil.example/x"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "/.//evil.example/x"
+    txreq -url "/\\evil.example/x"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "/./\\evil.example/x"
+    txreq -url "http://h1//evil.example/x" -hdr "host: h1"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "/.//evil.example/x"
+    txreq -url "/ok/x?q=1"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "/ok/x?q=1"
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+    txreq -url "//evil.example?q=1"
+    rxresp
+    expect resp.status == 301
+    expect resp.http.location == "/.//evil.example/"
+    txreq -url "/ok?q=1"
+    rxresp
+    expect resp.status == 301
+    expect resp.http.location == "/ok/"
+} -run
+
+client c3 -connect ${h1_fe3_sock} {
+    txreq -url "//evil.example/x"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "/.//evil.example/x"
+} -run
+
+client c4 -connect ${h1_fe4_sock} {
+    txreq -url "//x"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "//cdn.example//x"
+} -run
+
+client c5 -connect ${h1_fe5_sock} {
+    txreq -url "//evil.example/x"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "/.//evil.example/x"
+    txreq -url "/ok"
+    rxresp
+    expect resp.status == 302
+    expect resp.http.location == "/ok"
+} -run
