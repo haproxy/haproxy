@@ -9630,6 +9630,18 @@ http-request <action> [options...] [ { if | unless } <condition> ]
   supported actions and their respective syntaxes are enumerated in section 4.3
   "Actions" (look for actions which tick "HTTP Req").
 
+  Actions used to block requests ("auth", "deny", "reject", "silent-drop" and
+  "tarpit") are reported when their condition may be true because of a
+  pattern matching the path, the URL, the query string or the parameters they
+  convey (e.g. "deny if { path_beg /admin }"), because such rules are easy to
+  bypass. They are summarized in a notice by default, or reported as warnings
+  depending on the global "on-unreliable-rules" setting. Please read section
+  7.5 "Secure filtering of HTTP requests" to learn how to write reliable rules.
+  When such a rule is only meant as an extra filter, it may be excluded from
+  this report by placing the "no-warn" keyword right before "if" or "unless"
+  (e.g. "http-request deny no-warn if { ... }"). This keyword is only
+  supported by these actions.
+
   This directive is only available from named defaults sections, not anonymous
   ones. Rules defined in the defaults section are evaluated before ones in the
   associated proxy section. To avoid ambiguities, in this case the same
@@ -16249,7 +16261,7 @@ attach-srv <srv> [name <expr>] [ EXPERIMENTAL ]
   Note that a very similar but independent protocol is under development. See
   https://www.ietf.org/archive/id/draft-bt-httpbis-reverse-http-00.html.
 
-auth [realm <realm>]
+auth [realm <realm>] [no-warn]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  - |  -
 
@@ -16266,6 +16278,13 @@ auth [realm <realm>]
   responses, the same is done on the Proxy-Authenticate header. If the error
   message must not be altered, consider to use "http-request return" rule
   instead.
+
+  Except in specific cases, this rule shouldn't be used to intercept access to
+  resources that may be aliased (path, query string etc), as it will not catch
+  all possible forms. See 7.5 "Secure filtering of HTTP requests" for details.
+  If this rule is used in an http-request statement conditionned by an ACL
+  involving inputs that may be subject to aliasing, a warning will be emitted
+  unless the "no-warn" option is placed before the "if" or "unless" keyword.
 
   Example:
         acl auth_ok http_auth_group(L1) G1
@@ -16396,7 +16415,7 @@ del-map(<map-name>) <key fmt>
 deny [ { status | deny_status } <code> ] [ content-type <type> ]
      [ { default-errorfiles | errorfile <file> | errorfiles <name> |
        file <file> | lf-file <file> | string <str> | lf-string <fmt> } ]
-     [ hdr <name> <fmt> ]*
+     [ hdr <name> <fmt> ]* [no-warn]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  X |  -
 
@@ -16410,6 +16429,13 @@ deny [ { status | deny_status } <code> ] [ content-type <type> ]
   action is final, i.e. no further rules from the same rule set are evaluated
   for the current section. See also the "return" action for the advanced
   syntax.
+
+  Except in specific cases, this rule shouldn't be used to intercept access to
+  resources that may be aliased (path, query string etc), as it will not catch
+  all possible forms. See 7.5 "Secure filtering of HTTP requests" for details.
+  If this rule is used in an http-request statement conditionned by an ACL
+  involving inputs that may be subject to aliasing, a warning will be emitted
+  unless the "no-warn" option is placed before the "if" or "unless" keyword.
 
 
 dgram-drop
@@ -16839,7 +16865,7 @@ redirect <rule>
   See the "redirect" keyword for the rule's syntax.
 
 
-reject
+reject [no-warn]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     X |          X  |   X  |   X  |   X  |          X |  - |  -
 
@@ -16867,6 +16893,13 @@ reject
   This action can also be used in "quic-initial" rules. The newly opened QUIC
   connection is immediately closed without any SSL handshake processing and the
   client is notified via a CONNECTION_REFUSED error code.
+
+  Except in specific cases, this rule shouldn't be used to intercept access to
+  resources that may be aliased (path, query string etc), as it will not catch
+  all possible forms. See 7.5 "Secure filtering of HTTP requests" for details.
+  If this rule is used in an http-request statement conditionned by an ACL
+  involving inputs that may be subject to aliasing, a warning will be emitted
+  unless the "no-warn" option is placed before the "if" or "unless" keyword.
 
 
 replace-header <name> <match-regex> <replace-fmt>
@@ -17741,7 +17774,7 @@ set-vars-from-map(<scope>,<map-file>[,<type>])
     http-request set-vars-from-map(req,/etc/haproxy/limits.map,int)
 
 
-silent-drop [ rst-ttl <ttl> ]
+silent-drop [ rst-ttl <ttl> ] [no-warn]
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          X  |   X  |   X  |   X  |          X |  X |  -
 
@@ -17766,6 +17799,13 @@ silent-drop [ rst-ttl <ttl> ]
   front equipment. These local RSTs protect local resources, but not the
   client's. This must not be used unless the consequences of doing this are
   fully understood.
+
+  Except in specific cases, this rule shouldn't be used to intercept access to
+  resources that may be aliased (path, query string etc), as it will not catch
+  all possible forms. See 7.5 "Secure filtering of HTTP requests" for details.
+  If this rule is used in an http-request statement conditionned by an ACL
+  involving inputs that may be subject to aliasing, a warning will be emitted
+  unless the "no-warn" option is placed before the "if" or "unless" keyword.
 
 
 strict-mode { on | off }
@@ -29843,6 +29883,25 @@ Rules of this type are not harmful per se when they are used in addition to
 a real allow-list or to the application's own access control, for example to
 cheaply block known scanners or well-known attack patterns before they reach
 the servers. They must just never be the only protection.
+
+In order to help spot such rules, HAProxy reports them when the condition
+of an "http-request" rule using one of the "auth", "deny", "reject",
+"silent-drop" or "tarpit" actions may be true because of a match on contents
+which support multiple equivalent forms. These are the path, the URL, the
+query string and the parameters they convey, as returned by the "base",
+"base32", "base32+src", "baseq", "capture.req.uri", "path", "pathq", "query",
+"req.body_param", "url", "url32", "url32+src", "url_param", "urlp" and
+"urlp_val" sample fetch functions and their derived ACL keywords, regardless
+of any converter applied to them. Only a term which makes the condition true
+when it matches is considered, i.e. a non-negated term after "if", or a negated
+one after "unless". This means that the allow-lists above are not reported. A
+notice message will indicate affected rules. When such a rule is only meant as
+an extra filter, it may be excluded from this report by placing the "no-warn"
+keyword right before "if" or "unless". It also serves as a reminder for whoever
+modifies the rule later that it is not reliable by itself :
+
+    http-request deny no-warn if { path_sub -i %2e %2f }
+    http-request deny no-warn if { query -m sub -i <script }
 
 
 8. Logging

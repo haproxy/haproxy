@@ -94,6 +94,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 {
 	struct act_rule *rule;
 	const struct action_kw *custom = NULL;
+	int no_warn = 0;
 	int cur_arg;
 
 	rule = new_act_rule(ACT_F_HTTP_REQ, file, linenum);
@@ -121,6 +122,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			}
 
 			if (*args[cur_arg] && strcmp(args[cur_arg - 1], "no-warn") == 0) {
+				no_warn = 1;
 				for (cur_arg--; *args[cur_arg + 1]; cur_arg++)
 					args[cur_arg] = args[cur_arg + 1];
 				args[cur_arg] = args[cur_arg + 1];
@@ -172,6 +174,23 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 			goto out_err;
 		}
 		rule->cond = cond;
+
+		if ((custom->flags & KWF_ACCESS_CTRL) && !no_warn) {
+			const struct acl *acl;
+			const char *kw;
+
+			if (acl_cond_find_positive_use(cond, SMP_USE__MAY_ALIAS, &acl, &kw)) {
+				ha_notice("parsing [%s:%d] : 'http-request %s' applies when '%s'%s%s%s matches a pattern,"
+				          " which may be bypassed since HTTP allows many equivalent forms of a same request"
+				          " (case, %%-encoding, '//', '/./', '/../', '\\', etc). Only rejecting what was not"
+				          " explicitly accepted is reliable (e.g. 'http-request %s unless <accepted>')."
+				          " If this rule is only an extra filter, add 'no-warn' before '%s' to silence this"
+				          " warning. See 'Secure filtering of HTTP requests' in the configuration manual.\n",
+				          file, linenum, args[0], kw,
+				          *acl->name ? " (from ACL '" : "", acl->name, *acl->name ? "')" : "",
+				          args[0], args[cur_arg]);
+			}
+		}
 	}
 	else if (*args[cur_arg]) {
 		ha_alert("parsing [%s:%d]: 'http-request %s' expects"
