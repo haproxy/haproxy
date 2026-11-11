@@ -470,7 +470,11 @@ static double mystrtod(const char *str, int len, char **end) {
     p++;
     if (p < end_p && *p == '-') p++, neg++;
     if (p < end_p && *p == '+') p++;
-    while (p < end_p && is_digit(*p)) e = e * 10 + *p++ - '0';
+    while (p < end_p && is_digit(*p)) {
+      /* beyond this, 10^e is already infinite or zero for a double */
+      if (e < 100000) e = e * 10 + *p - '0';
+      p++;
+    }
     i = e;
     if (neg) e = -e;
 #if 0
