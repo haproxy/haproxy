@@ -6117,6 +6117,24 @@ bad_format:
 	return;
 }
 
+/* Replace CR and LF with a space, except the trailing ones (already
+ * dropped by the send path), so a received message cannot create extra
+ * events on the outputs.
+ */
+static void syslog_flatten_message(struct buffer *buf)
+{
+	size_t len = buf->data;
+	size_t i;
+
+	while (len && (buf->area[len - 1] == '\n' || buf->area[len - 1] == 0))
+		len--;
+
+	for (i = 0; i < len; i++) {
+		if (buf->area[i] == '\n' || buf->area[i] == '\r')
+			buf->area[i] = ' ';
+	}
+}
+
 /* helper function for syslog handlers: process input message sent by
  * <saddr> and stored in <buf> according to <frontend> options, and send
  * it to frontend loggers
@@ -6137,6 +6155,8 @@ static void syslog_process_message(struct proxy *frontend, struct listener *l,
 	/* update counters */
 	_HA_ATOMIC_INC(&cum_log_messages);
 	proxy_inc_fe_req_ctr(l, frontend, 0);
+
+	syslog_flatten_message(buf);
 
 	prepare_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
