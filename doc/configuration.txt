@@ -95,6 +95,7 @@ Summary
 7.3.6.        Fetching HTTP samples (Layer 7)
 7.3.7.        Fetching samples for developers
 7.4.      Pre-defined ACLs
+7.5.      Secure filtering of HTTP requests
 
 8.    Logging
 8.1.      Log levels
@@ -16666,7 +16667,9 @@ normalize-uri query-sort-by-name
   Usable in:  QUIC Ini|    TCP RqCon| RqSes| RqCnt| RsCnt|    HTTP Req| Res| Aft
                     - |          -  |   -  |   -  |   -  |          X |  - |  -
 
-  Performs normalization of the request's URI.
+  Performs normalization of the request's URI. Please read section 7.5, "Secure
+  filtering of HTTP requests" before engaging into request normalization if the
+  goal is to perform access control.
 
   URI normalization is available as an experimental technical preview since
   HAProxy 2.4. As such, it requires the global directive
@@ -29702,6 +29705,144 @@ REQ_CONTENT      req.len gt 0                       match data in the request bu
 TRUE             always_true                        always match
 WAIT_END         wait_end                           wait for end of content analysis
 ---------------+----------------------------------+------------------------------------------------------
+
+
+7.5. Secure filtering of HTTP requests
+--------------------------------------
+
+This section explains how to write secure filtering rules without falling into
+some of the common traps caused by the way various HTTP implementations will
+decode a request. From time to time some users are surprised to learn that a
+rule such as:
+
+    http-request deny if { path_beg /admin }
+
+can be bypassed by playing with various encoding, and ask why haproxy doesn't
+perform itself a form of decoding or normalization before processing the rule.
+The reason is that many forms exist and might be decoded differently by
+different server implementations, as not all will normalize everything exactly
+the same way. Please consider the variants below, some of which might target a
+different resource on some servers, or might alias to /admin on other servers:
+
+    Request path          Why it may reach the same resource
+    --------------------+---------------------------------------------------
+    /Admin                case-insensitive file systems or applications
+    /admin/               trailing slash (when an exact match was used)
+    //admin               repeated slashes are merged
+    /./admin              "." segment is dropped
+    /x/../admin           ".." segment is resolved
+    /admin//../           when ".." is resolved before "//", it gives "/admin/"
+    /admin//a/../         when ".." is resolved after "//", it gives "/admin/"
+    /%61dmin              %-encoded character, decoded by the server
+    /%2e/admin            %-encoded "." segment, decoded then dropped
+    /%u0061dmin           non-standard "%u" encoding, supported by some servers
+    /\admin               "\" used as a directory delimiter
+    /%5Cadmin             same as "\", but %-encoded
+    /;x=1/admin           path parameters, dropped by some frameworks
+    /admin%00.png         truncation at an encoded NUL by some servers
+    /admin%3ffoo          %3f turned to '?' by some proxies, splitting the path
+    /%2561dmin            %-encoded '%' before 'a', resolved by some proxies
+    --------------------+---------------------------------------------------
+
+The possibilities are numerous, and given that different servers will see these
+as different resources, there's no universal way to decode and match such a
+request. This implies that the rule above does NOT protect against various
+possibilities to access "/admin", and that no rule will ever do that.
+
+This is not a bug in the matching, and no option of the matching can solve it.
+HTTP is full of aliases, and which ones apply depends on what is behind
+HAProxy: the operating system and its file system, the web server, the
+framework, the application, a cache, another reverse-proxy, and even their
+respective versions or configurations. HAProxy cannot know that, and cannot
+guess which transformation will be applied after it, nor in which order (e.g.
+"//" before or after ".."). Except for the few cases where the administrator
+perfectly knows the application server and can carefully craft some rules for
+"normalize-uri", it cannot be solved by rewriting the request in HAProxy
+either, because the only valid normalization is the one done by the component
+which will interpret the request, and any other one will either leave some
+aliases or break legitimate requests (browsers, for example, do not normalize
+what they send, and some applications legitimately rely on encoded delimiters).
+Worse, blindly doing normalization without a precise understanding of how the
+server parses a request could even help an attacker abuse the rewrite performed
+at this normalization stage to hide a request from a front reverse-proxy. This
+limitation applies to every component in a chain, and not just to HAProxy.
+
+The same is true for the query string, which supports encoding as well : "+"
+and "%20" are equivalent for some applications and not for others (and some
+even resolve it in the path), and "<script" can be sent as "%3Cscript" or
+"%3cscript". The same is again true for any other part of a request which is
+decoded or interpreted on the other side, such as parameters extracted with
+"url_param".
+
+The approach taken by HAProxy is and has always been to process RAW CONTENTS.
+This means that it can explicitly match the forms and patterns above to detect
+and block malicious requests, or simply route valid ones to the right backend
+or server.
+
+For this reason, A FILTERING POLICY CONSIDERING FIELDS SUBJECT TO ALIASING MUST
+ONLY BE BASED ON POSITIVE MATCHES WITH A DEFAULT DENY, NEVER THE OPPOSITE.
+
+Whatever form an unexpected request takes, it will not match what was
+explicitly authorized and will be rejected. This is the principle of an
+allow-list. The "unless" keyword is meant for this. Take the common need of
+restricting "/admin" to an internal network. The following is sometimes
+reported as insecure, because it is not reliable, since any alias of "/admin"
+will not be matched and will be served to anyone :
+
+    http-request deny if { path_beg /admin } !{ src 10.0.0.0/8 }
+
+What must be written instead is the list of what is accepted, with a strict
+syntax (here a restricted set of characters, with no "%", ".", "\" nor ";"),
+with everything else being rejected:
+
+    http-request allow if { path_beg /admin } { src 10.0.0.0/8 }
+    ...
+    http-request deny
+
+When there are many rules and many access possibilities, it can become more
+complicated. Also, since "allow" is final, no other rule will be evaluated, so
+a finer redirect/return rule wouldn't match. One convenient way to express that
+a rule matched is to use a variable to mark the request as valid:
+
+    http-request set-var(req.ok) int(1) if { path_beg /admin } { src 10.0.0.0/8 }
+    http-request set-var(req.ok) int(1) if { path_beg /app }
+    http-request redirect location /auth if { path /login }
+    ...
+    http-request deny unless { var(req.ok) -m found }
+
+The final rule is the only one which blocks, and it does so for any request
+which was not recognized. Thus for a request not being denied at the end, it
+would have to either match a rule setting "req.ok", or meet another final rule
+such as a redirect or return rule.
+
+What's nice with a deny-by-default approach like this is that it also
+automatically blocks access to resources that were not identified and that
+might be accessible on servers by default. Some servers will for example
+disclose some information on "OPTIONS *", but most users never think about
+blocking the "*" path. Other application servers recognize certain internal
+paths dedicated to statistics or management, which are not well known, and
+stay exposed for years before being subject to a noisy CVE disclosure. All
+of these are stopped by the default deny at the end.
+
+Some patterns are worth learning to spot when reading a configuration,
+as they are the signs of a filter which is not reliable :
+
+  - a "deny", "tarpit", "silent-drop", "reject" or "auth" action, which is
+    performed when a path, an URL, or a query string matches a pattern (i.e.
+    "if" with a positive match, or "unless" with a negated one).
+
+  - a list of paths or extensions which must not be served, such as
+    "/admin", "/.git", ".php", ".env" etc, which are then matched by name.
+
+  - a rule which protects the access to a resource by comparing a path to the
+    path of that resource.
+
+  - an exception added to a deny rule for one source or one authenticated user.
+
+Rules of this type are not harmful per se when they are used in addition to
+a real allow-list or to the application's own access control, for example to
+cheaply block known scanners or well-known attack patterns before they reach
+the servers. They must just never be the only protection.
 
 
 8. Logging
