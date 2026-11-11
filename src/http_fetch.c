@@ -2346,17 +2346,17 @@ int val_query(struct arg *args, char **err_msg)
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "base",               smp_fetch_base,               0,                NULL,   SMP_T_STR,  SMP_USE_HRQHV },
-	{ "base32",             smp_fetch_base32,             0,                NULL,   SMP_T_SINT, SMP_USE_HRQHV },
-	{ "base32+src",         smp_fetch_base32_src,         0,                NULL,   SMP_T_BIN,  SMP_USE_HRQHV },
-	{ "baseq",              smp_fetch_base,               0,                NULL,   SMP_T_STR,  SMP_USE_HRQHV },
+	{ "base",               smp_fetch_base,               0,                NULL,   SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "base32",             smp_fetch_base32,             0,                NULL,   SMP_T_SINT, SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "base32+src",         smp_fetch_base32_src,         0,                NULL,   SMP_T_BIN,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "baseq",              smp_fetch_base,               0,                NULL,   SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
 
 	/* capture are allocated and are permanent in the stream */
 	{ "capture.req.hdr",    smp_fetch_capture_req_hdr,    ARG1(1,SINT),     val_cap_id, SMP_T_STR,  SMP_USE_HRQHP },
 
 	/* retrieve these captures from the HTTP logs */
 	{ "capture.req.method", smp_fetch_capture_req_method, 0,                NULL,   SMP_T_STR,  SMP_USE_HRQHP },
-	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,                NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,                NULL,   SMP_T_STR,  SMP_USE_HRQHP | SMP_USE__MAY_ALIAS },
 	{ "capture.req.ver",    smp_fetch_capture_req_ver,    0,                NULL,   SMP_T_STR,  SMP_USE_HRQHP },
 
 	{ "capture.res.hdr",    smp_fetch_capture_res_hdr,    ARG1(1,SINT),     val_cap_id, SMP_T_STR,  SMP_USE_HRSHP },
@@ -2388,9 +2388,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "http_auth_group",    smp_fetch_http_auth_grp,      ARG1(1,USR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_first_req",     smp_fetch_http_first_req,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 	{ "method",             smp_fetch_meth,               0,                NULL,    SMP_T_METH, SMP_USE_HRQHP },
-	{ "path",               smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "pathq",              smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "query",              smp_fetch_query,              ARG1(0,STR), val_query,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "path",               smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "pathq",              smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "query",              smp_fetch_query,              ARG1(0,STR), val_query,    SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
 
 	/* HTTP protocol on the request path */
 	{ "req.proto_http",     smp_fetch_proto_http,         0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
@@ -2403,7 +2403,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.body",           smp_fetch_body,               0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "req.body_len",       smp_fetch_body_len,           0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
 	{ "req.body_size",      smp_fetch_body_size,          0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
-	{ "req.body_param",     smp_fetch_body_param,         ARG2(0,STR,STR),  NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
+	{ "req.body_param",     smp_fetch_body_param,         ARG2(0,STR,STR),  NULL,    SMP_T_BIN,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
 
 	{ "req.hdrs",           smp_fetch_hdrs,               0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "req.hdrs_bin",       smp_fetch_hdrs_bin,           0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
@@ -2463,14 +2463,14 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "status",             smp_fetch_stcode,             0,                NULL,    SMP_T_SINT, SMP_USE_HRSHP },
 	{ "txn.status",         smp_fetch_srv_status,         0,                NULL,    SMP_T_SINT, SMP_USE_HRSHP },
 	{ "unique-id",          smp_fetch_uniqueid,           0,                NULL,    SMP_T_STR,  SMP_SRC_L4SRV },
-	{ "url",                smp_fetch_url,                0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "url32",              smp_fetch_url32,              0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
-	{ "url32+src",          smp_fetch_url32_src,          0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
+	{ "url",                smp_fetch_url,                0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "url32",              smp_fetch_url32,              0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "url32+src",          smp_fetch_url32_src,          0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
 	{ "url_ip",             smp_fetch_url_ip,             0,                NULL,    SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "url_port",           smp_fetch_url_port,           0,                NULL,    SMP_T_SINT, SMP_USE_HRQHV },
-	{ "url_param",          smp_fetch_url_param,          ARG3(0,STR,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "urlp",               smp_fetch_url_param,          ARG3(0,STR,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "urlp_val",           smp_fetch_url_param_val,      ARG3(0,STR,STR,STR),  NULL,    SMP_T_SINT, SMP_USE_HRQHV },
+	{ "url_param",          smp_fetch_url_param,          ARG3(0,STR,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "urlp",               smp_fetch_url_param,          ARG3(0,STR,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
+	{ "urlp_val",           smp_fetch_url_param_val,      ARG3(0,STR,STR,STR),  NULL,    SMP_T_SINT, SMP_USE_HRQHV | SMP_USE__MAY_ALIAS },
 
 	{ /* END */ },
 }};
