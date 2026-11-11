@@ -1136,12 +1136,11 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 	return dst;
 
 error:
-	while (r && *r) {
-		char *prev = *r;
-		r++;
-		free(prev);
+	if (r) {
+		for (n = 0; r[n]; n++)
+			free(r[n]);
+		free(r);
 	}
-	free(r);
 	ckch_store_free(dst);
 
 	return NULL;
@@ -5392,12 +5391,11 @@ int ckch_conf_parse(char **args, int cur_arg, struct ckch_conf *f, int *found, c
 
 				goto out;
 array_err:
-				while (r && *r) {
-					char *prev = *r;
-					r++;
-					free(prev);
+				if (r) {
+					for (n = 0; r[n]; n++)
+						free(r[n]);
+					free(r);
 				}
-				free(r);
 
 
 			} else if (ckch_conf_kws[i].type == PARSE_TYPE_INT) {
