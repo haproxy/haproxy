@@ -4152,6 +4152,12 @@ static int sample_conv_host_only(const struct arg *arg_p, struct sample *smp, vo
 	char *end = smp->data.u.str.area + smp->data.u.str.data - 1;
 	char *p;
 
+	/* an empty input may come with a NULL area */
+	if (!smp->data.u.str.data) {
+		smp->data.type = SMP_T_STR;
+		return 1;
+	}
+
 	for (p = end; p >= beg; p--) {
 		if (*p == ':' || *p == ']')
 			break;
@@ -4177,6 +4183,13 @@ static int sample_conv_port_only(const struct arg *arg_p, struct sample *smp, vo
 	char *beg = smp->data.u.str.area;
 	char *end = smp->data.u.str.area + smp->data.u.str.data - 1;
 	char *p;
+
+	/* see sample_conv_host_only() */
+	if (!smp->data.u.str.data) {
+		smp->data.type = SMP_T_SINT;
+		smp->data.u.sint = 0;
+		return 1;
+	}
 
 	for (p = end; p >= beg; p--) {
 		if (*p == ':' || *p == ']')
