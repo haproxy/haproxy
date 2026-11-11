@@ -1190,6 +1190,45 @@ int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struc
 	return 0;
 }
 
+/* Looks for a term of condition <cond> which may make the condition true when
+ * it matches, i.e. a non-negated term after "if" or a negated one after
+ * "unless", and which involves a sample fetch having one of the SMP_USE_*
+ * bits from <use>. Returns true if such a term is found, with <acl> and <kw>
+ * set (if non null) to the first matching ACL and keyword, otherwise false.
+ * This is used to detect deny-lists built on certain types of contents.
+ */
+int acl_cond_find_positive_use(const struct acl_cond *cond, unsigned int use, struct acl const **acl, char const **kw)
+{
+	struct acl_term_suite *suite;
+	struct acl_term *term;
+	struct acl_expr *expr;
+
+	if (!(cond->use & use))
+		return 0;
+
+	list_for_each_entry(suite, &cond->suites, list) {
+		list_for_each_entry(term, &suite->terms, list) {
+			/* only keep terms whose match makes the condition true */
+			if (!!term->neg != (cond->pol == ACL_COND_UNLESS))
+				continue;
+
+			if (!(term->acl->use & use))
+				continue;
+
+			list_for_each_entry(expr, &term->acl->expr, list) {
+				if (expr->smp->fetch->use & use) {
+					if (acl)
+						*acl = term->acl;
+					if (kw)
+						*kw = expr->kw;
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
+}
+
 /*
  * Find targets for userlist and groups in acl. Function returns the number
  * of errors or OK if everything is fine. It must be called only once sample
