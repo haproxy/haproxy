@@ -4798,11 +4798,16 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 	switch (token_type) {
 		case MJSON_TOK_NUMBER:
 			if (args[1].type == ARGT_SINT) {
-				smp->data.u.sint = strtoll(token, NULL, 0);
+				double double_val;
 
-				if (smp->data.u.sint < JSON_INT_MIN || smp->data.u.sint > JSON_INT_MAX)
+				/* <token> is not NUL-terminated, use mjson_get_number() */
+				if (mjson_get_number(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &double_val) == 0)
 					return 0;
 
+				if (!(double_val >= JSON_INT_MIN && double_val <= JSON_INT_MAX))
+					return 0;
+
+				smp->data.u.sint = (long long)double_val;
 				smp->data.type = SMP_T_SINT;
 
 				return 1;
