@@ -908,7 +908,7 @@ static struct action_kw_list http_req_actions = {ILH, {
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-tos",      tcp_parse_set_tos     }, // DEPRECATED, see set-fc-tos
-	{ "silent-drop",  tcp_parse_silent_drop },
+	{ "silent-drop",  tcp_parse_silent_drop, KWF_ACCESS_CTRL },
 	{ /* END */ }
 }};
 

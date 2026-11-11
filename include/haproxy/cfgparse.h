@@ -52,6 +52,7 @@ enum cfg_keyword_flags {
 	KWF_EXPERIMENTAL = 0x1,
 	KWF_MATCH_PREFIX = 0x2,
 	KWF_DISCOVERY = 0x4,
+	KWF_ACCESS_CTRL = 0x8,  /* action used to block traffic (deny, reject...) */
 };
 
 struct cfg_keyword {
