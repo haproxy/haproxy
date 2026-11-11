@@ -111,8 +111,9 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 	ncid_frm->seq_num = src->seq_num.key;
 	ncid_frm->retire_prior_to = src->retire_prior_to;
 	ncid_frm->cid.len = src->cid.len;
-	ncid_frm->cid.data = src->cid.data;
-	ncid_frm->stateless_reset_token = src->stateless_reset_token;
+	memcpy(ncid_frm->cid.data, src->cid.data, src->cid.len);
+	memcpy(ncid_frm->stateless_reset_token, src->stateless_reset_token,
+	       QUIC_STATELESS_RESET_TOKEN_LEN);
 }
 
 #endif /* USE_QUIC */

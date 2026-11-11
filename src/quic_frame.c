@@ -807,14 +807,19 @@ static int quic_parse_new_connection_id_frame(struct quic_frame *frm, struct qui
 		return 0;
 
 	ncid_frm->cid.len = *(*pos)++;
-	if (end - *pos < ncid_frm->cid.len + QUIC_STATELESS_RESET_TOKEN_LEN)
+	/* RFC 9000 19.15. NEW_CONNECTION_ID Frames:
+	 * Values less than 1 and greater than 20 are invalid and MUST be
+	 * treated as a connection error of type FRAME_ENCODING_ERROR.
+	 */
+	if (ncid_frm->cid.len > QUIC_CID_MAXLEN ||
+	    end - *pos < ncid_frm->cid.len + QUIC_STATELESS_RESET_TOKEN_LEN)
 		return 0;
 
 	if (ncid_frm->cid.len) {
-		ncid_frm->cid.data = *pos;
+		memcpy(ncid_frm->cid.data, *pos, ncid_frm->cid.len);
 		*pos += ncid_frm->cid.len;
 	}
-	ncid_frm->stateless_reset_token = *pos;
+	memcpy(ncid_frm->stateless_reset_token, *pos, QUIC_STATELESS_RESET_TOKEN_LEN);
 	*pos += QUIC_STATELESS_RESET_TOKEN_LEN;
 
 	return 1;

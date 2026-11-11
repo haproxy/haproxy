@@ -32,6 +32,8 @@
 #include <import/ebtree-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/list.h>
+#include <haproxy/quic_cid-t.h>
+#include <haproxy/quic_tp-t.h>
 #include <haproxy/quic_token.h>
 
 extern struct pool_head *pool_head_quic_frame;
@@ -217,14 +219,18 @@ struct qf_streams_blocked {
 	uint64_t limit;
 };
 
+/* The CID and the token are stored in the frame, because a frame which is
+ * waiting to be sent or retransmitted must not depend on the lifetime of the
+ * quic_connection_id it was built from: the peer may retire it at any time.
+ */
 struct qf_new_connection_id {
 	uint64_t seq_num;
 	uint64_t retire_prior_to;
 	struct {
 		unsigned char len;
-		const unsigned char *data;
+		unsigned char data[QUIC_CID_MAXLEN];
 	} cid;
-	const unsigned char *stateless_reset_token;
+	unsigned char stateless_reset_token[QUIC_STATELESS_RESET_TOKEN_LEN];
 };
 
 struct qf_retire_connection_id {
