@@ -109,6 +109,25 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		/* try in the module list */
 		rule->kw = custom;
 
+		if (custom->flags & KWF_ACCESS_CTRL) {
+			/* access control actions support "no-warn" right before
+			 * the condition to indicate that the rule is known not to
+			 * be reliable by itself. We remove it from the list so
+			 * that the action's parser doesn't have to deal with it.
+			 */
+			for (; *args[cur_arg]; cur_arg++) {
+				if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0)
+					break;
+			}
+
+			if (*args[cur_arg] && strcmp(args[cur_arg - 1], "no-warn") == 0) {
+				for (cur_arg--; *args[cur_arg + 1]; cur_arg++)
+					args[cur_arg] = args[cur_arg + 1];
+				args[cur_arg] = args[cur_arg + 1];
+			}
+			cur_arg = 1;
+		}
+
 		if (custom->flags & KWF_EXPERIMENTAL) {
 			if (!experimental_directives_allowed) {
 				ha_alert("parsing [%s:%d] : '%s' action is experimental, must be allowed via a global 'expose-experimental-directives'\n",
