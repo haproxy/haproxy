@@ -803,6 +803,17 @@ static int qc_handle_retire_connection_id_frm(struct quic_conn *qc,
 	}
 
 	/* RFC 9000 19.16. RETIRE_CONNECTION_ID Frames:
+	 * Receipt of a RETIRE_CONNECTION_ID frame containing a sequence number
+	 * greater than any previously sent to the peer MUST be treated as a
+	 * connection error of type PROTOCOL_VIOLATION.
+	 */
+	/* Note that <next_cid_seq_num> counts CIDs at allocation time. */
+	if (rcid_frm->seq_num > qc->max_sent_cid_seq_num) {
+		TRACE_PROTO("CID seq. number not sent to peer", QUIC_EV_CONN_PSTRM, qc, frm);
+		goto protocol_violation;
+	}
+
+	/* RFC 9000 19.16. RETIRE_CONNECTION_ID Frames:
 	 * The sequence number specified in a RETIRE_CONNECTION_ID frame MUST NOT refer to
 	 * the Destination Connection ID field of the packet in which the frame is contained.
 	 * The peer MAY treat this as a connection error of type PROTOCOL_VIOLATION.

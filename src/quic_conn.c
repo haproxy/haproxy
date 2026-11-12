@@ -1198,6 +1198,7 @@ struct quic_conn *qc_new_conn(void *target,
 	}
 	*qc->cids = EB_ROOT;
 	qc->next_cid_seq_num = 0;
+	qc->max_sent_cid_seq_num = 0;
 	qc->scid = conn_id->cid;
 
 	/* QUIC Server (or listener). */

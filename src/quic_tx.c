@@ -447,6 +447,19 @@ static int qc_send_ppkts(struct buffer *buf, struct quic_conn *qc)
 
 			pkt->time_sent_ns = time_sent_ns;
 			pkt->time_sent_ms = time_sent_ms;
+			/* Record the NEW_CONNECTION_ID sequence numbers as sent */
+			if (pkt->flags & QUIC_FL_TX_PACKET_NCIDS) {
+				struct quic_frame *f;
+
+				list_for_each_entry(f, &pkt->frms, list) {
+					if (f->type != QUIC_FT_NEW_CONNECTION_ID)
+						continue;
+
+					qc->max_sent_cid_seq_num =
+						QUIC_MAX(qc->max_sent_cid_seq_num,
+						         f->new_connection_id.seq_num);
+				}
+			}
 			if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) {
 				pkt->pktns->tx.time_of_last_eliciting = time_sent_ms;
 				qc->path->ifae_pkts++;

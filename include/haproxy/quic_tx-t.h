@@ -36,6 +36,8 @@ extern struct pool_head *pool_head_quic_cc_buf;
 #define QUIC_FL_TX_PACKET_COALESCED     (1UL << 4)
 /* Flag a sent packet as being probing with old data */
 #define QUIC_FL_TX_PACKET_PROBE_WITH_OLD_DATA (1UL << 5)
+/* Flag a sent packet as containing NEW_CONNECTION_ID frame(s). */
+#define QUIC_FL_TX_PACKET_NCIDS         (1UL << 6)
 
 /* Structure to store enough information about TX QUIC packets. */
 struct quic_tx_packet {

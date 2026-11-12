@@ -335,6 +335,11 @@ struct quic_conn {
 #endif
 
 	uint64_t next_cid_seq_num;
+	/* Highest CID sequence number sent to the peer. <next_cid_seq_num>
+	 * counts allocated CIDs: a NEW_CONNECTION_ID frame may still be queued
+	 * or in flight for a recently allocated one.
+	 */
+	uint64_t max_sent_cid_seq_num;
 	/* Initial hash computed from first ID (derived from ODCID).
 	 * it could be reused to derive extra CIDs from the same hash
 	 */
