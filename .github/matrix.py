@@ -272,8 +272,7 @@ def main(ref_name):
             "OPENSSL_VERSION=1.1.1s",
             "OPENSSL_VERSION=3.5.1",
             "QUICTLS_VERSION=OpenSSL_1_1_1w-quic1",
-            # disabled: aws-lc 3.x compile error, see https://github.com/aws/aws-lc/issues/3759
-            # "AWS_LC_VERSION=branch-fips-2024-09-27",
+            "AWS_LC_VERSION=branch-fips-2024-09-27",
             "AWS_LC_VERSION=branch-fips-2025-09-12-lts",
             # "BORINGSSL=yes",
         ]
