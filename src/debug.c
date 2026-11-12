@@ -392,9 +392,10 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 	if (th_ctx->lock_history) {
 		int lkh, lkl, lbl;
 		int done;
+		int slots = sizeof(th_ctx->lock_history); /* number of 8-bit entries */
 
 		chunk_appendf(buf, "             lock_hist:");
-		for (lkl = 7; lkl >= 0; lkl--) {
+		for (lkl = slots - 1; lkl >= 0; lkl--) {
 			lkh = (th_ctx->lock_history >> (lkl * 8)) & 0xff;
 			if (!lkh)
 				continue;
@@ -406,14 +407,14 @@ void ha_thread_dump_one(struct buffer *buf, int is_caller)
 		done = 0;
 		for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
 			/* find the latest occurrence of each label */
-			for (lkl = 0; lkl < 8; lkl++) {
+			for (lkl = 0; lkl < slots; lkl++) {
 				lkh = (th_ctx->lock_history >> (lkl * 8)) & 0xff;
 				if (!lkh)
 					continue;
 				if ((lkh >> 2) == lbl)
 					break;
 			}
-			if (lkl == 8) // not found
+			if (lkl == slots) // not found
 				continue;
 			if ((lkh & 3) == _LK_UN)
 				continue;
