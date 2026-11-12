@@ -1,0 +1,53 @@
+varnishtest "show cache must dump all the caches, not only the first one"
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -hdr "Cache-Control: max-age=60" -body "x"
+} -start
+
+haproxy h1 -conf {
+    global
+        stats socket /tmp/mc.sock
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request cache-use c1
+        http-response cache-store c1
+        http-response cache-store c2
+        default_backend be
+
+    backend be
+        server s ${s1_addr}:${s1_port}
+
+    cache c1
+        total-max-size 4
+
+    cache c2
+        total-max-size 4
+
+    cache c3
+        total-max-size 4
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# Without the fix, cli_io_handler_show_cache() computes the resume index of
+# the second cache from the tree pointer left over by the first cache's dump:
+# the index is garbage. Depending on the mmap order of the shctxs, the entries
+# of the following caches are skipped, or their dump crashes the process.
+haproxy h1 -cli {
+    send "show cache"
+    expect ~ "(?s)c1.*hash.*c2.*hash.*c3"
+}
