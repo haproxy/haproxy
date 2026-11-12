@@ -2385,6 +2385,12 @@ static int check_cache_rule(struct act_rule *rule, struct proxy *proxy, char **e
 	struct cache_flt_conf *cconf = NULL;
 	char *name = rule->arg.act.p[0];
 
+	if (proxy->cap & PR_CAP_DEF) {
+		memprintf(err, "'%s' rules are not supported in a defaults section",
+			  rule->kw ? rule->kw->kw : "cache");
+		return 0;
+	}
+
 	/* check if a cache filter was already registered with this cache
 	 * name, if that's the case, must use it. */
 	fconf = flt_find_conf(proxy, cache_store_flt_id, FLT_SIDE_RES, cache_store_find_flt, (char *)name);

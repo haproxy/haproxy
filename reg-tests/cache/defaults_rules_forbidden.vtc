@@ -1,0 +1,39 @@
+varnishtest "cache rules are forbidden in defaults sections"
+
+# A cache rule declared in a defaults section would create an implicit
+# cache-store filter on the defaults section itself. It would never be
+# resolved nor attached to the proxies inheriting the rule, leading to
+# crashes or silently broken caching. Such rules are rejected at check
+# time: haproxy must refuse the configuration.
+
+feature ignore_unknown_macro
+
+# A "cache-use" rule in a defaults section is rejected.
+haproxy h1 -conf-BAD {'cache-use' rules are not supported in a defaults section} {
+    defaults d
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        http-request cache-use my_cache
+
+    frontend fe from d
+
+    cache my_cache
+        total-max-size 1
+}
+
+# A "cache-store" rule in a defaults section is rejected too.
+haproxy h2 -conf-BAD {'cache-store' rules are not supported in a defaults section} {
+    defaults d
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+        http-response cache-store my_cache
+
+    frontend fe from d
+
+    cache my_cache
+        total-max-size 1
+}
