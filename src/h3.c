@@ -1426,7 +1426,6 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/3.0"), status, ist(""));
 	if (!sl) {
 		TRACE_ERROR("cannot allocate HTX start-line", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
-		h3s->err = H3_ERR_MESSAGE_ERROR;
 		len = -1;
 		goto out;
 	}
