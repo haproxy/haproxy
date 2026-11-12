@@ -2019,11 +2019,23 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			goto done;
 		}
 
-		if (quic_stream_is_bidi(qcs->id) && qcs_http_handle_standalone_fin(qcs, h3s->st_req == H3S_ST_REQ_TRAILERS)) {
-			TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-			qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
-			              muxc_tevt_type_internal_err);
-			goto err;
+		if (quic_stream_is_bidi(qcs->id)) {
+			/* No header seen, HTTP message is malformed. */
+			if (h3s->st_req == H3S_ST_REQ_BEFORE) {
+				const int code = !conn_is_back(qcs->qcc->conn) ? H3_ERR_REQUEST_INCOMPLETE : H3_ERR_MESSAGE_ERROR;
+				TRACE_ERROR("incomplete request/response closed with standalone FIN", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+				qcc_abort_stream_read(qcs, code);
+				qcc_reset_stream(qcs, code, se_tevt_type_proto_err);
+				qcc_report_glitch(qcs->qcc, 1);
+				goto done;
+			}
+
+			if (qcs_http_handle_standalone_fin(qcs, h3s->st_req == H3S_ST_REQ_TRAILERS)) {
+				TRACE_ERROR("cannot set EOM", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+				qcc_set_error(qcs->qcc, H3_ERR_INTERNAL_ERROR, 1,
+				              muxc_tevt_type_internal_err);
+				goto err;
+			}
 		}
 
 		goto done;
