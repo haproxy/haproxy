@@ -2326,8 +2326,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			if (quic_stream_is_bidi(qcs->id) && last_stream_frame) {
 				/* No header seen, HTTP message is malformed. */
 				if (h3s->st_req == H3S_ST_REQ_BEFORE) {
-					TRACE_ERROR("malformed request closed by unknown frame without any header", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-					h3s->err = H3_ERR_MESSAGE_ERROR;
+					TRACE_ERROR("incomplete request/response closed by unknown frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+					h3s->err = !conn_is_back(qcs->qcc->conn) ? H3_ERR_REQUEST_INCOMPLETE : H3_ERR_MESSAGE_ERROR;
 					qcc_report_glitch(qcs->qcc, 1);
 					ret = -1;
 					break;
