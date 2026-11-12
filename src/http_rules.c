@@ -50,6 +50,14 @@ struct action_kw_list http_after_res_keywords = {
        .list = LIST_HEAD_INIT(http_after_res_keywords.list)
 };
 
+/* How to report unreliable access control rules (see "on-unreliable-rules") */
+enum {
+	UNRELIABLE_RULES_NOTICE = 0,  /* one notice per rule (default) */
+	UNRELIABLE_RULES_WARN,        /* one warning per rule */
+	UNRELIABLE_RULES_IGNORE,      /* say nothing (not recommended) */
+};
+static int on_unreliable_rules = UNRELIABLE_RULES_NOTICE;
+
 void http_req_keywords_register(struct action_kw_list *kw_list)
 {
 	act_add_list(&http_req_keywords.list, kw_list);
@@ -175,20 +183,23 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		}
 		rule->cond = cond;
 
-		if ((custom->flags & KWF_ACCESS_CTRL) && !no_warn) {
+		if (on_unreliable_rules != UNRELIABLE_RULES_IGNORE &&
+		    (custom->flags & KWF_ACCESS_CTRL) && !no_warn) {
 			const struct acl *acl;
 			const char *kw;
 
 			if (acl_cond_find_positive_use(cond, SMP_USE__MAY_ALIAS, &acl, &kw)) {
-				ha_notice("parsing [%s:%d] : 'http-request %s' applies when '%s'%s%s%s matches a pattern,"
-				          " which may be bypassed since HTTP allows many equivalent forms of a same request"
-				          " (case, %%-encoding, '//', '/./', '/../', '\\', etc). Only rejecting what was not"
-				          " explicitly accepted is reliable (e.g. 'http-request %s unless <accepted>')."
-				          " If this rule is only an extra filter, add 'no-warn' before '%s' to silence this"
-				          " warning. See 'Secure filtering of HTTP requests' in the configuration manual.\n",
-				          file, linenum, args[0], kw,
-				          *acl->name ? " (from ACL '" : "", acl->name, *acl->name ? "')" : "",
-				          args[0], args[cur_arg]);
+				((on_unreliable_rules == UNRELIABLE_RULES_WARN) ?
+				 ha_warning :
+				 ha_notice)("parsing [%s:%d] : 'http-request %s' applies when '%s'%s%s%s matches a pattern,"
+				            " which may be bypassed since HTTP allows many equivalent forms of a same request"
+				            " (case, %%-encoding, '//', '/./', '/../', '\\', etc). Only rejecting what was not"
+				            " explicitly accepted is reliable (e.g. 'http-request %s unless <accepted>')."
+				            " If this rule is only an extra filter, add 'no-warn' before '%s' to silence this"
+				            " warning. See 'Secure filtering of HTTP requests' in the configuration manual.\n",
+				            file, linenum, args[0], kw,
+				            *acl->name ? " (from ACL '" : "", acl->name, *acl->name ? "')" : "",
+				            args[0], args[cur_arg]);
 			}
 		}
 	}
@@ -583,6 +594,34 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 
 	return NULL;
 }
+
+/* parse the global "on-unreliable-rules" keyword */
+static int cfg_parse_on_unreliable_rules(char **args, int section_type, struct proxy *curpx,
+                                         const struct proxy *defpx, const char *file, int line,
+                                         char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "warn") == 0)
+		on_unreliable_rules = UNRELIABLE_RULES_WARN;
+	else if (strcmp(args[1], "notice") == 0)
+		on_unreliable_rules = UNRELIABLE_RULES_NOTICE;
+	else if (strcmp(args[1], "ignore") == 0)
+		on_unreliable_rules = UNRELIABLE_RULES_IGNORE;
+	else {
+		memprintf(err, "'%s' expects either 'warn', 'notice' or 'ignore' as argument.", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "on-unreliable-rules", cfg_parse_on_unreliable_rules },
+	{ 0, NULL, NULL },
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:

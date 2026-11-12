@@ -1868,6 +1868,7 @@ The following keywords are supported in the "global" section :
    - ocsp-update.mindelay
    - ocsp-update.httpproxy
    - ocsp-update.mode
+   - on-unreliable-rules
    - pidfile
    - pp2-never-send-local
    - presetenv
@@ -3400,6 +3401,20 @@ ocsp-update.timeout <timeout>
   other unit if the number is suffixed by the unit, as explained at the top
   of this document. It defaults to 10s. See option "ocsp-update" for more
   information about the auto update mechanism.
+
+on-unreliable-rules { notice | warn | ignore }
+  Sets how to report the "http-request" access control rules which are easy to
+  bypass because their condition relies on a match on the path, the URL, the
+  query string or the parameters they convey (e.g. "deny if { path_beg /x }").
+  With "notice", which is the default, a notice message will be emitted for
+  each such rule. With "warn", a warning is emitted for each of them, which
+  when combined with "zero-warning", may allow to detect them before deploying
+  the configuration. Finally, "ignore" may be used to silence all of them, for
+  example to reduce the noise when migrating from an old configuration. The
+  default could change to "warn" in a future version. Rules marked with the
+  "no-warn" keyword are assumed to be well understood and are never reported.
+  See section 7.5 "Secure filtering of HTTP requests" for more information,
+  and how to write reliable rules.
 
 pidfile <pidfile>
   Writes PIDs of all daemons into file <pidfile> when daemon mode or writes PID
@@ -16283,6 +16298,8 @@ auth [realm <realm>] [no-warn]
   If this rule is used in an http-request statement conditionned by an ACL
   involving inputs that may be subject to aliasing, a warning will be emitted
   unless the "no-warn" option is placed before the "if" or "unless" keyword.
+  The warning may be globally adjusted using the global "on-unreliable-rules"
+  directive.
 
   Example:
         acl auth_ok http_auth_group(L1) G1
@@ -16434,6 +16451,8 @@ deny [ { status | deny_status } <code> ] [ content-type <type> ]
   If this rule is used in an http-request statement conditionned by an ACL
   involving inputs that may be subject to aliasing, a warning will be emitted
   unless the "no-warn" option is placed before the "if" or "unless" keyword.
+  The warning may be globally adjusted using the global "on-unreliable-rules"
+  directive.
 
 
 dgram-drop
@@ -16898,6 +16917,8 @@ reject [no-warn]
   If this rule is used in an http-request statement conditionned by an ACL
   involving inputs that may be subject to aliasing, a warning will be emitted
   unless the "no-warn" option is placed before the "if" or "unless" keyword.
+  The warning may be globally adjusted using the global "on-unreliable-rules"
+  directive.
 
 
 replace-header <name> <match-regex> <replace-fmt>
@@ -17804,6 +17825,8 @@ silent-drop [ rst-ttl <ttl> ] [no-warn]
   If this rule is used in an http-request statement conditionned by an ACL
   involving inputs that may be subject to aliasing, a warning will be emitted
   unless the "no-warn" option is placed before the "if" or "unless" keyword.
+  The warning may be globally adjusted using the global "on-unreliable-rules"
+  directive.
 
 
 strict-mode { on | off }
@@ -29893,9 +29916,10 @@ query string and the parameters they convey, as returned by the "base",
 of any converter applied to them. Only a term which makes the condition true
 when it matches is considered, i.e. a non-negated term after "if", or a negated
 one after "unless". This means that the allow-lists above are not reported. A
-notice message will indicate affected rules. When such a rule is only meant as
-an extra filter, it may be excluded from this report by placing the "no-warn"
-keyword right before "if" or "unless". It also serves as a reminder for whoever
+notice or warning message will indicate affected rules, depending on the
+"on-unreliable-rules" setting. When such a rule is only meant as an extra
+filter, it may be excluded from this report by placing the "no-warn" keyword
+right before "if" or "unless". It also serves as a reminder for whoever
 modifies the rule later that it is not reliable by itself :
 
     http-request deny no-warn if { path_sub -i %2e %2f }
