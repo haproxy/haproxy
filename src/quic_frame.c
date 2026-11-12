@@ -356,25 +356,6 @@ static int quic_build_ack_ecn_frame(unsigned char **pos, const unsigned char *en
 		quic_enc_int(pos, end, ack_frm->ack_range_num);
 }
 
-/* Parse an ACK_ECN frame at <pos> buffer position with <end> as end into <frm> frame.
- * Return 1 if succeeded (enough at <pos> buffer position to parse this frame), 0 if not.
- */
-static int quic_parse_ack_ecn_frame(struct quic_frame *frm, struct quic_conn *qc,
-                                    const unsigned char **pos, const unsigned char *end)
-{
-	struct qf_ack *ack_frm = &frm->ack;
-	/* TODO implement ECN advertising */
-	uint64_t ect0, ect1, ecn_ce;
-
-	return quic_dec_int(&ack_frm->largest_ack, pos, end) &&
-	       quic_dec_int(&ack_frm->ack_delay, pos, end) &&
-	       quic_dec_int(&ack_frm->ack_range_num, pos, end) &&
-	       quic_dec_int(&ack_frm->first_ack_range, pos, end) &&
-	       quic_dec_int(&ect0, pos, end) &&
-	       quic_dec_int(&ect1, pos, end) &&
-	       quic_dec_int(&ecn_ce, pos, end);
-}
-
 /* Encode a RESET_STREAM frame at <pos> buffer position.
  * Returns 1 if succeeded (enough room at <pos> buffer position to encode the frame), 0 if not.
  */
@@ -1143,7 +1124,7 @@ const struct quic_frame_parser quic_frame_parsers[] = {
 	[QUIC_FT_PADDING]              = { .func = quic_parse_padding_frame,              .flags = 0,                               .mask = QUIC_FT_PKT_TYPE_IH01_BITMASK, },
 	[QUIC_FT_PING]                 = { .func = quic_parse_ping_frame,                 .flags = QUIC_FL_RX_PACKET_ACK_ELICITING, .mask = QUIC_FT_PKT_TYPE_IH01_BITMASK, },
 	[QUIC_FT_ACK]                  = { .func = quic_parse_ack_frame_header,           .flags = 0,                               .mask = QUIC_FT_PKT_TYPE_IH_1_BITMASK, },
-	[QUIC_FT_ACK_ECN]              = { .func = quic_parse_ack_ecn_frame,              .flags = 0,                               .mask = QUIC_FT_PKT_TYPE_IH_1_BITMASK, },
+	[QUIC_FT_ACK_ECN]              = { .func = quic_parse_ack_frame_header,           .flags = 0,                               .mask = QUIC_FT_PKT_TYPE_IH_1_BITMASK, },
 	[QUIC_FT_RESET_STREAM]         = { .func = quic_parse_reset_stream_frame,         .flags = QUIC_FL_RX_PACKET_ACK_ELICITING, .mask = QUIC_FT_PKT_TYPE___01_BITMASK, },
 	[QUIC_FT_STOP_SENDING]         = { .func = quic_parse_stop_sending_frame,         .flags = QUIC_FL_RX_PACKET_ACK_ELICITING, .mask = QUIC_FT_PKT_TYPE___01_BITMASK, },
 	[QUIC_FT_CRYPTO]               = { .func = quic_parse_crypto_frame,               .flags = QUIC_FL_RX_PACKET_ACK_ELICITING, .mask = QUIC_FT_PKT_TYPE_IH_1_BITMASK, },

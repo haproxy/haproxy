@@ -526,6 +526,7 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 	unsigned int time_sent, pkt_flags;
 	struct list newly_acked_pkts = LIST_HEAD_INIT(newly_acked_pkts);
 	struct list lost_pkts = LIST_HEAD_INIT(lost_pkts);
+	uint64_t ect0, ect1, ecn_ce;
 	int ret = 0, new_largest_acked_pn = 0;
 	struct quic_tx_packet *pkt, *tmp;
 
@@ -604,6 +605,16 @@ static int qc_parse_ack_frm(struct quic_conn *qc,
 		TRACE_PROTO("RX next ack range", QUIC_EV_CONN_PRSAFRM,
 		            qc, NULL, &largest, &smallest);
 	} while (1);
+
+	/* Decode ECN counts if ACK frame type contains them.
+	 * TODO use these values to adjust the sending window
+	 */
+	if (frm->type == QUIC_FT_ACK_ECN &&
+	    (!quic_dec_int(&ect0, pos, end) || !quic_dec_int(&ect1, pos, end) ||
+	     !quic_dec_int(&ecn_ce, pos, end))) {
+		TRACE_ERROR("error on parsing ACK ECN fields", QUIC_EV_CONN_PRSAFRM, qc);
+		goto err;
+	}
 
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
 		unsigned int bytes_lost = 0;
