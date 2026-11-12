@@ -2104,6 +2104,12 @@ static int quic_rx_pkt_parse(struct quic_conn *qc, struct quic_rx_packet *pkt,
 			goto drop_silent;
 		}
 
+		if (!l && (!pkt->version || pkt->version == &quic_version_VN_reserved)) {
+			TRACE_PROTO("RX unsupported version or VN packet on backend",
+			            QUIC_EV_CONN_LPKT, NULL, NULL, NULL, pkt->version);
+			goto drop;
+		}
+
 		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 			/* For Initial packets, and for servers (QUIC clients connections),
 			 * there is no Initial connection IDs storage.
