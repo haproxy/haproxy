@@ -1,6 +1,134 @@
 ChangeLog :
 ===========
 
+2026/11/12 : 3.5-dev12
+    - CLEANUP: quic: compute the STREAM frame end offset once in qc_stream_frm_is_acked()
+    - CLEANUP: quic: fix and complete the comments in quic_retransmit.c
+    - CLEANUP: quic: remove a redundant test in the fast retransmission lookups
+    - CLEANUP: quic: use QUIC_PACKET_PN_MAXLEN instead of the magic 4
+    - CLEANUP: quic: remove the dead encryption level variable in qc_prep_hdshk_fast_retrans()
+    - CLEANUP: quic: drop the intermediate packet tree pointer in the fast retransmissions
+    - CLEANUP: quic: remove the duplicate qc_prep_hdshk_fast_retrans() prototype
+    - REGTESTS: protobuf: cover the ungrpc message realignment
+    - BUG/MINOR: fd: allow fd_write_frag_line() to run before fdtab allocation
+    - BUG/MINOR: http/hardening: don't count unregistered hdr/tlr too early
+    - MINOR: http/hardening: turn it to a macro and count matches with COUNT_IF()
+    - BUG/MEDIUM: stream: reset analyse_exp when analysers are stripped on error
+    - BUG/MINOR: http-ana: also set FINAL on http-response actions on server error
+    - BUG/MEDIUM: spoe: stop waiting on a dead producer channel
+    - BUG/MINOR: tcpcheck: check the number of "hdr" in http-check send
+    - MINOR: tcpcheck: add post-80-sha2 mode to mysql-check for caching_sha2_password
+    - BUG/MINOR: stick-table: reject invalid gpc/gpt array indexes
+    - MEDIUM: h1/violations: restrict valid version strings to "1.0" and "1.1"
+    - BUG/MEDIUM: filters: avoid NULL block access in decompression
+    - BUG/MEDIUM: mux-fcgi: do not enforce the timeout on connections with streams
+    - BUG/MEDIUM: quic: fix loss time selection in quic_loss_pktns()
+    - BUILD: http: fix build of macro http_harden() with clang
+    - MINOR: debug: add a COUNT() macro which doesn't take a condition
+    - CLEANUP: debug/tree-wide: replace COUNT_IF(1, ...) with COUNT()
+    - BUG/MINOR: applet: accept a temporarily owned tid in appctx_init()
+    - BUG/MINOR: server: fix a leak when completing a named default-server
+    - DOC: minor: update VTest2 URL everywhere
+    - BUG/MEDIUM: compression: use a trash chunk as large as the buffer for the output
+    - BUILD: debug: fix _COUNT undefinied with USE_OBSOLETE_LINKER
+    - BUG/MEDIUM: mux-h2: consider the send list as pending data for the timeout
+    - BUG/MEDIUM: mux-h2: refresh the connection timeout before parking it idle
+    - BUG/MEDIUM: mux-fcgi: arm the connection timeout only when data remains
+    - BUG/MEDIUM: mux-fcgi: detect an early connection error during the handshake
+    - BUG/MEDIUM: mux-fcgi: ignore conn->owner when deciding if a connection is dead
+    - MINOR: mux-fcgi: check for a dead connection before refreshing the timeout
+    - MINOR: mux-fcgi: don't add a closed connection to an idle list on detach
+    - BUG/MEDIUM: mux-h2: also consider the fctl_list as pending data for the timeout
+    - BUG/MEDIUM: ssl: don't use MSG_MORE for kTLS control records
+    - MINOR: cli: factorize CLI session reset
+    - MINOR: cli: store active CLI sessions in a global list
+    - MINOR: cli: implement basic mechanism for uninterruptible jobs
+    - MINOR: cli: implement uninterruptible mode for wait
+    - MINOR: ring: support inactivity timeout in show ring CLI handler
+    - MINOR: sink: add timeout argument for "show events"
+    - MINOR: cli: add "kill" CLI command
+    - REGTESTS: cli: check uninterruptible mode
+    - CLEANUP: mux-h2: clarify that bptr is not NULL when calling to h2_get_buf()
+    - BUG/MEDIUM: mux-h2: always return already allocated buffers in h2_get_buf()
+    - BUG/MEDIUM: mux-h2: permit the buffer callback to allocate despite the queue
+    - BUG/MEDIUM: mux-h2: wake the connection up after a delayed mbuf allocation
+    - BUG/MEDIUM: mux-h2: serve all pending buffer allocations in the buffer callback
+    - BUG/MINOR: mux-h2: unblock the demux when destroying the stream it was blocked on
+    - BUG/MEDIUM: mux-h2: don't send RST_STREAM for backend streams whose HEADERS were not sent
+    - BUG/MEDIUM: mux-h2: also emit the HPACK dynamic table size update on requests
+    - BUG/MINOR: mux-h2: also emit the HPACK Dynamic Table Size Update before trailers
+    - BUG/MINOR: mux-h2: only convert GET upgrade requests to Extended CONNECT
+    - BUG/MINOR: mjson: fix out-of-bounds reads on malformed JSON paths
+    - BUG/MEDIUM: flt-decomp: preserve pending output before decoding again
+    - REGTEST: ocsp: make the ocsp_client_check test fast
+    - CI: github: switch development builds back to ubuntu-latest
+    - CI: github: remove MIPS targets from cross-zoo.yml
+    - CI: temporarily disable AWS-LC 3.x (fips-2024-09-27)
+    - CI: github: install libcrypt-dev:i386 for the i686 build
+    - BUG/MEDIUM: resolvers: detach servers without resolvers from the SRV request
+    - BUG/MEDIUM: resolvers: don't ignore records not matching a resolve-net family
+    - BUG/MEDIUM: resolvers: skip the data of ignored additional records
+    - BUG/MINOR: resolvers: reject a null or negative resolve_retries value
+    - BUG/MINOR: resolvers: reject null "timeout resolve" and "timeout retry" values
+    - BUG/MINOR: resolvers: preserve nameserver identity on "clear counters all"
+    - BUG/MINOR: resolvers: don't dump a nameserver twice in "show resolvers"
+    - BUG/MINOR: resolvers: Always init a new resolution's list element
+    - BUG/MINOR: resolvers: count nameserver timeouts
+    - BUG/MEDIUM: resolvers: reject servers sharing an SRV record with different resolvers
+    - BUG/MINOR: resolvers: check the SRV expiration date again under the lock
+    - OPTIM: resolvers: only walk duplicates when looking up an existing record
+    - BUG/MINOR: resolvers: warn about ignored arguments on datagram nameservers
+    - BUG/MINOR: resolvers: fix leaks on do-resolve's fetch availability error
+    - BUG/MINOR: resolvers: report a timeout when a TCP fallback gets no response
+    - BUG/MINOR: resolvers: use truncated SRV responses when no TCP fallback is possible
+    - BUG/MEDIUM: resolvers: properly skip root-named authority and additional records
+    - BUG/MINOR: resolvers: compute a name's wire length by walking its labels
+    - BUG/MINOR: quic/ssl: record TLS version bounds for certificate selection
+    - CI: github: pin ARM development builds to Ubuntu 26.04
+    - BUG/MINOR: cfgparse: detect unsupported crypt() hashes on Debian/Ubuntu
+    - DOC: configuration: clarify normalize-uri version availability
+    - BUG/MINOR: ssl/ckch: fix an invalid free() in the domains/ips error paths
+    - BUG/MINOR: tools: ha_freearray() must also free the array
+    - CI: github: re-enable AWS-LC 3.x (fips-2024-09-27)
+    - BUG/MAJOR: quic: don't reference a retired CID from a NEW_CONNECTION_ID frame
+    - BUG/MINOR: quic: reject RETIRE_CONNECTION_ID for a CID not sent to the peer
+    - BUG/MINOR: ssl: skip the cipher workaround with AWS-LC API 38 and newer
+    - BUILD: Makefile: force $(shell command -v ...) to run through the shell
+    - BUG/MINOR: quic: reject invalid stream ID after MUX closure
+    - BUG/MEDIUM: quic: limit reject after MUX closure to once per stream
+    - BUG/MINOR: quic-be: fix Initial token length check on backend connections
+    - BUG/MINOR: mux_quic: remove dangling qc->qcc ref on MUX init failure
+    - MINOR: http: add <need_eot> to trailers parsing function
+    - MINOR: mux_quic: refactor qcs_http_handle_standalone_fin()
+    - BUG/MINOR: h3: fix missing EOM after trailers without FIN
+    - BUG/MINOR: h3: close connection on response start-line alloc failure
+    - BUG/MINOR: h3: fix error code on incomplete request
+    - BUG/MEDIUM: h3: reject standalone FIN on invalid request/response
+    - BUG/MEDIUM: threads: don't read lock history entries that don't fit in ulong
+    - BUG/MINOR: quic-be: drop long header packets with unsupported version
+    - BUG/MINOR: stick-table: release server_key on any stksess destruction
+    - BUG/MINOR: acl: check the presence of an argument to "-u"
+    - BUG/MINOR: server: don't report dyncookie collision on same IP servers
+    - SCRIPTS: create-release: do not match the word "version" isolated
+    - MEDIUM: sched: fix the default runqueue-depth
+    - DOC: security: clarify how to send proper reports
+    - DOC: threat-model: add a few more entries for stuff that should be public
+    - DOC: configuration: add a section on secure filtering of HTTP requests
+    - MINOR: sample: add SMP_USE__MAY_ALIAS to mark fetches returning aliasable contents
+    - MINOR: http-fetch: mark URI-based sample fetches with SMP_USE__MAY_ALIAS
+    - MINOR: acl: add acl_cond_find_positive_use() to find positive terms by usage
+    - MINOR: http-act: mark http-request access control actions with KWF_ACCESS_CTRL
+    - MINOR: http-rules: accept "no-warn" before the condition of access control rules
+    - REGTESTS: add a no-warn directive on deny rules using a path
+    - MEDIUM: http-rules: report access control rules relying on aliasable contents
+    - MINOR: http: add a global setting to decide on warnings for http rules
+    - DEBUG: stream: do not emit debug messages for internal proxies
+    - MINOR: mux-quic: add an sctl() callback to the application ops
+    - MINOR: mux: add sctl MUX_SCTL_GET_HDNG_FOUND/FIXED to report hardening results
+    - MINOR: http-fetch: add {fs,bs}.hdng.{found,fixed} to report hardening results
+    - MINOR: http-conv: add hdng_rej_name to name the HTTP hardening reject rule
+    - REGTESTS: http-messaging: test the reporting of HTTP hardening results
+
 2026/11/04 : 3.5-dev11
     - BUILD: sym: Fix build on recent glibc
     - BUG/MINOR: checks/log: force implicit UDP checks as TCP for log backend
