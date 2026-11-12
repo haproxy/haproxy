@@ -90,6 +90,14 @@ struct stktable *stktable_find_by_name(const char *name)
  */
 void __stksess_free(struct stktable *t, struct stksess *ts)
 {
+	void *data;
+
+	data = stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
+	if (data) {
+		dict_entry_unref(&server_key_dict, stktable_data_cast(data, std_t_dict));
+		stktable_data_cast(data, std_t_dict) = NULL;
+	}
+
 	HA_ATOMIC_DEC(&t->current);
 	pool_free(t->pool, (void *)ts - round_ptr_size(t->data_size));
 }
@@ -101,14 +109,6 @@ void __stksess_free(struct stktable *t, struct stksess *ts)
  */
 void stksess_free(struct stktable *t, struct stksess *ts)
 {
-	void *data;
-
-	data = stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
-	if (data) {
-		dict_entry_unref(&server_key_dict, stktable_data_cast(data, std_t_dict));
-		stktable_data_cast(data, std_t_dict) = NULL;
-	}
-
 	__stksess_free(t, ts);
 }
 
