@@ -388,7 +388,7 @@ struct quic_conn {
 		struct buffer buf;
 		struct list pkt_list;
 
-		/* first unhandled streams ID, set by MUX after release */
+		/* first unhandled stream IDs, set by MUX on release and then updated by quic-conn */
 		uint64_t stream_max_uni;
 		uint64_t stream_max_bidi;
 		/* first stream IDs, which cannot be opened by the peer due to flow-control, set by MUX after release */
