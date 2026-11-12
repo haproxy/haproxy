@@ -255,9 +255,7 @@
 #endif
 
 // The base max number of tasks to run at once to be used when not set by
-// tune.runqueue-depth. It will automatically be divided by the square root
-// of the number of threads for better fairness. As such, 64 threads will
-// use 35 and a single thread will use 280.
+// tune.runqueue-depth.
 #ifndef RUNQUEUE_DEPTH
 #define RUNQUEUE_DEPTH 280
 #endif

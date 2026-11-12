@@ -2484,14 +2484,8 @@ static void step_init_2(int argc, char** argv)
 	if (global.tune.max_rules_at_once <= 0)
 		global.tune.max_rules_at_once = MAX_RULES_AT_ONCE;
 
-	if (global.tune.runqueue_depth <= 0) {
-		/* tests on various thread counts from 1 to 64 have shown an
-		 * optimal queue depth following roughly 1/sqrt(threads).
-		 */
-		int s = my_flsl(global.nbthread);
-		s += (global.nbthread / s); // roughly twice the sqrt.
-		global.tune.runqueue_depth = RUNQUEUE_DEPTH * 2 / s;
-	}
+	if (global.tune.runqueue_depth <= 0)
+		global.tune.runqueue_depth = RUNQUEUE_DEPTH;
 
 	if (global.tune.recv_enough == 0)
 		global.tune.recv_enough = MIN_RECV_AT_ONCE_ENOUGH;
