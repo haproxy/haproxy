@@ -1,0 +1,262 @@
+varnishtest "Object lifetime: max-age, Age and heuristic lifetime"
+
+# The freshness lifetime of a stored object and the Age of the copies
+# delivered from the cache, per RFC 9111:
+#
+#  - the lifetime of a response is given by s-maxage, max-age, Expires, or
+#    falls back to the cache's configured max-age when the response has a
+#    validator (heuristic lifetime);
+#  - a null lifetime ("max-age=0", "max-age=00", a quoted "max-age=\"0\"" or
+#    a null s-maxage) means the response must not be served from the cache;
+#  - the Age header received from the server is the time the response already
+#    spent in upstream caches, so it reduces a relative lifetime (max-age,
+#    s-maxage) but not an absolute one (Expires);
+#  - the Age of a copy delivered by the cache is the Age received from the
+#    server plus the time spent in the cache, so it always stays below the
+#    lifetime announced by the server;
+#  - "Age: 0" is a valid value, it does not prevent the response from being
+#    cached;
+#  - the Age header of a stored response is still forwarded to the client the
+#    response is delivered to, and the copies carry a single, freshly computed
+#    Age header.
+#
+# None of these checks relies on a delay: they compare the Age of the copies
+# with the lifetime announced by the server, using res.cache_hit to only
+# consider the responses delivered from the cache.
+
+feature ignore_unknown_macro
+
+server s1 {
+    # /a: no freshness left (Age == max-age), must not be stored.
+    rxreq
+    expect req.url == "/a"
+    txresp -hdr "Cache-Control: max-age=100" -hdr "Age: 100" -bodylen 10
+    rxreq
+    expect req.url == "/a"
+    txresp -hdr "Cache-Control: max-age=100" -hdr "Age: 100" -bodylen 11
+
+    # /b: full lifetime left, stored and served from the cache.
+    rxreq
+    expect req.url == "/b"
+    txresp -hdr "Cache-Control: max-age=100" -bodylen 20
+
+    # /c: no explicit lifetime, but a validator: the heuristic lifetime is
+    # the cache's max-age. The Age is below it, the response is stored.
+    rxreq
+    expect req.url == "/c"
+    txresp -hdr "Last-Modified: Thu, 01 Jan 2026 00:00:00 GMT" \
+           -hdr "Age: 5" -bodylen 30
+
+    # /d: heuristic lifetime too, but the Age exceeds it: not stored.
+    rxreq
+    expect req.url == "/d"
+    txresp -hdr "Last-Modified: Thu, 01 Jan 2026 00:00:00 GMT" \
+           -hdr "Age: 300" -bodylen 40
+    rxreq
+    expect req.url == "/d"
+    txresp -hdr "Last-Modified: Thu, 01 Jan 2026 00:00:00 GMT" \
+           -hdr "Age: 300" -bodylen 41
+
+    # /e: a null lifetime not written as "max-age=0": not stored.
+    rxreq
+    expect req.url == "/e"
+    txresp -hdr "Cache-Control: max-age=00" -bodylen 50
+    rxreq
+    expect req.url == "/e"
+    txresp -hdr "Cache-Control: max-age=00" -bodylen 51
+
+    # /f: a quoted null lifetime: not stored.
+    rxreq
+    expect req.url == "/f"
+    txresp -hdr "Cache-Control: max-age=\"0\"" -bodylen 60
+    rxreq
+    expect req.url == "/f"
+    txresp -hdr "Cache-Control: max-age=\"0\"" -bodylen 61
+
+    # /g: a null s-maxage takes precedence over max-age: not stored.
+    rxreq
+    expect req.url == "/g"
+    txresp -hdr "Cache-Control: s-maxage=00, max-age=60" -bodylen 70
+    rxreq
+    expect req.url == "/g"
+    txresp -hdr "Cache-Control: s-maxage=00, max-age=60" -bodylen 71
+
+    # /h: the lifetime comes from an Expires date in the future, an absolute
+    # date, so the Age must not be deducted from it.
+    rxreq
+    expect req.url == "/h"
+    txresp -hdr "Expires: Thu, 01 Jan 2037 00:00:00 GMT" -hdr "Age: 50" \
+           -bodylen 80
+
+    # /i: "Age: 0" is a valid value, commonly emitted by an upstream cache
+    # delivering a fresh object: the response must be cached.
+    rxreq
+    expect req.url == "/i"
+    txresp -hdr "Cache-Control: max-age=100" -hdr "Age: 0" -bodylen 90
+
+    # /j: the Age header is not removed from the forwarded response.
+    rxreq
+    expect req.url == "/j"
+    txresp -hdr "Cache-Control: max-age=100" -hdr "Age: 10" -bodylen 100
+} -start
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request cache-use c1
+        http-response cache-store c1
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        # The copies delivered from the cache must carry a single Age header.
+        http-response set-header X-Age-Count %[res.hdr_cnt(age)]
+        # A response delivered from the cache must have an Age below the
+        # lifetime announced by the server, otherwise the cache kept it fresh
+        # for longer than its lifetime.
+        http-after-response set-header X-Age-Relative 1 if { res.cache_hit } { res.hdr(Age) -m int ge 100 }
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+    cache c1
+        total-max-size 4
+        # Larger than the lifetimes announced by the server, so the cache's
+        # own limit is never the one that ends the object lifetime. It is the
+        # heuristic lifetime of the responses without explicit lifetime.
+        max-age 200
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    # /a: the stored response had no freshness left, it must not be served
+    # from the cache. If it were, its Age would reach the server's max-age.
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 10
+    expect resp.http.X-Cache-Hit == 0
+    txreq -url "/a"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 11
+    expect resp.http.X-Age-Relative == <undef>
+    expect resp.http.X-Cache-Hit == 0
+
+    # /b: the copy has its whole lifetime left, its Age is far below it.
+    txreq -url "/b"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 20
+    expect resp.http.X-Cache-Hit == 0
+    txreq -url "/b"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 20
+    expect resp.http.X-Age-Relative == <undef>
+    expect resp.http.X-Cache-Hit == 1
+
+    # /c: heuristic lifetime, the Age is below it: served from the cache.
+    txreq -url "/c"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 30
+    expect resp.http.X-Cache-Hit == 0
+    txreq -url "/c"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 30
+    expect resp.http.X-Age-Relative == <undef>
+    expect resp.http.X-Cache-Hit == 1
+
+    # /d: the Age exceeds the heuristic lifetime: never stored.
+    txreq -url "/d"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 40
+    expect resp.http.X-Cache-Hit == 0
+    txreq -url "/d"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 41
+    expect resp.http.X-Cache-Hit == 0
+
+    # /e, /f, /g: null lifetimes, never served from the cache.
+    txreq -url "/e"
+    rxresp
+    expect resp.bodylen == 50
+    txreq -url "/e"
+    rxresp
+    expect resp.bodylen == 51
+    expect resp.http.X-Cache-Hit == 0
+
+    txreq -url "/f"
+    rxresp
+    expect resp.bodylen == 60
+    txreq -url "/f"
+    rxresp
+    expect resp.bodylen == 61
+    expect resp.http.X-Cache-Hit == 0
+
+    txreq -url "/g"
+    rxresp
+    expect resp.bodylen == 70
+    txreq -url "/g"
+    rxresp
+    expect resp.bodylen == 71
+    expect resp.http.X-Cache-Hit == 0
+
+    # /h: the Expires lifetime is absolute, the Age does not reduce it, so the
+    # response is served from the cache.
+    txreq -url "/h"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 80
+    expect resp.http.X-Cache-Hit == 0
+    txreq -url "/h"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 80
+    expect resp.http.X-Age-Relative == <undef>
+    expect resp.http.X-Cache-Hit == 1
+
+    # /i: "Age: 0" does not prevent the response from being cached.
+    txreq -url "/i"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 90
+    expect resp.http.age == 0
+    expect resp.http.X-Cache-Hit == 0
+    txreq -url "/i"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 90
+    expect resp.http.X-Age-Count == 1
+    expect resp.http.X-Cache-Hit == 1
+
+    # /j: the Age of the forwarded response is preserved, and the copy
+    # delivered by the cache carries a single, freshly computed Age header.
+    txreq -url "/j"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 100
+    expect resp.http.age == 10
+    expect resp.http.X-Age-Count == 1
+    expect resp.http.X-Cache-Hit == 0
+    txreq -url "/j"
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 100
+    expect resp.http.age ~ "^1[0-2]$"
+    expect resp.http.X-Age-Count == 1
+    expect resp.http.X-Age-Relative == <undef>
+    expect resp.http.X-Cache-Hit == 1
+} -run
