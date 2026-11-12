@@ -94,7 +94,7 @@ haproxy h1 -conf {
 	http-request set-log-level err    if { path /err }
 	http-request set-log-level silent if { path /silent }
 	http-request do-log               if { path /dolog }
-	http-request deny deny_status 403 if { path /denied }
+	http-request deny deny_status 403 no-warn if { path /denied }
 
 	default_backend be
 

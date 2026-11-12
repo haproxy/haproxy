@@ -39,7 +39,7 @@ haproxy h1 -conf {
 	http-request set-var(txn.ok)    str(yes) if auth_ok
 	http-request set-var(txn.admin) str(yes) if is_admin
 
-	http-request auth realm "protected area" if { path /private } !auth_ok
+	http-request auth realm "protected area" no-warn if { path /private } !auth_ok
 	http-request return status 200
 
 	http-after-response set-header x-user  "%[var(txn.user)]"

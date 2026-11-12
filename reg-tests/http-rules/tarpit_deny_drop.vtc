@@ -42,17 +42,17 @@ haproxy h1 -conf {
 	log-format "uri=%[capture.req.uri] term=%[txn.sess_term_state] st=%[txn.status]"
 
 	# the default tarpit status is 500
-	http-request tarpit                          if { path /tarpit }
-	http-request tarpit deny_status 429          if { path /tarpit429 }
+	http-request tarpit                  no-warn if { path /tarpit }
+	http-request tarpit deny_status 429  no-warn if { path /tarpit429 }
 
 	# the default deny status is 403
-	http-request deny                            if { path /deny }
-	http-request deny status 418 content-type "text/plain" string "teapot" hdr x-why "because" if { path /teapot }
+	http-request deny                    no-warn if { path /deny }
+	http-request deny status 418 content-type "text/plain" string "teapot" hdr x-why "because" no-warn if { path /teapot }
 
 	# the client gets nothing at all, the connection is just dropped
 	# however this is not portable so let's use rst-ttl instead, which
 	# really closes.
-	http-request silent-drop rst-ttl 4           if { path /drop }
+	http-request silent-drop rst-ttl 4   no-warn if { path /drop }
 
 	# pause only delays the analysis, the request is processed normally
 	http-request pause 10ms                      if { path /pause }

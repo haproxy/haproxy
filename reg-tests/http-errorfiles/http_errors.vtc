@@ -36,29 +36,29 @@ haproxy h1 -conf {
 
     frontend fe1
         bind "fd@${fe1}"
-        http-request deny deny_status 400 if { path /400 }
-        http-request deny if { path /403 }
-        http-request deny deny_status 404 if { path /404 }
-        http-request deny deny_status 500 if { path /500 }
+        http-request deny deny_status 400 no-warn if { path /400 }
+        http-request deny no-warn if { path /403 }
+        http-request deny deny_status 404 no-warn if { path /404 }
+        http-request deny deny_status 500 no-warn if { path /500 }
 
     frontend fe2
         bind "fd@${fe2}"
         errorfiles errors-1
         errorfile 500  ${testdir}/errors/500.http
-        http-request deny deny_status 400 if { path /400 }
-        http-request deny if { path /403 }
-        http-request deny deny_status 404 if { path /404 }
-        http-request deny deny_status 500 if { path /500 }
+        http-request deny deny_status 400 no-warn if { path /400 }
+        http-request deny no-warn if { path /403 }
+        http-request deny deny_status 404 no-warn if { path /404 }
+        http-request deny deny_status 500 no-warn if { path /500 }
 
     frontend fe3
         bind "fd@${fe3}"
         errorfile 500  ${testdir}/errors/500.http
         errorfiles errors-1 500
         errorfiles errors-3 400
-        http-request deny deny_status 400 if { path /400 }
-        http-request deny if { path /403 }
-        http-request deny deny_status 404 if { path /404 }
-        http-request deny deny_status 500 if { path /500 }
+        http-request deny deny_status 400 no-warn if { path /400 }
+        http-request deny no-warn if { path /403 }
+        http-request deny deny_status 404 no-warn if { path /404 }
+        http-request deny deny_status 500 no-warn if { path /500 }
 } -start
 
 client c1r1  -connect ${h1_fe1_sock} {

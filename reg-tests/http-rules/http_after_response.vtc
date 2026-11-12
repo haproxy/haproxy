@@ -33,9 +33,9 @@ haproxy h1 -conf {
     frontend fe
         bind "fd@${feh1}"
 
-        http-request deny if { path /deny }
+        http-request deny no-warn if { path /deny }
         http-request redirect location / if { path /redir }
-        http-request auth if { path /auth }
+        http-request auth no-warn if { path /auth }
 
 	http-after-response allow if { status eq 403 }
 	http-after-response allow if { status eq 302 }

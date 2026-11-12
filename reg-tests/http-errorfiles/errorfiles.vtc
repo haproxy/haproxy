@@ -27,10 +27,10 @@ haproxy h1 -conf {
         errorfile 403  ${testdir}/errors/403-1.http
         errorfile 500 /dev/null
 
-        http-request deny deny_status 400 if { path /400 }
-        http-request deny deny_status 403 if { path /403 }
-        http-request deny deny_status 408 if { path /408 }
-        http-request deny deny_status 500 if { path /500 }
+        http-request deny deny_status 400 no-warn if { path /400 }
+        http-request deny deny_status 403 no-warn if { path /403 }
+        http-request deny deny_status 408 no-warn if { path /408 }
+        http-request deny deny_status 500 no-warn if { path /500 }
 
 } -start
 

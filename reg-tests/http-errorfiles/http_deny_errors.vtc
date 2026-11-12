@@ -24,14 +24,14 @@ haproxy h1 -conf {
 
     frontend fe1
         bind "fd@${fe1}"
-        http-request deny deny_status 400 if { path /400 }
-        http-request deny deny_status 403 errorfile  ${testdir}/errors/403.http if { path /403 }
-        http-request deny deny_status 404 errorfiles errors-1 if { path /404 }
-        http-request deny deny_status 500 errorfile  /dev/null if { path /500-1 }
-        http-request deny deny_status 500 errorfiles errors-1 if { path /500-2 }
+        http-request deny deny_status 400 no-warn if { path /400 }
+        http-request deny deny_status 403 errorfile  ${testdir}/errors/403.http no-warn if { path /403 }
+        http-request deny deny_status 404 errorfiles errors-1 no-warn if { path /404 }
+        http-request deny deny_status 500 errorfile  /dev/null no-warn if { path /500-1 }
+        http-request deny deny_status 500 errorfiles errors-1 no-warn if { path /500-2 }
 
-        http-request deny status 500 hdr x-err-info "path=%[path]" content-type "text/plain" string "Internal Error" if { path /int-err }
-        http-request deny status 403 hdr x-err-info "path=%[path]" content-type "text/plain" lf-file ${testdir}/errors/lf-403.txt if { path /forbidden }
+        http-request deny status 500 hdr x-err-info "path=%[path]" content-type "text/plain" string "Internal Error" no-warn if { path /int-err }
+        http-request deny status 403 hdr x-err-info "path=%[path]" content-type "text/plain" lf-file ${testdir}/errors/lf-403.txt no-warn if { path /forbidden }
 
 } -start
 
