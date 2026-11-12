@@ -331,7 +331,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			patflags |= PAT_MF_NO_DNS;
 		else if (strcmp(*args, "-u") == 0) {
 			unique_id = strtol(args[1], &error, 10);
-			if (*error != '\0') {
+			if (!*args[1] || *error != '\0') {
 				memprintf(err, "the argument of -u must be an integer");
 				goto out_free_expr;
 			}
