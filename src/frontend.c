@@ -106,7 +106,8 @@ int frontend_accept(struct stream *s)
 	}
 
 	if (unlikely((global.mode & MODE_DEBUG) && conn &&
-		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
+		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+	             !(fe->cap & PR_CAP_INT))) {
 		char pn[INET6_ADDRSTRLEN];
 		char alpn[16] = "<none>";
 		const char *alpn_str = NULL;

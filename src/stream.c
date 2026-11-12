@@ -2130,7 +2130,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 */
 		if (unlikely((global.mode & MODE_DEBUG) &&
 			     (!(global.mode & MODE_QUIET) ||
-			      (global.mode & MODE_VERBOSE)))) {
+			      (global.mode & MODE_VERBOSE)) &&
+			     !(sess->fe->cap & PR_CAP_INT))) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				     s->uniq_id, s->be->id,
 				     (unsigned short)conn_fd(sc_conn(scf)),
@@ -2167,7 +2168,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		 */
 		if (unlikely((global.mode & MODE_DEBUG) &&
 			     (!(global.mode & MODE_QUIET) ||
-			      (global.mode & MODE_VERBOSE)))) {
+			      (global.mode & MODE_VERBOSE)) &&
+			     !(sess->fe->cap & PR_CAP_INT))) {
 			if (s->prev_conn_state == SC_ST_EST) {
 				chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 					     s->uniq_id, s->be->id,
@@ -2847,7 +2849,8 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		_HA_ATOMIC_DEC(&s->be->beconn);
 
 	if (unlikely((global.mode & MODE_DEBUG) &&
-		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
+		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+	             !(sess->fe->cap & PR_CAP_INT))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			     s->uniq_id, s->be->id,
 			     (unsigned short)conn_fd(sc_conn(scf)),
