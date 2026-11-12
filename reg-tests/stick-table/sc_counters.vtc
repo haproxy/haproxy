@@ -64,7 +64,7 @@ haproxy h1 -conf {
 	tcp-request connection track-sc1 src table st1
 	tcp-request connection track-sc2 src table st2
 
-	http-request deny deny_status 403 if { path /denied }
+	http-request deny deny_status 403 no-warn if { path /denied }
 	# use_backend is only evaluated once all the http-request rules have
 	# run, so the local response must be skipped for the forwarded paths
 	http-request return status 200 unless { path /srv } || { path /fail }
