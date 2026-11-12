@@ -552,16 +552,41 @@ static inline void srv_check_for_dup_dyncookie(struct server *s)
 	struct proxy *p = s->proxy;
 	struct server *tmpserv;
 
+	/* no check for address-less servers */
+	if (s->addr.ss_family != AF_INET &&
+	    s->addr.ss_family != AF_INET6)
+		return;
+
+	/* address not configured => same */
+	if (!is_addr(&s->addr))
+		return;
+
 	list_for_each_entry(tmpserv, &p->servers, el_px) {
 		if (tmpserv == s)
 			continue;
 		if (tmpserv->next_admin & SRV_ADMF_FMAINT)
 			continue;
+
+		if (tmpserv->addr.ss_family != AF_INET &&
+		    tmpserv->addr.ss_family != AF_INET6)
+			continue;
+
+		if (!is_addr(&tmpserv->addr))
+			return;
+
+		/* servers with a similar address will produce a same cookie
+		 * and that is OK.
+		 */
+		if (ipcmp(&s->addr, &tmpserv->addr, 1) == 0)
+			continue;
+
 		if (tmpserv->cookie &&
 		    strcmp(tmpserv->cookie, s->cookie) == 0) {
-			ha_warning("We generated two equal cookies for two different servers.\n"
-				   "Please change the secret key for '%s'.\n",
-				   s->proxy->id);
+			ha_warning("We generated two equal cookies for two different servers in %s '%s' ('%s/%s' and '%s/%s').\n"
+			           "Please change the secret key for %s '%s'.\n",
+			           proxy_type_str(s->proxy), s->proxy->id,
+			           s->proxy->id, s->id, tmpserv->proxy->id, tmpserv->id,
+			           proxy_type_str(s->proxy), s->proxy->id);
 		}
 	}
 
