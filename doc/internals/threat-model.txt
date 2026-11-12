@@ -114,11 +114,27 @@ blast radius (sections 5 and 6).
    - anything requiring "expose-experimental-directives".
 
    Misconfiguration:
+   - anything that works as explicitly documented
    - anything requiring a configuration that emits warnings at boot.
    - anything requiring a nonsensical configuration, e.g. a server looping back
      to the frontend, non-standard header processing or URL rewriting, or an
      excessively large number of headers or excessively large header/body
      sizes.
+   - any abort or crash caused by configuration issues or a bug in the
+     configuration parser (e.g. a crash on a missing argument is just a regular
+     bug since configs are not writable by untrusted users).
+   - bugs only triggered by tweaking operating system limits (e.g. too high or
+     too low file descriptor count, memory size, source ports, etc).
+
+   Deployment issue:
+   - situations that are reproduced for the case of the report but that do not
+     correspond to a real-world deployment. This includes observing traffic
+     patterns on totally idle links, limiting client traffic to very few or
+     private IP addresses, targetting wrong security profiles, using abnormally
+     small or abnormally large keys in certificates.
+   - situations that are caused by the test environment, such as time
+     granularity in test VMs, failure to self-protect in restricted user
+     namespaces, test system collapsing under logs or traffic.
 
    Volumetric or otherwise detectable activity:
    - anything requiring such a high and sustained level of activity that it
