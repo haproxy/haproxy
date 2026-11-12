@@ -1029,7 +1029,7 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 		{
 			struct qf_stream *strm_frm = &frm->stream;
 			const char fin = frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT;
-			uint64_t max;
+			uint64_t max, lim;
 
 			/* The upper layer may not be allocated. */
 			if (!qc_is_conn_ready(qc)) {
@@ -1042,12 +1042,30 @@ static int qc_parse_pkt_frms(struct quic_conn *qc, struct quic_rx_packet *pkt,
 					break;
 				}
 
-				max = quic_stream_is_uni(strm_frm->id) ?
-				  qc->rx.stream_max_uni : qc->rx.stream_max_bidi;
+				if (quic_stream_is_uni(strm_frm->id)) {
+					lim = qc->rx.stream_lim_uni;
+					max = qc->rx.stream_max_uni;
+				}
+				else {
+					lim = qc->rx.stream_lim_bidi;
+					max = qc->rx.stream_max_bidi;
+				}
+
 				if (strm_frm->id < max) {
 					TRACE_DATA("Already closed stream", QUIC_EV_CONN_PRSHPKT, qc);
 				}
 				else {
+					if (strm_frm->id & QCS_ID_SRV_INTIATOR_BIT) {
+						TRACE_ERROR("Unknown local stream ID after MUX closure", QUIC_EV_CONN_PRSHPKT, qc);
+						quic_set_connection_close(qc, quic_err_transport(QC_ERR_STREAM_STATE_ERROR));
+						goto err;
+					}
+					else if (strm_frm->id >= lim) {
+						TRACE_ERROR("Stream ID limit violation after MUX closure", QUIC_EV_CONN_PRSHPKT, qc);
+						quic_set_connection_close(qc, quic_err_transport(QC_ERR_STREAM_LIMIT_ERROR));
+						goto err;
+					}
+
 					TRACE_DEVEL("No mux for new stream", QUIC_EV_CONN_PRSHPKT, qc);
 					if (qc->strm_reject) {
 						if (!qc->strm_reject(&qc->ael->pktns->tx.frms, strm_frm->id)) {

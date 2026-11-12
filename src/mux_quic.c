@@ -3792,6 +3792,8 @@ static void qcc_release(struct qcc *qcc)
 		if (!conn_is_back(conn)) {
 			qc->rx.stream_max_uni = qcc->largest_uni_r;
 			qc->rx.stream_max_bidi = qcc->largest_bidi_r;
+			qc->rx.stream_lim_uni = qcc->lfctl.ms_uni * 4;
+			qc->rx.stream_lim_bidi = qcc->lfctl.ms_bidi * 4;
 		}
 	}
 

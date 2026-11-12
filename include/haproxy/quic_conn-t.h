@@ -391,6 +391,9 @@ struct quic_conn {
 		/* first unhandled streams ID, set by MUX after release */
 		uint64_t stream_max_uni;
 		uint64_t stream_max_bidi;
+		/* first stream IDs, which cannot be opened by the peer due to flow-control, set by MUX after release */
+		uint64_t stream_lim_uni;
+		uint64_t stream_lim_bidi;
 
 		/* Number of received packets which failed authentication. */
 		uint64_t auth_fails;
