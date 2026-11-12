@@ -1312,7 +1312,7 @@ static int http_comp_check_order(struct flt_conf *f, void *data)
 		return 0;
 	}
 	if (flt_use_legacy_filter(ctx->px) && f->id == cache_store_flt_id &&
-	    ctx->comp_res_seen) {
+	    (f->flags & FLT_CFG_FL_EXPLICIT) && ctx->comp_res_seen) {
 		ha_alert("config: %s '%s': unable to enable the compression filter on response "
 			 "before any cache filter.\n",
 			 proxy_type_str(ctx->px), ctx->px->id);

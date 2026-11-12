@@ -1343,6 +1343,7 @@ struct decomp_check_ctx {
 	int decomp_req_seen;
 	int decomp_res_seen;
 	int cache_seen;
+	unsigned int cache_flags;
 };
 
 /* Checks the filter <f> against the decomp filter being checked. It is used
@@ -1361,15 +1362,21 @@ static int decomp_check_order(struct flt_conf *f, void *data)
 	}
 	else if (flt_use_legacy_filter(ctx->px)) {
 		if ((ctx->px->cap & PR_CAP_BE) && f->id == decomp_res_flt_id) {
-			if (ctx->cache_seen) {
+			/* Only report an explicitly declared cache filter
+			 * placed before decomp-res: the implicit one is
+			 * automatically ordered before it.
+			 */
+			if (ctx->cache_seen && (ctx->cache_flags & FLT_CFG_FL_EXPLICIT)) {
 				ha_alert("config: %s '%s': cache filter declared before a decompression filter on the response is invalid.\n",
 					 proxy_type_str(ctx->px), ctx->px->id);
 				return 1;
 			}
 			ctx->decomp_res_seen = 1;
 		}
-		if (f->id == cache_store_flt_id)
+		if (f->id == cache_store_flt_id) {
 			ctx->cache_seen = 1;
+			ctx->cache_flags = f->flags;
+		}
 	}
 	return 0;
 }

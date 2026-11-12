@@ -708,14 +708,22 @@ static int cache_store_check_order(struct flt_conf *f, void *data)
 	if (f->id == http_comp_req_flt_id)
 		return 0;
 	if (f->id == http_comp_res_flt_id) {
-		ctx->comp_seen = 1;
+		/* Only report an explicitly declared compression filter
+		 * placed before the cache: the implicit ones are
+		 * automatically ordered after it.
+		 */
+		if (f->flags & FLT_CFG_FL_EXPLICIT)
+			ctx->comp_seen = 1;
 		return 0;
 	}
 	if (f->id == decomp_req_flt_id)
 		return 0;
 	else if (f->id == decomp_res_flt_id) {
-		/* The decomp-res filter must be evaluated after the cache. */
-		if (ctx->cache_seen) {
+		/* Only report an explicitly declared decomp-res filter placed
+		 * after an explicitly declared cache: the implicit filters
+		 * are automatically ordered.
+		 */
+		if ((f->flags & FLT_CFG_FL_EXPLICIT) && (ctx->fconf->flags & FLT_CFG_FL_EXPLICIT) && ctx->cache_seen) {
 			ha_alert("config: %s '%s': unable to enable the decomp-res filter after "
 				 "the cache '%s'.\n", proxy_type_str(ctx->px), ctx->px->id, ctx->cache->id);
 			return 1;

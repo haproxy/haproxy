@@ -716,8 +716,12 @@ static int flt_is_core_flt(const struct flt_conf *fconf)
  *   response: fcgi > decomp-res > cache-store > any other filter >
  *             decomp-req > http-comp-res
  *
- * Explicitly declared core filters are never moved and act as segment
- * boundaries (see flt_reorder_implicit_conf()).
+ * Explicitly declared core filters are placed in the "any other filter"
+ * class, like any explicitly declared filter: their manual placement among
+ * the explicit filters is the user's responsibility, and a conflicting
+ * order between explicitly declared filters is reported by their checks.
+ * Only the implicitly declared core filters are moved to their canonical
+ * position.
  */
 static int flt_order_class(const struct flt_conf *fconf, unsigned int side)
 {
@@ -729,6 +733,17 @@ static int flt_order_class(const struct flt_conf *fconf, unsigned int side)
 #if defined(USE_FCGI)
 	int is_fcgi = (fconf->id == fcgi_flt_id);
 #endif
+
+	if ((fconf->flags & FLT_CFG_FL_EXPLICIT) && flt_is_core_flt(fconf)) {
+		switch (side) {
+		case FLT_SIDE_REQ:
+			return 1; /* any other filter */
+		case FLT_SIDE_RES:
+			return 3; /* any other filter */
+		default:
+			return 2; /* any other filter */
+		}
+	}
 
 	switch (side) {
 	case FLT_SIDE_REQ:
@@ -805,10 +820,12 @@ static void flt_flush_order_segs(struct list *out, struct list seg[], int nb_seg
  * px->filters_res_configs) are used to fill the stream's request and response
  * filter lists.
  *
- * Explicitly declared core filters are never moved, they keep their declaration
- * order. They delimit segments of filters inside which the implicitly declared
- * core filters are sorted, so that an implicit filter never crosses an
- * explicitly declared one.
+ * Explicitly declared core filters are placed in the "any other filter"
+ * class, like any explicitly declared filter: their manual placement
+ * between the explicit filters is the user's responsibility, and the
+ * conflicting orders between explicitly declared filters are reported by
+ * their checks, which walk the lists before the reordering. Only the
+ * implicitly declared core filters are moved to their canonical position.
  */
 static void flt_reorder_implicit_conf(struct proxy *px)
 {
@@ -821,47 +838,24 @@ static void flt_reorder_implicit_conf(struct proxy *px)
 			LIST_INIT(&seg[s][i]);
 	}
 
-	/* First, the global order, with the 'list' member. */
-	LIST_INIT(&out);
-	list_for_each_entry_safe(fconf, back, &px->filter_configs, list) {
-		if ((fconf->flags & FLT_CFG_FL_EXPLICIT) && flt_is_core_flt(fconf)) {
-			/* Explicitly declared core filter: flush the current
-			 * segment before it and keep the filter in place.
-			 */
-			flt_flush_order_segs(&out, seg[0], 6);
-			LIST_DEL_INIT(&fconf->list);
-			LIST_APPEND(&out, &fconf->list);
-			continue;
-		}
-		LIST_DEL_INIT(&fconf->list);
-		LIST_APPEND(&seg[0][flt_order_class(fconf, FLT_SIDE_GLOBAL)], &fconf->list);
-	}
-	flt_flush_order_segs(&out, seg[0], 6);
-	LIST_SPLICE(&px->filter_configs, &out);
-
-	/* Then the request and response orders, from the final global order,
-	 * with the 'by_req' and 'by_res' members. Both lists are rebuilt from
-	 * scratch: reset their heads, all the links were initialized by
-	 * flt_conf_add()/flt_conf_insert() or above.
+	/* Rebuild the three orders in one pass over the declaration order:
+	 * bucket the 'list', 'by_req' and 'by_res' members of every filter
+	 * config by its class, then flush the buckets in class order. Within
+	 * a class, the configs keep their declaration order.
 	 */
+	LIST_INIT(&out);
 	LIST_INIT(&px->filters_req_configs);
 	LIST_INIT(&px->filters_res_configs);
 	list_for_each_entry_safe(fconf, back, &px->filter_configs, list) {
-		if ((fconf->flags & FLT_CFG_FL_EXPLICIT) && flt_is_core_flt(fconf)) {
-			/* Explicitly declared core filter: flush the current
-			 * segments before it and keep the filter in place.
-			 */
-			flt_flush_order_segs(&px->filters_req_configs, seg[1], 6);
-			flt_flush_order_segs(&px->filters_res_configs, seg[2], 6);
-			LIST_APPEND(&px->filters_req_configs, &fconf->by_req);
-			LIST_APPEND(&px->filters_res_configs, &fconf->by_res);
-			continue;
-		}
+		LIST_DEL_INIT(&fconf->list);
+		LIST_APPEND(&seg[0][flt_order_class(fconf, FLT_SIDE_GLOBAL)], &fconf->list);
 		LIST_APPEND(&seg[1][flt_order_class(fconf, FLT_SIDE_REQ)], &fconf->by_req);
 		LIST_APPEND(&seg[2][flt_order_class(fconf, FLT_SIDE_RES)], &fconf->by_res);
 	}
+	flt_flush_order_segs(&out, seg[0], 6);
 	flt_flush_order_segs(&px->filters_req_configs, seg[1], 6);
 	flt_flush_order_segs(&px->filters_res_configs, seg[2], 6);
+	LIST_SPLICE(&px->filter_configs, &out);
 }
 
 /*
