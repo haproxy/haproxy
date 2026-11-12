@@ -465,13 +465,14 @@ sni_lookup:
 			methodVersions[conf->ssl_methods.max].ssl_set_version(ssl, SET_MAX);
 			if (conf->early_data)
 				allow_early = 1;
-#if defined(OPENSSL_IS_AWSLC) && AWSLC_API_VERSION > 30
+#if defined(OPENSSL_IS_AWSLC) && (AWSLC_API_VERSION > 30) && (AWSLC_API_VERSION < 38)
 			/* AWS-LC copies the cipher lists at SSL_new() time and does
 			 * not update them on SSL_set_SSL_CTX(). Reapply the crt-list
 			 * options. API version 30 (AWS-LC 3.x) uses the SSL_CTX
 			 * cipher lists directly and does not need this workaround.
 			 * These calls are inefficient as they parse the cipher
 			 * configuration strings for each connection.
+			 * SSL_set_SSL_CTX() was fixed in AWS-LC 5.14.0
 			 */
 			if ((conf->ciphers && !SSL_set_cipher_list(ssl, conf->ciphers)) ||
 			    (conf->ciphersuites && !SSL_set_ciphersuites(ssl, conf->ciphersuites))) {
