@@ -2259,7 +2259,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	size_t ret;
 
 	if (applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC|APPCTX_FL_OUTBLK_ALLOC|APPCTX_FL_OUTBLK_FULL))
-		goto exit;
+		goto wait;
 
 	if (applet_fl_test(appctx, APPCTX_FL_FASTFWD) && se_fl_test(appctx->sedesc, SE_FL_MAY_FASTFWD_PROD))
 		goto exit;
@@ -2276,7 +2276,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	}
 
 	if (!appctx_get_buf(appctx, &appctx->outbuf)) {
-		goto exit;
+		goto wait;
 	}
 
 	if (unlikely(applet_fl_test(appctx, APPCTX_FL_EOS|APPCTX_FL_ERROR))) {
@@ -2290,7 +2290,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 		struct ist meth;
 
 		if (unlikely(applet_fl_test(appctx, APPCTX_FL_INBLK_ALLOC))) {
-			goto exit;
+			goto wait;
 		}
 
 		/* Headers must be dump at once. Otherwise it is an error */
@@ -2358,6 +2358,13 @@ static void http_cache_io_handler(struct appctx *appctx)
 	b_reset(&appctx->inbuf);
 	applet_fl_clr(appctx, APPCTX_FL_INBLK_FULL);
 	appctx->sedesc->iobuf.flags &= ~IOBUF_FL_FF_BLOCKED;
+	return;
+
+  wait:
+	/* The output buffer is not available yet. Leave the request in place:
+	 * its start line is read to know whether it is a HEAD request. */
+	if (res_htx)
+		htx_to_buf(res_htx, &appctx->outbuf);
 	return;
 
   wait_request:
