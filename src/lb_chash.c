@@ -471,6 +471,11 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 		nsrv = psrv;
 	}
 
+	/* arbitrary search limitation to twice the number of server, offering
+	 * enough chances to spot a non-saturated server when using maxconn
+	 * with many servers.
+	 */
+	tot *= 2;
 	loop = 0;
 	hashafnty = p->options3 & PR_O3_HASHAFNTY_MASK;
 
@@ -483,13 +488,29 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 				nsrv->maxconn &&
 				nsrv->maxqueue &&
 				nsrv->served + nsrv->queueslength >= srv_dynamic_maxconn(nsrv) + nsrv->maxqueue)) {
-		next = eb32_next(next);
-		if (!next) {
-			next = eb32_first(root);
-			if (++loop > 1) // protection against accidental loop
-				break;
-		}
-		nsrv = eb32_entry(next, struct tree_occ, node)->server;
+		/* try to find another server in consecutive nodes */
+		int tries = 3;
+		struct server *osrv = nsrv;
+
+		do {
+			next = eb32_next(next);
+			if (!next) {
+				next = eb32_first(root);
+				if (++loop > 1) // protection against accidental loop
+					goto out;
+			}
+			nsrv = eb32_entry(next, struct tree_occ, node)->server;
+
+			/* too many times the same server => strongly imbalanced
+			 * weights, don't insist, we can have up to 4k of these!
+			 */
+			if (--tries <= 0)
+				goto out;
+		} while (unlikely(nsrv == osrv));
+
+		/* tried too many servers ? */
+		if (--tot <= 0)
+			goto out;
 	}
 
  out:
