@@ -725,6 +725,11 @@ static struct quic_conn_closed *qc_new_cc_conn(struct quic_conn *qc)
 
 	quic_conn_mv_cids_to_cc_conn(cc_qc, qc);
 
+	/* The source port range is needed to release the port of a backend
+	 * socket with qc_release_fd(). It is always NULL on frontend side.
+	 */
+	cc_qc->sport_range = qc->sport_range;
+
 	if (qc_is_back(qc)) {
 		cc_qc->fd = qc->fd;
 		fdtab[cc_qc->fd].iocb = quic_conn_closed_sock_fd_iocb;
