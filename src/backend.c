@@ -584,7 +584,7 @@ struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 	do {
 		prev = curr;
 		hash = statistical_prng();
-		curr = chash_get_server_hash(px, hash, avoid);
+		curr = chash_get_server_hash(px, hash, avoid ? avoid : prev);
 		if (!curr)
 			break;
 
