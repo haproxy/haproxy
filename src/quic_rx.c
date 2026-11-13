@@ -1671,6 +1671,17 @@ static int qc_try_rm_hp(struct quic_conn *qc, struct quic_rx_packet *pkt,
 
 		TRACE_PROTO("RX hp removed", QUIC_EV_CONN_TRMHP, qc, pkt);
 	}
+	else if (qel == qc->eel && qc->state >= QUIC_HS_ST_COMPLETE &&
+	         !quic_tls_has_rx_sec(qel)) {
+		/* Past handshake completion, a 0-RTT packet can no longer hope
+		 * for 0-RTT keys to be installed: if none exist, it will never
+		 * be decrypted. Queueing it would pin the Rx buffer, since
+		 * quic_rx_pkts_del() stops at the first referenced packet.
+		 * The packets already queued are released in quic_conn_io_cb().
+		 */
+		TRACE_PROTO("RX 0RTT packet dropped (no 0RTT keys)", QUIC_EV_CONN_TRMHP, qc, pkt);
+		goto out;
+	}
 	else {
 		TRACE_PROTO("RX hp not removed", QUIC_EV_CONN_TRMHP, qc, pkt);
 		LIST_APPEND(&qel->rx.pqpkts, &pkt->list);

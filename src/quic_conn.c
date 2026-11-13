@@ -881,8 +881,14 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		 * packets are considered unneeded after handshake completion.
 		 * They will be freed later from Rx buf via quic_rx_pkts_del().
 		 */
+		/* Also release them when no 0-RTT RX secret exists: such
+		 * packets can never be decrypted and would stay referenced
+		 * forever, preventing the Rx buffer space from being reclaimed.
+		 * This happens when the early data were rejected by the TLS
+		 * stack, or when the TLS library does not support 0-RTT.
+		 */
 		if (qc->eel && !LIST_ISEMPTY(&qc->eel->rx.pqpkts) &&
-		    !(qc->flags & QUIC_FL_CONN_NO_TOKEN_RCVD)) {
+		    (!(qc->flags & QUIC_FL_CONN_NO_TOKEN_RCVD) || !quic_tls_has_rx_sec(qc->eel))) {
 			struct quic_rx_packet *pqpkt, *pkttmp;
 			list_for_each_entry_safe(pqpkt, pkttmp, &qc->eel->rx.pqpkts, list) {
 				LIST_DEL_INIT(&pqpkt->list);
