@@ -419,18 +419,19 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	struct server *nsrv, *psrv;
 	struct eb_root *root;
 	unsigned int dn, dp;
+	int tot = 0;
 	int loop;
 	int hashafnty;
 
 	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
-	if (p->srv_act)
+	if ((tot = p->srv_act))
 		root = &p->lbprm.chash.act;
 	else if (p->lbprm.fbck) {
 		nsrv = p->lbprm.fbck;
 		goto out;
 	}
-	else if (p->srv_bck)
+	else if ((tot = p->srv_bck))
 		root = &p->lbprm.chash.bck;
 	else {
 		nsrv = NULL;
@@ -446,11 +447,16 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 		goto out;
 	}
 
+	nsrv = eb32_entry(next, struct tree_occ, node)->server;
+
+	/* if there's only one server, no need to go further */
+	if (tot == 1)
+		goto out;
+
 	prev = eb32_prev(next);
 	if (!prev)
 		prev = eb32_last(root);
 
-	nsrv = eb32_entry(next, struct tree_occ, node)->server;
 	psrv = eb32_entry(prev, struct tree_occ, node)->server;
 
 	/* OK we're located between two servers, let's
