@@ -2530,9 +2530,9 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 		TRACE_DEVEL("leaving on error, SE released", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 	}
 	else {
-		/* The app layer owns the error via htx flags: only report EOI. */
-		se_fl_set(h1s->sd, SE_FL_EOI);
-		TRACE_DEVEL("leaving on error, EOI reported to the SE", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
+		/* The app layer owns the error via htx flags: report EOI/EOS */
+		se_fl_set(h1s->sd, SE_FL_EOI|SE_FL_EOS);
+		TRACE_DEVEL("leaving on error, EOI/EOS reported to the SE", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 	}
 	return 0;
 }
