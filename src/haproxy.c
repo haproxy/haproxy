@@ -2399,6 +2399,7 @@ static void step_init_2(int argc, char** argv)
 	if (global.mode & MODE_CHECK) {
 		struct peers *pr;
 		struct proxy *px;
+		int listener_found = 0;
 
 		if (warned & WARN_ANY)
 			qfprintf(stdout, "Warnings were found.\n");
@@ -2408,19 +2409,23 @@ static void step_init_2(int argc, char** argv)
 				break;
 
 		list_for_each_entry(px, &main_proxies, el) {
-			if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all)
+			if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all) {
+				listener_found = 1;
 				break;
-		}
-
-		if (!px) {
-			/* We may only have log-forward section */
-			list_for_each_entry(px, &cfg_log_forward, el) {
-				if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all)
-					break;
 			}
 		}
 
-		if (pr || px) {
+		if (!listener_found) {
+			/* We may only have log-forward section */
+			list_for_each_entry(px, &cfg_log_forward, el) {
+				if (!(px->flags & (PR_FL_DISABLED|PR_FL_STOPPED)) && px->li_all) {
+					listener_found = 1;
+					break;
+				}
+			}
+		}
+
+		if (pr || listener_found) {
 			/* At least one peer or one listener has been found */
 			if (global.mode & MODE_VERBOSE)
 				qfprintf(stdout, "Configuration file is valid\n");
