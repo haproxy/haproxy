@@ -364,18 +364,21 @@ static int uxst_connect_server(struct connection *conn, int flags)
 
 			qfprintf(stderr,"Connect() failed for backend %s: %s (%s).\n", be->id, msg, strerror(errno));
 			close(fd);
+			conn->handle.fd = DEAD_FD_MAGIC;
 			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s (%s).\n", be->id, msg, strerror(errno));
 			conn->flags |= CO_FL_ERROR;
 			return SF_ERR_RESOURCE;
 		}
 		else if (errno == ETIMEDOUT) {
 			close(fd);
+			conn->handle.fd = DEAD_FD_MAGIC;
 			conn->err_code = CO_ER_SOCK_ERR;
 			conn->flags |= CO_FL_ERROR;
 			return SF_ERR_SRVTO;
 		}
 		else {	// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
 			close(fd);
+			conn->handle.fd = DEAD_FD_MAGIC;
 			conn->err_code = CO_ER_SOCK_ERR;
 			conn->flags |= CO_FL_ERROR;
 			return SF_ERR_SRVCL;

@@ -329,6 +329,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		ha_alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
 		close(sv[0]);
 		close(sv[1]);
+		conn->handle.fd = DEAD_FD_MAGIC;
 		conn->err_code = CO_ER_CONF_FDLIM;
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_PRXCOND; /* it is a configuration limit */
@@ -338,6 +339,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
 		close(sv[0]);
 		close(sv[1]);
+		conn->handle.fd = DEAD_FD_MAGIC;
 		conn->err_code = CO_ER_SOCK_ERR;
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_INTERNAL;
@@ -347,6 +349,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		ha_alert("Cannot set CLOEXEC on client socket.\n");
 		close(sv[0]);
 		close(sv[1]);
+		conn->handle.fd = DEAD_FD_MAGIC;
 		conn->err_code = CO_ER_SOCK_ERR;
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_INTERNAL;
@@ -364,6 +367,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		ha_alert("socketpair: Cannot transfer the fd %d over sockpair@%d. Giving up.\n", sv[0], dst_fd);
 		close(sv[0]);
 		close(sv[1]);
+		conn->handle.fd = DEAD_FD_MAGIC;
 		conn->err_code = CO_ER_SOCK_ERR;
 		conn->flags |= CO_FL_ERROR;
 		return SF_ERR_INTERNAL;
