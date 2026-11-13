@@ -188,9 +188,6 @@ int qcc_qmux_recv(struct qcc *qcc)
 			}
 		}
 
-		/* TODO realign necessary if record boundary at the extreme end of the buffer */
-		BUG_ON(!qcc->rx.rlen && b_data(buf) && b_tail(buf) == b_orig(buf));
-
 		while (qcc->rx.rlen && b_data(buf) >= qcc->rx.rlen) {
 			buf_rec = b_make(b_orig(buf), b_size(buf),
 			                 b_head_ofs(buf), qcc->rx.rlen);
