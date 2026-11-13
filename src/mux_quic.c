@@ -2377,7 +2377,7 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 	struct qcs *qcs;
 	struct qc_stream_rxbuf *b;
 	int prev_glitches = qcc->glitches;
-	uint64_t to_consume;
+	uint64_t extra_data;
 
 	TRACE_ENTER(QMUX_EV_QCC_RECV, qcc->conn);
 
@@ -2426,12 +2426,12 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		goto err;
 	}
 
-	/* Discarded data to account for in connection flow control. */
-	to_consume = final_size - qcs->rx.offset;
+	/* Discarded data to check against the connection flow control. */
+	extra_data = final_size - qcs->rx.offset_max;
 
 	/* Ensure final size respects the current stream and connection flow control limits. */
 	if (final_size > qcs->rx.msd ||
-	    qcc->lfctl.offsets_recv + to_consume > qcc->lfctl.md) {
+	    qcc->lfctl.offsets_recv + extra_data > qcc->lfctl.md) {
 		TRACE_ERROR("flow control violation on RESET_STREAM final size",
 		            QMUX_EV_QCC_RECV|QMUX_EV_QCS_RECV|QMUX_EV_PROTO_ERR, qcc->conn, qcs);
 		qcc_set_error(qcc, QC_ERR_FLOW_CONTROL_ERROR, 0,
@@ -2439,7 +2439,7 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		goto err;
 	}
 
-	qcc->lfctl.offsets_recv += to_consume;
+	qcc->lfctl.offsets_recv += extra_data;
 
 	qcs->flags |= QC_SF_SIZE_KNOWN|QC_SF_RECV_RESET;
 	qcs_close_remote(qcs);
@@ -2460,7 +2460,8 @@ int qcc_recv_reset_stream(struct qcc *qcc, uint64_t id, uint64_t err, uint64_t f
 		qcs_free_rxbuf(qcs, b);
 	}
 
-	qcc_account_for_conn_fctl(qcc, to_consume);
+	/* Account into conn fctl not-yet-read and extra bytes from final size */
+	qcc_account_for_conn_fctl(qcc, final_size - qcs->rx.offset);
 	/* Ensure final size checks coherence for future STREAM frames. */
 	qcs->rx.offset_max = final_size;
 
