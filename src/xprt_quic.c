@@ -167,6 +167,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 		qc = qc_new_conn(srv, NULL, NULL, conn, conn_id, NULL, &srv->addr);
 		if (!qc) {
+			quic_cid_delete(conn_id);
 			pool_free(pool_head_quic_connection_id, conn_id);
 			goto out;
 		}
