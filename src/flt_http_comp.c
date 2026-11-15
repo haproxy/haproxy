@@ -153,7 +153,11 @@ comp_prepare_compress_request(struct comp_state *st, struct stream *s, struct ht
 	 */
 	ctx.blk = NULL;
 	if (http_find_header(htx, ist("Content-Type"), &ctx, 1)) {
-		/* text contents may be encoded differently by the algorithm */
+		/* text contents may be encoded differently by the algorithm.
+		 * Server-sent events only exist in responses, so a client
+		 * claiming to send some doesn't get the event content type,
+		 * which may cost memory to the algorithm.
+		 */
 		if (ctx.value.len >= 5 && strncasecmp("text/", ctx.value.ptr, 5) == 0)
 			ctype = COMP_CT_TEXT;
 
@@ -768,9 +772,16 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 		if (ctx.value.len >= 9 && strncasecmp("multipart", ctx.value.ptr, 9) == 0)
 			goto fail;
 
-		/* text contents may be encoded differently by the algorithm */
-		if (ctx.value.len >= 5 && strncasecmp("text/", ctx.value.ptr, 5) == 0)
-			ctype = COMP_CT_TEXT;
+		/* text contents may be encoded differently by the algorithm,
+		 * and so may server-sent events, which are flushed one at a
+		 * time.
+		 */
+		if (ctx.value.len >= 5 && strncasecmp("text/", ctx.value.ptr, 5) == 0) {
+			if (ctx.value.len >= 17 && strncasecmp("event-stream", ctx.value.ptr + 5, 12) == 0)
+				ctype = COMP_CT_EVENT;
+			else
+				ctype = COMP_CT_TEXT;
+		}
 
 		if ((s->be->comp && (comp_type = s->be->comp->types_res)) ||
 		    (strm_fe(s)->comp && (comp_type = strm_fe(s)->comp->types_res))) {

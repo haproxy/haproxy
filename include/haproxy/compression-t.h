@@ -77,6 +77,7 @@ struct comp_ctx {
 enum comp_ctype {
 	COMP_CT_GENERIC = 0, /* unknown or binary contents */
 	COMP_CT_TEXT    = 1, /* "text/..." contents */
+	COMP_CT_EVENT   = 2, /* "text/event-stream": small events flushed one at a time */
 };
 
 /* Thanks to MSIE/IIS, the "deflate" name is ambiguous, as according to the RFC
