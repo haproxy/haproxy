@@ -1946,6 +1946,7 @@ The following keywords are supported in the "global" section :
    - tune.bufsize.small
    - tune.cli.max-payload-size
    - tune.comp.maxlevel
+   - tune.comp.res.ring
    - tune.debug-file-directory
    - tune.defaults.purge
    - tune.disable-elf-symbols
@@ -4566,6 +4567,18 @@ tune.comp.maxlevel <number>
   usage during compression. This value affects CPU usage during compression.
   Each stream using compression initializes the compression algorithm with
   this value. The default value is 1.
+
+tune.comp.res.ring { on | off }
+  Enables ('on') or disables ('off') the allocation of a ring for compressed
+  responses which benefit from a history kept between flushes, which is
+  currently the case of server-sent events ("text/event-stream") with the
+  "gzip", "deflate" and "raw-deflate" algorithms when haproxy is built with
+  SLZ. Such events are flushed one at a time and usually repeat most of the
+  previous ones, which the ring allows to compress to a few percent of their
+  size instead of slightly inflating them. The ring costs about 4 kB per
+  stream, which may be saved this way, in which case these responses are
+  compressed as if their contents were of an unknown type. The ring is
+  never allocated for requests. It is enabled by default.
 
 tune.debug-file-directory <dir>
   Adds <dir> to the list of directories searched for the separate debug files

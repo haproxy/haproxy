@@ -331,6 +331,9 @@ static int comp_identity_end(struct comp_ctx **comp_ctx)
 }
 
 
+/* "tune.comp.res.ring": rings may be allocated for responses (default) */
+static int comp_res_ring __read_mostly = 1;
+
 #ifdef USE_SLZ
 
 /* Selects SLZ's content type matching <ctype> on the stream of <comp_ctx>
@@ -874,6 +877,24 @@ static int zlib_parse_global_windowsize(char **args, int section_type, struct pr
 
 #endif /* USE_ZLIB */
 
+/* config parser for global "tune.comp.res.ring" */
+static int comp_parse_global_res_ring(char **args, int section_type, struct proxy *curpx,
+                                      const struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		comp_res_ring = 1;
+	else if (strcmp(args[1], "off") == 0)
+		comp_res_ring = 0;
+	else {
+		memprintf(err, "'%s' expects 'on' or 'off'.", args[0]);
+		return -1;
+	}
+	return 0;
+}
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
@@ -881,6 +902,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.zlib.memlevel",   zlib_parse_global_memlevel },
 	{ CFG_GLOBAL, "tune.zlib.windowsize", zlib_parse_global_windowsize },
 #endif
+	{ CFG_GLOBAL, "tune.comp.res.ring",   comp_parse_global_res_ring },
 	{ 0, NULL, NULL }
 }};
 
