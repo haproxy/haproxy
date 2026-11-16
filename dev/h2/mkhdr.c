@@ -3,7 +3,7 @@
  * faster when many frames need to be produced. The frames are emitted on
  * stdout.
  *
- * Usage: mkhdr -l <len> -t <type> -f <flags> -i <sid> > hdr.bin
+ * Usage: mkhdr <frame> [ [--] <frame> ]* > hdr.bin
  * See the usage message below for more options.
  *
  * Build like this from the top directory :
@@ -20,7 +20,12 @@
 #include <strings.h>
 
 static const char usage_msg[] =
-	"Usage: %s [options] > hdr.bin\n"
+	"Usage: %s <frame> [ [--] <frame> ]* > hdr.bin\n"
+	"       %s -h | --help\n"
+	"\n"
+	"Each <frame> describes one frame (or series of frames) using the options\n"
+	"below. \"--\" is used as an optional delimiter between such descriptions. They\n"
+	"are processed independently from each other, and emitted in the same order.\n"
 	"\n"
 	"Options:\n"
 	"  -t <type>          frame type, symbolic or numeric (default: DATA, or HEADERS\n"
@@ -98,7 +103,7 @@ static const char *progname;
 /* prints the usage message (to stderr on error) and exits with code <code> */
 static void usage(int code)
 {
-	fprintf(code ? stderr : stdout, usage_msg, progname);
+	fprintf(code ? stderr : stdout, usage_msg, progname, progname);
 	exit(code);
 }
 
@@ -412,7 +417,10 @@ static void mkframe(struct bbuf *b, unsigned long len, int type, int flags, unsi
 	bbuf_append(b, hdr, sizeof(hdr));
 }
 
-int main(int argc, char **argv)
+/* parses the <argc> options in <argv> describing one frame (or series of
+ * frames), and emits it unless <check_only> is set. Exits on error.
+ */
+static void emit_frame(int argc, char **argv, int check_only)
 {
 	struct bbuf raw = { 0 };   /* payload (-r/-R/-e, in this order) */
 	int has_hdrs = 0;          /* -e was used */
@@ -428,18 +436,9 @@ int main(int argc, char **argv)
 	int flags = 0;
 	int type;
 
-	progname = strrchr(argv[0], '/');
-	progname = progname ? progname + 1 : argv[0];
+	if (argc <= 0)
+		fail("Empty frame description");
 
-	/* use a large output buffer so that frames are not emitted in small
-	 * chunks (stdio defaults to 4kB on pipes).
-	 */
-	setvbuf(stdout, outbuf, _IOFBF, sizeof(outbuf));
-
-	if (argc <= 1)
-		usage(1);
-
-	argv++; argc--;
 	while (argc > 0 && **argv == '-') {
 		const char *opt = *argv;
 		int nargs = 1;
@@ -511,6 +510,12 @@ int main(int argc, char **argv)
 	if ((seen & OPT_D) && (seen & (OPT_R | OPT_E)))
 		fail("-d cannot be combined with -r, -R or -e");
 
+	if (check_only) {
+		if (type_str && strcmp(type_str, "p") != 0)
+			parse_type(type_str);
+		goto leave;
+	}
+
 	if (type_str && strcmp(type_str, "p") == 0) {
 		bbuf_append(&out, preface, sizeof(preface) - 1);
 		preface_only = 1;
@@ -553,7 +558,7 @@ int main(int argc, char **argv)
 		for (n = 0; n < count; n++) {
 			if (fwrite(out.area, 1, out.len, stdout) != out.len) {
 				fprintf(stderr, "Write error: %s\n", strerror(errno));
-				return 1;
+				exit(1);
 			}
 		}
 		if (sid >= last_sid)
@@ -561,6 +566,39 @@ int main(int argc, char **argv)
 		sid++;
 		if (!preface_only)
 			set_sid(&out, sid, !!data_file);
+	}
+
+leave:
+	free(raw.area);
+	free(data.area);
+	free(out.area);
+}
+
+int main(int argc, char **argv)
+{
+	int check_only, first, i;
+
+	progname = strrchr(argv[0], '/');
+	progname = progname ? progname + 1 : argv[0];
+
+	/* use a large output buffer so that frames are not emitted in small
+	 * chunks (stdio defaults to 4kB on pipes).
+	 */
+	setvbuf(stdout, outbuf, _IOFBF, sizeof(outbuf));
+
+	if (argc <= 1)
+		usage(1);
+
+	/* frame descriptions are delimited by "--". They are all checked
+	 * first so that nothing is emitted if any of them is invalid.
+	 */
+	for (check_only = 1; check_only >= 0; check_only--) {
+		for (first = i = 1; i <= argc; i++) {
+			if (i < argc && strcmp(argv[i], "--") != 0)
+				continue;
+			emit_frame(i - first, argv + first, check_only);
+			first = i + 1;
+		}
 	}
 
 	if (fflush(stdout) != 0) {
