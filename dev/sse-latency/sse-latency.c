@@ -817,7 +817,7 @@ static int server_process_request(struct conn *c)
 	/* response head + role chunk */
 	hl = snprintf(head, sizeof(head),
 		      "HTTP/1.1 200 OK\r\n"
-		      "Content-Type: text/event-stream\r\n"
+		      "Content-Type: text/event-stream; charset=utf-8\r\n"
 		      "Cache-Control: no-cache\r\n"
 		      "Connection: close\r\n"
 		      "X-Accel-Buffering: no\r\n"
