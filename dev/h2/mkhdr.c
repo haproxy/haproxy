@@ -37,6 +37,8 @@ static const char usage_msg[] =
 	"                     incremental indexing. Escapes are interpreted as with -r.\n"
 	"  -d <file>          take the payload from <file>, split into as many frames as\n"
 	"                     needed. Cannot be combined with -r, -R or -e.\n"
+	"  -n <count>         emit the resulting frame(s) <count> times in a row\n"
+	"                     (default: 1).\n"
 	"  -h, --help         show this help and exit.\n"
 	"\n"
 	"-r, -R and -e may be repeated and combined, the payload being made of their\n"
@@ -79,8 +81,9 @@ static const struct { const char *name; int val; } flag_names[] = {
 #define OPT_F  0x0004
 #define OPT_I  0x0008
 #define OPT_D  0x0010
-#define OPT_R  0x0020  /* -r or -R */
-#define OPT_E  0x0040
+#define OPT_N  0x0020
+#define OPT_R  0x0040  /* -r or -R */
+#define OPT_E  0x0080
 
 /* a growable byte buffer */
 struct bbuf {
@@ -372,6 +375,7 @@ int main(int argc, char **argv)
 	const char *data_file = NULL;
 	const char *type_str = NULL;
 	unsigned long len = 0, sid = 0;
+	unsigned long count = 1;
 	int seen = 0;
 	int flags = 0;
 	int type;
@@ -400,7 +404,7 @@ int main(int argc, char **argv)
 		else if (strcmp(opt, "-l") != 0 && strcmp(opt, "-t") != 0 &&
 			 strcmp(opt, "-f") != 0 && strcmp(opt, "-i") != 0 &&
 			 strcmp(opt, "-d") != 0 && strcmp(opt, "-r") != 0 &&
-			 strcmp(opt, "-R") != 0)
+			 strcmp(opt, "-R") != 0 && strcmp(opt, "-n") != 0)
 			fail("Unknown option '%s'", opt);
 
 		if (argc <= nargs)
@@ -409,7 +413,8 @@ int main(int argc, char **argv)
 		/* all options but -e may only appear once */
 		bit = opt[1] == 'l' ? OPT_L : opt[1] == 't' ? OPT_T :
 		      opt[1] == 'f' ? OPT_F : opt[1] == 'i' ? OPT_I :
-		      opt[1] == 'd' ? OPT_D : opt[1] == 'e' ? OPT_E : OPT_R;
+		      opt[1] == 'd' ? OPT_D : opt[1] == 'n' ? OPT_N :
+		      opt[1] == 'e' ? OPT_E : OPT_R;
 		if ((seen & bit) && bit != OPT_E && bit != OPT_R)
 			fail("Option '%s' may only appear once", opt);
 		seen |= bit;
@@ -424,6 +429,8 @@ int main(int argc, char **argv)
 			sid = parse_num(argv[1], "stream ID");
 		else if (strcmp(opt, "-d") == 0)
 			data_file = argv[1];
+		else if (strcmp(opt, "-n") == 0)
+			count = parse_num(argv[1], "count");
 		else if (strcmp(opt, "-r") == 0)
 			bbuf_put_unescaped(&raw, argv[1]);
 		else if (strcmp(opt, "-R") == 0)
@@ -451,8 +458,8 @@ int main(int argc, char **argv)
 		fail("Unexpected argument '%s'", *argv);
 
 	/* reject options that would otherwise be silently ignored */
-	if (type_str && strcmp(type_str, "p") == 0 && (seen & ~OPT_T))
-		fail("The preface doesn't support any other option");
+	if (type_str && strcmp(type_str, "p") == 0 && (seen & ~(OPT_T | OPT_N)))
+		fail("The preface only supports -n");
 	if ((seen & OPT_D) && (seen & (OPT_R | OPT_E)))
 		fail("-d cannot be combined with -r, -R or -e");
 
@@ -490,9 +497,11 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (out.len && fwrite(out.area, 1, out.len, stdout) != out.len) {
-		fprintf(stderr, "Write error: %s\n", strerror(errno));
-		return 1;
+	while (out.len && count--) {
+		if (fwrite(out.area, 1, out.len, stdout) != out.len) {
+			fprintf(stderr, "Write error: %s\n", strerror(errno));
+			return 1;
+		}
 	}
 
 	if (fflush(stdout) != 0) {
