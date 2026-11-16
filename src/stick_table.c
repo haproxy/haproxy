@@ -250,8 +250,13 @@ static void stksess_setkey_shard(struct stktable *t, struct stksess *ts,
 {
 	size_t keylen;
 
-	if (t->type == SMP_T_STR)
-		keylen = key->key_len;
+	if (t->type == SMP_T_STR) {
+		/* must match the stored key, which is truncated and stops at
+		 * the first NUL, since it's what peers will use.
+		 */
+		keylen = key->key_len + 1 < t->key_size ? key->key_len : t->key_size - 1;
+		keylen = strnlen2(key->key, keylen);
+	}
 	else
 		keylen = t->key_size;
 
