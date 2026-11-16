@@ -1937,6 +1937,38 @@ static ssize_t h3_parse_goaway_frm(struct h3c *h3c, const struct buffer *buf,
 	return ret;
 }
 
+/* Parses a CANCEL_PUSH or MAX_PUSH_ID frame on <buf> buffer of <len> length.
+ * Returns 0 on success or a negative value on parsing error.
+ */
+static int h3_parse_push_frm(struct h3c *h3c, const struct buffer *buf, size_t len)
+{
+	struct buffer b;
+	uint64_t push_id;
+	size_t vlen = 0;
+	int ret = 0;
+
+	TRACE_ENTER(H3_EV_RX_FRAME, h3c->qcc->conn);
+
+	b = b_make(b_orig(buf), b_size(buf), b_head_ofs(buf), len);
+	if (!b_quic_dec_int(&push_id, &b, &vlen)) {
+		TRACE_ERROR("truncated push frame", H3_EV_RX_FRAME, h3c->qcc->conn);
+		h3c->err = H3_ERR_FRAME_ERROR;
+		ret = -1;
+		goto end;
+	}
+
+	if (vlen != len) {
+		TRACE_ERROR("mismatch on push frame length", H3_EV_RX_FRAME, h3c->qcc->conn);
+		h3c->err = H3_ERR_FRAME_ERROR;
+		ret = -1;
+		goto end;
+	}
+
+ end:
+	TRACE_LEAVE(H3_EV_RX_FRAME, h3c->qcc->conn);
+	return ret;
+}
+
 /* Transcode HTTP/3 payload received in buffer <b> to HTX data for stream
  * <qcs>. If <fin> is set, it indicates that no more data will arrive after.
  *
@@ -2233,17 +2265,8 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 
 			break;
 		case H3_FT_CANCEL_PUSH:
-			if (unlikely(!flen)) {
-				/* RFC 9114 7.1. Frame Layout
-				 *
-				 * Each frame's payload MUST contain exactly the fields identified in
-				 * its description. A frame payload that contains additional bytes after
-				 * the identified fields or a frame payload that terminates before the
-				 * end of the identified fields MUST be treated as a connection error of
-				 * type H3_FRAME_ERROR.
-				 */
-				TRACE_ERROR("truncated CANCEL_PUSH frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, H3_ERR_FRAME_ERROR, 1, muxc_tevt_type_proto_err);
+			if (h3_parse_push_frm(h3c, b, flen)) {
+				qcc_set_error(qcs->qcc, h3c->err, 1, muxc_tevt_type_proto_err);
 				qcc_report_glitch(qcs->qcc, 1);
 				goto err;
 			}
@@ -2314,22 +2337,13 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 			/* h3_check_frame_valid() must reject on client side. */
 			BUG_ON(conn_is_back(qcs->qcc->conn));
 
-			if (unlikely(!flen)) {
-				/* RFC 9114 7.1. Frame Layout
-				 *
-				 * Each frame's payload MUST contain exactly the fields identified in
-				 * its description. A frame payload that contains additional bytes after
-				 * the identified fields or a frame payload that terminates before the
-				 * end of the identified fields MUST be treated as a connection error of
-				 * type H3_FRAME_ERROR.
-				 */
-				TRACE_ERROR("truncated MAX_PUSH_ID frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
-				qcc_set_error(qcs->qcc, H3_ERR_FRAME_ERROR, 1, muxc_tevt_type_proto_err);
+			if (h3_parse_push_frm(h3c, b, flen)) {
+				qcc_set_error(qcs->qcc, h3c->err, 1, muxc_tevt_type_proto_err);
 				qcc_report_glitch(qcs->qcc, 1);
 				goto err;
 			}
 
-			/* Not supported. */
+			/* silently consume the frame content as haproxy never opens push streams */
 			ret = flen;
 			break;
 		default:
