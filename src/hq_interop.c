@@ -38,10 +38,13 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 	/* hq-interop parser does not support buffer wrapping. */
 	BUG_ON(b_data(b) != b_contig_data(b, 0));
 
-	if (!b_data(b) && fin) {
-		if (qcs_http_handle_standalone_fin(qcs, 0))
+	if (unlikely(qcs->sd) || (fin && !data)) {
+		/* Drain any data after the request and handle FIN if present,
+		 * including the case where it is set without any payload.
+		 */
+		if (fin && qcs_http_handle_standalone_fin(qcs, 0))
 			return -1;
-		return 0;
+		return data;
 	}
 
 	/* skip method */
