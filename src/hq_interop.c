@@ -282,7 +282,7 @@ static size_t hq_interop_snd_buf(struct qcs *qcs, struct buffer *buf,
 				goto end;
 			}
 
-			if (unlikely(fsize == count &&
+			if (unlikely(fsize == count && b_size(res) == b_size(buf) &&
 				     !b_data(res) &&
 				     htx_nbblks(htx) == 1 && btype == HTX_BLK_DATA)) {
 				void *old_area = res->area;
