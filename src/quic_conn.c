@@ -1206,12 +1206,6 @@ struct quic_conn *qc_new_conn(void *target,
 	qc->ipktns = qc->hpktns = qc->apktns = NULL;
 	LIST_INIT(&qc->pktns_list);
 
-	qc->cids = pool_alloc(pool_head_quic_cids);
-	if (!qc->cids) {
-		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
-		goto err;
-	}
-	*qc->cids = EB_ROOT;
 	qc->next_cid_seq_num = 0;
 	qc->max_sent_cid_seq_num = 0;
 	qc->scid = conn_id->cid;
@@ -1248,6 +1242,8 @@ struct quic_conn *qc_new_conn(void *target,
 		if (HA_ATOMIC_LOAD(&srv->flags) & SRV_F_UDP_GSO_NOTSUPP)
 			qc->flags |= QUIC_FL_CONN_UDP_GSO_EIO;
 
+		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_be, &quic_stats_module);
+
 		qc->state = QUIC_HS_ST_CLIENT_INITIAL;
 
 		/* Randomly generate the first DCID used for the first INITIAL
@@ -1258,8 +1254,6 @@ struct quic_conn *qc_new_conn(void *target,
 			goto err;
 		qc->dcid.len = sizeof(qc->dcid.data);
 		qc->odcid = qc->dcid;
-
-		qc->prx_counters = EXTRA_COUNTERS_GET(prx->extra_counters_be, &quic_stats_module);
 	}
 
 	qc->err = quic_err_transport(QC_ERR_NO_ERROR);
@@ -1277,6 +1271,18 @@ struct quic_conn *qc_new_conn(void *target,
 			HA_ATOMIC_INC(&qc->prx_counters->half_open_conn);
 		}
 	}
+
+	/* Allocated only now: quic_conn_release() is called from the error
+	 * paths below and reads ->flags, ->state and ->prx_counters, which
+	 * are initialized above.
+	 */
+	qc->cids = pool_alloc(pool_head_quic_cids);
+	if (!qc->cids) {
+		TRACE_ERROR("Could not allocate a new CID tree", QUIC_EV_CONN_INIT, qc);
+		goto err;
+	}
+
+	*qc->cids = EB_ROOT;
 
 	/* Now proceeds to allocation of qc members. */
 	qc->rx.buf.area = pool_alloc(pool_head_quic_conn_rxbuf);
