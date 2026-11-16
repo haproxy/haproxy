@@ -75,6 +75,10 @@ functions. Lua has 8 execution contexts.
 8. The **event context**: Inside a function that handles events subscribed
    through `core.event_sub()` or `Server.event_sub()`.
 
+Coroutines (sub threads) created at the user will using coroutine.create() or
+coroutine.wrap() are only supported during init or body context. See
+`core.register_task()` for recommended way of doing parallel work from Lua
+under haproxy.
 
 HAProxy Lua Hello world
 -----------------------

@@ -9062,25 +9062,24 @@ __LJMP static int hlua_set_nice(lua_State *L)
 /* safe lua coroutine.create() function:
  *
  * This is a simple wrapper for coroutine.create() that
- * ensures the current hlua state ctx is available from
- * the new subroutine state
+ * ensures the coroutine cannot be created from sub ctx,
+ * because then the coroutine could outlive its parent
+ * ctx and Lua doesn't provide a way for the parent ctx
+ * to destroy child threads.
  */
 __LJMP static int hlua_coroutine_create(lua_State *L)
 {
 	lua_State *new; /* new coroutine state */
-	struct hlua **hlua_store;
 	struct hlua *hlua = hlua_gethlua(L);
+
+	if (hlua) {
+		luaL_error(L, "Creating coroutine from sub context (that is, outside from init/body) is not supported. Check out core.register_task() instead.");
+		return 0; /* not reached */
+	}
 
 	new = lua_newthread(L);
 	if (!new)
 		return 0;
-
-	hlua_store = lua_getextraspace(new);
-	/* Expose current hlua ctx on new lua thread
-	 * (hlua_gethlua() will properly return the last "known"
-	 *  hlua ctx instead of NULL when it is called from such coroutines)
-	 */
-	*hlua_store = hlua;
 
 	/* new lua thread is on the top of the stack, we
 	 * need to duplicate first stack argument (<f> from coroutine.create(<f>))
