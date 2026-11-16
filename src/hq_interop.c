@@ -38,7 +38,7 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 	/* hq-interop parser does not support buffer wrapping. */
 	BUG_ON(b_data(b) != b_contig_data(b, 0));
 
-	if (!b_data(b) && fin && quic_stream_is_bidi(qcs->id)) {
+	if (!b_data(b) && fin) {
 		if (qcs_http_handle_standalone_fin(qcs, 0))
 			return -1;
 		return 0;
@@ -162,7 +162,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 	}
 
 	if (!to_copy) {
-		if (fin && quic_stream_is_bidi(qcs->id)) {
+		if (fin) {
 			if (qcs_http_handle_standalone_fin(qcs, 0)) {
 				htx_to_buf(htx, htx_buf);
 				return -1;
@@ -214,6 +214,10 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 /* Returns the amount of decoded bytes from <b> or a negative error code. */
 static ssize_t hq_interop_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 {
+	/* Ignore uni streams with HTTP/0.9 */
+	if (quic_stream_is_uni(qcs->id))
+		return b_data(b);
+
 	return !(qcs->qcc->flags & QC_CF_IS_BACK) ?
 	  hq_interop_rcv_buf_req(qcs, b, fin) :
 	  hq_interop_rcv_buf_res(qcs, b, fin);
@@ -404,7 +408,8 @@ static size_t hq_interop_done_ff(struct qcs *qcs)
 
 static int hq_interop_attach(struct qcs *qcs, void *conn_ctx)
 {
-	qcs_wait_http_req(qcs);
+	if (quic_stream_is_bidi(qcs->id))
+		qcs_wait_http_req(qcs);
 	return 0;
 }
 
