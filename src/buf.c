@@ -409,11 +409,11 @@ size_t b_ncat(struct buffer *dst, const struct buffer *src, size_t count)
 /* Moves <len> bytes from absolute position <src> of buffer <b> by <shift>
  * bytes, while supporting wrapping of both the source and the destination.
  * The position is relative to the buffer's origin and may overlap with the
- * target position. The <shift>'s absolute value must be strictly lower than
- * the buffer's size. The main purpose is to aggregate data block during
- * parsing while removing unused delimiters. The buffer's length is not
- * modified, and the caller must take care of size adjustments and holes by
- * itself.
+ * target position. The <shift>'s absolute value plus the <len> being moved
+ * must be lower than or equal to the buffer's size. The main purpose is to
+ * aggregate data block during parsing while removing unused delimiters. The
+ * buffer's length is not modified, and the caller must take care of size
+ * adjustments and holes by itself.
  */
 void b_move(const struct buffer *b, size_t src, size_t len, ssize_t shift)
 {
@@ -428,7 +428,7 @@ void b_move(const struct buffer *b, size_t src, size_t len, ssize_t shift)
 		dst -= size;
 
 	if (shift < 0) {
-		BUG_ON(-shift >= size);
+		BUG_ON(-shift + len > size);
 		/* copy from left to right */
 		for (; (cnt = len); len -= cnt) {
 			if (cnt > size - src)
@@ -446,7 +446,7 @@ void b_move(const struct buffer *b, size_t src, size_t len, ssize_t shift)
 		}
 	}
 	else if (shift > 0) {
-		BUG_ON(shift >= size);
+		BUG_ON(shift + len > size);
 		/* copy from right to left */
 		for (; (cnt = len); len -= cnt) {
 			size_t src_end = src + len;
