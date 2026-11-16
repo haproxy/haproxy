@@ -1318,7 +1318,8 @@ static int qc_set_quic_early_data_enabled(struct quic_conn *qc, SSL *ssl)
  *
  * Returns 0 on success else non-zero.
  */
-int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
+int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target,
+                          struct connection *conn)
 {
 	struct ssl_sock_ctx *ctx = NULL;
 	struct bind_conf *bc;
@@ -1333,7 +1334,15 @@ int qc_alloc_ssl_sock_ctx(struct quic_conn *qc, void *target)
 		goto err;
 	}
 
-	ctx->conn = NULL;
+	/* ssl_sock_srv_try_reuse_sess(), called from this function on the
+	 * backend side, dereferences ->conn to look up a reusable TLS session.
+	 *
+	 * It is NULL for frontend connections, which never reuse a session.
+	 * Note that this field is not read anywhere else for QUIC: this
+	 * function neither enables KTLS nor installs ssl_sock_io_cb(), so the
+	 * generic ssl_sock handlers, which rely on it, are never used here.
+	 */
+	ctx->conn = conn;
 	ctx->bio = NULL;
 	ctx->xprt = NULL;
 	ctx->xprt_ctx = NULL;

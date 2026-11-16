@@ -1177,7 +1177,11 @@ struct quic_conn *qc_new_conn(void *target,
 	qc->idle_timer_task = NULL;
 
 	qc->xprt_ctx = NULL;
-	qc->conn = conn;
+	/* Set by the caller once the quic_conn is fully initialized:
+	 * quic_conn_release(), called from the error paths below, BUG_ONs on a
+	 * non-null ->conn while the upper connection is still allocated.
+	 */
+	qc->conn = NULL;
 	qc->qcc = NULL;
 	qc->strm_reject = NULL;
 	qc->path = NULL;
@@ -1376,7 +1380,7 @@ struct quic_conn *qc_new_conn(void *target,
 	qc->wait_event.events = 0;
 	qc->subs = NULL;
 
-	if (qc_alloc_ssl_sock_ctx(qc, target) ||
+	if (qc_alloc_ssl_sock_ctx(qc, target, conn) ||
 	    !quic_conn_init_timer(qc) ||
 	    !quic_conn_init_idle_timer_task(qc, prx))
 		goto err;

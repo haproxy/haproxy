@@ -6260,12 +6260,7 @@ int increment_sslconn()
  */
 void ssl_sock_srv_try_reuse_sess(struct ssl_sock_ctx *ctx, struct server *srv)
 {
-#ifdef USE_QUIC
-	struct quic_conn *qc = ctx->qc;
-	struct connection *conn = qc ? qc->conn : ctx->conn;
-#else
 	struct connection *conn = ctx->conn;
-#endif
 
 	/* Do nothing for check connections */
 	if (conn->flags & CO_FL_SSL_NO_CACHED_INFO)
