@@ -1677,7 +1677,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		struct http_hdr_ctx ctx = { .blk = NULL };
 
 		if (http_find_header(htx, ist("content-type"), &ctx, 0) &&
-		    isteqi(ctx.value, ist("text/event-stream"))) {
+		    istmatchi(ctx.value, ist("text/event-stream"))) {
 			s->scf->flags |= SC_FL_SND_NEVERWAIT;
 			s->scb->flags |= SC_FL_SND_NEVERWAIT;
 		}
