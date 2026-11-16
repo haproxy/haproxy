@@ -336,14 +336,46 @@ static int comp_res_ring __read_mostly = 1;
 
 #ifdef USE_SLZ
 
+#if defined(slz_ring_size)
+/* Rings needed by SLZ's event content type, see comp_alloc_rings() */
+static struct pool_head *pool_slz_ring __read_mostly = NULL;
+
+/* Creates the pool of the rings used by SLZ's event content type, whose size
+ * is only known by libslz, aligned on a cache line which is preferred though
+ * not required. Called at boot. If this fails, the event content type is
+ * simply not used. Always returns 1.
+ */
+static int comp_alloc_rings(void)
+{
+	pool_slz_ring = create_aligned_pool("slz_ring", slz_ring_size, 64, MEM_F_SHARED);
+	return 1;
+}
+
+INITCALL0(STG_ALLOC, comp_alloc_rings);
+#endif
+
 /* Selects SLZ's content type matching <ctype> on the stream of <comp_ctx>
- * after its init. libslz has no dedicated macro for the content types, but
- * they come right after SLZ_MAX_OVERHEAD(), which is thus used to detect an
- * older external libslz that doesn't support them, in which case the default
- * encoding is always used.
+ * after its init. libslz has no dedicated macro for the text content type,
+ * but it comes right after SLZ_MAX_OVERHEAD(), which is thus used to detect
+ * an older external libslz that doesn't support it, in which case the default
+ * encoding is always used. The event content type is detected by its
+ * slz_ring_size macro, and needs a ring which libslz requires to be zeroed.
+ * Without a ring, either because "tune.comp.res.ring" is off or because the
+ * allocation failed, or when compression is disabled, events use the default
+ * encoding, as the text tree's header would be repeated after each event.
+ * Only responses may be passed COMP_CT_EVENT.
  */
 static inline void comp_slz_set_ctype(struct comp_ctx *comp_ctx, int ctype)
 {
+#if defined(slz_ring_size)
+	if (ctype == COMP_CT_EVENT) {
+		if (comp_res_ring && comp_ctx->cur_lvl > 0 && pool_slz_ring)
+			comp_ctx->strm.ring = pool_zalloc(pool_slz_ring);
+		if (comp_ctx->strm.ring)
+			slz_set_content_type(&comp_ctx->strm, SLZ_CT_EVENT);
+		return;
+	}
+#endif
 #if defined(SLZ_MAX_OVERHEAD)
 	if (ctype == COMP_CT_TEXT)
 		slz_set_content_type(&comp_ctx->strm, SLZ_CT_TEXT);
@@ -451,9 +483,13 @@ static int comp_rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 	return comp_rfc195x_flush_or_finish(comp_ctx, out, 1);
 }
 
-/* we just need to free the comp_ctx here, nothing was allocated */
+/* frees the event content type's ring if any, then the comp_ctx */
 static int comp_rfc195x_end(struct comp_ctx **comp_ctx)
 {
+#if defined(slz_ring_size)
+	if (*comp_ctx)
+		pool_free(pool_slz_ring, (*comp_ctx)->strm.ring);
+#endif
 	deinit_comp_ctx(comp_ctx);
 	return 0;
 }
