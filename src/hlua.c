@@ -9093,6 +9093,24 @@ __LJMP static int hlua_coroutine_create(lua_State *L)
 	return 1;
 }
 
+/* safe lua coroutine.wrap() function:
+ *
+ * This is a simple wrapper for coroutine.wrap() that
+ * ensures the coroutine cannot be created from sub ctx,
+ * because then the coroutine could outlive its parent
+ * ctx and Lua doesn't provide a way for the parent ctx
+ * to destroy child threads.
+ */
+__LJMP static int hlua_coroutine_wrap(lua_State *L)
+{
+	MAY_LJMP(hlua_coroutine_create(L));
+	/* pop thread from the stack so that <f> is at the top
+	 * of the stack
+	 */
+	lua_pop(L, 1);
+	return 1;
+}
+
 /* This function is used as a callback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
@@ -14007,10 +14025,12 @@ lua_State *hlua_init_state(int thread_num)
 	 *
 	 */
 
-	/* push our "safe" coroutine.create() function */
+	/* push our "safe" coroutine.create() and .wrap() functions */
 	lua_getglobal(L, "coroutine");
 	lua_pushcclosure(L, hlua_coroutine_create, 0);
 	lua_setfield(L, -2, "create");
+	lua_pushcclosure(L, hlua_coroutine_wrap, 0);
+	lua_setfield(L, -2, "wrap");
 
 	/*
 	 *
