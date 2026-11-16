@@ -26,7 +26,9 @@ static const char usage_msg[] =
 	"  -t <type>          frame type, symbolic or numeric (default: DATA, or HEADERS\n"
 	"                     when -e is used). Type \"p\" emits the connection preface.\n"
 	"  -f <flags>[,...]   comma-delimited symbolic or numeric flags (default: 0)\n"
-	"  -i <sid>           stream ID (default: 0)\n"
+	"  -i <sid>[-<sid>]   stream ID, or range of stream IDs (default: 0). With a\n"
+	"                     range, the frame(s) are emitted for each stream ID in\n"
+	"                     ascending order, each of them <count> times (see -n).\n"
 	"  -l <len>           value of the length field (default: payload length). With\n"
 	"                     -d, maximum payload size of each frame (default: 16384).\n"
 	"  -r <raw>           append raw data to the payload. Backslash escapes are\n"
@@ -271,6 +273,29 @@ static unsigned long parse_num(const char *str, const char *what)
 	return ret;
 }
 
+/* parses stream ID or stream ID range <str> ("<first>[-<last>]") into
+ * <first> and <last>. <last> equals <first> when no range is specified.
+ */
+static void parse_sid_range(const char *str, unsigned long *first, unsigned long *last)
+{
+	const char *dash = strchr(str, '-');
+	char buf[64];
+
+	if (!dash) {
+		*first = *last = parse_num(str, "stream ID");
+		return;
+	}
+
+	if (dash - str >= sizeof(buf))
+		fail("Unparsable stream ID '%s'", str);
+	memcpy(buf, str, dash - str);
+	buf[dash - str] = 0;
+	*first = parse_num(buf, "stream ID");
+	*last = parse_num(dash + 1, "stream ID");
+	if (*last < *first)
+		fail("Invalid stream ID range '%s'", str);
+}
+
 /* parses frame type <str> and returns its value. Symbolic names are matched
  * by case-insensitive prefix, in the order of the types[] array.
  */
@@ -349,6 +374,27 @@ static void read_file(struct bbuf *b, const char *name)
 	fclose(f);
 }
 
+/* sets the stream ID of the frame starting at the beginning of <b> to <sid>.
+ * If <all> is non-zero, all the frames that follow in <b> are updated as
+ * well, which requires that their advertised lengths match their payload.
+ */
+static void set_sid(struct bbuf *b, unsigned long sid, int all)
+{
+	unsigned char *hdr;
+	size_t ofs = 0;
+
+	while (ofs + 9 <= b->len) {
+		hdr = (unsigned char *)b->area + ofs;
+		hdr[5] = (sid >> 24) & 0x7f;
+		hdr[6] = sid >> 16;
+		hdr[7] = sid >> 8;
+		hdr[8] = sid;
+		if (!all)
+			break;
+		ofs += 9 + ((hdr[0] << 16) | (hdr[1] << 8) | hdr[2]);
+	}
+}
+
 /* appends a frame header made of <len>, <type>, <flags>, <sid> to <b> */
 static void mkframe(struct bbuf *b, unsigned long len, int type, int flags, unsigned long sid)
 {
@@ -374,8 +420,10 @@ int main(int argc, char **argv)
 	struct bbuf out = { 0 };   /* output for one stream */
 	const char *data_file = NULL;
 	const char *type_str = NULL;
-	unsigned long len = 0, sid = 0;
+	unsigned long len = 0, sid = 0, last_sid = 0;
 	unsigned long count = 1;
+	unsigned long n;
+	int preface_only = 0;
 	int seen = 0;
 	int flags = 0;
 	int type;
@@ -426,7 +474,7 @@ int main(int argc, char **argv)
 		else if (strcmp(opt, "-f") == 0)
 			flags = parse_flags(argv[1]);
 		else if (strcmp(opt, "-i") == 0)
-			sid = parse_num(argv[1], "stream ID");
+			parse_sid_range(argv[1], &sid, &last_sid);
 		else if (strcmp(opt, "-d") == 0)
 			data_file = argv[1];
 		else if (strcmp(opt, "-n") == 0)
@@ -465,6 +513,7 @@ int main(int argc, char **argv)
 
 	if (type_str && strcmp(type_str, "p") == 0) {
 		bbuf_append(&out, preface, sizeof(preface) - 1);
+		preface_only = 1;
 	}
 	else if (!data_file) {
 		/* -e implies HEADERS unless a type was set */
@@ -497,11 +546,21 @@ int main(int argc, char **argv)
 		}
 	}
 
-	while (out.len && count--) {
-		if (fwrite(out.area, 1, out.len, stdout) != out.len) {
-			fprintf(stderr, "Write error: %s\n", strerror(errno));
-			return 1;
+	/* emit the frame(s) <count> times for each stream ID of the range.
+	 * The frames were built for the first one.
+	 */
+	while (out.len) {
+		for (n = 0; n < count; n++) {
+			if (fwrite(out.area, 1, out.len, stdout) != out.len) {
+				fprintf(stderr, "Write error: %s\n", strerror(errno));
+				return 1;
+			}
 		}
+		if (sid >= last_sid)
+			break;
+		sid++;
+		if (!preface_only)
+			set_sid(&out, sid, !!data_file);
 	}
 
 	if (fflush(stdout) != 0) {
