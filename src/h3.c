@@ -166,6 +166,7 @@ DECLARE_STATIC_TYPED_POOL(pool_head_h3c, "h3c", struct h3c);
 #define H3_SF_HAVE_CLEN    0x00000004  /* content-length header is present; relevant either for request or response depending on the side of the connection */
 #define H3_SF_SENT_INTERIM 0x00000008  /* last response sent is 1xx interim. Used on FE side only. */
 #define H3_SF_RECV_INTERIM 0x00000010  /* last response sent is 1xx interim. Used on BE side only. */
+#define H3_SF_BODYLESS_RSP 0x00000020  /* HTTP response defined as not having any content */
 
 struct h3s {
 	struct h3c *h3c;
@@ -509,16 +510,14 @@ static int h3_check_body_size(struct qcs *qcs, int fin)
 	 * A request or response that is defined as having content when it
 	 * contains a Content-Length header field (Section 8.6 of [HTTP]) is
 	 * malformed if the value of the Content-Length header field does not
-	 * equal the sum of the DATA frame lengths received.
-	 *
-	 * TODO for backend support
-	 * A response that is
+	 * equal the sum of the DATA frame lengths received. A response that is
 	 * defined as never having content, even when a Content-Length is
 	 * present, can have a non-zero Content-Length header field even though
 	 * no content is included in DATA frames.
 	 */
 	if (h3s->data_len > h3s->body_len ||
-	    (fin && h3s->data_len < h3s->body_len)) {
+	    (fin && h3s->data_len < h3s->body_len &&
+	     (!conn_is_back(qcs->qcc->conn) || !(h3s->flags & H3_SF_BODYLESS_RSP)))) {
 		TRACE_ERROR("Content-length does not match DATA frame size", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 		h3s->err = H3_ERR_MESSAGE_ERROR;
 		qcc_report_glitch(qcs->qcc, 1);
@@ -1433,6 +1432,8 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 	sl->info.res.status = h * 100 + t * 10 + u;
 	if (fin || (sl->info.res.status >= 100 && sl->info.res.status < 200))
 		sl->flags |= HTX_SL_F_BODYLESS;
+	if (sl->info.res.status == 204 || sl->info.res.status == 304)
+		h3s->flags |= H3_SF_BODYLESS_RSP;
 
 	/* now treat standard headers */
 	while (1) {
@@ -2511,6 +2512,7 @@ static int h3_encode_header(struct buffer *buf,
  */
 static int h3_req_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 {
+	struct h3s *h3s = qcs->ctx;
 	int err;
 	struct http_hdr list[global.tune.max_http_hdr * 2];
 	struct buffer headers_buf = BUF_NULL;
@@ -2591,6 +2593,8 @@ static int h3_req_headers_send(struct qcs *qcs, struct htx *htx, char *fin)
 
 	if (qpack_encode_method(&headers_buf, sl->info.req.meth, meth))
 		goto err_full;
+	if (sl->info.req.meth == HTTP_METH_HEAD)
+		h3s->flags |= H3_SF_BODYLESS_RSP;
 	h3_trace_header(ist(":method"), meth, H3_EV_TX_HDR, ist(TRC_LOC), __FUNCTION__, qcs->qcc, qcs);
 
 	if (uri.ptr[0] != '/' && uri.ptr[0] != '*') {
