@@ -91,6 +91,7 @@ enum tcpcheck_expect_type {
 #define TCPCHK_EXPT_FL_HTTP_HVAL_REG   0x1000 /* Regex match on the HTTP header value*/
 #define TCPCHK_EXPT_FL_HTTP_HVAL_FMT   0x2000 /* The HTTP header value is a log-format string */
 #define TCPCHK_EXPT_FL_HTTP_HVAL_FULL  0x4000 /* Match the full header value ( no stop on commas ) */
+#define TCPCHK_EXPT_FL_ALLOW_EMPTY     0x8000 /* Custom expect function also handles an empty response */
 
 #define TCPCHK_EXPT_FL_HTTP_HNAME_TYPE 0x003E /* Mask to get matching method on header name */
 #define TCPCHK_EXPT_FL_HTTP_HVAL_TYPE  0x1F00 /* Mask to get matching method on header value */
