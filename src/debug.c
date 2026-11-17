@@ -1955,6 +1955,9 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 			*(uint8_t *)ptr = new;
 	}
 
+	if (count == 0)
+		return cli_err(appctx, "count must be at least 1.\n");
+
 	tctx = calloc(count + 2, sizeof(*tctx));
 	if (!tctx)
 		goto fail;
