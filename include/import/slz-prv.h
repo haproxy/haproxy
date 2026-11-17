@@ -48,6 +48,23 @@
 #define HAVE_FAST_MULT
 #endif
 
+/* This horrible mess is needed to shut up the fallthrough warning since the
+ * stupid comment approach doesn't resist to separate preprocessing (e.g. as
+ * used in distcc). Note that compilers which support the fallthrough attribute
+ * also support __has_attribute.
+ */
+#ifndef __fallthrough
+#  ifdef __has_attribute
+#    if __has_attribute(fallthrough)
+#      define __fallthrough __attribute__((fallthrough))
+#    else
+#      define __fallthrough do { } while (0)
+#    endif
+#  else
+#    define __fallthrough do { } while (0)
+#  endif
+#endif
+
 /* returns the max of <a> and <b>, must be constant since evaluated twice */
 #define MIN_C(a, b) ({				\
 	(a < b) ? a : b;			\

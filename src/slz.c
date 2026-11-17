@@ -2610,7 +2610,7 @@ int slz_rfc1951_flush(struct slz_stream *strm, unsigned char *buf)
 		case SLZ_ST_LAST:
 			send_eob(strm, strm->cur_tree);
 			strm->state = SLZ_ST_DONE;
-			/* fall through */
+			__fallthrough;
 		case SLZ_ST_DONE:
 		case SLZ_ST_END:
 			flush_bits(strm);

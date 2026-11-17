@@ -296,23 +296,6 @@ static const uint8_t text_dist_shift[32] = {
 	15, 9, 11, 10, 13, 10, 9, 11, 13, 9, 10, 11, 12, 10, 9, 0,
 };
 
-/* This horrible mess is needed to shut up the fallthrough warning since the
- * stupid comment approach doesn't resist to separate preprocessing (e.g. as
- * used in distcc). Note that compilers which support the fallthrough attribute
- * also support __has_attribute.
- */
-#ifndef __fallthrough
-#  ifdef __has_attribute
-#    if __has_attribute(fallthrough)
-#      define __fallthrough __attribute__((fallthrough))
-#    else
-#      define __fallthrough do { } while (0)
-#    endif
-#  else
-#    define __fallthrough do { } while (0)
-#  endif
-#endif
-
 #if defined(PRECOMPUTE_TABLES)
 
 #if !defined(__ARM_FEATURE_CRC32)
