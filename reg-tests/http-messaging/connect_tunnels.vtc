@@ -21,6 +21,7 @@ server s1 {
 	expect req.method == "CONNECT"
 	barrier b1 sync
 	expect_close
+	barrier b1 sync
 } -start
 
 # H1 tunnel endpoint, data are exchanged in both directions
@@ -34,14 +35,16 @@ server s2 {
 } -start
 
 # Same, for the H2 frontend. The reply is delayed to be sure the window update
-# and the response headers are received first by the client.
+# for the tunneled data and the response headers are received in this order by
+# the client. Otherwise the window update may race with the response headers.
 server s3 {
 	rxreq
 	expect req.method == "CONNECT"
+	barrier b1 sync
 	txresp -nolen
 	recv 5
-	delay 0.3
 	send "SRV->CLI"
+	barrier b1 sync
 } -start
 
 # H2 server refusing the CONNECT with a 403 carrying a payload and trailers.
@@ -116,7 +119,7 @@ client c1 -connect ${hap_fe_tlr_sock} {
 		txreq -noadd -litHdr inc plain "x-trailer" plain "1"
 	} -run
 
-	delay 1
+	barrier b1 sync
 } -run
 
 # H1 CONNECT, then tunneled data in both directions
@@ -146,15 +149,16 @@ client c3 -connect ${hap_fe_h2_sock} {
 		  -litHdr inc plain ":method" plain "CONNECT" \
 		  -litHdr inc plain ":authority" plain "${s3_addr}:${s3_port}" \
 		  -nostrend
-		txdata -data "CLI>>"
+		txdata -data "CLI>>" -nostrend
 		rxwinup
+		barrier b1 sync
 		rxhdrs
 		expect resp.status == 200
 		rxdata
 		expect resp.body == "SRV->CLI"
 	} -run
 
-	delay 1
+	barrier b1 sync
 } -run
 
 # H2 CONNECT refused by the server with a payload and trailers. Both must be
