@@ -1,0 +1,58 @@
+varnishtest "map and ACL file lines longer than the default buffer size"
+
+# Pattern files (maps and ACL "-f" files) used to be read with the trash as
+# the line buffer before it was resized to tune.bufsize, so that any line
+# longer than 16383 chars was silently split into several entries and map
+# values were truncated. Check that a 20000-char line is loaded as a single
+# entry from both a map file and an ACL file, and that the map value is
+# returned in full.
+
+feature ignore_unknown_macro
+
+#REGTEST_TYPE=bug
+
+# Each file holds a single 20000-char line. They are generated here so that
+# the repository does not have to carry them.
+shell {
+    printf 'k %s\n' "$(printf '%20000s' '' | tr ' ' a)" > ${tmpdir}/long_line.map
+    printf '%s\n' "$(printf '%20000s' '' | tr ' ' a)" > ${tmpdir}/long_line.acl
+}
+
+haproxy h1 -conf {
+  global
+    # the value must fit in a buffer at runtime
+    tune.bufsize 65536
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+  defaults
+    mode http
+    timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+    timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+  frontend fe1
+    bind "fd@${fe1}"
+    # the ACL is only used to load its file, its entries are checked from the CLI
+    acl long req.hdr(x-test) -f ${tmpdir}/long_line.acl
+    http-request return status 200 hdr x-map-len "%[str(k),map(${tmpdir}/long_line.map),length]" if !long
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-map-len == "20000"
+} -run
+
+# each line must be loaded as a single entry, not split into several ones
+haproxy h1 -cli {
+    send "show map"
+    expect ~ "long_line.map'.* entry_cnt=1\\n"
+}
+
+haproxy h1 -cli {
+    send "show acl"
+    expect ~ "long_line.acl'.* entry_cnt=1\\n"
+}
