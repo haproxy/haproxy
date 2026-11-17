@@ -1,0 +1,92 @@
+# This test checks that an interim response (1xx) received from an H2 server
+# for a CONNECT or an Extended CONNECT request does not abort the tunnel
+# attempt: the final 200 response must still establish the tunnel and data
+# must be exchanged.
+
+varnishtest "H2 backend: interim response before the 200 of a CONNECT tunnel"
+feature ignore_unknown_macro
+
+server s1 {
+    rxpri
+    stream 0 {
+        txsettings
+        rxsettings
+        txsettings -ack
+    } -run
+    stream 1 {
+        rxhdrs
+        expect req.method == "CONNECT"
+        txresp -status 103 -nostrend
+        txresp -status 200 -nostrend
+        rxwinup
+        rxdata
+        expect frame.data == "ping"
+        txdata -data "pong"
+    } -run
+} -start
+
+# H2 server supporting RFC8441 (SETTINGS_ENABLE_CONNECT_PROTOCOL)
+server s2 {
+    rxpri
+    stream 0 {
+        sendhex "00 00 06 04   00    00 00 00 00    00 08   00 00 00 01"
+        rxsettings
+        txsettings -ack
+        rxsettings
+        expect settings.ack == true
+    } -run
+    stream 1 {
+        rxhdrs
+        expect req.method == "CONNECT"
+        expect req.http.:protocol == "custom_protocol"
+        txresp -status 100 -nostrend
+        txresp -status 200 -nostrend
+        rxwinup
+        rxdata
+        expect frame.data == "ping"
+        txdata -data "pong"
+    } -run
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port} proto h2
+
+    frontend fe_ext
+        bind "fd@${fe_ext}"
+        default_backend be_ext
+
+    backend be_ext
+        server s2 ${s2_addr}:${s2_port} proto h2
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -method CONNECT -url "example.com:443" -hdr "host: example.com:443"
+    rxresp
+    expect resp.status == 103
+    rxresphdrs
+    expect resp.status == 200
+    send "ping"
+    recv 4
+} -run
+
+client c2 -connect ${h1_fe_ext_sock} {
+    txreq -url "/" -hdr "host: 127.0.0.1" -hdr "connection: upgrade" -hdr "upgrade: custom_protocol"
+    rxresphdrs
+    expect resp.status == 100
+    rxresphdrs
+    expect resp.status == 101
+    expect resp.http.upgrade == "custom_protocol"
+    send "ping"
+    recv 4
+} -run
