@@ -44,10 +44,10 @@ static inline __attribute__((always_inline)) int htx_hdrs_too_big(const struct h
  * part. A temporary buffer is used to do so. This function never fails. Most of
  * time, we need keep a ref on a specific HTX block. Thus is <blk> is set, the
  * pointer on its new position, after defrag, is returned. If <blk> is a DATA
- * block, no merge with any previous DATA block is performed. In addition, if
- * the size of the block must be altered, <blkinfo> info must be provided (!=
- * 0). But in this case, it remains the caller responsibility to update the
- * block content.
+ * block, no merge with any previous nor next DATA block is performed. In
+ * addition, if the size of the block must be altered, <blkinfo> info must be
+ * provided (!= 0). But in this case, it remains the caller responsibility to
+ * update the block content.
  */
 struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinfo)
 {
@@ -77,7 +77,8 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinf
 		switch (type) {
 			case HTX_BLK_DATA:
 			case HTX_BLK_RAW_DATA:
-				if (blk != oldblk) {
+				if (blk != oldblk &&
+				    (blkpos == (uint32_t)-1 || htx_get_tail(tmp) != (int32_t)blkpos)) {
 					newblk = __htx_add_data_type_atonce(tmp, htx_get_blk_value(htx, oldblk), type);
 					break;
 				}
