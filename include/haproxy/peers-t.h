@@ -199,6 +199,7 @@ struct peers {
 	int count;                      /* total of peers */
 	int nb_shards;                  /* Number of peer shards */
 	int disabled;                   /* peers proxy disabled if >0 */
+	int dont_stop;                  /* blocks the process during soft-stop to push data to new process */
 	int applet_count[MAX_THREADS];  /* applet count per thread */
 };
 
