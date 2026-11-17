@@ -149,6 +149,7 @@ client c3 -connect ${hap_fe_h2_sock} {
 		  -litHdr inc plain ":method" plain "CONNECT" \
 		  -litHdr inc plain ":authority" plain "${s3_addr}:${s3_port}" \
 		  -nostrend
+		rxwinup
 		txdata -data "CLI>>" -nostrend
 		rxwinup
 		barrier b1 sync
