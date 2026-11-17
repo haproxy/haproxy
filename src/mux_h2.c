@@ -8339,8 +8339,16 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 	/* tell the stream layer whether there are data left or not */
 	if (h2s_rxbuf_cnt(h2s)) {
+		if (!buf->data) {
+			/* we have pending data and the output buf is empty,
+			 * this is typical of too large a non-fragmentable
+			 * data (e.g headers, trailers) combined with a
+			 * reserve, so this will never unblock.
+			 */
+			se_fl_set(h2s->sd, SE_FL_ERROR);
+			goto leave;
+		}
 		se_fl_set(h2s->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-		BUG_ON_HOT(!buf->data);
 	}
 	else {
 		if (!(h2c->flags & H2_CF_IS_BACK) && (h2s->flags & (H2_SF_BODY_TUNNEL|H2_SF_ES_RCVD))) {
@@ -8364,6 +8372,7 @@ static size_t h2_rcv_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 
 	BUG_ON_HOT(!buf->data && se_fl_test(h2s->sd, SE_FL_WANT_ROOM));
 
+ leave:
 	TRACE_LEAVE(H2_EV_STRM_RECV, h2c->conn, h2s);
 	return ret;
 }
