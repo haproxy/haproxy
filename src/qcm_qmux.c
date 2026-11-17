@@ -292,8 +292,9 @@ static void qmux_ctrl_send(struct qcs *qcs, uint64_t data)
 
 /* Sends <frms> list of frames for <qcc> connection.
  *
- * Returns 0 if all data are emitted or a positive value if sending should be
- * retried later. A negative error code is used for a fatal failure.
+ * Returns 0 if all data are emitted. A negative error code is used for a fatal
+ * error with CO_FL_ERROR set or a transient error, in which case caller should
+ * retry later to emit remaining <frms> content.
  */
 int qcc_qmux_send_frames(struct qcc *qcc, struct list *frms)
 {
@@ -378,6 +379,10 @@ int qcc_qmux_send_frames(struct qcc *qcc, struct list *frms)
 			TRACE_DEVEL("snd_buf interrupted", QMUX_EV_QCC_SEND, qcc->conn);
 			if (split_frm)
 				LIST_INSERT(frms, &split_frm->list);
+			/* Remove unsent record from buffer to avoid emitting
+			 * duplicate content during initial flush on next send.
+			 */
+			b_sub(buf, lensz + (pos - old));
 			break;
 		}
 
@@ -404,7 +409,7 @@ int qcc_qmux_send_frames(struct qcc *qcc, struct list *frms)
 	else if (!LIST_ISEMPTY(frms)) {
 		if (!(qcc->wait_event.events & SUB_RETRY_SEND))
 			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_SEND, &qcc->wait_event);
-		ret = 1;
+		ret = -1;
 	}
 	else {
 		ret = 0;
