@@ -9,7 +9,7 @@ feature ignore_unknown_macro
 # message, but it decompresses into more than a buffer. The end of message
 # must only be reported once all the decompressed data were emitted.
 shell {
-    yes "decompressed by haproxy" | head -c 24000 | gzip -c > ${tmpdir}/big.gz
+    awk 'BEGIN { for (i = 0; i < 1000; i++) print "decompressed by haproxy" }' | gzip -c > ${tmpdir}/big.gz
 }
 
 server s1 {
