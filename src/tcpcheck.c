@@ -672,6 +672,334 @@ enum tcpcheck_eval_ret tcpcheck_mysql_expect_ok(struct check *check, struct tcpc
 	return tcpcheck_mysql_expect_packet(check, rule, hslen, last_read);
 }
 
+/* Walk the MySQL packets received after the packet at <offset>. The
+ * AuthMoreData packets announcing a successful caching_sha2_password fast
+ * authentication are skipped, an OK_Packet or an ERR_Packet always follows.
+ * It returns 1 and sets <*poff>, <*plen> and <*ptype> with the next packet to
+ * handle, 0 if more data are expected, -1 if the response is invalid or
+ * truncated, and -2 if a full authentication is requested by the server, which
+ * cannot be handled by a check.
+ */
+static int tcpcheck_mysql_walk_packets(struct check *check, unsigned int offset, int last_read,
+					unsigned int *poff, unsigned int *plen, unsigned char *ptype)
+{
+	for (;;) {
+		/* 3 bytes for the packet length, 1 byte for the sequence id and 1 byte for the type */
+		if (b_data(&check->bi) < offset + 5)
+			goto incomplete;
+
+		*plen = ((unsigned char)*b_peek(&check->bi, offset)) +
+			(((unsigned char)*b_peek(&check->bi, offset+1)) << 8) +
+			(((unsigned char)*b_peek(&check->bi, offset+2)) << 16);
+		if (b_data(&check->bi) < offset + *plen + 4)
+			goto incomplete;
+
+		*ptype = (unsigned char)*b_peek(&check->bi, offset+4);
+		if (*ptype != 0x01 || *plen < 2)
+			break;
+
+		/* AuthMoreData packet: 0x03 announces a successful fast
+		 * authentication, 0x02 and 0x04 mean the full authentication
+		 * is required, which needs the password.
+		 */
+		switch ((unsigned char)*b_peek(&check->bi, offset+5)) {
+		case 0x03:
+			break;
+		case 0x02:
+		case 0x04:
+			return -2;
+		default:
+			return -1;
+		}
+		offset += *plen + 4;
+		continue;
+
+	  incomplete:
+		return (last_read ? -1 : 0);
+	}
+
+	*poff = offset;
+	return 1;
+}
+
+/* Store a check-scoped variable used by the following send/expect rules to
+ * continue the MySQL authentication. Returns 0 on failure.
+ */
+static int tcpcheck_mysql_store_var(struct check *check, struct ist name, int type, const void *value, size_t len)
+{
+	struct sample smp;
+
+	memset(&smp, 0, sizeof(smp));
+	smp_set_owner(&smp, check->proxy, check->sess, NULL, SMP_OPT_FINAL);
+	smp.data.type = type;
+	if (type == SMP_T_BOOL)
+		smp.data.u.sint = 1;
+	else {
+		smp.data.u.str.area = (char *)value;
+		smp.data.u.str.data = len;
+	}
+	return vars_set_by_name_ifexist(istptr(name), istlen(name), &smp);
+}
+
+/* Custom tcp-check expect function to parse the server reply to the client
+ * HandshakeResponse packet. On an OK_Packet, the server version is stored for
+ * the check result and the authentication is reported as done. On an
+ * AuthSwitchRequest, the AuthSwitchResponse packet to send, carrying an empty
+ * password, is stored in the <check.authreply> variable. Returns
+ * TCPCHK_EVAL_WAIT to wait for more data, TCPCHK_EVAL_CONTINUE to evaluate
+ * the next rule or TCPCHK_EVAL_STOP if an error occurred.
+ */
+enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	enum healthcheck_status status = HCHK_STATUS_L7RSP;
+	struct buffer *msg = NULL;
+	struct ist desc = IST_NULL, plugin, version;
+	unsigned int hslen, poff = 0, plen = 0, reply_len;
+	unsigned char ptype = 0, seq;
+	char *reply = NULL;
+	int walk;
+
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
+
+	/* Skip the initial handshake packet at the beginning of the buffer to
+	 * reach the server reply to the authentication request.
+	 */
+	if (b_data(&check->bi) < 5)
+		goto wait_more_data;
+	hslen = 4 + ((unsigned char)*b_peek(&check->bi, 0)) +
+		(((unsigned char)*b_peek(&check->bi, 1)) << 8) +
+		(((unsigned char)*b_peek(&check->bi, 2)) << 16);
+
+	walk = tcpcheck_mysql_walk_packets(check, hslen, last_read, &poff, &plen, &ptype);
+	switch (walk) {
+	case 0:
+		goto wait_more_data;
+	case -1:
+		desc = ist("Invalid or truncated response to the authentication request");
+		goto error;
+	case -2:
+		desc = ist("Full authentication requested by the server, a password is required");
+		goto error;
+	}
+
+	/* The initial handshake packet, with the server version, is still at
+	 * the beginning of the buffer. The version is a NUL-terminated
+	 * string at offset 5, right after the protocol version byte.
+	 */
+	version = iststop(ist2(b_peek(&check->bi, 5), b_data(&check->bi) - 5), '\0');
+	if (!tcpcheck_mysql_store_var(check, ist("check.version"), SMP_T_STR,
+				      istptr(version), istlen(version))) {
+		desc = ist("Failed to store the MySQL server version");
+		goto error;
+	}
+
+	switch (ptype) {
+	case 0x00: /* OK_Packet: the authentication is done */
+		/* Store the COM_QUIT command, sequence id 0, to cleanly close
+		 * the session once the authentication is completed.
+		 */
+		if (!tcpcheck_mysql_store_var(check, ist("check.authok"), SMP_T_BOOL, NULL, 0) ||
+		    !tcpcheck_mysql_store_var(check, ist("check.authreply"), SMP_T_BIN, "\x01\x00\x00\x00\x01", 5)) {
+			desc = ist("Failed to store the MySQL authentication completion");
+			goto error;
+		}
+		break;
+	case 0xff: /* ERR_Packet */
+		/* The shortest error packet carries at least 4 payload bytes:
+		 * the packet type (0xff), a 2-byte error code and the
+		 * description (at least one byte).
+		 */
+		if (plen < 4) {
+			desc = ist("Invalid MySQL error packet");
+			goto error;
+		}
+		check->code = ((unsigned char)*b_peek(&check->bi, poff+5)) +
+			(((unsigned char)*b_peek(&check->bi, poff+6)) << 8);
+		desc = ist2(b_peek(&check->bi, poff+7), plen - 3);
+		status = HCHK_STATUS_L7STS;
+		goto error;
+	case 0xfe: /* AuthSwitchRequest: reply with an empty password */
+		/* The plugin name is a NUL-terminated string at the beginning
+		 * of the packet payload. It is the only payload field, a
+		 * packet with no payload byte or without the terminating NUL
+		 * is invalid. The auth response for an empty password is
+		 * empty: mysql_native_password does not use a length prefix,
+		 * the sha2 plugins use a length-encoded empty string. The
+		 * COM_QUIT command is pipelined behind the reply, it starts a
+		 * new sequence and cleanly closes the session.
+		 */
+		if (plen < 2) {
+			desc = ist("Invalid MySQL authentication method switch request");
+			goto error;
+		}
+		plugin = iststop(ist2(b_peek(&check->bi, poff+5), plen-1), '\0');
+		if (istlen(plugin) == plen - 1) {
+			/* no terminating NUL found inside the packet */
+			desc = ist("Invalid MySQL authentication method switch request");
+			goto error;
+		}
+		if (isteq(plugin, ist("mysql_native_password")))
+			reply_len = 0;
+		else if (isteq(plugin, ist("caching_sha2_password")) ||
+			 isteq(plugin, ist("sha256_password")))
+			reply_len = 1;
+		else {
+			desc = ist("Unsupported authentication plugin requested by the server");
+			goto error;
+		}
+
+		reply = malloc(9 + reply_len);
+		if (!reply) {
+			desc = ist("Out of memory");
+			goto error;
+		}
+		seq = (unsigned char)*b_peek(&check->bi, poff+3);
+		reply[0] = (char)reply_len;
+		reply[1] = reply[2] = 0;
+		reply[3] = (char)(seq + 1);
+		if (reply_len)
+			reply[4] = 0;
+		/* COM_QUIT command, sequence id 0 */
+		reply[4 + reply_len] = 0x01;
+		reply[5 + reply_len] = reply[6 + reply_len] = 0;
+		reply[7 + reply_len] = 0;
+		reply[8 + reply_len] = 0x01;
+
+		if (!tcpcheck_mysql_store_var(check, ist("check.authreply"), SMP_T_BIN, reply, 9 + reply_len)) {
+			desc = ist("Failed to store the MySQL authentication reply");
+			goto error;
+		}
+		break;
+	default:
+		desc = ist("Unexpected MySQL packet in response to the authentication request");
+		goto error;
+	}
+
+  out:
+	free(reply);
+	free_trash_chunk(msg);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
+	return ret;
+
+  error:
+	ret = TCPCHK_EVAL_STOP;
+	msg = alloc_trash_chunk();
+	if (msg)
+		tcpcheck_expect_onerror_message(msg, check, rule, 0, desc);
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  wait_more_data:
+	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+}
+
+/* Custom tcp-check expect function to conclude the MySQL check. It parses the
+ * reply to the authentication or to the AuthSwitchResponse packet. With no
+ * data at all and a connection cleanly closed by the server, the check
+ * succeeds if the authentication was already completed. Returns
+ * TCPCHK_EVAL_WAIT to wait for more data, TCPCHK_EVAL_CONTINUE to evaluate
+ * the next rule or TCPCHK_EVAL_STOP if an error occurred or if the check
+ * succeeded.
+ */
+enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth_done(struct check *check, struct tcpcheck_rule *rule, int last_read)
+{
+	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
+	enum healthcheck_status status = HCHK_STATUS_L7RSP;
+	struct buffer *msg = NULL;
+	struct ist desc = IST_NULL;
+	struct sample smp;
+	unsigned int poff = 0, plen = 0;
+	unsigned char ptype = 0;
+	char *info = NULL;
+	int walk;
+
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
+
+	if (!b_data(&check->bi)) {
+		if (!last_read)
+			goto wait_more_data;
+
+		/* The server closed the connection without sending the result
+		 * of the authentication. It is only valid if it was already
+		 * completed, the connection was then closed because of the
+		 * COM_QUIT command.
+		 */
+		memset(&smp, 0, sizeof(smp));
+		smp_set_owner(&smp, check->proxy, check->sess, NULL, SMP_OPT_FINAL);
+		if (!vars_get_by_name(istptr(ist("check.authok")), istlen(ist("check.authok")), &smp, NULL) ||
+		    smp.data.type != SMP_T_BOOL || !smp.data.u.sint) {
+			desc = ist("Connection closed before the end of the MySQL authentication");
+			goto error;
+		}
+		goto success;
+	}
+
+	walk = tcpcheck_mysql_walk_packets(check, 0, last_read, &poff, &plen, &ptype);
+	switch (walk) {
+	case 0:
+		goto wait_more_data;
+	case -1:
+		desc = ist("Invalid or truncated response to the authentication request");
+		goto error;
+	case -2:
+		desc = ist("Full authentication requested by the server, a password is required");
+		goto error;
+	}
+
+	switch (ptype) {
+	case 0x00: /* OK_Packet */
+		goto success;
+	case 0xff: /* ERR_Packet */
+		if (plen < 4) {
+			desc = ist("Invalid MySQL error packet");
+			goto error;
+		}
+		check->code = ((unsigned char)*b_peek(&check->bi, poff+5)) +
+			(((unsigned char)*b_peek(&check->bi, poff+6)) << 8);
+		desc = ist2(b_peek(&check->bi, poff+7), plen - 3);
+		status = HCHK_STATUS_L7STS;
+		goto error;
+	case 0xfe:
+		desc = ist("Unexpected MySQL authentication method switch request");
+		goto error;
+	default:
+		desc = ist("Unexpected MySQL packet in response to the authentication request");
+		goto error;
+	}
+
+  success:
+	status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
+	memset(&smp, 0, sizeof(smp));
+	smp_set_owner(&smp, check->proxy, check->sess, NULL, SMP_OPT_FINAL);
+	if (vars_get_by_name(istptr(ist("check.version")), istlen(ist("check.version")), &smp, NULL) &&
+	    smp.data.type == SMP_T_STR)
+		info = b_head(&smp.data.u.str);
+	set_server_check_status(check, status, (info ? info : "MySQL server is ok"));
+	ret = TCPCHK_EVAL_STOP;
+	goto out;
+
+  error:
+	ret = TCPCHK_EVAL_STOP;
+	msg = alloc_trash_chunk();
+	if (msg)
+		tcpcheck_expect_onerror_message(msg, check, rule, 0, desc);
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
+	goto out;
+
+  wait_more_data:
+	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
+	ret = TCPCHK_EVAL_WAIT;
+	goto out;
+
+  out:
+	free_trash_chunk(msg);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
+	return ret;
+}
+
 /* Custom tcp-check expect function to parse and validate the LDAP bind response
  * package packet. Returns TCPCHK_EVAL_WAIT to wait for more data,
  * TCPCHK_EVAL_CONTINUE to evaluate the next rule or TCPCHK_EVAL_STOP if an
@@ -4974,9 +5302,6 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 		"00"                           /* auth response length (0 = no password) */
 		"6d7973716c5f6e61746976655f"   /* auth plugin name: "mysql_native_password\0" */
 		"70617373776f726400"
-		"010000"                       /* packet length */
-		"00"                           /* sequence ID */
-		"01"                           /* COM_QUIT command */
 	};
 
 	/* MySQL >=8.0 client Authentication packet with CLIENT_PLUGIN_AUTH capability
@@ -4984,19 +5309,10 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 	 * authentication plugin since MySQL 8.0, and the only one enabled by default
 	 * since MySQL 8.4 (mysql_native_password is disabled and removed in 9.0).
 	 *
-	 * When the client does not announce the plugin used by the account, the
-	 * server answers the handshake response with an AuthSwitchRequest. Since
-	 * the COM_QUIT packet is pipelined right after the handshake response, the
-	 * server then reads it as the auth switch reply, fails the handshake with a
-	 * "packets out of order" error and counts it as a connection error for the
-	 * client host in the host cache. After max_connect_errors such checks, the
-	 * server blocks the HAProxy host (ER_HOST_IS_BLOCKED) and every connection
-	 * from it, including proxied client traffic, is refused.
-	 *
-	 * Announcing caching_sha2_password with an empty auth response lets the
-	 * server authenticate a password-less caching_sha2_password account in a
-	 * single round trip: it answers with an OK packet and the pipelined COM_QUIT
-	 * closes the session cleanly, so no connection error is recorded.
+	 * If the plugin does not match the one of the check user, the server
+	 * replies with an AuthSwitchRequest, which is handled by the check: it
+	 * answers with an empty password for the requested plugin and cleanly
+	 * closes the session once the authentication is done.
 	 *
 	 * Client capabilities: 0x00088200 (little-endian: 00820800)
 	 *   - CLIENT_PROTOCOL_41       (0x00000200)
@@ -5014,9 +5330,6 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 		"00"                           /* auth response length (0 = no password) */
 		"63616368696e675f736861325f"   /* auth plugin name: "caching_sha2_password\0" */
 		"70617373776f726400"
-		"010000"                       /* packet length */
-		"00"                           /* sequence ID */
-		"01"                           /* COM_QUIT command */
 	};
 
 	struct tcpcheck *tc = &curpx->tcpcheck;
@@ -5144,7 +5457,10 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 	chk->index = index++;
 	LIST_APPEND(&rs->rules, &chk->list);
 
-	if (mysql_req) {
+	if (mysql_req == mysql41_req || mysql_req == mysql40_req) {
+		/* Legacy modes: the COM_QUIT command is pipelined after the
+		 * handshake response and the check stops on the server reply.
+		 */
 		chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
 					    1, curpx, &rs->rules, TCPCHK_RULES_MYSQL_CHK, file, line, &errmsg);
 		if (!chk) {
@@ -5152,6 +5468,40 @@ static int do_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curp
 			goto error;
 		}
 		chk->expect.custom = tcpcheck_mysql_expect_ok;
+		chk->index = index++;
+		LIST_APPEND(&rs->rules, &chk->list);
+	}
+	else if (mysql_req) {
+		/* post-80 modes: handle a possible AuthSwitchRequest before
+		 * closing the session with COM_QUIT.
+		 */
+		chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
+					    1, curpx, &rs->rules, TCPCHK_RULES_MYSQL_CHK, file, line, &errmsg);
+		if (!chk) {
+			ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+			goto error;
+		}
+		chk->expect.custom = tcpcheck_mysql_expect_auth;
+		chk->index = index++;
+		LIST_APPEND(&rs->rules, &chk->list);
+
+		chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary-lf", "%[var(check.authreply),hex]", ""},
+					  1, curpx, &rs->rules, file, line, &errmsg);
+		if (!chk) {
+			ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+			goto error;
+		}
+		chk->index = index++;
+		LIST_APPEND(&rs->rules, &chk->list);
+
+		chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
+					    1, curpx, &rs->rules, TCPCHK_RULES_MYSQL_CHK, file, line, &errmsg);
+		if (!chk) {
+			ha_alert("parsing [%s:%d] : %s\n", file, line, errmsg);
+			goto error;
+		}
+		chk->expect.custom = tcpcheck_mysql_expect_auth_done;
+		chk->expect.flags |= TCPCHK_EXPT_FL_ALLOW_EMPTY;
 		chk->index = index++;
 		LIST_APPEND(&rs->rules, &chk->list);
 	}
