@@ -1,0 +1,41 @@
+varnishtest "HTTP decompression of a Content-Length response growing beyond a buffer"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(SLZ)'"
+feature cmd "command -v gzip"
+
+feature ignore_unknown_macro
+
+# The whole compressed body is received at once and carries the end of the
+# message, but it decompresses into more than a buffer. The end of message
+# must only be reported once all the decompressed data were emitted.
+shell {
+    yes "decompressed by haproxy" | head -c 24000 | gzip -c > ${tmpdir}/big.gz
+}
+
+server s1 {
+	rxreq
+	txresp -hdr "Content-Encoding: gzip" -bodyfrom ${tmpdir}/big.gz
+} -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+	timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    listen res
+	bind "fd@${res}"
+	decompression algo-res gzip
+	decompression mode-res always
+	filter decomp-res
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_res_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.content-encoding == "<undef>"
+	expect resp.bodylen == 24000
+} -run
