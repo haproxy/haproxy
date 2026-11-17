@@ -6547,8 +6547,8 @@ next_frame:
 
 	if (msgf & H2_MSGF_BODY_TUNNEL)
 		*flags |= H2_SF_BODY_TUNNEL;
-	else {
-		/* Abort the tunnel attempt, if any */
+	else if (!(msgf & H2_MSGF_RSP_1XX)) {
+		/* Abort the tunnel attempt, if any, on a final response */
 		if (*flags & H2_SF_BODY_TUNNEL)
 			*flags |= H2_SF_TUNNEL_ABRT;
 		*flags &= ~H2_SF_BODY_TUNNEL;
