@@ -251,6 +251,10 @@ static int decomp_stream_blk(struct stream *s, struct filter *f, struct channel 
 			case HTX_BLK_UNUSED:
 				goto next;
 			case HTX_BLK_DATA:
+				if (blk->flags & HTX_BLK_FL_EOM) {
+					blk->flags &= ~HTX_BLK_FL_EOM;
+					st->flags |= DECOMP_STATE_EOM_SEEN;
+				}
 				val = htx_get_blk_value(htx, blk);
 				val = istadv(val, offset);
 				blk_remain = val.len;
