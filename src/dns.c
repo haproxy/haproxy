@@ -1068,7 +1068,9 @@ static struct appctx *dns_session_create(struct dns_session *ds, int tempo)
 static struct task *dns_process_query_exp(struct task *t, void *context, unsigned int state)
 {
 	struct dns_session *ds = (struct dns_session *)context;
+	struct dns_stream_server *dss = ds->dss;
 	struct dns_query *query, *queryb;
+	int expired = 0;
 
 	t->expire = TICK_ETERNITY;
 
@@ -1078,11 +1080,26 @@ static struct task *dns_process_query_exp(struct task *t, void *context, unsigne
 			LIST_DELETE(&query->list);
 			pool_free(dns_query_pool, query);
 			ds->onfly_queries--;
+			expired++;
 		}
 		else {
 			t->expire = query->expire;
 			break;
 		}
+	}
+
+	if (expired) {
+		/* no response will come, release the slots */
+		HA_SPIN_LOCK(DNS_LOCK, &dss->lock);
+		ds->nb_queries -= expired;
+		LIST_DEL_INIT(&ds->list);
+		if (ds->nb_queries)
+			LIST_INSERT(&dss->free_sess, &ds->list);
+		else {
+			LIST_INSERT(&dss->idle_sess, &ds->list);
+			dss->idle_conns++;
+		}
+		HA_SPIN_UNLOCK(DNS_LOCK, &dss->lock);
 	}
 
 	return t;
