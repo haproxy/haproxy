@@ -1382,9 +1382,9 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		}
 
 		/* Decode the path. it must first be copied to keep the URI
-		 * untouched.
+		 * untouched. Keep room for the terminating zero added by ist0().
 		 */
-		if (!chunk_istcat(params->p, path))
+		if (path.len >= b_room(params->p) || !chunk_istcat(params->p, path))
 			goto error;
 		path.ptr = b_tail(params->p) - path.len;
 		len = url_decode(ist0(path), 0);
