@@ -5797,8 +5797,8 @@ static int cli_parse_table_req(char **args, char *payload, struct appctx *appctx
 		return table_process_entry_per_ptr(appctx, args);
 	else if (strncmp(args[3], "data.", 5) == 0)
 		return table_prepare_data_request(appctx, args);
-	else if (*args[3])
-		goto err_args;
+	else if (*args[3] || ctx->action == STK_CLI_ACT_SET)
+		goto err_args; /* "set" requires a key or a ptr */
 
 	return 0;
 
