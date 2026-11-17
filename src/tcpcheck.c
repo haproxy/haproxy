@@ -2443,12 +2443,11 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 		break;
 
 	case TCPCHK_EXPECT_CUSTOM:
-		/* Don't eval custom function if the buffer is empty. It means
-		 * custom functions can't expect an empty response. If this
-		 * change, don't forget to change this test and update all
-		 * custom functions.
+		/* Don't eval custom function if the buffer is empty, unless
+		 * explicitly allowed. Custom functions not flagged as such
+		 * can't expect an empty response.
 		 */
-		if (!b_data(&check->bi))
+		if (!b_data(&check->bi) && !(expect->flags & TCPCHK_EXPT_FL_ALLOW_EMPTY))
 			break;
 		if (expect->custom)
 			ret = expect->custom(check, rule, last_read);
