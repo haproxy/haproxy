@@ -12099,22 +12099,28 @@ option mysql-check [ user <username> [ { post-41 | pre-41 | post-80 | post-80-sh
                the only one enabled by default since MySQL 8.4. Example:
                  CREATE USER 'haproxy'@'%' IDENTIFIED WITH caching_sha2_password BY '';
 
-  The authentication plugin announced by the check must match the one of the
-  check user. Otherwise the server either rejects the handshake (error 1251
-  with pre-41 and post-41) or replies with an authentication method switch
-  request that the check cannot answer (post-80, in which case the check is
-  still reported as passed). In both cases the server aborts the handshake and
-  counts it as a connection error for the HAProxy host. Once the host reaches
-  MySQL "max_connect_errors", the server refuses all connections from it,
-  including proxied client connections, until "FLUSH HOSTS" is issued.
+  With pre-41 and post-41, the authentication plugin announced by the check
+  must match the one of the check user. Otherwise the server rejects the
+  handshake with error 1251, aborts it and counts it as a connection error
+  for the HAProxy host. Once the host reaches MySQL "max_connect_errors", the
+  server refuses all connections from it, including proxied client
+  connections, until "FLUSH HOSTS" is issued.
 
-  If you specify a username, the check consists of sending two MySQL packet,
-  one Client Authentication packet, and one QUIT packet, to correctly close
-  MySQL session. We then parse the MySQL Handshake Initialization packet and/or
-  Error packet. It is a basic but useful test which does not produce error nor
-  aborted connect on the server. However, it requires an unlocked authorised
-  user without a password. To create a basic limited user in MySQL with
-  optional resource limits:
+  With post-80 and post-80-sha2, if the plugin does not match the one of the
+  check user, the server replies with an authentication method switch
+  request. The check answers with an empty password for the requested plugin,
+  reports the server as UP if the authentication succeeds and the session is
+  cleanly closed with a QUIT command, so no connection error is recorded on
+  the server. If the check user has a password, the full authentication
+  required by the server cannot be performed and the check fails.
+
+  If you specify a username, the check consists of sending an authentication
+  packet followed by a QUIT packet to correctly close the MySQL session. We
+  then parse the MySQL Handshake Initialization packet, the authentication
+  result and any error packet. It is a basic but useful test which does not
+  produce error nor aborted connect on the server. However, it requires an
+  unlocked authorised user without a password. To create a basic limited user
+  in MySQL with optional resource limits:
 
       CREATE USER '<username>'@'<ip_of_haproxy|network_of_haproxy/netmask>'
       /*!50701 WITH MAX_QUERIES_PER_HOUR 1 MAX_UPDATES_PER_HOUR 0 */
