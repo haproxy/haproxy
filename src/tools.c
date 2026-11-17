@@ -6288,6 +6288,49 @@ ssize_t read_line_to_trash(const char *path_fmt, ...)
 	return ret;
 }
 
+/* Reads the next line of <file> into <*buf>, whose allocated size is <*size>,
+ * growing the buffer as needed so that the whole line is read whatever its
+ * length. Unlike read_line_to_trash(), the trailing LF if any is kept. <*buf>
+ * must either be NULL, in which case it is allocated, or point to the area of
+ * <*size> bytes it was given by a previous call, and it must be released by the
+ * caller with free(), including after a failure. Returns 1 if a line was read,
+ * 0 at the end of the file or on read error, and -1 on memory allocation or
+ * realloction failure (the caller must free <buf> even in this case).
+ */
+int read_line_to_mem(FILE *file, char **buf, size_t *size)
+{
+	size_t len = 0;
+	char *new_buf;
+
+	if (!*buf) {
+		*buf = malloc(LINESIZE);
+		if (!*buf)
+			return -1;
+		*size = LINESIZE;
+	}
+
+	while (1) {
+		/* fgets() only overwrites the last byte when it fills the buffer.
+		 * Checking it instead of the string length also works when the
+		 * line contains NUL bytes.
+		 */
+		(*buf)[*size - 1] = 1;
+		if (fgets(*buf + len, *size - len, file) == NULL)
+			return (len && !ferror(file)) ? 1 : 0;
+
+		if ((*buf)[*size - 1] || (*buf)[*size - 2] == '\n')
+			return 1;
+
+		/* the buffer is full and the line is not complete yet */
+		len = *size - 1;
+		new_buf = realloc(*buf, *size * 2);
+		if (!new_buf)
+			return -1;
+		*buf = new_buf;
+		*size *= 2;
+	}
+}
+
 /* This is used to sanitize an input line that's about to be used for error reporting.
  * It will adjust <line> to print approximately <width> chars around <pos>, trying to
  * preserve the beginning, with leading or trailing "..." when the line is truncated.
