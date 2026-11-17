@@ -1889,6 +1889,8 @@ struct http_hdng_prf *http_hardening_resolve(const char *name, char **err)
  * hardening option is followed by "on" or "off" to enable or disable the
  * matching checks.
  */
+static void http_hardening_free(struct http_hdng_prf *prf);
+
 int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm)
 {
 	struct http_hdng_prf *prf, *other, *base = NULL;
@@ -1973,6 +1975,7 @@ int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm
 		if (!file_copy) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
+			http_hardening_free(prf);
 			goto out;
 		}
 		prf->file = file_copy;
