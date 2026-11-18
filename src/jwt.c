@@ -17,6 +17,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/tools.h>
+#include <haproxy/thread.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/base64.h>
 #include <haproxy/jwt.h>
@@ -29,6 +30,8 @@
 
 /* Tree into which the public certificates used to validate JWTs will be stored. */
 static struct eb_root jwt_cert_tree = EB_ROOT_UNIQUE;
+/* Lock protecting the jwt_cert_tree. */
+__decl_thread(HA_RWLOCK_T jwt_tree_lock);
 
 /* Set whether "none" algorithm should be allowed or not */
 static int jwt_verify_allow_none_alg = 0;
@@ -147,13 +150,15 @@ int jwt_tree_load_cert(char *path, int pathlen, int tryload_cert, const char *fi
 	EVP_PKEY *pubkey = NULL;
 	BIO *bio = NULL;
 	struct stat buf;
-	struct ebmb_node *eb = NULL;
 	struct ckch_store *store = NULL;
 
-	eb = ebst_lookup(&jwt_cert_tree, path);
-
-	if (eb)
-		return 0; /* Entry already in the tree, nothing to do. */
+	HA_RWLOCK_RDLOCK(JWT_LOCK, &jwt_tree_lock);
+	if (ebst_lookup(&jwt_cert_tree, path) != NULL) {
+		/* Entry already in the tree, nothing to do. */
+		HA_RWLOCK_RDUNLOCK(JWT_LOCK, &jwt_tree_lock);
+		return 0;
+	}
+	HA_RWLOCK_RDUNLOCK(JWT_LOCK, &jwt_tree_lock);
 
 	if (stat(path, &buf) == 0) {
 		bio = BIO_new(BIO_s_file());
@@ -179,9 +184,18 @@ int jwt_tree_load_cert(char *path, int pathlen, int tryload_cert, const char *fi
 
 				entry->pubkey = pubkey;
 
-				/* The entry insertion can't fail, we already
-				 * checked if the entry existed. */
-				ebst_insert(&jwt_cert_tree, &entry->node);
+				HA_RWLOCK_WRLOCK(JWT_LOCK, &jwt_tree_lock);
+				if (ebst_insert(&jwt_cert_tree, &entry->node) != &entry->node) {
+					/* Another thread may have inserted the
+					 * same entry in the meantime. It should
+					 * not happen for now since this
+					 * function is only called during conf
+					 * parsing but better safe than sorry. */
+					EVP_PKEY_free(pubkey);
+					pubkey = NULL;
+					ha_free(&entry);
+				}
+				HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
 
 				retval = 0;
 				goto end;
@@ -375,7 +389,6 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 	EVP_MD_CTX *evp_md_ctx;
 	EVP_PKEY_CTX *pkey_ctx = NULL;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
-	struct ebmb_node *eb = NULL;
 	struct jwt_cert_tree_entry *entry = NULL;
 	int is_ecdsa = 0;
 	int padding = RSA_PKCS1_PADDING;
@@ -441,7 +454,12 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		}
 	} else {
-		/* Look for a public key in the JWT tree */
+		struct ebmb_node *eb = NULL;
+		/* Look for a public key in the JWT tree. We can keep a read
+		 * lock because the tree itself is not changed and the only
+		 * operation on the entry is EVP_PKEY_up_ref called on the pkey
+		 * field which is atomic. */
+		HA_RWLOCK_RDLOCK(JWT_LOCK, &jwt_tree_lock);
 		eb = ebst_lookup(&jwt_cert_tree, ctx->key);
 
 		if (eb) {
@@ -451,6 +469,7 @@ jwt_jwsverify_rsa_ecdsa(const struct jwt_ctx *ctx, struct buffer *decoded_signat
 			if (pubkey)
 				EVP_PKEY_up_ref(pubkey);
 		}
+		HA_RWLOCK_RDUNLOCK(JWT_LOCK, &jwt_tree_lock);
 	}
 
 	if (!pubkey) {
@@ -611,6 +630,8 @@ static void jwt_deinit(void)
 	struct ebmb_node *node = NULL;
 	struct jwt_cert_tree_entry *entry = NULL;
 
+	HA_RWLOCK_WRLOCK(JWT_LOCK, &jwt_tree_lock);
+
 	node = ebmb_first(&jwt_cert_tree);
 	while (node) {
 		entry = ebmb_entry(node, struct jwt_cert_tree_entry, node);
@@ -619,6 +640,8 @@ static void jwt_deinit(void)
 		ha_free(&entry);
 		node = ebmb_first(&jwt_cert_tree);
 	}
+
+	HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
 }
 REGISTER_POST_DEINIT(jwt_deinit);
 
