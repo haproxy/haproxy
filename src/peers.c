@@ -185,9 +185,6 @@ struct peer_prep_params {
 #define PEER_MSG_STKT_BIT                 7
 #define PEER_MSG_STKT_BIT_MASK         (1 << PEER_MSG_STKT_BIT)
 
-/* The maximum length of an encoded data length. */
-#define PEER_MSG_ENC_LENGTH_MAXLEN    5
-
 /* Minimum 64-bits value encoded with 2 bytes */
 #define PEER_ENC_2BYTES_MIN                                  0xf0 /*               0xf0 (or 240) */
 /* 3 bytes */
@@ -213,8 +210,6 @@ struct peer_prep_params {
 #define PEER_ENC_STOP_BYTE        (1 << PEER_ENC_STOP_BIT)
 /* The left most number of bits set for PEER_ENC_2BYTES_MIN */
 #define PEER_ENC_2BYTES_MIN_BITS  4
-
-#define PEER_MSG_HEADER_LEN               2
 
 #define PEER_STKT_CACHE_MAX_ENTRIES       128
 

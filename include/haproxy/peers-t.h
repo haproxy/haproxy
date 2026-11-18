@@ -34,6 +34,11 @@
 #include <haproxy/stick_table-t.h>
 #include <haproxy/thread-t.h>
 
+#define PEER_MSG_HEADER_LEN               2
+
+/* The maximum length of an encoded data length. */
+#define PEER_MSG_ENC_LENGTH_MAXLEN    5
+
 /* peer state with respects of its applet, as seen from outside */
 enum peer_app_state {
 	PEER_APP_ST_STOPPED = 0, /* The peer has no applet */
