@@ -48,11 +48,13 @@ haproxy h1 -conf {
         http-request return status 200
 } -start
 
-# 42 + 984 + 2 = 1028 bytes: too long for a 1024-byte buffer
+# headers and a 1102-byte chunk-size line in a single write
+shell {
+    awk 'BEGIN { for (i = 0; i < 1100; i++) printf "0"; printf "\r\n" }' > ${tmpdir}/line
+}
+
 client c1 -connect ${h1_li1_sock} {
-    txreq -req POST -url /big -hdr "Transfer-Encoding: chunked" -nolen
-    send_n 984 "0"
-    send "\r\n"
+    txreq -req POST -url /big -hdr "Transfer-Encoding: chunked" -nolen -bodyfrom ${tmpdir}/line
 } -run
 
 # a valid request must still work
