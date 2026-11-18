@@ -499,6 +499,10 @@ static int sample_conv_tcp_options_mss(const struct arg *arg_p, struct sample *s
 	if (!len)
 		return 0;
 
+	/* the MSS option is always 4 bytes long */
+	if (ofs && (uchar)smp->data.u.str.area[ofs + 1] != 4)
+		ofs = 0;
+
 	smp->data.u.sint = ofs ? read_n16(smp->data.u.str.area + ofs + 2) : 0;
 	smp->data.type = SMP_T_SINT;
 	smp->flags &= ~SMP_F_CONST;
@@ -551,6 +555,10 @@ static int sample_conv_tcp_options_tsval(const struct arg *arg_p, struct sample 
 	if (!len)
 		return 0;
 
+	/* the TimeStamp option is always 10 bytes long */
+	if (ofs && (uchar)smp->data.u.str.area[ofs + 1] != 10)
+		ofs = 0;
+
 	smp->data.u.sint = ofs ? read_n32(smp->data.u.str.area + ofs + 2) : 0;
 	smp->data.type = SMP_T_SINT;
 	smp->flags &= ~SMP_F_CONST;
@@ -568,6 +576,10 @@ static int sample_conv_tcp_options_wscale(const struct arg *arg_p, struct sample
 
 	if (!len)
 		return 0;
+
+	/* the Window Scale option is always 3 bytes long */
+	if (ofs && (uchar)smp->data.u.str.area[ofs + 1] != 3)
+		ofs = 0;
 
 	smp->data.u.sint = ofs ? (uchar)smp->data.u.str.area[ofs + 2] : 0;
 	smp->data.type = SMP_T_SINT;
