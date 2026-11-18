@@ -926,6 +926,7 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 			char *key   = args[3];
 			char *value = args[4];
 			size_t l;
+			char delim;
 
 			if (payload) {
 				/* key and value passed as payload, one pair per line */
@@ -933,23 +934,30 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 					break;
 
 				key = payload;
-				l = strcspn(key, " \t");
+				l = strcspn(key, " \t\n");
 				payload += l;
-
-				if (!*payload && ctx->display_flags == PAT_REF_MAP)
-					return cli_dynerr(appctx, memprintf(&err, "Missing value for key '%s'.\n", key));
-
+				delim = *payload;
 				key[l] = 0;
-				payload++;
 
-				/* value */
-				payload += strspn(payload, " \t");
-				value = payload;
-				l = strcspn(value, "\n");
-				payload += l;
-				if (*payload)
+				if (delim != ' ' && delim != '\t') {
+					/* no value on this line */
+					if (ctx->display_flags == PAT_REF_MAP)
+						return cli_dynerr(appctx, memprintf(&err, "Missing value for key '%s'.\n", key));
+					if (delim)
+						payload++;
+				}
+				else {
 					payload++;
-				value[l] = 0;
+
+					/* value */
+					payload += strspn(payload, " \t");
+					value = payload;
+					l = strcspn(value, "\n");
+					payload += l;
+					if (*payload)
+						payload++;
+					value[l] = 0;
+				}
 			}
 
 			if (ctx->display_flags != PAT_REF_MAP)
