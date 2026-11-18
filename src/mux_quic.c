@@ -4325,6 +4325,12 @@ static int qcm_init(struct connection *conn, struct proxy *prx,
 	}
 
 	if (qcc) {
+		/* qcc_release() cannot free the QMux Rx buffer without conn */
+		if (!conn_is_quic(conn)) {
+			b_free(&qcc->rx.qmux_buf);
+			offer_buffers(NULL, 1);
+		}
+
 		/* In case of MUX init failure, session will ensure connection is freed. */
 		qcc->conn = NULL;
 		qcc_release(qcc);
