@@ -4480,6 +4480,12 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 	while (grpc_left > GRPC_MSG_HEADER_SZ) {
 		size_t grpc_msg_len, left;
 		unsigned char *msg_end;
+		unsigned char compressed;
+
+		/* the Compressed-Flag may only be 0 or 1 */
+		compressed = *pos;
+		if (compressed > 1)
+			return 0;
 
 		grpc_msg_len = left = ntohl(read_u32(pos + GRPC_MSG_COMPRESS_FLAG_SZ));
 
@@ -4498,7 +4504,8 @@ static int sample_conv_ungrpc(const struct arg *arg_p, struct sample *smp, void 
 		 */
 		msg_end = pos + grpc_msg_len;
 
-		if (protobuf_field_lookup(arg_p, smp, &pos, &left))
+		/* a compressed message cannot be parsed as protobuf, skip it */
+		if (!compressed && protobuf_field_lookup(arg_p, smp, &pos, &left))
 			return 1;
 
 		pos = msg_end;
