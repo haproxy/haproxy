@@ -2657,6 +2657,9 @@ static int qcc_release_remote_stream(struct qcc *qcc, uint64_t id)
 
 				/* Update flow control limit up to the allowed elasticity limit. */
 				inc = conn_max - rem;
+				/* never exceed max, still >= 1 as ms_bidi < max */
+				if (inc > max - qcc->lfctl.ms_bidi)
+					inc = max - qcc->lfctl.ms_bidi;
 				_HA_ATOMIC_ADD(&tg_ctx->committed_extra_streams, inc - non_extra);
 				qcc->lfctl.ms_bidi_rel = rem + inc;
 			}
