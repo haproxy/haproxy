@@ -1,0 +1,49 @@
+varnishtest "QUIC backend must drop packets with an unsupported version"
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+#REGTEST_TYPE=bug
+
+feature ignore_unknown_macro
+feature cmd "python3 --version"
+
+# QUIC backend connections are not supported with USE_QUIC_OPENSSL_COMPAT.
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+# Reserve the UDP port used by the fake QUIC backend.
+server s_backend {} -start
+server s_backend -break
+
+process p1 "python3 ${testdir}/unknown_version_backend.py --port ${s_backend_port}" -start
+process p1 -expect-text 0 0 "READY"
+
+haproxy h1 -conf {
+       global
+               expose-experimental-directives
+
+       defaults
+               mode http
+               timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+               timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+               timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+       frontend fe
+               bind "fd@${fe}"
+               default_backend be
+
+       backend be
+               # Fail on the first attempt: do not depend on ICMP port unreachable
+               # to make connection retries fail fast once the fake backend exited.
+               retries 0
+               server qsrv quic4@127.0.0.1:${s_backend_port} ssl verify none alpn h3
+} -start
+
+# The fake backend answers the Initial with a long header packet using an
+# unsupported version: the request must fail, but haproxy used to abort on
+# BUG_ON(!qel || !pktns) in qc_enc_level_alloc() while parsing it.
+client c1 -connect ${h1_fe_sock} {
+       txreq
+       rxresp
+       expect resp.status == 503
+} -run
+
+process p1 -wait
