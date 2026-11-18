@@ -753,6 +753,10 @@ static void dns_session_io_handler(struct appctx *appctx)
 			if (applet_input_data(appctx) + ds->rx_msg.offset < ds->rx_msg.len) {
 				/* message only partially available */
 
+				/* the rest will never come once the server has shut */
+				if (se_fl_test(appctx->sedesc, SE_FL_SHW))
+					goto error;
+
 				/* read available data */
 				ret = applet_getblk(appctx, ds->rx_msg.area + ds->rx_msg.offset, applet_input_data(appctx), 0);
 				if (ret <= 0) {
