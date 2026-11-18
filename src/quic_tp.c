@@ -879,7 +879,8 @@ int qc_lstnr_params_init(struct quic_conn *qc,
 	 */
 	if (global.tune.streams_elasticity && !qc->li->bind_conf->ssl_conf.early_data) {
 		rx_params->initial_max_streams_bidi =
-		  conn_calc_max_streams(rx_params->initial_max_streams_bidi);
+		  MIN(rx_params->initial_max_streams_bidi,
+		      conn_calc_max_streams(rx_params->initial_max_streams_bidi));
 	}
 
 	return 1;

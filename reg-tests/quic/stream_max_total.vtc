@@ -7,6 +7,8 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT
 haproxy ha_qsrv -conf {
 	global
 		tune.quic.fe.stream.max-total 3
+		# must not grant more streams than max-total
+		tune.streams-elasticity 1000
 
 	defaults
 		mode http
