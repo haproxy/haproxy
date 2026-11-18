@@ -1201,6 +1201,26 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 	return 0;
 }
 
+/* This function is used to validate the arguments passed to a "payload" fetch
+ * keyword: an offset and a length, both positive or null. The fetch handles them
+ * as unsigned ints, so both are also limited to INT_MAX, which is far beyond any
+ * buffer size and guarantees that their sum cannot wrap. Returns 0 on error,
+ * non-zero if OK, with <err_msg> filled as for val_payload_lv() below.
+ */
+static int val_payload(struct arg *arg, char **err_msg)
+{
+	if (arg[0].data.sint < 0 || arg[0].data.sint > INT_MAX) {
+		memprintf(err_msg, "payload offset must be between 0 and %d", INT_MAX);
+		return 0;
+	}
+
+	if (arg[1].data.sint < 0 || arg[1].data.sint > INT_MAX) {
+		memprintf(err_msg, "payload length must be between 0 and %d", INT_MAX);
+		return 0;
+	}
+	return 1;
+}
+
 /* This function is used to validate the arguments passed to a "payload_lv" fetch
  * keyword. This keyword allows two positive integers and an optional signed one,
  * with the second one being strictly positive and the third one being greater than
@@ -1219,13 +1239,16 @@ int val_payload_lv(struct arg *arg, char **err_msg)
 	int relative = 0;
 	const char *str;
 
-	if (arg[0].data.sint < 0) {
-		memprintf(err_msg, "payload offset1 must be positive");
+	/* As for val_payload(), the fetch works on unsigned ints, so every
+	 * offset it computes must stay within [0, INT_MAX].
+	 */
+	if (arg[0].data.sint < 0 || arg[0].data.sint > INT_MAX) {
+		memprintf(err_msg, "payload offset1 must be between 0 and %d", INT_MAX);
 		return 0;
 	}
 
-	if (!arg[1].data.sint) {
-		memprintf(err_msg, "payload length must be > 0");
+	if (arg[1].data.sint <= 0 || arg[1].data.sint > INT_MAX) {
+		memprintf(err_msg, "payload length must be between 1 and %d", INT_MAX);
 		return 0;
 	}
 
@@ -1240,12 +1263,20 @@ int val_payload_lv(struct arg *arg, char **err_msg)
 			memprintf(err_msg, "payload offset2 is not a number");
 			return 0;
 		}
+		if (i < -2LL * INT_MAX || i > INT_MAX) {
+			memprintf(err_msg, "payload offset2 out of range");
+			return 0;
+		}
 		chunk_destroy(&arg[2].data.str);
 		arg[2].type = ARGT_SINT;
 		arg[2].data.sint = i;
 
 		if (arg[0].data.sint + arg[1].data.sint + arg[2].data.sint < 0) {
 			memprintf(err_msg, "payload offset2 too negative");
+			return 0;
+		}
+		if (relative && arg[0].data.sint + arg[1].data.sint + arg[2].data.sint > INT_MAX) {
+			memprintf(err_msg, "payload offset2 too large");
 			return 0;
 		}
 		if (relative)
@@ -1477,7 +1508,7 @@ int val_distcc(struct arg *arg, char **err_msg)
 static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "distcc_body",         smp_fetch_distcc_body,    ARG2(1,STR,SINT),       val_distcc,     SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "distcc_param",        smp_fetch_distcc_param,   ARG2(1,STR,SINT),       val_distcc,     SMP_T_SINT, SMP_USE_L6REQ|SMP_USE_L6RES },
-	{ "payload",             smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "payload",             smp_fetch_payload,        ARG2(2,SINT,SINT),      val_payload,    SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "rdp_cookie_cnt",      smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_SINT, SMP_USE_L6REQ },
@@ -1488,7 +1519,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "req_ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 
 	{ "req.len",             smp_fetch_len,            0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
-	{ "req.payload",         smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ },
+	{ "req.payload",         smp_fetch_payload,        ARG2(2,SINT,SINT),      val_payload,    SMP_T_BIN,  SMP_USE_L6REQ },
 	{ "req.payload_lv",      smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ },
 	{ "req.rdp_cookie",      smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.rdp_cookie_cnt",  smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_SINT, SMP_USE_L6REQ },
@@ -1503,7 +1534,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "req.ssl_alpn",        smp_fetch_ssl_hello_alpn, 0,                      NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_SINT, SMP_USE_L6REQ },
 	{ "res.len",             smp_fetch_len,            0,                      NULL,           SMP_T_SINT, SMP_USE_L6RES },
-	{ "res.payload",         smp_fetch_payload,        ARG2(2,SINT,SINT),      NULL,           SMP_T_BIN,  SMP_USE_L6RES },
+	{ "res.payload",         smp_fetch_payload,        ARG2(2,SINT,SINT),      val_payload,    SMP_T_BIN,  SMP_USE_L6RES },
 	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,SINT,SINT,STR),  val_payload_lv, SMP_T_BIN,  SMP_USE_L6RES },
 	{ "res.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_SINT, SMP_USE_L6RES },
 	{ "wait_end",            smp_fetch_wait_end,       0,                      NULL,           SMP_T_BOOL, SMP_USE_INTRN },
