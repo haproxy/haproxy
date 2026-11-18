@@ -1100,6 +1100,10 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 	flags = reader[0] * 256 + reader[1];
 
+	/* a message without the QR bit is a query, not a response */
+	if (!(flags & DNS_FLAG_RESPONSE))
+		goto invalid_resp;
+
 	if ((flags & DNS_FLAG_REPLYCODE) != DNS_RCODE_NO_ERROR) {
 		if ((flags & DNS_FLAG_REPLYCODE) == DNS_RCODE_NX_DOMAIN) {
 			cause = RSLV_RESP_NX_DOMAIN;

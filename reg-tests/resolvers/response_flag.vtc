@@ -1,0 +1,51 @@
+varnishtest "DNS messages without the QR bit are not responses"
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+#REGTEST_TYPE=devel
+
+feature ignore_unknown_macro
+feature cmd "python3 --version"
+
+# Reserve a random local port, then release its TCP listener so the Python
+# fixture can bind UDP to it.
+server s10 {} -start
+server s10 -break
+
+process p1 "python3 ${testdir}/response_flag.py --port ${s10_port}" -start
+process p1 -expect-text 0 0 "READY"
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    resolvers dns
+        nameserver dns udp@127.0.0.1:${s10_port}
+        timeout resolve 30s
+        timeout retry 200ms
+        resolve_retries 1
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request do-resolve(txn.ip,dns,ipv4) hdr(host)
+        http-request return status 200 hdr x-ip %[var(txn.ip)] if { var(txn.ip) -m found }
+        http-request return status 503
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -hdr "Host: qr.test"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ip == "192.0.2.123"
+
+    txreq -hdr "Host: no-qr.test"
+    rxresp
+    expect resp.status == 503
+} -run
+
+haproxy h1 -cli {
+    send "show resolvers dns"
+    expect ~ "invalid: +[1-9][0-9]*"
+}

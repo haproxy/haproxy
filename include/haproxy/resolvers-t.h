@@ -83,6 +83,7 @@ extern struct pool_head *resolv_requester_pool;
 #define DNS_RCODE_REFUSED       5       /* query refused */
 
 /* dns flags masks */
+#define DNS_FLAG_RESPONSE       0x8000  /* mask for response (QR) flag */
 #define DNS_FLAG_TRUNCATED      0x0200  /* mask for truncated flag */
 #define DNS_FLAG_REPLYCODE      0x000F  /* mask for reply code */
 
