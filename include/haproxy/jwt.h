@@ -37,7 +37,7 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 int jwt_tree_create_entry_from_store(struct ckch_store *store, char **err);
 int jwt_tree_delete_entry(char *path);
 int jwt_tree_clear_entry(char *path);
-int jwt_tree_get_pubkey(char *path, EVP_PKEY **pkey);
+int jwt_tree_get_pkey(char *path, EVP_PKEY **pkey, int get_pubkey);
 
 #endif /* USE_OPENSSL */
 

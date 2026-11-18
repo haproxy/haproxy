@@ -885,22 +885,8 @@ static int decrypt_cek_rsa(struct buffer *cek, struct buffer *decrypted_cek,
 	EVP_PKEY *pkey = NULL;
 	int retval = 1;
 
-	struct ckch_store *store = NULL;
-
-	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+	if (jwt_tree_get_pkey(b_orig(cert), &pkey, 0))
 		goto end;
-
-	store = ckchs_lookup(b_orig(cert));
-	if (!store || !store->data->key || !store->conf.jwt) {
-		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-		goto end;
-	}
-
-	pkey = store->data->key;
-
-	EVP_PKEY_up_ref(pkey);
-
-	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
 	if (do_decrypt_cek_rsa(cek, decrypted_cek, pkey, crypt_alg))
 		goto end;
@@ -1274,22 +1260,9 @@ static int sample_conv_jwt_decrypt_cert(const struct arg *args, struct sample *s
 	if (rsa && decrypt_cek_rsa(*cek, decrypted_cek, cert, alg))
 		goto end;
 	else if (ec) {
-		struct ckch_store *store = NULL;
-
-		if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		/* Look for a private key in the JWT tree. */
+		if (jwt_tree_get_pkey(b_orig(cert), &privkey, 0))
 			goto end;
-
-		store = ckchs_lookup(b_orig(cert));
-		if (!store || !store->data->key || !store->conf.jwt) {
-			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-			goto end;
-		}
-
-		privkey = store->data->key;
-
-		EVP_PKEY_up_ref(privkey);
-
-		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
 		if (do_decrypt_cek_ec((cek != NULL) ? *cek : NULL, decrypted_cek,
 				      privkey, fields.pubkey,
@@ -1328,24 +1301,20 @@ end:
 static int sample_conv_jwt_decrypt_cert_check(struct arg *args, struct sample_conv *conv,
                                               const char *file, int line, char **err)
 {
+	int retval = 0;
+
 	vars_check_arg(&args[0], NULL);
 
 	if (args[0].type == ARGT_STR) {
-		struct ckch_store *store = NULL;
 
-		if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
-			return 0;
-		store = ckchs_lookup(args[0].data.str.area);
-		if (!store) {
+		retval = jwt_tree_get_pkey(args[0].data.str.area, NULL, 0);
+		if (retval == JWT_VRFY_UNKNOWN_CERT) {
 			memprintf(err, "unknown certificate %s", args[0].data.str.area);
-			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 			return 0;
-		} else if (!store->conf.jwt) {
-			memprintf(err, "unusable certificate %s (\"jwt\" option not set to \"on\")", args[0].data.str.area);
-			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		} else if (retval == JWT_VRFY_UNAVAIL_CERT) {
+			memprintf(err, "unusable certificate %s (missing private key or \"jwt\" option not set to \"on\")", args[0].data.str.area);
 			return 0;
 		}
-		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	}
 
 	return 1;
