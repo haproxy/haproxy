@@ -61,13 +61,10 @@ size_t qcs_http_rcv_buf(struct qcs *qcs, struct buffer *buf, size_t count,
 	return ret;
 }
 
-/* Add EOM flag on input buffer for <qcs> instance. If <force_eot> is set, EOT
- * is manually inserted. This is necessary if HTX message contains not yet
- * finalized trailers blocks.
- *
+/* Add EOM flag on input buffer for <qcs> instance.
  * Returns 0 on success else non zero on internal error.
  */
-int qcs_http_handle_standalone_fin(struct qcs *qcs, int force_eot)
+int qcs_http_handle_standalone_fin(struct qcs *qcs)
 {
 	struct buffer *appbuf;
 	struct htx *htx = NULL;
@@ -75,9 +72,6 @@ int qcs_http_handle_standalone_fin(struct qcs *qcs, int force_eot)
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs)))
 		goto err;
 	htx = htx_from_buf(appbuf);
-
-	if (force_eot && !htx_add_endof(htx, HTX_BLK_EOT))
-		goto err;
 
 	if (!htx_set_eom(htx))
 		goto err;

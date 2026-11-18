@@ -42,7 +42,7 @@ static ssize_t hq_interop_rcv_buf_req(struct qcs *qcs, struct buffer *b, int fin
 		/* Drain any data after the request and handle FIN if present,
 		 * including the case where it is set without any payload.
 		 */
-		if (fin && qcs_http_handle_standalone_fin(qcs, 0))
+		if (fin && qcs_http_handle_standalone_fin(qcs))
 			return -1;
 		return data;
 	}
@@ -166,7 +166,7 @@ static ssize_t hq_interop_rcv_buf_res(struct qcs *qcs, struct buffer *b, int fin
 
 	if (!to_copy) {
 		if (fin) {
-			if (qcs_http_handle_standalone_fin(qcs, 0)) {
+			if (qcs_http_handle_standalone_fin(qcs)) {
 				htx_to_buf(htx, htx_buf);
 				return -1;
 			}
