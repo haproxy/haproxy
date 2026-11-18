@@ -21,26 +21,32 @@
 import socket, struct, sys, threading
 
 def enc_varint(v):
+    # SPOP variable-length integer, mirroring encode_varint() in
+    # include/haproxy/intops.h: values below 240 fit on one byte, otherwise
+    # the low 4 bits ride on the first byte and each continuation byte
+    # carries the next 7 bits, most-significant first.
     if v < 240:
         return bytes([v])
     out = bytearray()
     out.append(0xF0 | (v & 0x0F))
-    v = (v >> 4) - 16
+    v = (v - 240) >> 4
     while v >= 128:
         out.append(0x80 | (v & 0x7F))
-        v = (v >> 7) - 1
-    out.append(v & 0x7F)
+        v = (v - 128) >> 7
+    out.append(v)
     return bytes(out)
 
 def dec_varint(buf, off):
-    b = buf[off]; off += 1
-    if b < 240:
-        return b, off
-    val = b & 0x0F
+    # SPOP variable-length integer, mirroring decode_varint() in
+    # include/haproxy/intops.h.
+    v = buf[off]; off += 1
+    if v < 240:
+        return v, off
+    val = v
     shift = 4
     while True:
         b = buf[off]; off += 1
-        val |= (b & 0x7F) << shift
+        val += b << shift
         shift += 7
         if b < 128:
             break
