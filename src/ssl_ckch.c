@@ -42,6 +42,7 @@
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tools.h>
+#include <haproxy/jwt.h>
 
 /* Uncommitted CKCH transaction */
 
@@ -1013,6 +1014,14 @@ void ckch_store_free(struct ckch_store *store)
 	list_for_each_entry_safe(inst, inst_s, &store->ckch_inst, by_ckchs) {
 		ckch_inst_free(inst);
 	}
+
+	/* If the store was actually inserted in the tree we need to remove the
+	 * corresponding JWT tree entry as well. Temporary stores (duplicated for
+	 * a transaction, for instance) share their path with the active store
+	 * and must not remove its JWT entry. */
+	if (store->node.node.leaf_p)
+		jwt_tree_delete_entry(store->path);
+
 	ebmb_delete(&store->node);
 
 	ssl_sock_free_cert_key_and_chain_contents(store->data);
@@ -1178,8 +1187,15 @@ struct ckch_store *ckch_store_new_load_files_path(char *path, char **err)
 
 	ckchs->conf.used = CKCH_CONF_SET_EMPTY;
 
-	/* insert into the ckchs tree */
 	memcpy(ckchs->path, path, strlen(path) + 1);
+
+	/* Insert pubkey into JWT-specific tree */
+	if (jwt_tree_create_entry_from_store(ckchs, err)) {
+		memprintf(err,"%scould not create jwt tree entry for '%s'.", err && *err ? *err : "", path);
+		goto end;
+	}
+
+	/* insert into the ckchs tree */
 	ebst_insert(&ckchs_tree, &ckchs->node);
 	return ckchs;
 
@@ -1224,8 +1240,15 @@ struct ckch_store *ckch_store_new_load_files_conf(char *name, struct ckch_conf *
 
 	conf->crt = tmpcrt;
 
-	/* insert into the ckchs tree */
 	memcpy(ckchs->path, name, strlen(name) + 1);
+
+	/* Insert pubkey into JWT-specific tree */
+	if (jwt_tree_create_entry_from_store(ckchs, err)) {
+		memprintf(err,"%scould not create jwt tree entry for '%s'.", err && *err ? *err : "", ckchs->path);
+		goto end;
+	}
+
+	/* insert into the ckchs tree */
 	ebst_insert(&ckchs_tree, &ckchs->node);
 	return ckchs;
 
@@ -2533,6 +2556,7 @@ static inline int cli_set_ssl_jwt(char **args, struct appctx *appctx, int value)
 {
 	struct ckch_store *ckchs;
 	char *err = NULL;
+	int oldvalue;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return cli_err(appctx, "Can't allocate memory!\n");
@@ -2549,7 +2573,18 @@ static inline int cli_set_ssl_jwt(char **args, struct appctx *appctx, int value)
 	if ((ckchs = ckchs_lookup(args[3])) == NULL)
 		goto error;
 
+	oldvalue = ckchs->conf.jwt;
 	ckchs->conf.jwt = value;
+
+	if (value) {
+		if (jwt_tree_create_entry_from_store(ckchs, &err)) {
+			ckchs->conf.jwt = oldvalue;
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			return cli_dynerr(appctx, memprintf(&err, "%sAdding certificate '%s' to JWT tree failed", err ? err : "\n", args[3]));
+		}
+	} else {
+		jwt_tree_clear_entry(args[3]);
+	}
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	return 0;
@@ -3068,6 +3103,11 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
 	}
 
 	ckch_store_free(old_ckchs);
+
+	/* The old entry should have been removed in chck_store_free, create a
+	 * new entry altogether. */
+	jwt_tree_create_entry_from_store(new_ckchs, NULL);
+
 	ebst_insert(&ckchs_tree, &new_ckchs->node);
 }
 
@@ -3522,6 +3562,10 @@ static int cli_parse_del_cert(char **args, char *payload, struct appctx *appctx,
 	}
 
 	ebmb_delete(&store->node);
+	/* The store is removed from the ckch tree, remove its JWT entry too.
+	 * Note that a store in use for JWT validation cannot be deleted, but an
+	 * empty entry may remain after a "del ssl jwt" command. */
+	jwt_tree_delete_entry(store->path);
 	ckch_store_free(store);
 
 	memprintf(&err, "Certificate '%s' deleted!\n", filename);
@@ -5573,6 +5617,17 @@ static int crtstore_parse_load(char **args, int section_type, struct proxy *curp
 	if (ebst_insert(&ckchs_tree, &c->node) != &c->node) {
 		memprintf(err,"parsing [%s:%d] : '%s' in section 'crt-store': store '%s' was already defined.",
 		         file, linenum, args[0], c->path);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+	/* Create the JWT tree entry. It is created even when the "jwt" option is
+	 * not enabled, so that the certificate is known to the JWT tree and
+	 * JWT_VRFY_UNAVAIL_CERT can be returned instead of
+	 * JWT_VRFY_UNKNOWN_CERT. */
+	if (jwt_tree_create_entry_from_store(c, err)) {
+		memprintf(err,"parsing [%s:%d] : '%s' in section 'crt-store': could not create jwt tree entry for '%s'.",
+			  file, linenum, args[0], c->path);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}

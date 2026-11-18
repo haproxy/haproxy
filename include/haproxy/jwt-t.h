@@ -66,7 +66,7 @@ enum jwt_elt {
 };
 
 struct jwt_cert_tree_entry {
-	EVP_PKEY *pubkey;
+	EVP_PKEY *pubkey; /* Public key used by jwt_verify */
 	struct ebmb_node node;
 	char path[VAR_ARRAY];
 };

@@ -24,6 +24,7 @@
 
 #include <haproxy/jwt-t.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/ssl_ckch-t.h>
 
 #ifdef USE_OPENSSL
 enum jwt_alg jwt_parse_alg(const char *alg_str, unsigned int alg_len);
@@ -32,6 +33,11 @@ int jwt_tree_load_cert(char *path, int pathlen, int tryload_cert, const char *fi
 
 enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer *alg,
 				const struct buffer *key, int is_x509);
+
+int jwt_tree_create_entry_from_store(struct ckch_store *store, char **err);
+int jwt_tree_delete_entry(char *path);
+int jwt_tree_clear_entry(char *path);
+int jwt_tree_get_pubkey(char *path, EVP_PKEY **pkey);
 
 #endif /* USE_OPENSSL */
 
