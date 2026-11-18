@@ -35,6 +35,12 @@ _help()
 
       run-regtest.sh --type slow,default
 
+    --extra <names> also run the tests whose #REGTEST_EXTRA= directives are all
+      listed here, comma separated. Such tests are skipped by default, so that
+      tests relying on an optional helper do not run unless requested.
+
+      run-regtests.sh --extra qclient
+
     --clean to cleanup previous reg-tests log directories and exit
       run-regtests.sh --clean
 
@@ -74,13 +80,14 @@ _findtests() {
     set -- $(grep '^#[0-9A-Z_]*=' "$i")
     IFS="$OLDIFS"
 
-    exclude_targets=""; regtest_type=""; excludedtarget=""
+    exclude_targets=""; regtest_type=""; excludedtarget=""; regtest_extra=""
 
     while [ $# -gt 0 ]; do
       v="$1"; v="${v#*=}"
       case "$1" in
         "#EXCLUDE_TARGETS="*)       exclude_targets="$v" ;;
         "#REGTEST_TYPE="*)          regtest_type="$v" ;;
+        "#REGTEST_EXTRA="*)         regtest_extra="$v" ;;
         "#EXCLUDE_TARGET="*)        excludedtarget="${v%,*}" ;;
         # Note: any new variable declared here must be initialized above.
       esac
@@ -95,6 +102,17 @@ _findtests() {
             echo "  Skipped $i because its type '"$regtest_type"' is excluded" >> "${TESTDIR}/skipped.log"
             skiptest=1
         fi
+    fi
+
+    if [ -n "$regtest_extra" ] ; then
+        IFS=","; set -- $regtest_extra; IFS="$OLDIFS"
+        for extra in "$@"; do
+            if ! $(echo "$REGTESTS_EXTRA" | grep -wq "$extra") ; then
+                echo "  Skipped $i because its extra '"$extra"' is not enabled" >> "${TESTDIR}/skipped.log"
+                skiptest=1
+                break
+            fi
+        done
     fi
 
     if [ -n "$excludedtarget" ]; then
@@ -171,6 +189,10 @@ _process() {
 	      REGTESTS_TYPES="$2"
 	      shift
 	      ;;
+        --extra)
+	      REGTESTS_EXTRA="$2"
+	      shift
+	      ;;
         --clean)
           _cleanup
           exit 0
@@ -197,6 +219,7 @@ VTEST_PROGRAM="${VTEST_PROGRAM:-vtest}"
 VTEST_TIMEOUT="${VTEST_TIMEOUT:-10}"
 TESTDIR="${TMPDIR:-/tmp}"
 REGTESTS=""
+REGTESTS_EXTRA="${REGTESTS_EXTRA:-}"
 LINEFEED="
 "
 

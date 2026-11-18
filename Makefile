@@ -1424,6 +1424,10 @@ reg-tests-help:
 	@echo "    experimental: for scripts which are experimental, typically used to"
 	@echo "                  develop new scripts."
 	@echo
+	@echo "Tests which declare '#REGTEST_EXTRA=<name>' are skipped, and only run"
+	@echo "when <name> is passed to the script with --extra:"
+	@echo "    $$ make reg-tests -- --extra qclient"
+	@echo
 	@echo "Note that 'reg-tests' target run '"$(REG_TEST_SCRIPT)"' script"
 	@echo "(see --help option of this script for more information)."
 
