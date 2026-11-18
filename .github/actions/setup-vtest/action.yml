@@ -32,7 +32,7 @@ runs:
       id: vtest-sha
       shell: sh
       run: |
-        echo "sha=$(git ls-remote https://code.vinyl-cache.org/vtest/VTest2 HEAD | cut -f1)" >> $GITHUB_OUTPUT
+        echo "sha=$(git ls-remote https://github.com/haproxytech/VTest2 HEAD | cut -f1)" >> $GITHUB_OUTPUT
 
     - name: Restore VTest cache
       id: cache-vtest
@@ -46,7 +46,7 @@ runs:
       shell: sh
       run: |
         # Use the runtime workspace, not the host-side github.workspace path.
-        DESTDIR="$GITHUB_WORKSPACE/vtest" scripts/build-vtest.sh
+        VTEST_URL=https://github.com/haproxytech/VTest2 DESTDIR="$GITHUB_WORKSPACE/vtest" scripts/build-vtest.sh
 
     - name: Save VTest cache
       if: ${{ steps.cache-vtest.outputs.cache-hit != 'true' }}
