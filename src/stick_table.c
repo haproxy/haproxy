@@ -1696,12 +1696,14 @@ int parse_stick_table(const char *file, int linenum, char **args,
 		goto out;
 	}
 
-	/* the key is sent as-is for most types (string is trimmed), and 11
-	 * extra bytes of encapsulation are added when sending (measured).
+	/* the key is sent as-is for most types (string is trimmed and has its
+	 * length encoded), after a header, update id and expiration date.
 	 */
-	t->proto_size += 11;
+	t->proto_size += PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN + 2 * sizeof(uint32_t);
 	if (t->type != SMP_T_STR)
 		t->proto_size += t->key_size;
+	else
+		t->proto_size += PEER_MSG_ENC_LENGTH_MAXLEN;
 
 	if (t->proto_size > global.tune.bufsize) {
 		ha_alert("parsing [%s:%d] : %s: too large key+data (%d bytes on wire) for bufsize (%u). Reduce key len, reduce stored data, or increase tune.bufsize.\n",
