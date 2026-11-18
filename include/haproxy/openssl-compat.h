@@ -123,7 +123,9 @@ enum ssl_encryption_level_t {
 #define HAVE_SSL_CLIENT_HELLO_CB
 #endif
 
-#if ((OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(OPENSSL_NO_TLSEXT) && !defined(LIBRESSL_VERSION_NUMBER) && !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC))
+#if ((OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(OPENSSL_NO_TLSEXT) && \
+     !defined(LIBRESSL_VERSION_NUMBER) && !defined(OPENSSL_IS_BORINGSSL) && \
+     !defined(OPENSSL_IS_AWSLC) && !defined(USE_OPENSSL_WOLFSSL))
 #define HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
 #endif
 
