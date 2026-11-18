@@ -1,0 +1,73 @@
+varnishtest "SPOE: large SPOP frame via send-spoe-group through applet and mux"
+
+#REGTEST_TYPE=slow
+feature ignore_unknown_macro
+feature cmd "python3 --version"
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+server s_agent {} -start
+server s_agent -break
+
+process pagent "python3 ${testdir}/spoa_largeframe.py ${s_agent_port}" -start
+process pagent -expect-text 0 0 "READY"
+
+shell {
+    cat > "${tmpdir}/spoe-lf.conf" << EOF
+[test-engine]
+spoe-agent test-agent
+    use-backend spoe-backend
+    option var-prefix spoe
+    option force-set-var
+    timeout hello      2s
+    timeout idle       2s
+    timeout processing 2s
+    groups large-group
+
+spoe-message check-large
+    args reqlen=req.len chunk=req.body
+
+spoe-group large-group
+    messages check-large
+EOF
+}
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 16384
+
+    defaults
+        mode http
+        timeout connect 5s
+        timeout client 5s
+        timeout server 5s
+
+    frontend fe
+        bind "fd@${fe}"
+        filter spoe engine test-engine config "${tmpdir}/spoe-lf.conf"
+        http-request send-spoe-group test-engine large-group
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+    backend spoe-backend
+        mode spop
+        timeout connect 2s
+        timeout server 5s
+        server agent 127.0.0.1:${s_agent_port}
+} -start
+
+# 14KB request body: send-spoe-group encodes args with the body fully
+# buffered (the rule yields until the request is complete). The 14000-byte
+# binary arg carried by req.body builds a near-max-size NOTIFY frame that goes
+# through the SPOE applet and the SPOP mux.
+client c1 -connect ${h1_fe_sock} {
+    txreq -req POST -bodylen 14000
+    rxresp
+    expect resp.status == 200
+} -run
+process pagent -expect-text 0 0 "NOTIFY_OK"

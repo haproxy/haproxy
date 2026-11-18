@@ -1,0 +1,70 @@
+varnishtest "SPOE: large SPOP frame through applet and mux"
+
+#REGTEST_TYPE=slow
+feature ignore_unknown_macro
+feature cmd "python3 --version"
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+server s_agent {} -start
+server s_agent -break
+
+process pagent "python3 ${testdir}/spoa_largeframe.py ${s_agent_port}" -start
+process pagent -expect-text 0 0 "READY"
+
+shell {
+    cat > "${tmpdir}/spoe-lf.conf" << EOF
+[test-engine]
+spoe-agent test-agent
+    messages check-large
+    use-backend spoe-backend
+    option var-prefix spoe
+    option force-set-var
+    timeout hello      2s
+    timeout idle       2s
+    timeout processing 2s
+
+spoe-message check-large
+    args reqlen=req.len chunk=req.payload(0,14000)
+    event on-frontend-tcp-request
+EOF
+}
+
+haproxy h1 -conf {
+    global
+        tune.bufsize 16384
+
+    defaults
+        mode tcp
+        timeout connect 5s
+        timeout client 5s
+        timeout server 5s
+
+    frontend fe
+        bind "fd@${fe}"
+        tcp-request inspect-delay 2s
+        acl req_rdy req.len ge 14000
+        tcp-request content accept if req_rdy
+        filter spoe engine test-engine config "${tmpdir}/spoe-lf.conf"
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+    backend spoe-backend
+        mode spop
+        timeout connect 2s
+        timeout server 5s
+        server agent 127.0.0.1:${s_agent_port}
+} -start
+
+# 30KB request: the frontend buffers >= 14000 bytes before firing the event;
+# the SPOE frame then carries a 14000-byte binary arg (~14KB frame) through
+# the SPOE applet and the SPOP mux.
+process pclient "python3 ${testdir}/lf_client.py ${h1_fe_addr} ${h1_fe_port}" -start
+process pclient -wait
+
+process pagent -expect-text 0 0 "NOTIFY_OK"
