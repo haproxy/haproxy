@@ -536,35 +536,6 @@ static inline const char *peer_applet_state_str(int state)
 	}
 }
 
-/* This function encode an uint64 to 'dynamic' length format.
-   The encoded value is written at address *str, and the
-   caller must assure that size after *str is large enough.
-   At return, the *str is set at the next Byte after then
-   encoded integer. The function returns then length of the
-   encoded integer in Bytes */
-int intencode(uint64_t i, char **str) {
-	int idx = 0;
-	unsigned char *msg;
-
-	msg = (unsigned char *)*str;
-	if (i < PEER_ENC_2BYTES_MIN) {
-		msg[0] = (unsigned char)i;
-		*str = (char *)&msg[idx+1];
-		return (idx+1);
-	}
-
-	msg[idx] =(unsigned char)i | PEER_ENC_2BYTES_MIN;
-	i = (i - PEER_ENC_2BYTES_MIN) >> PEER_ENC_2BYTES_MIN_BITS;
-	while (i >= PEER_ENC_STOP_BYTE) {
-		msg[++idx] = (unsigned char)i | PEER_ENC_STOP_BYTE;
-		i = (i - PEER_ENC_STOP_BYTE) >> PEER_ENC_STOP_BIT;
-	}
-	msg[++idx] = (unsigned char)i;
-	*str = (char *)&msg[idx+1];
-	return (idx+1);
-}
-
-
 /* This function returns a decoded 64bits unsigned integer
  * from a varint
  *
