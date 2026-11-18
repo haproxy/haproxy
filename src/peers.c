@@ -690,18 +690,34 @@ static inline void peer_set_update_msg_type(char *msg_type, int use_identifier, 
 			*msg_type = PEER_MSG_STKT_INCUPDATE;
 	}
 }
+
+/* Copy <n> bytes from <src> at <*buf>, <end> pointing one byte past the end
+ * of the destination buffer. On success, <*buf> is advanced past the copied
+ * bytes and 1 is returned. Otherwise <*buf> is left unchanged and 0 is
+ * returned.
+ */
+static inline int peer_bufcpy(char **buf, const char *end, const void *src, size_t n)
+{
+	if (end - *buf < n)
+		return 0;
+
+	memcpy(*buf, src, n);
+	*buf += n;
+
+	return 1;
+}
+
 /*
  * This prepare the data update message on the stick session <ts>, <st> is the considered
  * stick table.
  *  <msg> is a buffer of <size> to receive data message content
- * If function returns 0, the caller should consider we were unable to encode this message (TODO:
- * check size)
+ * If function returns 0, the caller should consider we were unable to encode this message.
  */
 int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 {
 	uint32_t netinteger;
-	unsigned short datalen;
-	char *cursor, *datamsg;
+	size_t datalen;
+	char *cursor, *datamsg, *msg_end;
 	unsigned int data_type;
 	void *data_ptr;
 	struct stksess *ts;
@@ -718,6 +734,10 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 	use_timed = p->updt.use_timed;
 	peer = p->updt.peer;
 
+	if (size < PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN)
+		return 0;
+
+	msg_end = msg + size;
 	cursor = datamsg = msg + PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN;
 
 	/* construct message */
@@ -730,32 +750,33 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 	/* encode update identifier if needed */
 	if (use_identifier)  {
 		netinteger = htonl(updateid);
-		memcpy(cursor, &netinteger, sizeof(netinteger));
-		cursor += sizeof(netinteger);
+		if (peer_bufcpy(&cursor, msg_end, &netinteger, sizeof(netinteger)) == 0)
+			return 0;
 	}
 
 	if (use_timed) {
 		netinteger = htonl(tick_remain(now_ms, ts->expire));
-		memcpy(cursor, &netinteger, sizeof(netinteger));
-		cursor += sizeof(netinteger);
+		if (peer_bufcpy(&cursor, msg_end, &netinteger, sizeof(netinteger)) == 0)
+			return 0;
 	}
 
 	/* encode the key */
 	if (st->table->type == SMP_T_STR) {
 		int stlen = strlen((char *)ts->key.key);
 
-		intencode(stlen, &cursor);
-		memcpy(cursor, ts->key.key, stlen);
-		cursor += stlen;
+		if (encode_varint(stlen, &cursor, msg_end) == -1 ||
+		    peer_bufcpy(&cursor, msg_end, ts->key.key, stlen) == 0)
+			return 0;
 	}
 	else if (st->table->type == SMP_T_SINT) {
 		netinteger = htonl(read_u32(ts->key.key));
-		memcpy(cursor, &netinteger, sizeof(netinteger));
-		cursor += sizeof(netinteger);
+
+		if (peer_bufcpy(&cursor, msg_end, &netinteger, sizeof(netinteger)) == 0)
+			return 0;
 	}
 	else {
-		memcpy(cursor, ts->key.key, st->table->key_size);
-		cursor += st->table->key_size;
+		if (peer_bufcpy(&cursor, msg_end, ts->key.key, st->table->key_size) == 0)
+			return 0;
 	}
 
 	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
@@ -777,7 +798,8 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 
 					do {
 						data = stktable_data_cast(data_ptr, std_t_sint);
-						intencode(data, &cursor);
+						if (encode_varint(data, &cursor, msg_end) == -1)
+							goto too_long;
 
 						data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, ++idx);
 					} while(data_ptr);
@@ -788,7 +810,8 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 
 					do {
 						data = stktable_data_cast(data_ptr, std_t_uint);
-						intencode(data, &cursor);
+						if (encode_varint(data, &cursor, msg_end) == -1)
+							goto too_long;
 
 						data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, ++idx);
 					} while(data_ptr);
@@ -799,7 +822,8 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 
 					do {
 						data = stktable_data_cast(data_ptr, std_t_ull);
-						intencode(data, &cursor);
+						if (encode_varint(data, &cursor, msg_end) == -1)
+							goto too_long;
 
 						data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, ++idx);
 					} while(data_ptr);
@@ -810,9 +834,10 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 
 					do {
 						frqp = &stktable_data_cast(data_ptr, std_t_frqp);
-						intencode((unsigned int)(now_ms - frqp->curr_tick), &cursor);
-						intencode(frqp->curr_ctr, &cursor);
-						intencode(frqp->prev_ctr, &cursor);
+						if (encode_varint((unsigned int)(now_ms - frqp->curr_tick), &cursor, msg_end) == -1 ||
+							encode_varint(frqp->curr_ctr, &cursor, msg_end) == -1 ||
+							encode_varint(frqp->prev_ctr, &cursor, msg_end) == -1)
+							goto too_long;
 
 						data_ptr = stktable_data_ptr_idx(st->table, ts, data_type, ++idx);
 					} while(data_ptr);
@@ -830,30 +855,38 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 					int data;
 
 					data = stktable_data_cast(data_ptr, std_t_sint);
-					intencode(data, &cursor);
+					if (encode_varint(data, &cursor, msg_end) == -1)
+						goto too_long;
+
 					break;
 				}
 				case STD_T_UINT: {
 					unsigned int data;
 
 					data = stktable_data_cast(data_ptr, std_t_uint);
-					intencode(data, &cursor);
+					if (encode_varint(data, &cursor, msg_end) == -1)
+						goto too_long;
+
 					break;
 				}
 				case STD_T_ULL: {
 					unsigned long long data;
 
 					data = stktable_data_cast(data_ptr, std_t_ull);
-					intencode(data, &cursor);
+					if (encode_varint(data, &cursor, msg_end) == -1)
+						goto too_long;
+
 					break;
 				}
 				case STD_T_FRQP: {
 					struct freq_ctr *frqp;
 
 					frqp = &stktable_data_cast(data_ptr, std_t_frqp);
-					intencode((unsigned int)(now_ms - frqp->curr_tick), &cursor);
-					intencode(frqp->curr_ctr, &cursor);
-					intencode(frqp->prev_ctr, &cursor);
+					if (encode_varint((unsigned int)(now_ms - frqp->curr_tick), &cursor, msg_end) == -1 ||
+					    encode_varint(frqp->curr_ctr, &cursor, msg_end) == -1 ||
+					    encode_varint(frqp->prev_ctr, &cursor, msg_end) == -1)
+						goto too_long;
+
 					break;
 				}
 				case STD_T_DICT: {
@@ -867,7 +900,8 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 					de = stktable_data_cast(data_ptr, std_t_dict);
 					if (!de) {
 						/* No entry */
-						intencode(0, &cursor);
+						if (encode_varint(0, &cursor, msg_end) == -1)
+							goto too_long;
 						break;
 					}
 
@@ -878,31 +912,39 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 						if (cde.id + 1 >= PEER_ENC_2BYTES_MIN)
 							break;
 						/* Encode the length of the remaining data -> 1 */
-						intencode(1, &cursor);
+						if (encode_varint(1, &cursor, msg_end) == -1)
+							goto too_long;
+
 						/* Encode the cache entry ID */
-						intencode(cde.id + 1, &cursor);
+						if (encode_varint(cde.id + 1, &cursor, msg_end) == -1)
+							goto too_long;
 					}
 					else {
 						/* new entry in the cache, to be removed if the message is not sent */
 						p->updt.new_de = cached_de;
 						/* Leave enough room to encode the remaining data length. */
+						if (msg_end - cursor < PEER_MSG_ENC_LENGTH_MAXLEN)
+							goto too_long;
+
 						end = beg = cursor + PEER_MSG_ENC_LENGTH_MAXLEN;
 						/* Encode the dictionary entry key */
-						intencode(cde.id + 1, &end);
+						if (encode_varint(cde.id + 1, &end, msg_end) == -1)
+							goto too_long;
+
 						/* Encode the length of the dictionary entry data */
 						value_len = de->len;
-						intencode(value_len, &end);
-						/* Make sure the value fits in the buffer */
-						if ((size_t)(end - msg) + value_len > size) {
-							HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
-							return 0;
-						}
+						if (encode_varint(value_len, &end, msg_end) == -1)
+							goto too_long;
+
 						/* Copy the data */
-						memcpy(end, de->value.key, value_len);
-						end += value_len;
+						if (peer_bufcpy(&end, msg_end, de->value.key, value_len) == 0)
+							goto too_long;
+
 						/* Encode the length of the data */
 						data_len = end - beg;
-						intencode(data_len, &cursor);
+						if (encode_varint(data_len, &cursor, msg_end) == -1)
+							goto too_long;
+
 						memmove(cursor, beg, data_len);
 						cursor += data_len;
 					}
@@ -920,13 +962,18 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 	msg[0] = PEER_MSG_CLASS_STICKTABLE;
 	peer_set_update_msg_type(&msg[1], use_identifier, use_timed);
 	cursor = &msg[2];
-	intencode(datalen, &cursor);
+	if (encode_varint(datalen, &cursor, msg_end) == -1)
+		return 0;
 
 	/* move data after header */
 	memmove(cursor, datamsg, datalen);
 
 	/* return header size + data_len */
 	return (cursor - msg) + datalen;
+
+ too_long:
+	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
+	return 0;
 }
 
 /*
