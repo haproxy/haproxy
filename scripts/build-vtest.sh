@@ -2,9 +2,10 @@
 
 DESTDIR=${DESTDIR:-${PWD}/../vtest/}
 TMPDIR=${TMPDIR:-$(mktemp -d)}
+VTEST_URL=${VTEST_URL:-https://code.vinyl-cache.org/vtest/VTest2}
 set -eux
 
-git clone https://code.vinyl-cache.org/vtest/VTest2 "${TMPDIR}/vtest"
+git clone "${VTEST_URL}" "${TMPDIR}/vtest"
 # Special flags due to: https://github.com/vtest/VTest/issues/12
 
 # Note: do not use "make -C ../vtest", otherwise MAKEFLAGS contains "w"
