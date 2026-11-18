@@ -1120,23 +1120,28 @@ static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_param
  * This prepare the acknowledge message on the stick session <ts>, <st> is the considered
  * stick table.
  *  <msg> is a buffer of <size> to receive data message content
- * If function returns 0, the caller should consider we were unable to encode this message (TODO:
- * check size)
+ * If function returns 0, the caller should consider we were unable to encode this message.
  */
 static int peer_prepare_ackmsg(char *msg, size_t size, struct peer_prep_params *p)
 {
 	unsigned short datalen;
-	char *cursor, *datamsg;
+	char *cursor, *datamsg, *end;
 	uint32_t netinteger;
 	struct shared_table *st;
 
+	if (size < PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN)
+		return 0;
+
 	cursor = datamsg = msg + PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN;
+	end = msg + size;
 
 	st = p->ack.shared_table;
-	intencode(st->remote_id, &cursor);
+	if (encode_varint(st->remote_id, &cursor, end) == -1)
+		return 0;
+
 	netinteger = htonl(st->last_get);
-	memcpy(cursor, &netinteger, sizeof(netinteger));
-	cursor += sizeof(netinteger);
+	if (peer_bufcpy(&cursor, end, &netinteger, sizeof(netinteger)) == 0)
+		return 0;
 
 	/* Compute datalen */
 	datalen = (cursor - datamsg);
@@ -1145,7 +1150,8 @@ static int peer_prepare_ackmsg(char *msg, size_t size, struct peer_prep_params *
 	msg[0] = PEER_MSG_CLASS_STICKTABLE;
 	msg[1] = PEER_MSG_STKT_ACK;
 	cursor = &msg[2];
-	intencode(datalen, &cursor);
+	if (encode_varint(datalen, &cursor, end) == -1)
+		return 0;
 
 	/* move data after header */
 	memmove(cursor, datamsg, datalen);
