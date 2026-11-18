@@ -945,9 +945,13 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		/*
 		 * might be due to a server IP change.
 		 * Let's trigger a DNS resolution if none are currently running.
+		 * Only try the lock: resolvers take the server lock under it.
 		 */
-		if (check->server)
+		if (check->server && check->server->resolvers &&
+		    HA_SPIN_TRYLOCK(DNS_LOCK, &check->server->resolvers->lock) == 0) {
 			resolv_trigger_resolution(check->server->resolv_requester);
+			HA_SPIN_UNLOCK(DNS_LOCK, &check->server->resolvers->lock);
+		}
 
 	}
 	else if (conn->flags & CO_FL_WAIT_L6_CONN) {
