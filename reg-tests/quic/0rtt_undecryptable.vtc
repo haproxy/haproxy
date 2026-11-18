@@ -1,0 +1,54 @@
+varnishtest "QUIC: undecryptable 0-RTT packets must not exhaust the Rx buffer"
+
+#REGTEST_TYPE=bug
+#REGTEST_EXTRA=qclient
+
+feature ignore_unknown_macro
+feature cmd "python3 --version"
+feature cmd "python3 -c 'import cryptography'"
+
+# QUIC is not supported with USE_QUIC_OPENSSL_COMPAT nor with wolfSSL.
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(QUIC) && !feature(QUIC_OPENSSL_COMPAT) && !feature(OPENSSL_WOLFSSL)'"
+
+# A 0-RTT packet whose header protection cannot be removed is queued in
+# eel->rx.pqpkts with a reference on qc->rx.buf, and the Rx buffer is
+# reclaimed in order, stopping at the first referenced packet. When no 0-RTT
+# RX secret exists, for instance because the early data were rejected by the
+# TLS stack or because the TLS library does not support 0-RTT, these packets
+# can never be decrypted and must not be kept: otherwise, past ~64 kB, every
+# subsequent packet of the connection is dropped until the idle timeout.
+
+haproxy h1 -conf {
+    global
+        .if feature(THREAD)
+            thread-groups 1
+            nbthread 1
+        .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "quic+fd@${fe}" ssl crt ${testdir}/certs/common.pem alpn h3 allow-0rtt
+        http-request return status 200 content-type text/plain string "ok"
+} -start
+
+process p1 "python3 ${testdir}/0rtt_undecryptable.py --addr ${h1_fe_addr} --port ${h1_fe_port}" -start
+process p1 -expect-text 0 0 "READY"
+process p1 -expect-text 0 0 "SENT"
+
+# Let haproxy account the packets it had to drop.
+delay 1
+
+# Only the "full" format dumps dropbuff=, and only when the counter is not
+# null (see dump_quic_full()), so an absence of the field means the Rx
+# buffer was not exhausted.
+haproxy h1 -cli {
+    send "show quic full"
+    expect !~ "dropbuff="
+}
+
+process p1 -wait
