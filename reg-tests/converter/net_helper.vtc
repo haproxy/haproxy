@@ -26,6 +26,14 @@ haproxy h1 -conf {
 	http-after-response set-header ws-ok "%[bin(00010050000000000000000060020000ffff000001030307),tcp.options.wscale]"
 	http-after-response set-header ws-len2 "%[bin(00010050000000000000000060020000ffff000001010302aa),tcp.options.wscale]"
 	http-after-response set-header tsval-len2 "%[bin(00010050000000000000000060020000ffff00000101080212345678),tcp.options.tsval]"
+
+	# Ethernet header with one VLAN tag (ID 100) and IPv4, followed by
+	# some data, and the same header alone as returned by eth.hdr.
+	http-after-response set-header eth-proto "%[bin(000000000000000000000000810000640800450000),eth.proto]"
+	http-after-response set-header eth-hdr-proto "%[bin(000000000000000000000000810000640800450000),eth.hdr,eth.proto]"
+	http-after-response set-header eth-hdr-vlan "%[bin(000000000000000000000000810000640800450000),eth.hdr,eth.vlan]"
+	http-after-response set-header eth-data "%[bin(000000000000000000000000810000640800450000),eth.data,hex]"
+	http-after-response set-header eth-noproto "%[bin(00000000000000000000000081000064),eth.proto]"
 } -start
 
 client c1 -connect ${h1_fe_sock} {
@@ -37,4 +45,9 @@ client c1 -connect ${h1_fe_sock} {
 	expect resp.http.ws-ok == "7"
 	expect resp.http.ws-len2 == "0"
 	expect resp.http.tsval-len2 == "0"
+	expect resp.http.eth-proto == "2048"
+	expect resp.http.eth-hdr-proto == "2048"
+	expect resp.http.eth-hdr-vlan == "100"
+	expect resp.http.eth-data == "450000"
+	expect resp.http.eth-noproto == ""
 } -run

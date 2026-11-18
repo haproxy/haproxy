@@ -23,7 +23,7 @@ static int sample_conv_eth_data(const struct arg *arg_p, struct sample *smp, voi
 {
 	size_t idx;
 
-	for (idx = 12; idx + 2 < smp->data.u.str.data; idx += 4) {
+	for (idx = 12; idx + 2 <= smp->data.u.str.data; idx += 4) {
 		if (read_n16(smp->data.u.str.area + idx) != 0x8100) {
 			if (smp->data.u.str.size)
 				smp->data.u.str.size -= idx + 2;
@@ -54,7 +54,7 @@ static int sample_conv_eth_hdr(const struct arg *arg_p, struct sample *smp, void
 {
 	size_t idx;
 
-	for (idx = 12; idx + 2 < smp->data.u.str.data; idx += 4) {
+	for (idx = 12; idx + 2 <= smp->data.u.str.data; idx += 4) {
 		if (read_n16(smp->data.u.str.area + idx) != 0x8100) {
 			smp->data.u.str.data = idx + 2;
 			return 1;
@@ -72,7 +72,7 @@ static int sample_conv_eth_proto(const struct arg *arg_p, struct sample *smp, vo
 	ushort proto;
 	size_t idx;
 
-	for (idx = 12; idx + 2 < smp->data.u.str.data; idx += 4) {
+	for (idx = 12; idx + 2 <= smp->data.u.str.data; idx += 4) {
 		proto = read_n16(smp->data.u.str.area + idx);
 		if (proto != 0x8100) {
 			smp->data.u.sint = proto;
@@ -107,7 +107,7 @@ static int sample_conv_eth_vlan(const struct arg *arg_p, struct sample *smp, voi
 	ushort vlan = 0;
 	size_t idx;
 
-	for (idx = 12; idx + 2 < smp->data.u.str.data; idx += 4) {
+	for (idx = 12; idx + 2 <= smp->data.u.str.data; idx += 4) {
 		if (read_n16(smp->data.u.str.area + idx) != 0x8100) {
 			smp->data.u.sint = vlan;
 			smp->data.type = SMP_T_SINT;
