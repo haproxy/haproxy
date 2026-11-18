@@ -738,8 +738,18 @@ static int mqtt_parse_connect(struct ist parser, struct mqtt_pkt *mpkt)
 	if (!isttest(parser) || (mpkt->data.connect.var_hdr.flags & MQTT_CONNECT_FL_RESERVED))
 		goto end;
 
-	/* if WILL flag must be set to have WILL_QOS flag or WILL_RETAIN set */
-	if ((mpkt->data.connect.var_hdr.flags & (MQTT_CONNECT_FL_WILL|MQTT_CONNECT_FL_WILL_QOS|MQTT_CONNECT_FL_WILL_RETAIN)) == MQTT_CONNECT_FL_WILL_QOS)
+	/* WILL flag must be set to have WILL_QOS flag or WILL_RETAIN set */
+	if (!(mpkt->data.connect.var_hdr.flags & MQTT_CONNECT_FL_WILL) &&
+	    (mpkt->data.connect.var_hdr.flags & (MQTT_CONNECT_FL_WILL_QOS|MQTT_CONNECT_FL_WILL_RETAIN)))
+	    goto end;
+
+	/* WILL_QOS must not be 3 */
+	if ((mpkt->data.connect.var_hdr.flags & MQTT_CONNECT_FL_WILL_QOS) == MQTT_CONNECT_FL_WILL_QOS)
+	    goto end;
+
+	/* in MQTT 3.1.1, PASSWORD flag requires the USERNAME flag */
+	if (mpkt->data.connect.var_hdr.protocol_version == MQTT_VERSION_3_1_1 &&
+	    (mpkt->data.connect.var_hdr.flags & (MQTT_CONNECT_FL_USERNAME|MQTT_CONNECT_FL_PASSWORD)) == MQTT_CONNECT_FL_PASSWORD)
 	    goto end;
 
 	/* read keepalive */
@@ -1025,8 +1035,12 @@ static int mqtt_parse_connack(struct ist parser, struct mqtt_pkt *mpkt)
 	if (!isttest(parser))
 		goto end;
 
-	/* we can leave here for MQTT 3.1.1 */
+	/* we can leave here for MQTT 3.1.1, where only return codes 0 to 5
+	 * are defined
+	 */
 	if (mpkt->data.connack.var_hdr.protocol_version == MQTT_VERSION_3_1_1) {
+		if (mpkt->data.connack.var_hdr.reason_code > 5)
+			goto end;
 		if ((orig_len - istlen(parser)) == mpkt->fixed_hdr.remaining_length)
 			ret = MQTT_VALID_MESSAGE;
 		goto end;
