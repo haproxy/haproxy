@@ -1279,8 +1279,8 @@ int val_payload_lv(struct arg *arg, char **err_msg)
 			memprintf(err_msg, "payload offset2 too large");
 			return 0;
 		}
-		if (relative)
-			arg[2].data.sint = ( arg[2].data.sint << 1 ) + 1;
+		/* the fetch reads the offset from the 63 MSB, see above */
+		arg[2].data.sint = (arg[2].data.sint << 1) + relative;
 	}
 	return 1;
 }
