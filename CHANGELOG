@@ -1,6 +1,116 @@
 ChangeLog :
 ===========
 
+2026/11/18 : 3.5-dev13
+    - BUG/MINOR: tcpcheck: fix out-of-bounds reads on short MySQL error packets
+    - BUG/MEDIUM: mux-h2: put BE conn back in idle list after deferred shut
+    - BUG/MEDIUM: mux-spop: do not enforce the timeout on connections with streams
+    - MINOR: mux-spop: ignore conn->owner when deciding if a connection is dead
+    - BUG/MEDIUM: mux-spop: refresh the connection timeout before parking it idle
+    - MINOR: mux-spop: don't add a closing connection to an idle list on detach
+    - BUG/MEDIUM: mux-fcgi: put BE conn back in idle list after deferred shut
+    - BUG/MAJOR: cache: do not mix variants varying on different headers
+    - BUG/MEDIUM: cache: fix "show cache" crash/skip with several caches
+    - BUG/MEDIUM: cache: do not create a second applet when two cache-use rules hit
+    - BUG/MEDIUM: cache: forbid cache rules in defaults sections
+    - BUG/MEDIUM: filters: order the implicit filters around the explicit ones
+    - BUG/MINOR: cache: do not refuse to store responses with "Age: 0"
+    - BUG/MINOR: cache: do not remove the Age header from the forwarded response
+    - BUG/MINOR: cache: recognize null qvalues with decimals in Accept-Encoding
+    - BUG/MINOR: cache: do not eat the request while waiting for a buffer
+    - BUG/MINOR: cache: reduce the max-age lifetime by the response's Age
+    - BUG/MINOR: cache: compare the Age to the heuristic lifetime when none is given
+    - BUG/MINOR: cache: do not ignore null lifetimes not written as "max-age=0"
+    - REGTESTS: cache: cover the object lifetime with a single script
+    - BUG/MINOR: quic: fix ACK_ECN parsing after optional ack ranges
+    - BUG/MINOR: qmux: remove invalid BUG_ON() on empty record
+    - BUG/MINOR: init: fix missing error on no listener on config check
+    - BUG/MEDIUM: fd: Mark a fd as dead on early close
+    - BUG/MEDIUM: mux-h1: Report EOS when a demux error is handled by the app layer
+    - BUG/MINOR: cache: skip already resolved filters when resolving caches
+    - BUG/MINOR: quic: remove CID on BE conn alloc failure
+    - BUG/MINOR: h3: prevent missing request FIN on empty trailers
+    - BUG/MINOR: sample: fix host_only and port_only on empty input
+    - BUG/MINOR: sample: reject a \0 byte in raw string fetches
+    - BUG/MINOR: http-ana: don't emit a network-path Location for a "/" redirect prefix
+    - BUG/MINOR: log: don't let an LF in a forwarded message create new events
+    - BUG/MEDIUM: mux_quic: fix Rx flow control increment on RESET_STREAM
+    - OPTIM: lb-chash: don't look for more servers when there is only one
+    - OPTIM: lb-chash: limit the scan to few consecutive nodes
+    - MEDIUM: backend: avoid picking the same server twice in random draws
+    - DOC: config: explain the effect of the weights on random's draws
+    - IMPORT: slz: update slz to 1.4-dev5-24
+    - MINOR: compression: pass COMP_CT_EVENT to the algorithms for server-sent events
+    - MINOR: compression: add tune.comp.res.ring to disable the rings of responses
+    - MEDIUM: compression/slz: use the event content type for server-sent events
+    - DEV: sse-latency: add a parameter after the content-type
+    - MINOR: http-ana: also match text/event-stream with trailing parameters
+    - BUG/MINOR: h3: skip content-length check on backend bodyless responses
+    - BUG/MINOR: h3: reject CANCEL_PUSH on backend side
+    - MINOR: h3: reject malformed push frames
+    - BUG/MEDIUM: sample: parse json_query integers within the token length
+    - BUG/MINOR: mjson: bound the exponent in mystrtod()
+    - BUG/MEDIUM: stick-tables: compute the shard of string keys on the stored key
+    - BUG/MINOR: hq-interop: skip zero-copy with large buffers
+    - BUG/MINOR: hq-interop: ignore uni streams in HTTP/0.9
+    - BUG/MINOR: hq-interop: drop data after request
+    - REGTESTS: http-messaging: Fix abortonclose issue with connect_tunnels
+    - REGTESTS: http-messaging: Properly handle WINDOW_UPDATEs with connect_tunnels
+    - BUG/MEDIUM: quic: do not keep 0-RTT packets which cannot be decrypted
+    - BUG/MEDIUM: quic-be: keep the source port range of a closing backend connection
+    - BUG/MINOR: quic-be: do not register the connection before the quic_conn is initialized
+    - BUG/MINOR: quic: initialize the members read by quic_conn_release() first
+    - BUG/MINOR: debug: Do not allocate context when we don't need one
+    - DEV: h2: add h2dec, a raw HTTP/2 frame decoder
+    - DEV: h2: add mkhdr.c, a C port of mkhdr.sh
+    - DEV: h2: mkhdr: add -n to repeat the emitted frames
+    - DEV: h2: mkhdr: support stream ID ranges with -i
+    - DEV: h2: mkhdr: support "--" as a delimiter between frame descriptions
+    - MINOR: ssl: add alpn_remove_token() to drop a protocol from an ALPN string
+    - MINOR: global: add tune.options2 to host new GTUNE2_* flags
+    - MINOR: global: add tune.h2.fe.enabled to disable HTTP/2 on frontends
+    - MINOR: sample: add h2_enabled to report whether H2 may be used on frontends
+    - REGTEST: ssl: test tune.h2.fe.enabled and h2_enabled on two instances
+    - IMPORT: slz-prv: work around lobotomized compilers' fallthrough diagnostics
+    - MINOR: sample: add smp_prepare_out() to prepare an output buffer
+    - OPTIM: sample: use smp_prepare_out() in the lower and upper converters
+    - MINOR: sample: add a "tr" converter
+    - BUG/MINOR: http/hardening: free the new profile on strdup() failure
+    - BUG/MEDIUM: stick-tables/cli: "set table" without key must not clear the table
+    - BUG/MEDIUM: peers: make the soft-stop "dont_stop" state per peers section
+    - BUG/MEDIUM: htx: never merge the next DATA block into the referenced one on defrag
+    - BUG/MEDIUM: flt-decomp: don't expose EOM before the end of decompression
+    - REGTESTS: decompression: test a large decompressed Content-Length response
+    - BUG/MEDIUM: mux-h2: don't abort a tunnel attempt on interim responses
+    - REGTESTS: http-messaging: check that 1xx don't abort H2 backend tunnels
+    - REGTESTS: decompression: don't use yes(1) in http_large_cl
+    - BUG/MEDIUM: dns: release the session slot of expired TCP queries
+    - BUG/MAJOR: buf: make the shift distance check less strict in b_move()
+    - BUG/MAJOR: mux-h2: fail on impossible data transfers in rcv_buf()
+    - BUG/MAJOR: h3: do not panic on HTX_FL_PARSING_ERROR after htx_xfer()
+    - BUG/MAJOR: mux-quic: fail on impossible data transfers in rcv_buf()
+    - Revert "BUG/MINOR: h3: fix missing EOM after trailers without FIN"
+    - CI: github: include WolfSSL version in job name
+    - CI: github: test WolfSSL with and without debugging
+    - Revert "MINOR: http: add <need_eot> to trailers parsing function"
+    - CI: github: restrict WolfSSL sanitizer flags to debug jobs
+    - BUG/MINOR: ssl: exclude wolfSSL from custom extension support
+    - BUG/MEDIUM: stream: keep channel_auto_close() on the request error path
+    - REGTESTS: http-messaging: send h1_big_chunk_size_line request at once
+    - BUG/MINOR: checks: only trigger a DNS resolution with the resolvers lock
+    - BUG/MINOR: dns: detect the server's shutdown on a partial TCP response
+    - SCRIPTS: vtest: allow overriding the Git repository URL
+    - BUG/MINOR: map: split "add map/acl" payload keys on line breaks
+    - CI: github: use haproxytech/VTest2 for regression tests
+    - BUG/MEDIUM: peers: bound stick-table update messages
+    - BUG/MEDIUM: peers: bound stick-table switch messages
+    - BUG/MINOR: peers: bound stick-table acknowledge messages
+    - CLEANUP: peers: remove the unused intencode()
+    - BUG/MINOR: quic/ssl: report SSL_CTX allocation failure
+    - MINOR: peers: move message length constants to peers-t.h
+    - BUG/MEDIUM: stick-table: fix the peers overhead in proto_size
+    - BUG/MEDIUM: peers: trim received string keys to fit in a buffer
+
 2026/11/12 : 3.5-dev12
     - CLEANUP: quic: compute the STREAM frame end offset once in qc_stream_frm_is_acked()
     - CLEANUP: quic: fix and complete the comments in quic_retransmit.c
