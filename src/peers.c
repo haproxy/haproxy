@@ -979,42 +979,51 @@ int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_params *p)
 /*
  * This prepare the switch table message to targeted share table <st>.
  *  <msg> is a buffer of <size> to receive data message content
- * If function returns 0, the caller should consider we were unable to encode this message (TODO:
- * check size)
+ * If function returns 0, the caller should consider we were unable to encode this message.
  */
 static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_params *params)
 {
 	int len;
-	unsigned short datalen;
+	size_t datalen;
 	struct buffer *chunk;
-	char *cursor, *datamsg, *chunkp, *chunkq;
+	char *cursor, *end, *datamsg, *chunkp, *chunkq, *chunk_end;
 	uint64_t data = 0;
 	unsigned int data_type;
 	struct shared_table *st;
 
 	st = params->swtch.shared_table;
-	cursor = datamsg = msg + PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN;
 
+	if (size < PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN)
+		return 0;
+
+	cursor = datamsg = msg + PEER_MSG_HEADER_LEN + PEER_MSG_ENC_LENGTH_MAXLEN;
+	end = msg + size;
 	/* Encode data */
 
 	/* encode local id */
-	intencode(st->local_id, &cursor);
+	if (encode_varint(st->local_id, &cursor, end) == -1)
+		return 0;
 
 	/* encode table name */
 	len = strlen(st->table->nid);
-	intencode(len, &cursor);
-	memcpy(cursor, st->table->nid, len);
-	cursor += len;
+	if (encode_varint(len, &cursor, end) == -1)
+		return 0;
+
+	if (peer_bufcpy(&cursor, end, st->table->nid, len) == 0)
+		return 0;
 
 	/* encode table type */
 
-	intencode(peer_net_key_type[st->table->type], &cursor);
+	if (encode_varint(peer_net_key_type[st->table->type], &cursor, end) == -1)
+		return 0;
 
 	/* encode table key size */
-	intencode(st->table->key_size, &cursor);
+	if (encode_varint(st->table->key_size, &cursor, end) == -1)
+		return 0;
 
 	chunk = get_trash_chunk();
 	chunkp = chunkq = chunk->area;
+	chunk_end = chunk->area + chunk->size;
 	/* encode available known data types in table */
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 		if (st->table->data_ofs[data_type]) {
@@ -1047,40 +1056,47 @@ static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_param
 				/* This is an array type so we first encode
 				 * the data_type itself to prefix parameters
 				 */
-				intencode(data_type, &chunkq);
+				if (encode_varint(data_type, &chunkq, chunk_end) == -1)
+					return 0;
 
 				/* We encode the first parameter which is
 				 * the number of elements of this array
 				 */
-				intencode(st->table->data_nbelem[data_type], &chunkq);
+				if (encode_varint(st->table->data_nbelem[data_type], &chunkq, chunk_end) == -1)
+					return 0;
 
 				/* for array of freq counters, there is an additional
 				 * period parameter to encode
 				 */
-				if (stktable_data_types[data_type].std_type == STD_T_FRQP)
-					intencode(st->table->data_arg[data_type].u, &chunkq);
+				if (stktable_data_types[data_type].std_type == STD_T_FRQP &&
+				    encode_varint(st->table->data_arg[data_type].u, &chunkq, chunk_end) == -1)
+					return 0;
 			}
 			else if (stktable_data_types[data_type].std_type == STD_T_FRQP) {
 				/* this datatype is a simple freq counter not part
 				 * of an array. We encode the data_type itself
 				 * to prefix the 'period' parameter
 				 */
-				intencode(data_type, &chunkq);
-				intencode(st->table->data_arg[data_type].u, &chunkq);
+				if (encode_varint(data_type, &chunkq, chunk_end) == -1 ||
+				    encode_varint(st->table->data_arg[data_type].u, &chunkq, chunk_end) == -1)
+					return 0;
 			}
 			/* set the bit corresponding to stored data type */
 			data |= 1ULL << data_type;
 		}
 	}
-	intencode(data, &cursor);
+
+	if (encode_varint(data, &cursor, end) == -1)
+		return 0;
 
 	/* Encode stick-table entries duration. */
-	intencode(st->table->expire, &cursor);
+	if (encode_varint(st->table->expire, &cursor, end) == -1)
+		return 0;
 
 	if (chunkq > chunkp) {
 		chunk->data = chunkq - chunkp;
-		memcpy(cursor, chunk->area, chunk->data);
-		cursor += chunk->data;
+		if (peer_bufcpy(&cursor, end, chunk->area, chunk->data) == 0)
+			return 0;
 	}
 
 	/* Compute datalen */
@@ -1090,7 +1106,8 @@ static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_param
 	msg[0] = PEER_MSG_CLASS_STICKTABLE;
 	msg[1] = PEER_MSG_STKT_DEFINE;
 	cursor = &msg[2];
-	intencode(datalen, &cursor);
+	if (encode_varint(datalen, &cursor, end) == -1)
+		return 0;
 
 	/* move data after header */
 	memmove(cursor, datamsg, datalen);
