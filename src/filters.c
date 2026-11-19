@@ -24,6 +24,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/proxy.h>
@@ -33,7 +34,174 @@
 #include <haproxy/trace.h>
 
 
-#define TRACE_SOURCE &trace_strm
+/* The event representation is split like this :
+ *   flt  - stream filters
+ *
+ * FLT_EV_* macros are defined here, they label the trace calls below.
+ */
+static const struct trace_event flt_trace_events[] __maybe_unused = {
+#define FLT_EV_START_ANA   (1ULL <<  0)
+	{ .mask = FLT_EV_START_ANA,   .name = "start_ana",    .desc = "filter channel_start_analyze" },
+#define FLT_EV_PRE_ANA     (1ULL <<  1)
+	{ .mask = FLT_EV_PRE_ANA,     .name = "pre_ana",      .desc = "filter channel_pre_analyze" },
+#define FLT_EV_POST_ANA    (1ULL <<  2)
+	{ .mask = FLT_EV_POST_ANA,    .name = "post_ana",     .desc = "filter channel_post_analyze" },
+#define FLT_EV_END_ANA     (1ULL <<  3)
+	{ .mask = FLT_EV_END_ANA,     .name = "end_ana",      .desc = "filter channel_end_analyze" },
+#define FLT_EV_HTTP_HDRS   (1ULL <<  4)
+	{ .mask = FLT_EV_HTTP_HDRS,   .name = "http_hdrs",    .desc = "filter http_headers" },
+#define FLT_EV_HTTP_PAYLOAD (1ULL << 5)
+	{ .mask = FLT_EV_HTTP_PAYLOAD, .name = "http_payload", .desc = "filter http_payload" },
+#define FLT_EV_HTTP_END    (1ULL <<  6)
+	{ .mask = FLT_EV_HTTP_END,    .name = "http_end",     .desc = "filter http_end" },
+#define FLT_EV_HTTP_RESET  (1ULL <<  7)
+	{ .mask = FLT_EV_HTTP_RESET,  .name = "http_reset",   .desc = "filter http_reset" },
+#define FLT_EV_HTTP_REPLY  (1ULL <<  8)
+	{ .mask = FLT_EV_HTTP_REPLY,  .name = "http_reply",   .desc = "filter http_reply" },
+#define FLT_EV_TCP_PAYLOAD (1ULL <<  9)
+	{ .mask = FLT_EV_TCP_PAYLOAD, .name = "tcp_payload",  .desc = "filter tcp_payload" },
+#define FLT_EV_XFER_DATA   (1ULL << 10)
+	{ .mask = FLT_EV_XFER_DATA,   .name = "xfer_data",    .desc = "data transfer through filters" },
+#define FLT_EV_ERR         (1ULL << 11)
+	{ .mask = FLT_EV_ERR,         .name = "err",          .desc = "error during filter processing" },
+#define FLT_EV_WAIT        (1ULL << 12)
+	{ .mask = FLT_EV_WAIT,        .name = "wait",         .desc = "filter waits for more data" },
+#define FLT_EV_ATTACH      (1ULL << 13)
+	{ .mask = FLT_EV_ATTACH,      .name = "attach",       .desc = "filter attached to a stream" },
+#define FLT_EV_DETACH      (1ULL << 14)
+	{ .mask = FLT_EV_DETACH,      .name = "detach",       .desc = "filter detached from a stream" },
+	{}
+};
+
+#if defined(USE_TRACE)
+
+/* trace source and events */
+static void flt_trace(enum trace_level level, uint64_t mask,
+		      const struct trace_source *src,
+		      const struct ist where, const struct ist func,
+		      const void *a1, const void *a2, const void *a3, const void *a4);
+
+static const struct name_desc flt_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the stream */ },
+	/* arg2 */ { .name="filter", .desc="filter instance" },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static const struct name_desc flt_trace_decoding[] = {
+#define FLT_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define FLT_VERB_MINIMAL  2
+	{ .name="minimal",  .desc="report info on streams and filters" },
+#define FLT_VERB_SIMPLE   3
+	{ .name="simple",   .desc="add info on channels" },
+#define FLT_VERB_ADVANCED 4
+	{ .name="advanced", .desc="add info on filter offsets and analysis states" },
+#define FLT_VERB_COMPLETE 5
+	{ .name="complete", .desc="add info on channel's buffer" },
+	{ /* end */ }
+};
+
+static struct trace_source trace_flt __read_mostly = {
+	.name = IST("filter"),
+	.desc = "Stream filters",
+	.arg_def = TRC_ARG1_STRM,  // TRACE()'s first argument is always a stream
+	.default_cb = flt_trace,
+	.known_events = flt_trace_events,
+	.lockon_args = flt_trace_lockon_args,
+	.decoding = flt_trace_decoding,
+	.report_events = ~0,  // report everything by default
+};
+
+#define TRACE_SOURCE &trace_flt
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+/* the filter traces expect that arg1, if non-null, is a stream, that arg2, if
+ * non-null, is a filter instance attached to this stream and that arg3, if
+ * non-null, is the channel being processed.
+ */
+static void flt_trace(enum trace_level level, uint64_t mask, const struct trace_source *src,
+		      const struct ist where, const struct ist func,
+		      const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct stream *s = a1;
+	const struct filter *filter = a2;
+	const struct channel *chn = a3;
+
+	if (!s || src->verbosity < FLT_VERB_CLEAN)
+		return;
+
+	/* General info about the stream (htx/tcp, id...) */
+	chunk_appendf(&trace_buf, " : [%u,%s]",
+		      s->uniq_id, ((s->flags & SF_HTX) ? "HTX" : "TCP"));
+	if (isttest(s->unique_id)) {
+		chunk_appendf(&trace_buf, " id=");
+		b_putist(&trace_buf, s->unique_id);
+	}
+	if (s->scf && s->scb)
+		chunk_appendf(&trace_buf, " SC=(%s,%s)",
+			      sc_state_str(s->scf->state), sc_state_str(s->scb->state));
+
+	if (src->verbosity == FLT_VERB_CLEAN)
+		return;
+
+	if (filter) {
+		chunk_appendf(&trace_buf, " filter=%s",
+			      FLT_ID(filter) ? FLT_ID(filter) : "(no-id)");
+		if (filter->config->name)
+			chunk_appendf(&trace_buf, "(%s)", filter->config->name);
+		chunk_appendf(&trace_buf, " .fl=0x%04x .calls=%u%s%s",
+			      filter->flags, filter->calls,
+			      (filter->flags & FLT_FL_IS_BACKEND_FILTER) ? " BE" : " FE",
+			      (chn && IS_DATA_FILTER(filter, chn)) ? " DATA" : "");
+	}
+
+	if (src->verbosity == FLT_VERB_MINIMAL || !chn)
+		return;
+
+	chunk_appendf(&trace_buf, " chn=(%s .fl=0x%08x .ana=0x%08x)",
+		      (chn->flags & CF_ISRESP) ? "RESP" : "REQ",
+		      chn->flags, chn->analysers);
+
+	if (filter && src->verbosity > FLT_VERB_SIMPLE)
+		chunk_appendf(&trace_buf, " off=%llu/%llu",
+			      FLT_OFF(filter, chn), FLT_STRM_OFF(s, chn));
+
+	if (src->verbosity == FLT_VERB_SIMPLE)
+		return;
+
+	if (s->task)
+		chunk_appendf(&trace_buf, " s=(%p,0x%08x) t=%p t.exp=%d",
+			      s, s->flags, s->task,
+			      tick_isset(s->task->expire) ? TICKS_TO_MS(s->task->expire - now_ms) : TICK_ETERNITY);
+
+	if ((s->flags & SF_TXN_MASK) == SF_TXN_HTTP && s->txn.http)
+		chunk_appendf(&trace_buf, " HTTP=(%s,%s)",
+			      h1_msg_state_str(s->txn.http->req.msg_state),
+			      h1_msg_state_str(s->txn.http->rsp.msg_state));
+
+	if (src->verbosity == FLT_VERB_ADVANCED)
+		return;
+
+	/* channels' buffer info */
+	if (s->flags & SF_HTX) {
+		struct htx *rqhtx = htxbuf(&s->req.buf);
+		struct htx *rphtx = htxbuf(&s->res.buf);
+
+		chunk_appendf(&trace_buf, " htx=(%u/%u#%u, %u/%u#%u)",
+			      rqhtx->data, rqhtx->size, htx_nbblks(rqhtx),
+			      rphtx->data, rphtx->size, htx_nbblks(rphtx));
+	}
+	else {
+		chunk_appendf(&trace_buf, " buf=(%u@%p+%u/%u, %u@%p+%u/%u)",
+			      (unsigned int)b_data(&s->req.buf), b_orig(&s->req.buf),
+			      (unsigned int)b_head_ofs(&s->req.buf), (unsigned int)b_size(&s->req.buf),
+			      (unsigned int)b_data(&s->res.buf), b_orig(&s->res.buf),
+			      (unsigned int)b_head_ofs(&s->res.buf), (unsigned int)b_size(&s->res.buf));
+	}
+}
+
+#endif /* USE_TRACE */
 
 /* All internal filter classes (should be extended if new filters are added) */
 struct filter_class flt_trace_cls;
@@ -1011,6 +1179,7 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 
 	LIST_APPEND(&strm_flt(s)->filters, &f->list);
 
+	TRACE_USER("filter attached", FLT_EV_ATTACH, s, f, NULL);
 	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
 	return 0;
 }
@@ -1149,6 +1318,7 @@ flt_stream_release(struct stream *s, int only_backend)
 
 	list_for_each_entry_safe(filter, back, &strm_flt(s)->filters, list) {
 		if (!only_backend || (filter->flags & FLT_FL_IS_BACKEND_FILTER)) {
+			TRACE_USER("detaching filter", FLT_EV_DETACH, s, filter, NULL);
 			filter->calls++;
 			if (FLT_OPS(filter)->detach) {
 				struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
@@ -1288,8 +1458,7 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 	unsigned int offset = 0;
 	int ret = 1;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
-			s->txn.http, msg);
+	TRACE_ENTER(FLT_EV_HTTP_END, s, NULL, msg->chn);
 	for (filter = resume_filter_list_start(s, msg->chn); filter;
 	     filter = resume_filter_list_next(s, msg->chn, filter)) {
 		unsigned long long flt_off = FLT_OFF(filter, msg->chn);
@@ -1304,7 +1473,7 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 		if (FLT_OPS(filter)->http_end) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_HTTP_END, s, filter, msg->chn);
 			filter->calls++;
 			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->http_end(s, filter, msg));
 			if (ret <= 0) {
@@ -1318,7 +1487,7 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 	*strm_off += offset;
 
 end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_HTTP_END, s, NULL, msg->chn);
 	return ret;
 }
 
@@ -1332,19 +1501,18 @@ flt_http_reset(struct stream *s, struct http_msg *msg)
 {
 	struct filter *filter;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
-			s->txn.http, msg);
+	TRACE_ENTER(FLT_EV_HTTP_RESET, s, NULL, msg->chn);
 	for (filter = flt_list_start(s, msg->chn); filter;
 	     filter = flt_list_next(s, msg->chn, filter)) {
 		if (FLT_OPS(filter)->http_reset) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_HTTP_RESET, s, filter, msg->chn);
 			filter->calls++;
 			EXEC_CTX_NO_RET(exec_ctx, FLT_OPS(filter)->http_reset(s, filter, msg));
 		}
 	}
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_HTTP_RESET, s, NULL, msg->chn);
 }
 
 /*
@@ -1356,18 +1524,17 @@ flt_http_reply(struct stream *s, short status, const struct buffer *msg)
 {
 	struct filter *filter;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
-			s->txn.http, msg);
+	TRACE_ENTER(FLT_EV_HTTP_REPLY, s, NULL, NULL);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
 		if (FLT_OPS(filter)->http_reply) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_HTTP_REPLY, s, filter, NULL);
 			filter->calls++;
 			EXEC_CTX_NO_RET(exec_ctx, FLT_OPS(filter)->http_reply(s, filter, status, msg));
 		}
 	}
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_HTTP_REPLY, s, NULL, NULL);
 }
 
 /*
@@ -1390,8 +1557,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	strm_flt(s)->flags &= ~STRM_FLT_FL_HOLD_HTTP_HDRS;
 
 	ret = data = len - out;
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
-			s->txn.http, msg);
+	TRACE_ENTER(FLT_EV_HTTP_PAYLOAD, s, NULL, msg->chn);
 	for (filter = flt_list_start(s, msg->chn); filter;
 	     filter = flt_list_next(s, msg->chn, filter)) {
 		struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
@@ -1406,7 +1572,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 			continue;
 		}
 
-		DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+		TRACE_DEVEL(FLT_ID(filter), FLT_EV_HTTP_PAYLOAD, s, filter, msg->chn);
 		filter->calls++;
 		ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset));
 		if (ret < 0) {
@@ -1435,7 +1601,7 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	*strm_off += ret;
  end:
 	chn_prod(msg->chn)->sedesc->kip = 0;
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_HTTP_PAYLOAD, s, NULL, msg->chn);
 	return ret;
 }
 
@@ -1454,7 +1620,7 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	struct filter *filter;
 	int ret = 1;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_ENTER(FLT_EV_START_ANA, s, NULL, chn);
 
 	/* If this function is called, this means there is at least one filter,
 	 * so we do not need to check the filter list's emptiness. */
@@ -1480,7 +1646,7 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		if (FLT_OPS(filter)->channel_start_analyze) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_START_ANA, s, filter, chn);
 			filter->calls++;
 			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_start_analyze(s, filter, chn));
 			if (ret <= 0) {
@@ -1492,7 +1658,7 @@ flt_start_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
  end:
 	ret = handle_analyzer_result(s, chn, an_bit, ret);
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_START_ANA, s, NULL, chn);
 	return ret;
 }
 
@@ -1512,14 +1678,14 @@ flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	struct filter *filter;
 	int ret = 1;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_ENTER(FLT_EV_PRE_ANA, s, NULL, chn);
 
 	for (filter = resume_filter_list_start(s, chn); filter;
 	     filter = resume_filter_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->channel_pre_analyze && (filter->pre_analyzers & an_bit)) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_PRE_ANA, s, filter, chn);
 			filter->calls++;
 			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_pre_analyze(s, filter, chn, an_bit));
 			if (ret <= 0) {
@@ -1532,7 +1698,7 @@ flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
  check_result:
 	ret = handle_analyzer_result(s, chn, 0, ret);
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_PRE_ANA, s, NULL, chn);
 	return ret;
 }
 
@@ -1551,14 +1717,14 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	struct filter *filter;
 	int            ret = 1;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_ENTER(FLT_EV_POST_ANA, s, NULL, chn);
 
 	for (filter = flt_list_start(s, chn); filter;
 	     filter = flt_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->channel_post_analyze &&  (filter->post_analyzers & an_bit)) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_POST_ANA, s, filter, chn);
 			filter->calls++;
 			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit));
 			if (ret < 0) {
@@ -1569,7 +1735,7 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		}
 	}
 	ret = handle_analyzer_result(s, chn, 0, ret);
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_POST_ANA, s, NULL, chn);
 	return ret;
 }
 
@@ -1586,15 +1752,14 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 	int              ret = 1;
 
 	msg = ((chn->flags & CF_ISRESP) ? &s->txn.http->rsp : &s->txn.http->req);
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s,
-			s->txn.http, msg);
+	TRACE_ENTER(FLT_EV_HTTP_HDRS, s, NULL, chn);
 
 	for (filter = resume_filter_list_start(s, chn); filter;
 	     filter = resume_filter_list_next(s, chn, filter)) {
 		if (FLT_OPS(filter)->http_headers) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_HTTP_HDRS, s, filter, chn);
 			filter->calls++;
 			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->http_headers(s, filter, msg));
 			if (ret <= 0) {
@@ -1615,7 +1780,7 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 
  check_result:
 	ret = handle_analyzer_result(s, chn, an_bit, ret);
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_HTTP_HDRS, s, NULL, chn);
 	return ret;
 }
 
@@ -1632,7 +1797,7 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 	int ret = 1;
 	struct filter *filter;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_ENTER(FLT_EV_END_ANA, s, NULL, chn);
 
 	/* Check if all filters attached on the stream have finished their
 	 * processing on this channel. */
@@ -1647,7 +1812,7 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 		if (FLT_OPS(filter)->channel_end_analyze) {
 			struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
 
-			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_FLT_ANA, s);
+			TRACE_DEVEL(FLT_ID(filter), FLT_EV_END_ANA, s, filter, chn);
 			filter->calls++;
 			ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->channel_end_analyze(s, filter, chn));
 			if (ret <= 0) {
@@ -1686,10 +1851,10 @@ flt_end_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 
 		/* Remove backend filters from the list */
 		flt_stream_release(s, 1);
-		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+		TRACE_LEAVE(FLT_EV_END_ANA, s, NULL, chn);
 	}
 	else {
-		DBG_TRACE_DEVEL("waiting for sync", STRM_EV_STRM_ANA|STRM_EV_FLT_ANA, s);
+		TRACE_DEVEL("waiting for sync", FLT_EV_END_ANA, s, NULL, chn);
 	}
 	return ret;
 }
@@ -1713,7 +1878,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 	int ret, data;
 
 	ret = data = len - out;
-	DBG_TRACE_ENTER(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_ENTER(FLT_EV_TCP_PAYLOAD, s, NULL, chn);
 	for (filter = flt_list_start(s, chn); filter;
 	     filter = flt_list_next(s, chn, filter)) {
 		struct thread_exec_ctx exec_ctx = EXEC_CTX_MAKE(TH_EX_CTX_FLT, filter->config);
@@ -1728,7 +1893,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 			continue;
 		}
 
-		DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+		TRACE_DEVEL(FLT_ID(filter), FLT_EV_TCP_PAYLOAD, s, filter, chn);
 		filter->calls++;
 		ret = EXEC_CTX_WITH_RET(exec_ctx, FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset));
 		if (ret < 0) {
@@ -1746,7 +1911,7 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 	}
  end:
 	chn_prod(chn)->sedesc->kip = 0;
-	DBG_TRACE_LEAVE(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_TCP_PAYLOAD, s, NULL, chn);
 	return ret;
 }
 
@@ -1764,7 +1929,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	unsigned int len;
 	int ret = 1;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_ENTER(FLT_EV_XFER_DATA, s, NULL, chn);
 
 	/* If there is no "data" filters, we do nothing */
 	if (!HAS_DATA_FILTERS(s, chn))
@@ -1803,7 +1968,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	}
 
 	/* Wait for data */
-	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_DEVEL("waiting for more data", FLT_EV_XFER_DATA|FLT_EV_WAIT, s, NULL, chn);
 
 	/* DATA filtering is not finished and some data may still be blocked in
 	 * the channel. So take care to disable auto close
@@ -1817,7 +1982,7 @@ flt_xfer_data(struct stream *s, struct channel *chn, unsigned int an_bit)
 	/* Terminate the data filtering. If <ret> is negative, an error was
 	 * encountered during the filtering. */
 	ret = handle_analyzer_result(s, chn, an_bit, ret);
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
+	TRACE_LEAVE(FLT_EV_XFER_DATA, s, NULL, chn);
 	return ret;
 }
 
@@ -1865,14 +2030,14 @@ handle_analyzer_result(struct stream *s, struct channel *chn,
 		s->res.analysers &= AN_RES_FLT_END;
 
 
-	DBG_TRACE_DEVEL("leaving on error", STRM_EV_FLT_ANA|STRM_EV_FLT_ERR, s);
+	TRACE_DEVEL("leaving on error", FLT_EV_ERR, s, NULL, chn);
 	return 0;
 
  wait:
 	if (!(chn->flags & CF_ISRESP))
 		channel_dont_connect(chn);
 	channel_dont_close(chn);
-	DBG_TRACE_DEVEL("wairing for more data", STRM_EV_FLT_ANA, s);
+	TRACE_DEVEL("waiting for more data", FLT_EV_WAIT, s, NULL, chn);
 	return 0;
 }
 

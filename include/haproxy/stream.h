@@ -50,8 +50,6 @@ extern struct trace_source trace_strm;
 #define  STRM_EV_HTTP_ERR     (1ULL <<  7)
 #define  STRM_EV_TCP_ANA      (1ULL <<  8)
 #define  STRM_EV_TCP_ERR      (1ULL <<  9)
-#define  STRM_EV_FLT_ANA      (1ULL << 10)
-#define  STRM_EV_FLT_ERR      (1ULL << 11)
 
 #define IS_HTX_STRM(strm) ((strm)->flags & SF_HTX)
 
