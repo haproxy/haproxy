@@ -773,6 +773,15 @@ static void ncbuf_print_buf(struct ncbuf *b, ncb_sz_t len,
 		getchar();
 }
 
+static void ncbuf_print_buf_delay(struct ncbuf *b, ncb_sz_t len,
+                                  unsigned char *area, int line, int delay)
+{
+	if (ncb_print) {
+		ncbuf_print_buf(b, len, area, line);
+		usleep(delay);
+	}
+}
+
 static struct ncbuf b;
 static unsigned char *bufarea = NULL;
 static ncb_sz_t bufsize = 16384;
@@ -909,8 +918,7 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 
 		ret = ncb_add(&b, roff->off, data0, roff->len, NCB_ADD_COMPARE);
 		BUG_ON(ret == NCB_RET_DATA_REJ);
-		ncbuf_print_buf(&b, bufsize, bufarea, __LINE__);
-		usleep(print_delay);
+		ncbuf_print_buf_delay(&b, bufsize, bufarea, __LINE__, print_delay);
 	}
 
 	fprintf(stderr, "buf full, prepare for reverse random\n");
@@ -925,8 +933,7 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 		if (!full) {
 			ret = ncb_add(&b, roff->off, data0, roff->len, NCB_ADD_COMPARE);
 			BUG_ON(ret == NCB_RET_DATA_REJ);
-			ncbuf_print_buf(&b, bufsize, bufarea, __LINE__);
-			usleep(print_delay);
+			ncbuf_print_buf_delay(&b, bufsize, bufarea, __LINE__, print_delay);
 		}
 
 		roff_tmp = roff->next;
