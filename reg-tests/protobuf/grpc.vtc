@@ -232,3 +232,32 @@ client c3 -connect ${h1_fe3_sock} {
 	expect resp.http.x-g2 == "7"
 	expect resp.http.x-g3 == ""
 } -run
+
+# The first message is flagged compressed. HAProxy does not decompress, so
+# its payload must not be handed to the protobuf parser: "0a03616161" would
+# otherwise read as field 1 = "aaa", a value that only exists after
+# decompression. The converter skips it and reaches field 2 of the second,
+# uncompressed message.
+client c4 -connect ${h1_fe3_sock} {
+	txreq -req POST -url "/" -hdr "content-length: 17" \
+	      -hdr "grpc-encoding: gzip" -nolen
+	sendhex "01 00000005 0a03616161 00 00000002 1007"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-g1 == ""
+	expect resp.http.x-g2 == "7"
+	expect resp.http.x-g3 == ""
+} -run
+
+# The Compressed-Flag may only be 0 or 1. 02 makes the framing invalid, so
+# the walk stops instead of parsing the payload: field 2 = 7 must not be
+# reported.
+client c5 -connect ${h1_fe3_sock} {
+	txreq -req POST -url "/" -hdr "content-length: 7" -nolen
+	sendhex "02 00000002 1007"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-g1 == ""
+	expect resp.http.x-g2 == ""
+	expect resp.http.x-g3 == ""
+} -run
