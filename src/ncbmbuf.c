@@ -274,7 +274,7 @@ enum ncb_ret ncbmb_add(struct ncbmbuf *buf, ncb_sz_t off,
 
 	BUG_ON_HOT(off + len > buf->size);
 
-	if (ptr + len >= ncbmb_wrap(buf)) {
+	if (ptr + len > ncbmb_wrap(buf)) {
 		ncb_sz_t sz1 = ncbmb_wrap(buf) - ptr;
 
 		memcpy(ptr, data, sz1);
