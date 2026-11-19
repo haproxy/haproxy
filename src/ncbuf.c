@@ -813,8 +813,6 @@ static ncb_sz_t bufhead = 15;
 static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 {
 	char *data0, data1[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
-	struct rand_off *roff, *roff_tmp = NULL;
-	enum ncb_ret ret;
 
 	data0 = malloc(bufsize);
 	BUG_ON(!data0);
@@ -907,6 +905,25 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	NCB_ADVANCE_EQ(&b,  8, NCB_RET_OK); /* remove inside the data */
 	NCB_ADVANCE_EQ(&b, 10, NCB_RET_OK); /* remove completely the data */
 
+	free(data0);
+
+	return 1;
+}
+
+int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay)
+{
+	char *data0;
+	struct rand_off *roff, *roff_tmp = NULL;
+	enum ncb_ret ret;
+
+	data0 = malloc(bufsize);
+	BUG_ON(!data0);
+	memset(data0, 0xff, bufsize);
+
+	b = NCBUF_NULL;
+	b.area = (char *)bufarea;
+	b.size = bufsize;
+	b.head = head;
 	fprintf(stderr, "first random pass\n");
 	NCB_INIT(&b);
 
@@ -946,7 +963,6 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 
 	fprintf(stderr, "done\n");
 
-	free(bufarea);
 	free(data0);
 
 	return 1;
@@ -987,6 +1003,8 @@ int main(int argc, char **argv)
 	}
 
 	ncbuf_test(bufhead, reset, print_delay);
+	ncbuf_random_insert(bufhead, reset, print_delay);
+	free(bufarea);
 	return EXIT_SUCCESS;
 }
 
