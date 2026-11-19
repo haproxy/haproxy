@@ -1,0 +1,45 @@
+varnishtest "CLI httpclient: response without any header"
+
+# A response may legitimately contain no header at all (HTTP/1.0 does not
+# require any). In that case the httpclient applet does not allocate its
+# response headers array but it still notifies the caller, which iterates
+# over it. The CLI applet did not check the array and dereferenced NULL.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+    .if feature(THREAD)
+        thread-groups 1
+    .endif
+
+    defaults
+        mode http
+        timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+        timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request return status 200
+} -start
+
+# legal header-less response: the body is read until the connection closes
+server s1 {
+    rxreq
+    send "HTTP/1.0 200 OK\r\n\r\n"
+} -start
+
+# a response with headers, to be sure the normal dump still works
+server s2 {
+    rxreq
+    txresp -hdr "x-test: v"
+} -start
+
+haproxy h1 -cli {
+    send "expert-mode on; httpclient GET http://127.0.0.1:${s1_port}/"
+    expect ~ "\nHTTP/1.0 200 OK\n\r\n"
+
+    send "expert-mode on; httpclient GET http://127.0.0.1:${s2_port}/"
+    expect ~ "\nHTTP/1.1 200 OK\nx-test: v\r\n"
+}
