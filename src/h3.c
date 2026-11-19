@@ -1422,6 +1422,15 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+	/* a final response must follow an interim one */
+	if (h == 1 && fin) {
+		TRACE_ERROR("interim response ending the stream", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(qcs->qcc, 1);
+		len = -1;
+		goto out;
+	}
+
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/3.0"), status, ist(""));
 	if (!sl) {
 		TRACE_ERROR("cannot allocate HTX start-line", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
