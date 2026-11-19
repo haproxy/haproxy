@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <haproxy/list.h>
 #endif /* STANDALONE */
 
 #ifdef DEBUG_STRICT
@@ -708,9 +707,9 @@ static void ncbuf_printf(char *str, ...)
 }
 
 struct rand_off {
-	struct list el;
 	ncb_sz_t off;
 	ncb_sz_t len;
+	struct rand_off *next;
 };
 
 static struct rand_off *ncb_generate_rand_off(const struct ncbuf *buf)
@@ -805,8 +804,7 @@ static ncb_sz_t bufhead = 15;
 static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 {
 	char *data0, data1[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f };
-	struct list list = LIST_HEAD_INIT(list);
-	struct rand_off *roff, *roff_tmp;
+	struct rand_off *roff, *roff_tmp = NULL;
 	enum ncb_ret ret;
 
 	data0 = malloc(bufsize);
@@ -906,7 +904,8 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	/* generate randon data offsets until the buffer is full */
 	while (!ncb_is_full(&b)) {
 		roff = ncb_generate_rand_off(&b);
-		LIST_INSERT(&list, &roff->el);
+		roff->next = roff_tmp;
+		roff_tmp = roff;
 
 		ret = ncb_add(&b, roff->off, data0, roff->len, NCB_ADD_COMPARE);
 		BUG_ON(ret == NCB_RET_DATA_REJ);
@@ -921,7 +920,7 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	 * At the end, the buffer should be full.
 	 */
 	NCB_INIT(&b);
-	list_for_each_entry_safe(roff, roff_tmp, &list, el) {
+	while (roff) {
 		int full = ncb_is_full(&b);
 		if (!full) {
 			ret = ncb_add(&b, roff->off, data0, roff->len, NCB_ADD_COMPARE);
@@ -930,8 +929,9 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 			usleep(print_delay);
 		}
 
-		LIST_DELETE(&roff->el);
+		roff_tmp = roff->next;
 		free(roff);
+		roff = roff_tmp;
 	}
 
 	if (!ncb_is_full(&b))
