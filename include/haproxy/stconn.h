@@ -44,6 +44,7 @@ struct stconn *sc_new(struct sedesc *sedesc);
 void sedesc_free(struct sedesc *sedesc);
 
 void se_shutdown(struct sedesc *sedesc, enum se_shut_mode mode);
+void sc_ep_fwd_kip_when_committed(struct stconn *sc_in, struct stconn *sc_out);
 
 struct stconn *sc_new_from_endp(struct sedesc *sedesc, struct session *sess, struct buffer *input);
 struct stconn *sc_new_from_strm(struct stream *strm, unsigned int flags);

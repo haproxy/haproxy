@@ -39,6 +39,31 @@ struct task *hld_strm_task(struct task *t, void *context, unsigned int state)
 static int sc_conn_recv(struct stconn *sc);
 static int sc_conn_send(struct stconn *sc);
 
+/* Forwards the <kip> hint from the producer to the consumer side, but only
+ * when the app layer committed to forward the data as-is. <kip> and <kop>
+ * are hints on the data the producer will emit, possibly before the app layer
+ * has seen them, so they must not be trusted for anything else than an
+ * optimization: here, announcing a chunk size that covers the whole payload
+ * at once. When data filters are registered on the channel, they may alter or
+ * drop any part of the payload after <kip> was accounted for, so <kop> could
+ * become a stale or wrong value. It is only safe to forward <kip> once the
+ * app layer committed to forward everything (infinite forwarding).
+ *
+ * Before that, data may be forwarded and emitted by the consumer while <kip>
+ * still accounts for them. Forwarding <kip> later would then lead to a <kop>
+ * value higher than the remaining payload. So, when the app layer has not
+ * committed yet, <kip> is reset instead. It is conservative: <kop> may be
+ * lower than the remaining payload, but never higher.
+ */
+void sc_ep_fwd_kip_when_committed(struct stconn *sc_in, struct stconn *sc_out)
+{
+	if (sc_ic(sc_in)->to_forward != CHN_INFINITE_FORWARD) {
+		sc_in->sedesc->kip = 0;
+		return;
+	}
+	sc_ep_fwd_kip(sc_in, sc_out);
+}
+
 /* Initializes an endpoint */
 void sedesc_init(struct sedesc *sedesc)
 {
@@ -1157,7 +1182,7 @@ int sc_conn_recv(struct stconn *sc)
 			flags |= CO_RFL_BUF_FLUSH;
 			goto abort_fastfwd;
 		}
-		sc_ep_fwd_kip(sc, sc_opposite(sc));
+		sc_ep_fwd_kip_when_committed(sc, sc_opposite(sc));
 		ret = CALL_MUX_WITH_RET(conn->mux, fastfwd(sc, ic->to_forward, flags));
 		if (ret < 0)
 			goto abort_fastfwd;
@@ -1457,7 +1482,7 @@ int sc_conn_send(struct stconn *sc)
 	if (!conn->mux)
 		return 0;
 
-	sc_ep_fwd_kip(sco, sc);
+	sc_ep_fwd_kip_when_committed(sco, sc);
 
 	if (sc_ep_have_ff_data(sc)) {
 		unsigned int send_flag = 0;
@@ -1851,7 +1876,7 @@ int sc_applet_recv(struct stconn *sc)
 			flags |= CO_RFL_BUF_FLUSH;
 			goto abort_fastfwd;
 		}
-		sc_ep_fwd_kip(sc, sc_opposite(sc));
+		sc_ep_fwd_kip_when_committed(sc, sc_opposite(sc));
 		ret = appctx_fastfwd(sc, ic->to_forward, flags);
 		if (ret < 0)
 			goto abort_fastfwd;
@@ -2081,7 +2106,7 @@ int sc_applet_send(struct stconn *sc)
 	if (se_fl_test(sc->sedesc, SE_FL_ORPHAN))
 		return 0;
 
-	sc_ep_fwd_kip(sco, sc);
+	sc_ep_fwd_kip_when_committed(sco, sc);
 
 	/* TODO: Splicing is not supported, so it is not possible to have FF data stuck into the I/O buf */
 	BUG_ON(sc_ep_have_ff_data(sc));
