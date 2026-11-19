@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include <unistd.h>
 
 #endif /* STANDALONE */
@@ -910,11 +911,13 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	return 1;
 }
 
-int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay, int max_iter)
+int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay, int max_iter, int seed)
 {
 	char *data0;
 	struct rand_off *roff, *roff_tmp = NULL;
 	enum ncb_ret ret;
+
+	srand(seed);
 
 	data0 = malloc(bufsize);
 	BUG_ON(!data0);
@@ -924,7 +927,7 @@ int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay, int max_iter)
 	b.area = (char *)bufarea;
 	b.size = bufsize;
 	b.head = head;
-	fprintf(stderr, "first random pass\n");
+	fprintf(stderr, "first random pass, seed=%d\n", seed);
 	NCB_INIT(&b);
 
 	/* generate randon data offsets until the buffer is full */
@@ -978,10 +981,11 @@ int main(int argc, char **argv)
 	int reset = 0;
 	int print_delay = 100000;
 	int rand_max_iter = 10000;
+	int rand_seed = time(NULL);
 	char c;
 
 	opterr = 0;
-	while ((c = getopt(argc, argv, "h:s:ri:p::")) != -1) {
+	while ((c = getopt(argc, argv, "h:s:ri:j:p::")) != -1) {
 		switch (c) {
 		case 'h':
 			bufhead = atoi(optarg);
@@ -999,6 +1003,9 @@ int main(int argc, char **argv)
 		case 'i':
 			rand_max_iter = atoi(optarg);
 			break;
+		case 'j':
+			rand_seed = atoi(optarg);
+			break;
 		case 'p':
 			if (optarg)
 				print_delay = atoi(optarg);
@@ -1012,7 +1019,7 @@ int main(int argc, char **argv)
 	}
 
 	ncbuf_test(bufhead, reset, print_delay);
-	ncbuf_random_insert(bufhead, reset, print_delay, rand_max_iter);
+	ncbuf_random_insert(bufhead, reset, print_delay, rand_max_iter, rand_seed);
 	free(bufarea);
 	return EXIT_SUCCESS;
 }
