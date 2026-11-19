@@ -2271,10 +2271,26 @@ char *cbor_encode_uint64_prefix_bin(char *start, char *stop, uint64_t value,
 		return NULL;
 
 #if defined(__x86_64__)
-	/* we can actually assume the bits are already in proper order
-	 * so let's directly write them as-is on the wire to save CPU
-	 * time.
+	/* x86_64 is little endian while CBOR expects big endian, so
+	 * let's invert bit order, hopefully we can leverage hton{s,l},
+	 * given the number of bytes in <value>, to revert all the bytes
+	 * from <value> at once which is less costly than writing 1 byte
+	 * at a time.
 	 */
+	switch (nb_bytes) {
+		case 2:
+			value = htons(value);
+			break;
+		case 4:
+			value = htonl(value);
+			break;
+		case 8:
+			value = my_htonll(value);
+			break;
+		default:
+			/* nothing to do */
+			break;
+	}
 	memcpy(start, &value, nb_bytes);
 	start += nb_bytes;
 #else
