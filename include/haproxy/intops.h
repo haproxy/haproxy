@@ -637,6 +637,8 @@ static inline int encode_varint(uint64_t i, char **buf, char *end)
 static inline int decode_varint(char **buf, char *end, uint64_t *i)
 {
 	unsigned char *p = (unsigned char *)*buf;
+	unsigned char *stop;
+	uint64_t v;
 	int r;
 
 	if (p >= (unsigned char *)end)
@@ -649,9 +651,27 @@ static inline int decode_varint(char **buf, char *end, uint64_t *i)
 	}
 
 	r = 4;
+
+	/* r=4,11,18,25,32,39,46,53,60; only the 9th from here (r=60) can
+	 * overflow so let's stop reading before p+8 to avoid checks in the
+	 * common loop, and deal with the last byte at the end.
+	 */
+	stop = (unsigned char *)end;
+	if (p + 8 < stop)
+		stop = p + 8;
+
 	do {
-		if (p >= (unsigned char *)end)
-			return -1;
+		if (p >= stop) {
+			/* last byte (r=60): must exist, be final, and not overflow */
+			if (p >= (unsigned char *)end || *p > 0xf)
+				return -1;
+
+			v = ((uint64_t)*p++ << 60);
+			if (*i + v < *i)
+				return -1;
+			*i += v;
+			break;
+		}
 		*i += (uint64_t)*p << r;
 		r  += 7;
 	} while (*p++ >= 128);
