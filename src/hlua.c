@@ -6210,6 +6210,13 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	htx = htx_from_buf(outbuf);
 	h1m_init_res(&h1m);
 
+	/* no final response can follow an interim one */
+	if (http_ctx->status < 200 && http_ctx->status != 101) {
+		hlua_pusherror(L, "Lua applet http '%s': interim responses are not supported.\n",
+		               luactx->appctx->applet->name);
+		WILL_LJMP(lua_error(L));
+	}
+
 	/* Use the same http version than the request. */
 	status = ultoa_r(http_ctx->status, trash.area, trash.size);
 	reason = http_ctx->reason;

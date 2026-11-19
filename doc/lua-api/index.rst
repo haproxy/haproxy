@@ -3842,7 +3842,8 @@ AppletHTTP class
 .. js:function:: AppletHTTP.set_status(applet, code [, reason])
 
   This function sets the HTTP status code for the response. The allowed code are
-  from 100 to 599.
+  from 100 to 599. Interim responses (1xx except 101) are rejected by
+  *AppletHTTP:start_response()* since no final response could follow.
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param integer code: the status code returned to the client.
