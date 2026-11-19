@@ -11058,7 +11058,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		int app_idx = 1 - hlua->nargs; /* index of the HTTP applet object in the lua stask */
 
 		inbuf = applet_get_inbuf(ctx);
-		if (!inbuf) {
+		if (!inbuf || !applet_htx_input_data(ctx)) {
 			applet_need_more_data(ctx);
 			yield = 1;
 			goto out;
