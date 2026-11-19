@@ -3200,6 +3200,12 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				h1m->state = H1_MSG_DATA;
 			}
 
+			if (count > h1m->curr_len) {
+				COUNT("chunk bigger than announced (0-copy)");
+				TRACE_ERROR("chunk bigger than announced",
+					    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+				goto error;
+			}
 			h1m->curr_len -= count;
 
 			/* It is the end  of the chunk, append the CRLF */
