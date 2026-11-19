@@ -551,10 +551,8 @@ struct appctx *sc_applet_create(struct stconn *sc, struct applet *app)
 		return NULL;
 	}
 	appctx->t->nice = __sc_strm(sc)->task->nice;
-	applet_need_more_data(appctx);
-	appctx_wakeup(appctx);
-
-	sc->state = SC_ST_RDY;
+	applet_wont_consume(appctx);
+	sc_wont_read(sc);
 	return appctx;
 }
 

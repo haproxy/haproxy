@@ -23,6 +23,7 @@
 #include <haproxy/api.h>
 #include <haproxy/acl.h>
 #include <haproxy/activity.h>
+#include <haproxy/applet.h>
 #include <haproxy/arg.h>
 #include <haproxy/backend.h>
 #include <haproxy/channel.h>
@@ -2667,33 +2668,37 @@ void back_handle_st_req(struct stream *s)
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
-		struct appctx *appctx;
+		struct appctx *appctx = sc_appctx(sc);
 
-		/* The target is an applet but the SC is in SC_ST_REQ. Thus it
-		 * means no appctx are attached to the SC. Otherwise, it will be
-		 * in SC_ST_RDY state. So, try to create the appctx now.
-		 */
-		BUG_ON(sc_appctx(sc));
-		appctx = sc_applet_create(sc, objt_applet(s->target));
-		if (!appctx) {
-			/* No more memory, let's immediately abort. Force the
-			 * error code to ignore the ERR_LOCAL which is not a
-			 * real error.
-			 */
-			s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
+		if (appctx == NULL) {
+			appctx = sc_applet_create(sc, objt_applet(s->target));
+			if (!appctx) {
+				/* No more memory, let's immediately abort. Force the
+				 * error code to ignore the ERR_LOCAL which is not a
+				 * real error.
+				 */
+				s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
 
-			sc_abort(sc);
-			sc_shutdown(sc);
-			sc->flags |= SC_FL_ERROR;
-			s->conn_err_type = STRM_ET_CONN_RES;
-			sc->state = SC_ST_CLO;
-			if (s->srv_error)
-				s->srv_error(s, sc);
-			DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
-			goto end;
+				sc_abort(sc);
+				sc_shutdown(sc);
+				sc->flags |= SC_FL_ERROR;
+				s->conn_err_type = STRM_ET_CONN_RES;
+				sc->state = SC_ST_CLO;
+				if (s->srv_error)
+					s->srv_error(s, sc);
+				DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+				goto end;
+			}
+			DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		}
 
-		DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		BUG_ON(appctx->applet != __objt_applet(s->target));
+
+		sc->state = SC_ST_RDY;
+		sc_will_read(sc);
+		applet_need_more_data(appctx);
+		appctx_wakeup(appctx);
+		DBG_TRACE_STATE("applet ready", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		goto end;
 	}
 

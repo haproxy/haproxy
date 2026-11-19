@@ -1170,12 +1170,20 @@ void sess_set_term_flags(struct stream *s)
 	}
 }
 
-/* This function parses the use-service action ruleset. It executes
+/* This function executes the use-service action ruleset. It executes
  * the associated ACL and set an applet as a stream or txn final node.
- * it returns ACT_RET_ERR if an error occurs, the proxy left in
- * consistent state. It returns ACT_RET_STOP in success case because
- * use-service must be a terminal action. Returns ACT_RET_YIELD
- * if the initialisation function require more data.
+ * It returns ACT_RET_ERR if an error occurs, the proxy left in
+ * consistent state, or ACT_RET_STOP in success case because use-service
+ * must be a terminal action.
+ *
+ * The applet is not woken up here. sc_applet_create() attaches it to the
+ * back stream connector in a dormant state: it remains in SC_ST_INI
+ * state and it is not scheduled. This way, the request analysis is not
+ * disturbed by the applet: it will not try to consume the request
+ * before the analysis ends and it cannot produce a premature response.
+ * The applet is woken up by back_handle_st_req(), when the request
+ * analysis is over and the stream connector switches to the ready
+ * state.
  */
 enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
                                     struct session *sess, struct stream *s, int flags)
@@ -1183,20 +1191,18 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 {
 	struct appctx *appctx;
 
-	/* Initialises the applet if it is required. */
-	if (flags & ACT_OPT_FIRST) {
-		/* Register applet. this function schedules the applet. */
-		stream_set_target(s, &rule->applet.obj_type);
-		appctx = sc_applet_create(s->scb, objt_applet(s->target));
-		if (unlikely(!appctx))
-			return ACT_RET_ERR;
+	/* Register the applet. It is attached to the back stream connector,
+	 * in a dormant state, and it will be woken up when the request
+	 * analysis is over.
+	 */
+	stream_set_target(s, &rule->applet.obj_type);
+	appctx = sc_applet_create(s->scb, objt_applet(s->target));
+	if (unlikely(!appctx))
+		return ACT_RET_ERR;
 
-		/* Finish initialisation of the context. */
-		if (appctx_init(appctx) == -1)
-			return ACT_RET_ERR;
-	}
-	else
-		appctx = __sc_appctx(s->scb);
+	/* Finish initialisation of the context. */
+	if (appctx_init(appctx) == -1)
+		return ACT_RET_ERR;
 
 	if (rule->from != ACT_F_HTTP_REQ) {
 		/* report it if the request was intercepted by the frontend */
@@ -1207,9 +1213,6 @@ enum act_return process_use_service(struct act_rule *rule, struct proxy *px,
 		s->flags |= SF_ASSIGNED;
 	}
 
-	/* Now we can schedule the applet. */
-	applet_need_more_data(appctx);
-	appctx_wakeup(appctx);
 	return ACT_RET_STOP;
 }
 
