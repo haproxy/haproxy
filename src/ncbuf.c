@@ -313,7 +313,7 @@ static ncb_sz_t ncb_fill_data_blk(const struct ncbuf *buf,
 	if (mode == NCB_ADD_OVERWRT) {
 		ptr = ncb_peek(buf, blk->off + off);
 
-		if (ptr + to_copy >= ncb_wrap(buf)) {
+		if (ptr + to_copy > ncb_wrap(buf)) {
 			const ncb_sz_t sz1 = ncb_wrap(buf) - ptr;
 			memcpy(ptr, data, sz1);
 			memcpy(ncb_orig(buf), data + sz1, to_copy - sz1);
@@ -363,7 +363,7 @@ static ncb_sz_t ncb_fill_gap_blk(const struct ncbuf *buf,
 
 	/* fill the gap with new data */
 	ptr = ncb_peek(buf, blk->off + off);
-	if (ptr + to_copy >= ncb_wrap(buf)) {
+	if (ptr + to_copy > ncb_wrap(buf)) {
 		ncb_sz_t sz1 = ncb_wrap(buf) - ptr;
 		memcpy(ptr, data, sz1);
 		memcpy(ncb_orig(buf), data + sz1, to_copy - sz1);
