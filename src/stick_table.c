@@ -1145,6 +1145,9 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 
 		if (!tick_isset(task_exp) || (tick_isset(next_exp_table) && tick_is_lt(next_exp_table, task_exp)))
 			task_exp = next_exp_table;
+
+		/* under the lock so that later insertions see it */
+		HA_ATOMIC_STORE(&t->buckets[bucket].next_exp, next_exp_table);
 		HA_RWLOCK_WRUNLOCK(STK_TABLE_LOCK, &t->buckets[bucket].sh_lock);
 
 		while (!LIST_ISEMPTY(&tofree_list)) {
@@ -1156,15 +1159,6 @@ struct task *process_tables_expire(struct task *task, void *context, unsigned in
 		tmpnode = eb32_next(table_eb);
 
 		if (table_eb->key != next_exp_table) {
-			int old_exp;
-			/*
-			 * We have to move the entry in the tree
-			 */
-			old_exp = HA_ATOMIC_LOAD(&t->buckets[bucket].next_exp);
-			if (old_exp >= table_eb->key) {
-				HA_ATOMIC_CAS(&t->buckets[bucket].next_exp, &old_exp, next_exp_table);
-			}
-
 			/*
 			 * Move the table to its next expiration date, if any.
 			 */
