@@ -2808,6 +2808,169 @@ int strl2ic(const char *s, int len)
 	return i;
 }
 
+/* The str{,l,ll}2{,u}irc() functions read non-NUL chars from <str> and convert
+ * them to a signed or unsigned int/long/long long which they store into <ret>.
+ * They accurately detects any error (empty/truncated string, invalid chars,
+ * positive/negative overflows). They're meant to be used on exposed contents.
+ * Contrary to the libc's strtoxxx() family, they're locale-agnostic and meant
+ * to be very fast. They're built around an inline version for the core loop,
+ * and the user-visible parts call it and apply sign/range checks. They return
+ * an error code 0 when the number has successfully been converted, non-zero
+ * otherwise. When an error is returned, the <ret> value is left untouched.
+ */
+
+/* generator for the int/uint/long/ulong/llong/ullong variants, do not use
+ * outside this file!
+ */
+#define __str2uirc(type, str, lim, err) ({			\
+	__label__ _done;					\
+	const char *s = (str);					\
+	const type _lim = (lim);				\
+	int *_err = (err);					\
+	type _i = 0;						\
+	type _j = 0;						\
+	while ((_j = (type)(*s++ - '0')) <= 9) {		\
+		if (_i > _lim / 10) {				\
+			*_err = 1; /* multiply overflow */	\
+			goto _done;				\
+		}						\
+		_i = _i * 10;					\
+		if (_i + _j < _i || _i + _j > _lim) {		\
+			*_err = 1; /* add overflow */		\
+			goto _done;				\
+		}						\
+		_i = _i + _j;					\
+	}							\
+	if (_j != (type)(0 - '0'))				\
+	        *_err = 1; /* non-NUL ? invalid char */		\
+	else if (s == str + 1)					\
+		*_err = 1; /* empty */				\
+_done:								\
+	_i;							\
+})
+
+/* core for the int/uint variant */
+static forceinline uint _str2uirc(const char *str, uint lim, int *err)
+{
+	return __str2uirc(uint, str, lim, err);
+}
+
+/* core for the long/ulong variant */
+static forceinline ulong _str2ulrc(const char *str, ulong lim, int *err)
+{
+	return __str2uirc(ulong, str, lim, err);
+}
+
+/* core for the long/ulong variant */
+static forceinline ullong _str2ullrc(const char *str, ullong lim, int *err)
+{
+	return __str2uirc(ullong, str, lim, err);
+}
+
+/* parses uint in <str>, stores in <ret>, returns 0 on success, see above. */
+int str2uirc(const char *str, uint *ret)
+{
+	uint i = 0;
+	int err = 0;
+
+	i = _str2uirc(str, UINT_MAX, &err);
+	if (err)
+		return 1;
+
+	*ret = i;
+	return 0;
+}
+
+/* parses int in <str>, stores in <ret>, returns 0 on success, see above. */
+int str2irc(const char *str, int *ret)
+{
+	uint lim = INT_MAX;
+	uint i = 0;
+	int err = 0;
+
+	if (*str == '-') {
+		str++;
+		lim = -(uint)INT_MIN;
+	}
+
+	i = _str2uirc(str, lim, &err);
+	if (err)
+		return 1;
+
+	i = (lim == INT_MAX) ? i : -i;
+	*ret = (int)i;
+	return 0;
+}
+
+/* parses ulong in <str>, stores in <ret>, returns 0 on success, see above. */
+int str2ulrc(const char *str, ulong *ret)
+{
+	ulong i = 0;
+	int err = 0;
+
+	i = _str2ulrc(str, ULONG_MAX, &err);
+	if (err)
+		return 1;
+
+	*ret = i;
+	return 0;
+}
+
+/* parses long in <str>, stores in <ret>, returns 0 on success, see above. */
+int str2lrc(const char *str, long *ret)
+{
+	ulong lim = LONG_MAX;
+	ulong i = 0;
+	int err = 0;
+
+	if (*str == '-') {
+		str++;
+		lim = -(ulong)LONG_MIN;
+	}
+
+	i = _str2ulrc(str, lim, &err);
+	if (err)
+		return 1;
+
+	i = (lim == LONG_MAX) ? i : -i;
+	*ret = (long)i;
+	return 0;
+}
+
+/* parses ullong in <str>, stores in <ret>, returns 0 on success, see above. */
+int str2ullrc(const char *str, ullong *ret)
+{
+	ullong i = 0;
+	int err = 0;
+
+	i = _str2ullrc(str, ULLONG_MAX, &err);
+	if (err)
+		return 1;
+
+	*ret = i;
+	return 0;
+}
+
+/* parses llong in <str>, stores in <ret>, returns 0 on success, see above. */
+int str2llrc(const char *str, llong *ret)
+{
+	ullong lim = LLONG_MAX;
+	ullong i = 0;
+	int err = 0;
+
+	if (*str == '-') {
+		str++;
+		lim = -(ullong)LLONG_MIN;
+	}
+
+	i = _str2ullrc(str, lim, &err);
+	if (err)
+		return 1;
+
+	i = (lim == LLONG_MAX) ? i : -i;
+	*ret = (llong)i;
+	return 0;
+}
 
 /* This function reads exactly <len> chars from <s> and converts them to a
  * signed integer which it stores into <ret>. It accurately detects any error
