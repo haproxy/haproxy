@@ -910,7 +910,7 @@ static int ncbuf_test(ncb_sz_t head, int reset, int print_delay)
 	return 1;
 }
 
-int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay)
+int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay, int max_iter)
 {
 	char *data0;
 	struct rand_off *roff, *roff_tmp = NULL;
@@ -936,9 +936,14 @@ int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay)
 		ret = ncb_add(&b, roff->off, data0, roff->len, NCB_ADD_COMPARE);
 		BUG_ON(ret == NCB_RET_DATA_REJ);
 		ncbuf_print_buf_delay(&b, bufsize, bufarea, __LINE__, print_delay);
+
+		if (!--max_iter) {
+			fprintf(stderr, "max iteration limit reached\n");
+			break;
+		}
 	}
 
-	fprintf(stderr, "buf full, prepare for reverse random\n");
+	fprintf(stderr, "iter=%d, prepare for reverse random\n", max_iter);
 	ncbuf_print_buf(&b, bufsize, bufarea, __LINE__);
 
 	/* insert the previously generated random offsets in the reverse order.
@@ -958,7 +963,7 @@ int ncbuf_random_insert(ncb_sz_t head, int reset, int print_delay)
 		roff = roff_tmp;
 	}
 
-	if (!ncb_is_full(&b))
+	if (!ncb_is_full(&b) && max_iter)
 		abort();
 
 	fprintf(stderr, "done\n");
@@ -972,10 +977,11 @@ int main(int argc, char **argv)
 {
 	int reset = 0;
 	int print_delay = 100000;
+	int rand_max_iter = 10000;
 	char c;
 
 	opterr = 0;
-	while ((c = getopt(argc, argv, "h:s:rp::")) != -1) {
+	while ((c = getopt(argc, argv, "h:s:ri:p::")) != -1) {
 		switch (c) {
 		case 'h':
 			bufhead = atoi(optarg);
@@ -990,6 +996,9 @@ int main(int argc, char **argv)
 		case 'r':
 			reset = 1;
 			break;
+		case 'i':
+			rand_max_iter = atoi(optarg);
+			break;
 		case 'p':
 			if (optarg)
 				print_delay = atoi(optarg);
@@ -1003,7 +1012,7 @@ int main(int argc, char **argv)
 	}
 
 	ncbuf_test(bufhead, reset, print_delay);
-	ncbuf_random_insert(bufhead, reset, print_delay);
+	ncbuf_random_insert(bufhead, reset, print_delay, rand_max_iter);
 	free(bufarea);
 	return EXIT_SUCCESS;
 }
