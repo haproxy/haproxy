@@ -63,6 +63,7 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 static int quic_connect_server(struct connection *conn, int flags);
 static void quic_enable_listener(struct listener *listener);
 static void quic_disable_listener(struct listener *listener);
+static void quic_unbind_listener(struct listener *listener);
 static int quic_bind_tid_prep(struct connection *conn, int new_tid);
 static void quic_bind_tid_commit(struct connection *conn);
 static void quic_bind_tid_reset(struct connection *conn);
@@ -78,7 +79,7 @@ struct protocol proto_quic4 = {
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,
 	.add            = default_add_listener,
-	.unbind         = default_unbind_listener,
+	.unbind         = quic_unbind_listener,
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
 	.accept_conn    = quic_sock_accept_conn,
@@ -123,7 +124,7 @@ struct protocol proto_quic6 = {
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,
 	.add            = default_add_listener,
-	.unbind         = default_unbind_listener,
+	.unbind         = quic_unbind_listener,
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
 	.accept_conn    = quic_sock_accept_conn,
@@ -522,6 +523,18 @@ static void quic_enable_listener(struct listener *l)
 	 */
 	if (fd_updt)
 		fd_want_recv(l->rx.fd);
+
+	/* connections may wait in the accept queues */
+	quic_accept_wakeup(l);
+}
+
+/* Unbinds listener <l>. Connections queued for accept are then refused. */
+static void quic_unbind_listener(struct listener *l)
+{
+	default_unbind_listener(l);
+
+	/* parked accept tasklets must run to refuse their queued connections */
+	quic_accept_wakeup(l);
 }
 
 /* Disable receipt of incoming connections for listener <l>. The receiver must
