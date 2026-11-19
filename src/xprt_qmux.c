@@ -11,6 +11,7 @@
 #include <haproxy/qcm_qmux.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_tp-t.h>
+#include <haproxy/quic_tune.h>
 
 /* Default protocol when not running over SSL layer. */
 #define XPRT_QMUX_DEFAULT_ALPN  "h3"
@@ -302,7 +303,11 @@ static int xprt_qmux_init(struct connection *conn, void **xprt_ctx)
 	/* TP configuration advertised by us */
 	ctx->lparams.max_idle_timeout = 30;
 	ctx->lparams.initial_max_data = 1638400;
-	ctx->lparams.initial_max_streams_bidi = 100;
+	/* FE limit computed as in quic_transport_params_init() */
+	ctx->lparams.initial_max_streams_bidi = conn_is_back(conn) ? 100 :
+	  quic_tune.fe.stream_max_total ?
+	  MIN(quic_tune.fe.stream_max_concurrent, quic_tune.fe.stream_max_total) :
+	  quic_tune.fe.stream_max_concurrent;
 	ctx->lparams.initial_max_streams_uni = 3;
 	ctx->lparams.initial_max_stream_data_bidi_local = qcm_stream_rx_bufsz();
 	ctx->lparams.initial_max_stream_data_bidi_remote = qcm_stream_rx_bufsz();

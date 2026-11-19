@@ -11,6 +11,8 @@ haproxy h1 -conf {
 		thread-groups 1
 	.endif
 	expose-experimental-directives
+	# below the default streams limit
+	tune.quic.fe.stream.max-total 10
 
 	defaults
 		mode http
