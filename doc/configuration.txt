@@ -24768,6 +24768,8 @@ ungrpc(<field_number>[,<field_type>])
   "protobuf" and only the last one may have or not a second argument to
   interpret the previous binary sample.
 
+  Compressed gRPC messages are not supported: they are skipped and yield no
+  value.
 
 unset-var(<var>)
   Unsets a variable if the input content is defined. The name of the variable
