@@ -3892,7 +3892,9 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		if (srv_is_quic(newsrv)) {
 			/* TODO QUIC is currently incompatible with dynamic
 			 * backends deletion. Please fix this before removing
-			 * QUIC BE experimental status.
+			 * QUIC BE experimental status. When this is done,
+			 * ensures "hq-interop" remains gated behind the
+			 * experimental status.
 			 */
 			if (!experimental_directives_allowed) {
 				ha_alert("QUIC is experimental for server '%s',"

@@ -39,6 +39,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/quic_ssl-t.h>
+#include <haproxy/quic_tune.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
@@ -1433,10 +1434,25 @@ static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struc
 	free(conf->alpn_str);
 
 	ret = ssl_sock_parse_alpn(args[cur_arg + 1], &conf->alpn_str, &conf->alpn_len, err);
-	if (ret)
+	if (ret) {
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
-	else if (global.tune.options2 & GTUNE2_DISABLE_H2_FE)
-		alpn_remove_token(conf->alpn_str, &conf->alpn_len, ist("h2"), 0);
+	}
+	else {
+		if (global.tune.options2 & GTUNE2_DISABLE_H2_FE)
+			alpn_remove_token(conf->alpn_str, &conf->alpn_len, ist("h2"), 0);
+
+#ifdef USE_QUIC
+		if (!(quic_tune.fe.fb_opts & QUIC_TUNE_FB_INTEROP)) {
+			if (alpn_remove_token(conf->alpn_str, &conf->alpn_len, ist("hq-interop"), 1)) {
+				if (!from_cli) {
+					memprintf(err, "'hq-interop' found in ALPN, forbidden unless QUIC interop testing is active.\n");
+					ret |= ERR_ALERT | ERR_FATAL;
+				}
+			}
+		}
+#endif /* USE_QUIC */
+	}
+
 	return ret;
 #else
 	memprintf(err, "'%s' : library does not support TLS ALPN extension", args[cur_arg]);

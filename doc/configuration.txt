@@ -2033,6 +2033,7 @@ The following keywords are supported in the "global" section :
    - tune.quic.fe.stream.rxbuf
    - tune.quic.fe.tx.pacing
    - tune.quic.fe.tx.udp-gso
+   - tune.quic.interop
    - tune.quic.listen
    - tune.quic.mem.tx-max
    - tune.quic.sec.stateless-reset-rate
@@ -5741,6 +5742,16 @@ tune.quic.fe.tx.udp-gso { on | off }
   via a single system call which is more efficient for large transfer. It may
   be useful to disable it on developers suggestion when suspecting an issue on
   emission.
+
+tune.quic.interop { off | fe } [ EXPERIMENTAL ]
+  Activates support for QUIC interop testing. This is mandatory to be able to
+  use "hq-interop" in ALPN configuration. This must never be activated for
+  normal usage.
+
+  The default value "off" disables QUIC interop testing. The "fe" value is used
+  to run HAProxy as a server in the interop test suite.
+
+  It requires "expose-experimental-directives" to be set.
 
 tune.quic.listen { on | off }
   Disable QUIC transport protocol on the frontend side. All the QUIC listeners
@@ -18159,8 +18170,11 @@ alpn <protocols>
 
        bind :443 ssl crt pub.pem alpn h2  # explicitly disable HTTP/1.1
 
-  QUIC supports only h3 and hq-interop as ALPN. h3 is for HTTP/3 and hq-interop
-  is used for http/0.9 and QUIC interop runner (see https://interop.seemann.io).
+  Only "h3" is officially supported as a QUIC ALPN for HTTP/3. The "hq-interop"
+  value is reserved for QUIC interop testing (see https://interop.seemann.io).
+  It cannot be used unless the experimental keyword "tune.quic.interop" is set
+  to the proper value.
+
   Each "alpn" statement will replace a previous one. In order to remove them,
   use "no-alpn".
 

@@ -533,7 +533,38 @@ static int cfg_parse_quic_tune_on_off(char **args, int section_type, struct prox
 	return ret;
 }
 
+static int cfg_parse_quic_tune_interop(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	int ret = 0;
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (!experimental_directives_allowed) {
+		memprintf(err, "'%s' is experimental, must be allowed via a global "
+		               "'expose-experimental-directives'.", args[0]);
+		return -1;
+	}
+	mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+
+	if (strcmp(args[1], "fe") == 0) {
+		quic_tune.fe.fb_opts |= QUIC_TUNE_FB_INTEROP;
+	}
+	else if (strcmp(args[1], "off") == 0) {
+		quic_tune.fe.fb_opts &= ~QUIC_TUNE_FB_INTEROP;
+	}
+	else {
+		memprintf(err, "'%s' expects 'fe' or 'off'.", args[0]);
+		return -1;
+	}
+
+	return ret;
+}
+
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.quic.interop", cfg_parse_quic_tune_interop },
 	{ CFG_GLOBAL, "tune.quic.listen", cfg_parse_quic_tune_on_off },
 	{ CFG_GLOBAL, "tune.quic.mem.tx-max", cfg_parse_quic_tune_setting },
 	{ CFG_GLOBAL, "tune.quic.sec.stateless-reset-rate", cfg_parse_quic_tune_setting },
