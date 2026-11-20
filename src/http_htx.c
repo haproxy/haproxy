@@ -1461,6 +1461,34 @@ int http_check_http_reply(struct http_reply *reply, struct proxy *px, char **err
 	return ret;
 }
 
+/* list of supported keywords for the "return" action below */
+enum {
+	HTTP_RET_KW_STATUS,
+	HTTP_RET_KW_CONT_TYPE,
+	HTTP_RET_KW_ERRORFILES,
+	HTTP_RET_KW_DEF_ERRFILES,
+	HTTP_RET_KW_ERRORFILE,
+	HTTP_RET_KW_FILE,
+	HTTP_RET_KW_STRING,
+	HTTP_RET_KW_LF_FILE,
+	HTTP_RET_KW_LF_STRING,
+	HTTP_RET_KW_HDR,
+	HTTP_RET_KW // must be last
+};
+
+const char *http_return_kwlist[] = {
+	[HTTP_RET_KW_STATUS]       = "status",
+	[HTTP_RET_KW_CONT_TYPE]    = "content-type",
+	[HTTP_RET_KW_ERRORFILES]   = "errorfiles",
+	[HTTP_RET_KW_DEF_ERRFILES] = "default-errorfiles",
+	[HTTP_RET_KW_ERRORFILE]    = "errorfile",
+	[HTTP_RET_KW_FILE]         = "file",
+	[HTTP_RET_KW_STRING]       = "string",
+	[HTTP_RET_KW_LF_FILE]      = "lf-file",
+	[HTTP_RET_KW_LF_STRING]    = "lf-string",
+	[HTTP_RET_KW_HDR]          = "hdr",
+};
+
 /* Parse an "http reply". It returns the reply on success or NULL on error. This
  * function creates one of the following http replies :
  *
@@ -1486,7 +1514,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 	const char *act_arg = NULL;
 	char *obj = NULL;
 	int cur_arg, cap = 0, objlen = 0, fd = -1;
-
+	size_t kwidx = 0;
 
 	reply = calloc(1, sizeof(*reply));
 	if (!reply) {
@@ -1508,7 +1536,24 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 
 	cur_arg = *orig_arg;
 	while (*args[cur_arg]) {
-		if (strcmp(args[cur_arg], "status") == 0) {
+		int match;
+
+		if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0)
+			break;
+
+		match = find_word_index_in_array(http_return_kwlist, sizeof(http_return_kwlist[0]),
+		                                 HTTP_RET_KW, 0, args[cur_arg], &kwidx);
+		if (match != 2) {
+			memprintf(errmsg, "unknown keyword '%s' in '%s'.%s%s%s\n",
+				 args[cur_arg], args[0],
+				 match == 1 ? " Maybe you meant '" : "",
+				 match == 1 ? http_return_kwlist[kwidx] : "",
+				 match == 1 ? "' ?" : "");
+			goto error;
+		}
+
+		switch (kwidx) {
+		case HTTP_RET_KW_STATUS:
 			cur_arg++;
 			if (!*args[cur_arg]) {
 				memprintf(errmsg, "'%s' expects <status_code> as argument", args[cur_arg-1]);
@@ -1520,8 +1565,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				goto error;
 			}
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "content-type") == 0) {
+			break;
+
+		case HTTP_RET_KW_CONT_TYPE:
 			cur_arg++;
 			if (!*args[cur_arg]) {
 				memprintf(errmsg, "'%s' expects <ctype> as argument", args[cur_arg-1]);
@@ -1530,8 +1576,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			free(reply->ctype);
 			reply->ctype = strdup(args[cur_arg]);
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "errorfiles") == 0) {
+			break;
+
+		case HTTP_RET_KW_ERRORFILES:
 			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(errmsg, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
@@ -1549,8 +1596,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			}
 			reply->type = HTTP_REPLY_ERRFILES;
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "default-errorfiles") == 0) {
+			break;
+
+		case HTTP_RET_KW_DEF_ERRFILES:
 			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(errmsg, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
@@ -1558,8 +1606,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			act_arg = args[cur_arg];
 			reply->type = HTTP_REPLY_ERRMSG;
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "errorfile") == 0) {
+			break;
+
+		case HTTP_RET_KW_ERRORFILE:
 			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(errmsg, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
@@ -1576,8 +1625,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			}
 			reply->type = HTTP_REPLY_ERRMSG;
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "file") == 0) {
+			break;
+
+		case HTTP_RET_KW_FILE:
 			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(errmsg, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
@@ -1610,8 +1660,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			chunk_initlen(&reply->body.obj, obj, global.tune.bufsize, objlen);
 			obj = NULL;
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "string") == 0) {
+			break;
+
+		case HTTP_RET_KW_STRING:
 			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(errmsg, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
@@ -1632,8 +1683,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			chunk_initlen(&reply->body.obj, obj, global.tune.bufsize, objlen);
 			obj = NULL;
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "lf-file") == 0) {
+			break;
+
+		case HTTP_RET_KW_LF_FILE:
 			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(errmsg, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
@@ -1666,8 +1718,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			reply->type = HTTP_REPLY_LOGFMT;
 			lf_expr_init(&reply->body.fmt);
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "lf-string") == 0) {
+			break;
+
+		case HTTP_RET_KW_LF_STRING:
 			if (reply->type != HTTP_REPLY_EMPTY) {
 				memprintf(errmsg, "unexpected '%s' argument, '%s' already defined", args[cur_arg], act_arg);
 				goto error;
@@ -1687,8 +1740,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			reply->type = HTTP_REPLY_LOGFMT;
 			lf_expr_init(&reply->body.fmt);
 			cur_arg++;
-		}
-		else if (strcmp(args[cur_arg], "hdr") == 0) {
+			break;
+
+		case HTTP_RET_KW_HDR:
 			cur_arg++;
 			if (!*args[cur_arg] || !*args[cur_arg+1]) {
 				memprintf(errmsg, "'%s' expects <name> and <value> as arguments", args[cur_arg-1]);
@@ -1718,9 +1772,8 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				goto error;
 
 			cur_arg += 2;
-		}
-		else
 			break;
+		}
 	}
 
 	if (reply->type == HTTP_REPLY_EMPTY) { /* no payload */
