@@ -4320,7 +4320,7 @@ __LJMP static int hlua_channel_append(lua_State *L)
 	if (filter && !hlua_filter_from_payload(filter, chn))
 		WILL_LJMP(lua_error(L));
 
-	ret = _hlua_channel_insert(chn, L, ist2(str, sz), offset);
+	ret = _hlua_channel_insert(chn, L, ist2(str, sz), offset+len);
 	if (ret > 0 && filter) {
 		struct hlua_flt_ctx *flt_ctx = filter->ctx;
 
