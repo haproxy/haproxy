@@ -1817,15 +1817,17 @@ static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *app
 	} else {
 		/* Display the displayable chars*. */
 		b_putchr(&trash, '<');
-		for (i = 0; i < smp.data.u.str.data; i++) {
+		for (i = 0; i < smp.data.u.str.data && trash.data < trash.size - 1; i++) {
 			if (isprint((unsigned char)smp.data.u.str.area[i]))
 				b_putchr(&trash, smp.data.u.str.area[i]);
 			else
 				b_putchr(&trash, '.');
 		}
-		b_putchr(&trash, '>');
-		b_putchr(&trash, '\n');
-		b_putchr(&trash, 0);
+		if (trash.data < trash.size - 1)
+			b_putchr(&trash, '>');
+		if (trash.data < trash.size - 1)
+			b_putchr(&trash, '\n');
+		trash.area[trash.data < trash.size ? trash.data : trash.size - 1] = 0;
 	}
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
