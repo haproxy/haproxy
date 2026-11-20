@@ -73,6 +73,7 @@
 
 #define H2_CF_IDL_PING          0x04000000  // timer task scheduled for a PING emission
 #define H2_CF_IDL_PING_SENT     0x08000000  // PING emitted, or will be on next tasklet run, waiting for ACK
+#define H2_CF_DEM_MAYALLOC      0x10000000  // demux may allocate its next buffer despite the queue
 
 /* This function is used to report flags in debugging tools. Please reflect
  * below any single-bit flag addition above in the same order via the
@@ -91,7 +92,7 @@ static forceinline char *h2c_show_flags(char *buf, size_t len, const char *delim
 	_(H2_CF_GOAWAY_SENT, _(H2_CF_GOAWAY_FAILED, _(H2_CF_WAIT_FOR_HS, _(H2_CF_IS_BACK,
 	_(H2_CF_WINDOW_OPENED, _(H2_CF_RCVD_SHUT, _(H2_CF_END_REACHED,
 	_(H2_CF_RCVD_RFC8441, _(H2_CF_SHTS_UPDATED, _(H2_CF_DTSU_EMITTED,
-	_(H2_CF_ERR_PENDING, _(H2_CF_ERROR)))))))))))))))))))))))));
+	_(H2_CF_ERR_PENDING, _(H2_CF_ERROR, _(H2_CF_DEM_MAYALLOC))))))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

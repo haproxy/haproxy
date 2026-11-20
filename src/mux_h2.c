@@ -1293,6 +1293,15 @@ static int h2_buf_available(void *target)
 	}
 
 	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
+	    !h2s_sc(h2c_st_by_id(h2c, h2c->dsi))) {
+		/* no stream to allocate for, let the demux retry */
+		h2c->flags &= ~H2_CF_DEM_SALLOC;
+		h2c->flags |= H2_CF_DEM_MAYALLOC;
+		h2c_restart_reading(h2c, 1);
+		progress = 1;
+	}
+
+	if ((h2c->flags & H2_CF_DEM_SALLOC) &&
 	    (h2s = h2c_st_by_id(h2c, h2c->dsi)) && h2s_sc(h2s) &&
 	    (h2s_rxbuf_tail(h2s) || h2s_get_rxbuf(h2s))) {
 		h2c->flags &= ~(H2_CF_DEM_RXBUF | H2_CF_DEM_SFULL);
@@ -1321,9 +1330,12 @@ static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 	if (b_size(bptr))
 		return bptr;
 
-	if (likely(!LIST_INLIST(&h2c->buf_wait.list)) &&
-	    unlikely((buf = b_alloc(bptr, DB_MUX_RX)) == NULL)) {
-		b_queue(DB_MUX_RX, &h2c->buf_wait, h2c, h2_buf_available);
+	if (likely(!LIST_INLIST(&h2c->buf_wait.list))) {
+		buf = b_alloc(bptr, DB_MUX_RX |
+			      ((h2c->flags & H2_CF_DEM_MAYALLOC) ? DB_F_NOQUEUE : 0));
+		h2c->flags &= ~H2_CF_DEM_MAYALLOC;
+		if (unlikely(!buf))
+			b_queue(DB_MUX_RX, &h2c->buf_wait, h2c, h2_buf_available);
 	}
 	return buf;
 }
