@@ -844,12 +844,17 @@ end:
 
 /* Removes all occurrences of protocol <token> from the ALPN string <alpn>
  * whose length is <*len>, in the binary format produced by
- * ssl_sock_parse_alpn() (each name preceded by its length byte). The string
- * is modified in place, remains zero-terminated and <*len> is updated. It may
- * end up empty, which is then equivalent to "no-alpn". Returns the number of
- * entries removed.
+ * ssl_sock_parse_alpn() (each name preceded by its length byte).
+ *
+ * If <prefix> is true, all tokens which begin with the searched value are
+ * considered as matching.
+ *
+ * The string is modified in place, remains zero-terminated and <*len> is
+ * updated. It may end up empty, which is then equivalent to "no-alpn".
+ *
+ * Returns the number of entries removed.
  */
-int alpn_remove_token(char *alpn, int *len, const struct ist token)
+int alpn_remove_token(char *alpn, int *len, const struct ist token, int prefix)
 {
 	int pos = 0, removed = 0;
 	int next;
@@ -861,7 +866,8 @@ int alpn_remove_token(char *alpn, int *len, const struct ist token)
 		if (next > *len)
 			break;
 
-		if ((uchar)alpn[pos] == istlen(token) &&
+		if (((uchar)alpn[pos] == istlen(token) ||
+		     (prefix && (uchar)alpn[pos] > istlen(token))) &&
 		    memcmp(alpn + pos + 1, istptr(token), istlen(token)) == 0) {
 			memmove(alpn + pos, alpn + next, *len - next);
 			*len -= next - pos;

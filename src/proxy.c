@@ -1957,7 +1957,7 @@ int proxy_finalize(struct proxy *px, int *err_code)
 #endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
 
 		if ((global.tune.options2 & GTUNE2_DISABLE_H2_FE) && px->mode == PR_MODE_HTTP && bind_conf->ssl_conf.alpn_str)
-			alpn_remove_token(bind_conf->ssl_conf.alpn_str, &bind_conf->ssl_conf.alpn_len, ist("h2"));
+			alpn_remove_token(bind_conf->ssl_conf.alpn_str, &bind_conf->ssl_conf.alpn_len, ist("h2"), 0);
 
 		if (px->mode == PR_MODE_HTTP && global.tune.bufsize < 16384) {
 #ifdef OPENSSL_NPN_NEGOTIATED
