@@ -29,6 +29,16 @@ server s4 {
   sendhex "00 04000400"
 } -start
 
+server s5 {
+  recv 14
+  sendhex "30"
+} -start
+
+server s6 {
+  recv 14
+  sendhex "300302010 1"
+} -start
+
 syslog S1 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"Success\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
@@ -47,6 +57,16 @@ syslog S3 -level notice {
 syslog S4 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv succeeded, reason: Layer7 check passed.+info: \"Success\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S5 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv failed, reason: Layer7 invalid response.+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S6 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be6/srv failed, reason: Layer7 invalid response.+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 haproxy h1 -conf {
@@ -92,9 +112,23 @@ haproxy h1 -conf {
         tcp-request content reject
         server srv ${s1_addr}:${s1_port}
 
+    backend be5
+        log ${S5_addr}:${S5_port} daemon
+        option log-health-checks
+        option ldap-check
+        server srv ${s5_addr}:${s5_port} check inter 1s rise 1 fall 1
+
+    backend be6
+        log ${S6_addr}:${S6_port} daemon
+        option log-health-checks
+        option ldap-check
+        server srv ${s6_addr}:${s6_port} check inter 1s rise 1 fall 1
+
 } -start
 
 syslog S1 -wait
 syslog S2 -wait
 syslog S3 -wait
 syslog S4 -wait
+syslog S5 -wait
+syslog S6 -wait

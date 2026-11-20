@@ -685,10 +685,11 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	 */
 	ptr = b_head(&check->bi);
 	end = ptr + b_data(&check->bi);
-	ptr++; /* First byte was already matched by the previous expect rule
-		* and at least 14 bytes are available
-		* (see do_parse_ldap_check_opt)
-		*/
+	ptr++; /* First byte was already matched by the previous expect rule.
+		 * The message size is read first, it must be available.
+		 */
+	if (ptr >= end)
+		goto too_short;
 
 	/* size of LDAPMessage */
 	if (*ptr & 0x80) {
@@ -713,7 +714,7 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 		msglen = *ptr;
 	ptr += 1 + nbytes;
 
-	if (end - ptr < msglen)
+	if (end - ptr < msglen || msglen < 5)
 		goto too_short;
 
 	/* http://tools.ietf.org/html/rfc4511#section-4.2.2
