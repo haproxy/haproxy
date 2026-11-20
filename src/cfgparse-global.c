@@ -414,6 +414,8 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 		return 0;
 	}
 	else if (strcmp(args[0], "tune.bufsize") == 0) {
+		uint old_bufsize = global.tune.bufsize;
+
 		if (*(args[1]) == 0) {
 			memprintf(err, "'%s' expects an integer argument", args[0]);
 			return -1;
@@ -435,6 +437,18 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			return -1;
 		}
 
+		if (non_global_section_parsed) {
+			if (global.tune.bufsize < old_bufsize)
+				memprintf(err, "Shrinking '%s' after a non-global section will lead to runtime"
+				          " failures particularly in HTTP. As a general rule, only change this"
+				          " setting once and in the very first global section.", args[0]);
+			else
+				memprintf(err, "Changing '%s' after a non-global section will not affect parts"
+				          " that were already parsed with the earlier value. As a general rule,"
+				          " only change this setting once and in the very first global section.",
+				          args[0]);
+			return 1;
+		}
 		return 0;
 	}
 	else if (strcmp(args[0], "tune.maxrewrite") == 0) {
@@ -448,6 +462,12 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			return -1;
 		}
 
+		if (non_global_section_parsed) {
+			memprintf(err, "Changing '%s' after a non-global section will lead to runtime"
+			          " failures particularly in HTTP. As a general rule, only change this"
+			          " setting once and in the very first global section.", args[0]);
+			return 1;
+		}
 		return 0;
 	}
 	else if (strcmp(args[0], "tune.idletimer") == 0) {
@@ -622,6 +642,12 @@ static int cfg_parse_global_tune_opts(char **args, int section_type,
 			return -1;
 		}
 
+		if (non_global_section_parsed) {
+			memprintf(err, "Changing '%s' after a non-global section will lead to runtime"
+			          " failures particularly in HTTP. As a general rule, only change this"
+			          " setting once and in the very first global section.", args[0]);
+			return 1;
+		}
 		return 0;
 	}
 	else if (strcmp(args[0], "tune.comp.maxlevel") == 0) {

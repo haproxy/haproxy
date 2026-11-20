@@ -4522,7 +4522,10 @@ tune.bufsize <size>
   HTTP response is larger than this size, HAProxy will return an HTTP 502 (Bad
   Gateway) error. Note that the value set using this parameter will
   automatically be rounded up to the next multiple of 8 on 32-bit machines and
-  16 on 64-bit machines. See also: tune.bufsize.large, tune.bufsize.small.
+  16 on 64-bit machines. Since this value is already used while parsing
+  proxies (e.g. to load "errorfile" and "http-return" payloads), it must be set
+  in a global section placed before any other section, otherwise a warning is
+  emitted. See also: tune.bufsize.large, tune.bufsize.small.
 
 tune.bufsize.large <size>
   Sets the size in bytes for large buffers. By defaults, support for large
@@ -5111,7 +5114,10 @@ tune.http.maxhdr <number>
   uses the same limit. It can be useful to push this limit further to
   temporarily allow a buggy application to work by the time it gets fixed. The
   accepted range is 1..32767. Keep in mind that each new header consumes 32bits
-  of memory for each stream, so don't push this limit too high.
+  of memory for each stream, so don't push this limit too high. Since this
+  value is already used while parsing proxies (e.g. to load "errorfile"
+  payloads), it must be set in a global section placed before any other
+  section, otherwise a warning is emitted.
 
   Note that HTTP/1.1 is a text protocol, so there is no special limit when the
   message is sent. The limit during the message parsing is sufficient. HTTP/2
@@ -5403,7 +5409,9 @@ tune.maxrewrite <number>
   to already large requests or to POST requests. It is generally wise to set it
   to about 1024. It is automatically readjusted to half of bufsize if it is
   larger than that. This means you don't have to worry about it when changing
-  bufsize.
+  bufsize. Since this value is already used while parsing proxies (e.g. to
+  check "http-return" payloads), it must be set in a global section placed
+  before any other section, otherwise a warning is emitted.
 
 tune.max-rules-at-once <number>
   Sets the maximum number of rules that can be evaluated at once in ruleset
