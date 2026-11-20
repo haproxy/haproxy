@@ -327,7 +327,7 @@ end:
  * Parse a public certificate and insert it into the jwt_cert_tree.
  * Returns 0 in case of success.
  */
-int jwt_tree_load_cert(char *path, int pathlen, int tryload_cert, const char *file, int line, char **err)
+int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char **err)
 {
 	int retval = -1;
 	EVP_PKEY *pubkey = NULL;
@@ -375,9 +375,6 @@ int jwt_tree_load_cert(char *path, int pathlen, int tryload_cert, const char *fi
 			}
 		}
 	}
-
-	if (!tryload_cert)
-		goto end;
 
 	/* Look for an actual certificate or crt-store with the given name.
 	 * If the path corresponds to an actual certificate that was not loaded
@@ -447,10 +444,6 @@ jwt_jwsverify_hmac(const struct jwt_ctx *ctx, const struct buffer *decoded_signa
 	unsigned int signature_length = 0;
 	unsigned char *hmac_res = NULL;
 	enum jwt_vrfy_status retval = JWT_VRFY_KO;
-
-	if (ctx->is_x509) {
-		return JWT_VRFY_UNMANAGED_ALG;
-	}
 
 	switch(ctx->alg) {
 	case JWS_ALG_HS256:
@@ -652,7 +645,7 @@ end:
  * Returns 1 in case of success.
  */
 enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer *alg,
-				const struct buffer *key, int is_x509_path)
+				const struct buffer *key, jwt_verify_mode mode)
 {
 	struct jwt_item items[JWT_ELT_MAX] = { { 0 } };
 	unsigned int item_num = JWT_ELT_MAX;
@@ -698,7 +691,7 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	decoded_sig->data = ret;
 	ctx.key = key->area;
 	ctx.key_length = key->data;
-	ctx.is_x509 = is_x509_path;
+	ctx.mode = mode;
 
 	/* We have all three sections, signature calculation can begin. */
 
@@ -708,6 +701,10 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	case JWS_ALG_HS384:
 	case JWS_ALG_HS512:
 		/* HMAC + SHA-XXX */
+		if (mode == JWT_VRFY_MODE_CERT) {
+			retval = JWT_VRFY_UNMANAGED_ALG;
+			goto end;
+		}
 		retval = jwt_jwsverify_hmac(&ctx, decoded_sig);
 		break;
 	case JWS_ALG_RS256:
@@ -719,6 +716,12 @@ enum jwt_vrfy_status jwt_verify(const struct buffer *token, const struct buffer 
 	case JWS_ALG_PS256:
 	case JWS_ALG_PS384:
 	case JWS_ALG_PS512:
+
+		if (mode == JWT_VRFY_MODE_SECRET) {
+			retval = JWT_VRFY_UNMANAGED_ALG;
+			goto end;
+		}
+
 		/* RSASSA-PKCS1-v1_5 + SHA-XXX */
 		/* ECDSA using P-XXX and SHA-XXX */
 		/* RSASSA-PSS using SHA-XXX and MGF1 with SHA-XXX */

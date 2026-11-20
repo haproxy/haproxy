@@ -3155,10 +3155,10 @@ issuers-chain-path <dir>
   used, or no chain was provided in the PEM.
 
 jwt.allow_none_alg
-  Allow JWT signed token with the "none" algorithm in the 'jwt_verify'
-  converter. They will always be considered valid when this option is set. By
-  default unsigned tokens are rejected since they are considered unsafe (see
-  RFC8725 section 3.1).
+  Allow JWT signed token with the "none" algorithm in the 'jwt_verify',
+  'jwt_verify_secret' or 'jwt_verify_cert' converters. They will always be
+  considered valid when this option is set. By default unsigned tokens are
+  rejected since they are considered unsafe (see RFC8725 section 3.1).
 
 jwt.decrypt_alg_list <list>
   Set the list of algorithms allowed in the jwt_decrypt_XXX converters. JWT
@@ -22345,6 +22345,7 @@ jwt_payload_query([json_path[,output_type]])       string       string
 -- keyword -------------------------------------+- input type + output type -
 jwt_verify(alg,key)                                string       integer
 jwt_verify_cert(alg,cert)                          string       integer
+jwt_verify_secret(alg,cert)                        string       integer
 language(value[,default])                          string       string
 length                                             string       integer
 lower                                              string       string
@@ -23487,11 +23488,13 @@ jwt_verify_cert(<alg>,<cert>)
   ensure that the header and payload contents are fully valid JSONs once
   decoded for instance, and no checks are performed regarding their respective
   contents.
+  This converter cannot be used to validate tokens signed with HMAC algorithm,
+  it takes a certificate or a public key as second parameter.
 
   - <alg> can be either a string or a variable name (See also "set-var") that
     holds the name of the algorithm used to verify. Unlike the "jwt_verify"
-    converter, this converter only expects a certificate as second parameter so
-    it should not be used for tokens using HMAC algorithms.
+    converter, this converter only expects a certificate or a public key as
+    second parameter so it should not be used for tokens using HMAC algorithms.
 
     Algorithms mentioned in section 3.1 of RFC7518 are managed (apart from HMAC
     ones):
@@ -23513,7 +23516,7 @@ jwt_verify_cert(<alg>,<cert>)
    +--------------+---------------------------------------------------------+
 
   - <key> can be either a string or a variable name (See also "set-var") that
-    holds a certificate path.
+    holds a certificate or public key path.
 
     Certificates must be standard PEM certificates (starting with BEGIN
     CERTIFICATE). Their path can be passed directly to the converter or
@@ -23531,6 +23534,10 @@ jwt_verify_cert(<alg>,<cert>)
     It is possible to update certificates dynamically and add new certificates
     using the stats socket. See also "set ssl cert" and "new ssl cert" in the
     management guide.
+
+    All the public keys that might be used to verify JWTs must be known during
+    init in order to be added into a dedicated cache so that no disk access is
+    required during runtime.
 
   Returns 1 in case of verification success, 0 in case of verification failure
   and a strictly negative value for any other error. Because of all those
@@ -23564,6 +23571,71 @@ jwt_verify_cert(<alg>,<cert>)
      http-request set-var(txn.jwt_alg) var(txn.bearer),jwt_header_query('$.alg')
      http-request deny unless { var(txn.jwt_alg) -m str "RS256" }
      http-request deny unless { var(txn.bearer),jwt_verify_cert(txn.jwt_alg,"/path/to/cert.pem") 1 }
+
+jwt_verify_secret(<alg>,<secret>)
+
+  Performs a signature verification for the JSON Web Token (JWT) given in input
+  by using the <alg> algorithm and the <cert> parameter.
+  For now, only JWS tokens using the Compact Serialization format can be
+  processed (three dot-separated base64-url encoded strings).
+  This converter only verifies the signature of the token and does not perform
+  a full JWT validation as specified in section 7.2 of RFC7519. We do not
+  ensure that the header and payload contents are fully valid JSONs once
+  decoded for instance, and no checks are performed regarding their respective
+  contents.
+  This converter can only be used to validate tokens signed with HMAC
+  algorithm.
+
+  - <alg> can be either a string or a variable name (See also "set-var") that
+    holds the name of the algorithm used to verify.
+
+    Among the algorithms mentioned in section 3.1 of RFC7518, only the HMAC
+    ones are supported in this converter and the "none" special case.
+
+   +--------------+---------------------------------------------------------+
+   | "alg" Param  | Digital Signature or MAC Algorithm                      |
+   | Value        |                                                         |
+   +--------------+---------------------------------------------------------+
+   | HS256        | HMAC using SHA-256                                      |
+   | HS384        | HMAC using SHA-384                                      |
+   | HS512        | HMAC using SHA-512                                      |
+   | none         | No digital signature or MAC performed (see note below)  |
+   +--------------+---------------------------------------------------------+
+
+  - <secret> can be either a string or a variable name (See also "set-var")
+    that holds the secret used to verify the token.
+
+  Returns 1 in case of verification success, 0 in case of verification failure
+  and a strictly negative value for any other error. Because of all those
+  non-null error return values, the result of this converter should never be
+  converted to a boolean. See below for a full list of the possible return
+  values.
+
+  The possible return values are the following :
+
+  +----+----------------------------------------------------------------------+
+  | ID | message                                                              |
+  +----+----------------------------------------------------------------------+
+  |  1 | "Verification success"                                               |
+  |  0 | "Verification failure"                                               |
+  | -1 | "Unknown algorithm (not mentioned in RFC7518)"                       |
+  | -2 | "Unmanaged algorithm"                                                |
+  | -3 | "Invalid token"                                                      |
+  | -4 | "Out of memory"                                                      |
+  | -6 | "Internal error"                                                     |
+  +----+----------------------------------------------------------------------+
+
+  Please note that this converter is only available when HAProxy has been
+  compiled with USE_OPENSSL.
+
+  Example:
+     # Get a JWT from the authorization header, extract the "alg" field of its
+     # JOSE header and use a public certificate to verify a signature
+     http-request set-var(txn.bearer) http_auth_bearer
+     http-request set-var(txn.jwt_alg) var(txn.bearer),jwt_header_query('$.alg')
+     http-request deny unless { var(txn.jwt_alg) -m str "HS256" }
+     http-request set-var(txn.secret) str(YQBiY2RlZg==),b64dec
+     http-request return status 200 hdr x-res "%[req.hdr(x-tok),jwt_verify_secret(txn.jwt_alg,txn.secret)]"
 
 language(<value>[,<default>])
   Returns the value with the highest q-factor from a list as extracted from the

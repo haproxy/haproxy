@@ -43,6 +43,12 @@ enum jwt_alg {
 	JWS_ALG_PS512,
 };
 
+typedef enum {
+	JWT_VRFY_MODE_DFLT = 0,
+	JWT_VRFY_MODE_SECRET,
+	JWT_VRFY_MODE_CERT
+} jwt_verify_mode;
+
 struct jwt_item {
 	char *start;
 	size_t length;
@@ -55,7 +61,7 @@ struct jwt_ctx {
 	struct jwt_item signature;
 	char *key;
 	unsigned int key_length;
-	int is_x509;	/* 1 if 'key' field is a certificate, 0 otherwise */
+	jwt_verify_mode mode; /* default, secret-only, cert-only */
 };
 
 enum jwt_elt {
