@@ -18,6 +18,7 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/proxy.h>
 #include <haproxy/ssl_sock-t.h>
+#include <haproxy/tools.h>
 
 struct show_ech_ctx {
 	struct proxy *pp;
@@ -497,8 +498,6 @@ end:
 	return ret;
 }
 
-#define ECH_SUCCESS_MSG_MAX 256
-
 /*
  * For the add and set commands below one needs to provide the ECH PEM file
  * content on the command line. That can be done via:
@@ -516,7 +515,7 @@ static int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, 
 	return cli_err(appctx, "'add ssl ech' is not supported when built with AWS-LC\n");
 #else
 	SSL_CTX *sctx = NULL;
-	char success_message[ECH_SUCCESS_MSG_MAX];
+	char *success_message = NULL;
 	OSSL_ECHSTORE *es = NULL;
 	BIO *es_in = NULL;
 
@@ -537,9 +536,8 @@ static int cli_parse_add_ech(char **args, char *payload, struct appctx *appctx, 
 	}
 	OSSL_ECHSTORE_free(es);
 	BIO_free_all(es_in);
-	snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-	         "added a new ECH config to %s", args[3]);
-	return cli_msg(appctx, LOG_INFO, success_message);
+	memprintf(&success_message, "added a new ECH config to %s", args[3]);
+	return cli_dynmsg(appctx, LOG_INFO, success_message);
 #endif /* OPENSSL_IS_AWSLC */
 }
 
@@ -550,7 +548,7 @@ static int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, 
 	return cli_err(appctx, "'set ssl ech' is not supported when built with AWS-LC\n");
 #else
 	SSL_CTX *sctx = NULL;
-	char success_message[ECH_SUCCESS_MSG_MAX];
+	char *success_message = NULL;
 	OSSL_ECHSTORE *es = NULL;
 	BIO *es_in = NULL;
 
@@ -571,9 +569,8 @@ static int cli_parse_set_ech(char **args, char *payload, struct appctx *appctx, 
 	}
 	OSSL_ECHSTORE_free(es);
 	BIO_free_all(es_in);
-	snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-	         "set new ECH configs for %s", args[3]);
-	return cli_msg(appctx, LOG_INFO, success_message);
+	memprintf(&success_message, "set new ECH configs for %s", args[3]);
+	return cli_dynmsg(appctx, LOG_INFO, success_message);
 #endif /* OPENSSL_IS_AWSLC */
 }
 
@@ -585,7 +582,7 @@ static int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, 
 #else
 	SSL_CTX *sctx = NULL;
 	time_t age = 0;
-	char success_message[ECH_SUCCESS_MSG_MAX];
+	char *success_message = NULL;
 	OSSL_ECHSTORE *es = NULL;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -604,14 +601,12 @@ static int cli_parse_del_ech(char **args, char *payload, struct appctx *appctx, 
 		return cli_err(appctx, "'del ssl ech' error removing old ECH values\n");
 	}
 	OSSL_ECHSTORE_free(es);
-	memset(success_message, 0, ECH_SUCCESS_MSG_MAX);
 	if (!age)
-		snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-		         "deleted all ECH configs from %s", args[3]);
+		memprintf(&success_message, "deleted all ECH configs from %s", args[3]);
 	else
-		snprintf(success_message, ECH_SUCCESS_MSG_MAX,
-		         "deleted ECH configs older than %ld seconds from %s", age, args[3]);
-	return cli_msg(appctx, LOG_INFO, success_message);
+		memprintf(&success_message,
+		          "deleted ECH configs older than %ld seconds from %s", age, args[3]);
+	return cli_dynmsg(appctx, LOG_INFO, success_message);
 #endif /* OPENSSL_IS_AWSLC */
 }
 
