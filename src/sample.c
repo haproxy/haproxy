@@ -5268,6 +5268,10 @@ static int sample_conv_jwt_verify_check(struct arg *args, struct sample_conv *co
 		expect_cert = 1;
 	else if (strcmp(conv->kw, "jwt_verify_secret") == 0)
 		expect_secret = 1;
+	else if (!deprecated_directives_allowed){
+		ha_warning("parsing [%s:%d]: 'jwt_verify' converter is deprecated, "
+			   "use 'jwt_verify_secret' or 'jwt_verify_cert' instead.\n", file, line);
+	}
 
 	if (args[0].type == ARGT_STR) {
 		alg = jwt_parse_alg(args[0].data.str.area, args[0].data.str.data);

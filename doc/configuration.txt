@@ -23389,7 +23389,10 @@ jwt_payload_query([<json_path>[,<output_type>]])
   Please note that this converter is only available when HAProxy has been
   compiled with USE_OPENSSL.
 
-jwt_verify(<alg>,<key>)
+jwt_verify(<alg>,<key>) (deprecated)
+
+  This converter is deprecated, use 'jwt_verify_secret' or 'jwt_verify_cert'
+  instead.
 
   Performs a signature verification for the JSON Web Token (JWT) given in input
   by using the <alg> algorithm and the <key> parameter.
