@@ -516,14 +516,15 @@ static int fcgi_buf_available(void *target)
 	struct fcgi_conn *fconn = target;
 	struct fcgi_strm *fstrm;
 
-	if ((fconn->flags & FCGI_CF_DEM_DALLOC) && b_alloc(&fconn->dbuf, DB_MUX_RX)) {
+	/* we're still in the queue here, hence DB_F_NOQUEUE */
+	if ((fconn->flags & FCGI_CF_DEM_DALLOC) && b_alloc(&fconn->dbuf, DB_MUX_RX | DB_F_NOQUEUE)) {
 		TRACE_STATE("unblocking fconn, dbuf allocated", FCGI_EV_FCONN_RECV|FCGI_EV_FCONN_BLK|FCGI_EV_FCONN_WAKE, fconn->conn);
 		fconn->flags &= ~FCGI_CF_DEM_DALLOC;
 		fcgi_conn_restart_reading(fconn, 1);
 		return 1;
 	}
 
-	if ((fconn->flags & FCGI_CF_MUX_MALLOC) && b_alloc(br_tail(fconn->mbuf), DB_MUX_TX)) {
+	if ((fconn->flags & FCGI_CF_MUX_MALLOC) && b_alloc(br_tail(fconn->mbuf), DB_MUX_TX | DB_F_NOQUEUE)) {
 		TRACE_STATE("unblocking fconn, mbuf allocated", FCGI_EV_FCONN_SEND|FCGI_EV_FCONN_BLK|FCGI_EV_FCONN_WAKE, fconn->conn);
 		fconn->flags &= ~FCGI_CF_MUX_MALLOC;
 		if (fconn->flags & FCGI_CF_DEM_MROOM) {
@@ -535,7 +536,7 @@ static int fcgi_buf_available(void *target)
 
 	if ((fconn->flags & FCGI_CF_DEM_SALLOC) &&
 	    (fstrm = fcgi_conn_st_by_id(fconn, fconn->dsi)) && fcgi_strm_sc(fstrm) &&
-	    b_alloc(&fstrm->rxbuf, DB_SE_RX)) {
+	    b_alloc(&fstrm->rxbuf, DB_SE_RX | DB_F_NOQUEUE)) {
 		TRACE_STATE("unblocking fstrm, rxbuf allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 		fconn->flags &= ~FCGI_CF_DEM_SALLOC;
 		fcgi_conn_restart_reading(fconn, 1);
