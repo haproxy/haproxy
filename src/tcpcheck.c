@@ -555,10 +555,9 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	enum healthcheck_status status;
+	struct ist desc = IST_NULL, version;
 	struct buffer *msg = NULL;
-	struct ist desc = IST_NULL;
 	unsigned int err = 0, plen = 0;
-
 
 	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
@@ -612,9 +611,20 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 	/* We set the MySQL Version in description for information purpose
 	 * FIXME : it can be cool to use MySQL Version for other purpose,
 	 * like mark as down old MySQL server.
+	 *
+	 * The version is a NUL-terminated string, but a non-compliant server
+	 * may not terminate it. It is bounded to the received data to not
+	 * rely on the buffer content past its end when it is copied into the
+	 * check status.
 	 */
 	status = ((rule->expect.ok_status != HCHK_STATUS_UNKNOWN) ? rule->expect.ok_status : HCHK_STATUS_L7OKD);
-	set_server_check_status(check, status, b_peek(&check->bi, 5));
+	version = iststop(ist2(b_peek(&check->bi, 5), b_data(&check->bi) - 5), '\0');
+	msg = alloc_trash_chunk();
+	if (msg) {
+		chunk_istcat(msg, version);
+		b_putchr(msg, '\0');
+	}
+	set_server_check_status(check, status, (msg ? b_head(msg) : NULL));
 
   out:
 	free_trash_chunk(msg);
