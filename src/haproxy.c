@@ -1882,6 +1882,10 @@ static void init_args(int argc, char **argv)
 	}
 
 	haproxy_init_args(argc, argv);
+
+	/* always enable dumpable mode in debug mode (-d) */
+	if (arg_mode & MODE_DEBUG)
+		global.tune.options |= GTUNE_SET_DUMPABLE;
 }
 
 /* call the various keyword dump functions based on the comma-delimited list of

@@ -212,8 +212,10 @@ list of options is :
     condition is false or 2 if an error is encountered.
 
   -d : enable debug mode. This disables daemon mode, forces the process to stay
-    in foreground and to show incoming and outgoing events. It must never be
-    used in an init script.
+    in foreground and to show incoming and outgoing events. It also forcefully
+    enables "set-dumpable" in order to produce core dumps on crashes. This is
+    essentially meant to be used by developers. It must never be used in an
+    init script.
 
   -dA[file] : dump an archive of all dependencies detected at boot time in the
     designated file in tar format, immediately after the configuration is done
@@ -5424,8 +5426,9 @@ global "set-dumpable" directive helps to re-enable them despite certain uid/gid
 and chroot changes. When editing the configuration is not an option, such as
 when dealing with generated configurations or regression tests, it is possible
 to set the HAPROXY_FORCE_DUMPABLE environment variable to one of the values
-accepted by "set-dumpable". Please consult the configuration manual for more
-information on this topic.
+accepted by "set-dumpable". For developers who rely a lot on "-d", it also
+automatically enables "set-dumpable". Please consult the configuration manual
+for more information on this topic.
 
 
 13. Security considerations

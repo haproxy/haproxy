@@ -3520,7 +3520,8 @@ set-dumpable [ on | off | libs ]
   command line to enable core dumps. This is for example the case with
   generated configurations and regression testing. In this case, it is possible
   to preset the set-dumpable argument in the HAPROXY_FORCE_DUMPABLE environment
-  variable, which accepts the same values.
+  variable, which accepts the same values. The forced debug mode on the command
+  line ("-d") also turns set-dumpable on.
 
 set-var <var-name> <expr>
   Sets the process-wide variable '<var-name>' to the result of the evaluation
