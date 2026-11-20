@@ -844,16 +844,16 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 
 	channel_check_idletimer(ic);
 
-	sc_ep_fwd_kip_when_committed(sco, sc);
-
 	input  = applet_output_data(app);
 	output = co_data(oc);
 
 	/* Don't call I/O handler if the applet was shut (release callback was
 	 * already called)
 	 */
-	if (!se_fl_test(app->sedesc, SE_FL_SHR) || !se_fl_test(app->sedesc, SE_FL_SHW))
+	if (!se_fl_test(app->sedesc, SE_FL_SHR) || !se_fl_test(app->sedesc, SE_FL_SHW)) {
+		sc_ep_fwd_kip_when_committed(sco, sc);
 		CALL_APPLET_NO_RET(app->applet, fct(app));
+	}
 
 	TRACE_POINT(APPLET_EV_PROCESS, app);
 

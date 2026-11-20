@@ -54,6 +54,9 @@ static int sc_conn_send(struct stconn *sc);
  * value higher than the remaining payload. So, when the app layer has not
  * committed yet, <kip> is reset instead. It is conservative: <kop> may be
  * lower than the remaining payload, but never higher.
+ *
+ * It must be called right before the endpoint callback which may consume
+ * <kop>, so the hint is only forwarded when a callback is really invoked.
  */
 void sc_ep_fwd_kip_when_committed(struct stconn *sc_in, struct stconn *sc_out)
 {
@@ -1482,8 +1485,6 @@ int sc_conn_send(struct stconn *sc)
 	if (!conn->mux)
 		return 0;
 
-	sc_ep_fwd_kip_when_committed(sco, sc);
-
 	if (sc_ep_have_ff_data(sc)) {
 		unsigned int send_flag = 0;
 
@@ -1500,6 +1501,7 @@ int sc_conn_send(struct stconn *sc)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
+		sc_ep_fwd_kip_when_committed(sco, sc);
 		ret = CALL_MUX_WITH_RET(conn->mux, resume_fastfwd(sc, send_flag));
 		if (ret > 0) {
 			sc->bytes_out += ret;
@@ -1577,6 +1579,8 @@ int sc_conn_send(struct stconn *sc)
 
 		if ((sc->flags & SC_FL_SHUT_WANTED) && co_data(oc) == c_data(oc))
 			send_flag |= CO_SFL_LAST_DATA;
+
+		sc_ep_fwd_kip_when_committed(sco, sc);
 
 		ret = CALL_MUX_WITH_RET(conn->mux, snd_buf(sc, &oc->buf, co_data(oc), send_flag));
 		if (ret > 0) {
@@ -2106,8 +2110,6 @@ int sc_applet_send(struct stconn *sc)
 	if (se_fl_test(sc->sedesc, SE_FL_ORPHAN))
 		return 0;
 
-	sc_ep_fwd_kip_when_committed(sco, sc);
-
 	/* TODO: Splicing is not supported, so it is not possible to have FF data stuck into the I/O buf */
 	BUG_ON(sc_ep_have_ff_data(sc));
 
@@ -2116,6 +2118,8 @@ int sc_applet_send(struct stconn *sc)
 
 		if ((sc->flags & SC_FL_SHUT_WANTED) && co_data(oc) == c_data(oc))
 			send_flag |= CO_SFL_LAST_DATA;
+
+		sc_ep_fwd_kip_when_committed(sco, sc);
 
 		ret = appctx_snd_buf(sc, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
