@@ -26,7 +26,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/server.h>
-#include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 

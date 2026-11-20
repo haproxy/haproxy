@@ -48,7 +48,6 @@
 #include <haproxy/sock_inet.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 
 /* per-thread quic datagram handlers */
 struct quic_dghdlr *quic_dghdlrs;

@@ -68,7 +68,6 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 #include <haproxy/uri_auth.h>
 
 /* Lock to ensure multiple backends deletion concurrently is safe */

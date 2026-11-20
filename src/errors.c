@@ -15,7 +15,6 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/ring.h>
 #include <haproxy/sym.h>
-#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 /* A global buffer used to store all startup alerts/warnings. It will then be

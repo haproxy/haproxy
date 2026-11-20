@@ -45,7 +45,6 @@
 #include <haproxy/session.h>
 #include <haproxy/task.h>
 #include <haproxy/trace.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 
 /* Log only first EACCES bind() error runtime occurrence. */

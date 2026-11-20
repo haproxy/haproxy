@@ -44,7 +44,6 @@
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
-#include <haproxy/tools.h>
 #include <haproxy/twork.h>
 
 

@@ -44,7 +44,6 @@
 #include <haproxy/global.h>
 #include <haproxy/log.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 
 struct tgroup_info ha_tgroup_info[MAX_TGROUPS] = { };
 THREAD_LOCAL const struct tgroup_info *tg = &ha_tgroup_info[0];

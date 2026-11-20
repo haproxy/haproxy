@@ -26,7 +26,6 @@
 #include <haproxy/server-t.h>
 #include <haproxy/session.h>
 #include <haproxy/sink.h>
-#include <haproxy/tools.h>
 
 
 /* Global list of all FCGI applications */

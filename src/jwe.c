@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 #include <haproxy/jwt.h>
-#include <haproxy/tools.h>
 #include <haproxy/base64.h>
 #include <haproxy/chunk.h>
 #include <haproxy/init.h>

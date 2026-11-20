@@ -35,7 +35,6 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
-#include <haproxy/tools.h>
 
 static THREAD_LOCAL char *dns_msg_trash;
 

@@ -49,7 +49,6 @@
 #include <haproxy/action.h>
 #include <haproxy/time.h>
 #include <haproxy/hash.h>
-#include <haproxy/tools.h>
 #include <haproxy/vecpair.h>
 
 /* global recv logs counter */

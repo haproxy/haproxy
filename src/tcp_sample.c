@@ -35,7 +35,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/session.h>
-#include <haproxy/tools.h>
 
 /* Fetch the connection's source IPv4/IPv6 address. Depending on the keyword, it
  * may be the frontend or the backend connection.

@@ -18,7 +18,6 @@
 #include <haproxy/server.h>
 #include <haproxy/stconn.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 
 /* Common helper to create a new generic metric */
 #define ME_NEW_COMMON(name_f, alt_n, nature, format, offset_f, cap_f, desc_f) \

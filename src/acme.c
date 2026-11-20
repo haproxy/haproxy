@@ -36,7 +36,6 @@
 #include <haproxy/ssl_gencert.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #ifdef USE_LUA
 #include <lua.h>

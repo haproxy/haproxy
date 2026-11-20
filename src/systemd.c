@@ -22,8 +22,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdarg.h>
-
 #include <haproxy/tools.h>
+
 
 /*
  *  standalone reimplementation of sd_notify from the libsystemd

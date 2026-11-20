@@ -22,11 +22,11 @@
 #include <haproxy/event_hdl.h>
 #include <haproxy/compiler.h>
 #include <haproxy/task.h>
-#include <haproxy/tools.h>
 #include <haproxy/errors.h>
 #include <haproxy/signal.h>
 #include <haproxy/xxhash.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/tools.h>
 
 /* event types changes in event_hdl-t.h file should be reflected in the
  * map below to allow string to type and type to string conversions

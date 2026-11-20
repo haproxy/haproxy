@@ -24,7 +24,6 @@
 #include <haproxy/pool.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
-#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 static int smp_check_http_date_unit(struct arg *args, struct sample_conv *conv,

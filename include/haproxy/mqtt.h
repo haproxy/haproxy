@@ -25,7 +25,6 @@
 #include <import/ist.h>
 
 #include <haproxy/mqtt-t.h>
-#include <haproxy/tools.h>
 
 /* expected flags for control packets */
 extern uint8_t mqtt_cpt_flags[MQTT_CPT_ENTRIES];

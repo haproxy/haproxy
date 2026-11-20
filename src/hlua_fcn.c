@@ -39,7 +39,6 @@
 #include <haproxy/event_hdl.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 #include <haproxy/mailers.h>
 
 /* Contains the class reference of the concat object. */

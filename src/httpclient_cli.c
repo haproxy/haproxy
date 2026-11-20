@@ -9,7 +9,6 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/http_client.h>
-#include <haproxy/tools.h>
 
 #include <string.h>
 

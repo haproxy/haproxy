@@ -85,7 +85,6 @@ extern void *__elf_aux_vector;
 #include <haproxy/sym.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 
 /* set to true if this is a static build */
 int build_is_static = 0;

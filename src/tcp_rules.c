@@ -28,7 +28,6 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/ticks.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 
 

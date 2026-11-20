@@ -23,7 +23,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 
 const char *trace_flt_id = "trace filter";
 const char *trace_filter_cls_name = "trace";

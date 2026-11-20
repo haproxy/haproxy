@@ -34,7 +34,6 @@
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stconn.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_qmux.h>
 #include <haproxy/xref.h>

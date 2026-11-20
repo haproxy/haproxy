@@ -24,7 +24,6 @@
 #include <haproxy/stream.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 
 const char *bwlim_in_flt_id = "input bandwidth limitation filter";
 const char *bwlim_out_flt_id = "output bandwidth limitation filter";

@@ -24,7 +24,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/server.h>
-#include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 /* Return next tree node after <node> which must still be in the tree, or be

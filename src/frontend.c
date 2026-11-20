@@ -40,7 +40,6 @@
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
-#include <haproxy/tools.h>
 
 
 /* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative

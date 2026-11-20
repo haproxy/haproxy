@@ -13,6 +13,7 @@
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/cfgcond.h>
+#include <haproxy/global.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>

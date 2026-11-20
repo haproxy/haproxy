@@ -39,7 +39,6 @@
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
-#include <haproxy/tools.h>
 
 static enum act_return tcp_action_attach_srv(struct act_rule *rule, struct proxy *px,
                                              struct session *sess, struct stream *s, int flags)

@@ -21,7 +21,6 @@
 #include <haproxy/stats.h>
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
-#include <haproxy/tools.h>
 
 /* haload stream state flags */
 #define HLD_STRM_ST_IN_ALLOC     0x0001

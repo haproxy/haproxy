@@ -29,7 +29,6 @@
 #include <haproxy/global.h>
 #include <haproxy/pipe.h>
 #include <haproxy/proxy.h>
-#include <haproxy/tools.h>
 
 
 #if defined(USE_LINUX_SPLICE)

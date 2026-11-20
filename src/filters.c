@@ -29,7 +29,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/stream.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 #include <haproxy/twork.h>
 #include <haproxy/trace.h>
 

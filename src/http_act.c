@@ -36,7 +36,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
-#include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/uri_normalizer.h>
 #include <haproxy/version.h>

@@ -29,7 +29,6 @@
 #include <haproxy/protocol.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_unix.h>
-#include <haproxy/tools.h>
 
 static int uxdg_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void uxdg_enable_listener(struct listener *listener);

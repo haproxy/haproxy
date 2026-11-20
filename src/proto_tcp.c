@@ -45,7 +45,6 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
-#include <haproxy/tools.h>
 
 
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);

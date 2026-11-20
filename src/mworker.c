@@ -42,7 +42,6 @@
 #include <haproxy/stconn.h>
 #include <haproxy/stream.h>
 #include <haproxy/systemd.h>
-#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 

@@ -23,7 +23,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
-#include <haproxy/tools.h>
 
 #define COMP_STATE_PROCESSING 0x01
 

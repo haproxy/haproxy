@@ -38,7 +38,6 @@
 #include <haproxy/stream.h>
 #include <haproxy/stress.h>
 #include <haproxy/task.h>
-#include <haproxy/tools.h>
 #include <haproxy/version.h>
 #include <haproxy/xxhash.h>
 

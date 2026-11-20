@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include <ctype.h>
 #include <haproxy/compat.h>
 #include <haproxy/cpuset.h>
 #include <haproxy/intops.h>

@@ -30,7 +30,6 @@
 #include <haproxy/ssl_ocsp.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
-#include <haproxy/tools.h>
 
 /* CLI context for "show ssl crt-list" or "dump ssl crt-list" */
 struct show_crtlist_ctx {

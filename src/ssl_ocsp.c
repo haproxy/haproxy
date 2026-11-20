@@ -63,7 +63,6 @@
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/ssl_trace.h>
 #include <haproxy/vars.h>

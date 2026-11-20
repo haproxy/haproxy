@@ -40,7 +40,6 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);

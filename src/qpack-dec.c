@@ -34,7 +34,6 @@
 #include <haproxy/hpack-huff.h>
 #include <haproxy/hpack-tbl.h>
 #include <haproxy/http-hdr.h>
-#include <haproxy/tools.h>
 
 #if defined(DEBUG_QPACK)
 #define qpack_debug_printf fprintf

@@ -41,7 +41,6 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/stconn.h>
-#include <haproxy/tools.h>
 
 #include <string.h>
 

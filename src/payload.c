@@ -25,7 +25,6 @@
 #include <haproxy/payload.h>
 #include <haproxy/sample.h>
 #include <haproxy/stconn.h>
-#include <haproxy/tools.h>
 
 
 /************************************************************************/

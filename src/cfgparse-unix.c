@@ -35,7 +35,6 @@
 #include <haproxy/namespace.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server.h>
-#include <haproxy/tools.h>
 
 /* parse the "mode" bind keyword */
 static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)

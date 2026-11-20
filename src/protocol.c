@@ -25,7 +25,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/quic_tune.h>
 #include <haproxy/sock.h>
-#include <haproxy/tools.h>
 #include <haproxy/twork.h>
 
 

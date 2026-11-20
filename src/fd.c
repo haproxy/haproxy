@@ -97,7 +97,6 @@
 #include <haproxy/port_range.h>
 #include <haproxy/thread.h>
 #include <haproxy/ticks.h>
-#include <haproxy/tools.h>
 
 
 THREAD_LOCAL struct fdtab *fdtab = NULL;  /* array of all the file descriptors */

@@ -33,7 +33,6 @@
 #include <haproxy/server.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/tcpcheck.h>
-#include <haproxy/tools.h>
 #include <haproxy/uri_auth.h>
 
 /* Options which are not described in the cfg_opts* arrays because they need a

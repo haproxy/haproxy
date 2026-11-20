@@ -62,7 +62,6 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/vars.h>
 

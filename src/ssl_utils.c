@@ -18,7 +18,6 @@
 #include <haproxy/chunk.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/sample.h>
-#include <haproxy/tools.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 

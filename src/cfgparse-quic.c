@@ -16,7 +16,6 @@
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_rules.h>
 #include <haproxy/quic_tune.h>
-#include <haproxy/tools.h>
 
 #define QUIC_CC_NEWRENO_STR "newreno"
 #define QUIC_CC_CUBIC_STR   "cubic"

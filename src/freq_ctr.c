@@ -12,7 +12,6 @@
 
 #include <haproxy/api.h>
 #include <haproxy/freq_ctr.h>
-#include <haproxy/tools.h>
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
  * rotated if the period is over. It is important that it correctly initializes

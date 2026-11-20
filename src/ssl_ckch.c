@@ -41,7 +41,6 @@
 #include <haproxy/ssl_ocsp.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stconn.h>
-#include <haproxy/tools.h>
 #include <haproxy/jwt.h>
 
 /* Uncommitted CKCH transaction */

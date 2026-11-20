@@ -24,7 +24,6 @@
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 #include <haproxy/vars.h>
 

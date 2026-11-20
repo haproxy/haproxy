@@ -7,7 +7,6 @@
 #include <haproxy/quic_conn.h>
 #include <haproxy/quic_tp.h>
 #include <haproxy/quic_utils.h>
-#include <haproxy/tools.h>
 
 /* incremented by each "show quic". */
 unsigned int qc_epoch = 0;

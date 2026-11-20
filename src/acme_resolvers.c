@@ -16,7 +16,6 @@
 #include <haproxy/applet.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/resolvers.h>
-#include <haproxy/tools.h>
 
 /* success callback, copy the TXT string to rslv->txt */
 static int acme_rslv_success_cb(struct resolv_requester *req, struct dns_counters *counters)

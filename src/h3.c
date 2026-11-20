@@ -41,7 +41,6 @@
 #include <haproxy/quic_fctl.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_utils.h>
-#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 
 /* trace source and events */

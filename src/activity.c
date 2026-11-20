@@ -23,7 +23,6 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
 #include <haproxy/sym.h>
-#include <haproxy/tools.h>
 
 /* CLI context for the "show profiling" command */
 struct show_prof_ctx {

@@ -21,7 +21,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/stick_table.h>
-#include <haproxy/tools.h>
 
 /* Allocate and initialize the frontend of a "peers" section found in
  * file <file> at line <linenum> with <id> as ID.

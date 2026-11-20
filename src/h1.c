@@ -17,6 +17,7 @@
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/global.h>
 #include <haproxy/h1.h>
 #include <haproxy/http-hdr.h>
 #include <haproxy/tools.h>

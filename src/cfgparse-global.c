@@ -28,7 +28,6 @@
 #include <haproxy/stats-file.h>
 #include <haproxy/stress.h>
 #include <haproxy/sym.h>
-#include <haproxy/tools.h>
 
 int cluster_secret_isset;
 

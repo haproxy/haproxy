@@ -21,7 +21,6 @@
 #include <haproxy/server-t.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 
 int mailers_used_from_lua = 0;
 

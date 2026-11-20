@@ -34,7 +34,6 @@
 #include <haproxy/proto_sockpair.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
-#include <haproxy/tools.h>
 
 #define SOCK_XFER_OPT_FOREIGN 0x000000001
 #define SOCK_XFER_OPT_V6ONLY  0x000000002

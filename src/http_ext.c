@@ -29,7 +29,6 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/arg.h>
 #include <haproxy/initcall.h>
-#include <haproxy/tools.h>
 
 /*
  * =========== ANALYZE ===========

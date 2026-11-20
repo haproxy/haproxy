@@ -38,7 +38,6 @@
 #include <haproxy/sc_strm.h>
 #include <haproxy/stream.h>
 #include <haproxy/log.h>
-#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 

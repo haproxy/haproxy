@@ -9,6 +9,7 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <errno.h>
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/time.h>

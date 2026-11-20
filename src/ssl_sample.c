@@ -31,7 +31,6 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stconn.h>
-#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 #ifdef USE_ECH
 #include <haproxy/ech.h>

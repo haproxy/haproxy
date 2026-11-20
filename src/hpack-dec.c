@@ -37,7 +37,6 @@
 #include <haproxy/hpack-dec.h>
 #include <haproxy/hpack-huff.h>
 #include <haproxy/hpack-tbl.h>
-#include <haproxy/tools.h>
 
 
 #if defined(DEBUG_HPACK)

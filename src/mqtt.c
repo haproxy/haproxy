@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/chunk.h>
+#include <haproxy/intops.h>
 #include <haproxy/mqtt.h>
 
 uint8_t mqtt_cpt_flags[MQTT_CPT_ENTRIES] = {

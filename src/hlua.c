@@ -67,7 +67,6 @@
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 #include <haproxy/xref.h>
 #include <haproxy/event_hdl.h>

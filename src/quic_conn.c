@@ -30,7 +30,6 @@
 #include <haproxy/compat.h>
 #include <haproxy/api.h>
 #include <haproxy/debug.h>
-#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 
 #include <haproxy/connection.h>

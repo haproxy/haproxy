@@ -37,7 +37,6 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proto_sockpair.h>
 #include <haproxy/sock.h>
-#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 

@@ -11,7 +11,6 @@
 #include <haproxy/cpu_topo.h>
 #include <haproxy/global.h>
 #include <haproxy/log.h>
-#include <haproxy/tools.h>
 
 /* for cpu_set.flags below */
 #define CPU_SET_FL_NONE       0x0000

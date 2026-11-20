@@ -42,7 +42,6 @@
 #include <haproxy/quic_tune.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
-#include <haproxy/tools.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_ocsp.h>

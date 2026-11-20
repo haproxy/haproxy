@@ -49,7 +49,6 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 #include <haproxy/xxhash.h>
 

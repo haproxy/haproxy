@@ -96,7 +96,6 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 #include <haproxy/uri_auth.h>
 
 

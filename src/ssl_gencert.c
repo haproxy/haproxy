@@ -15,7 +15,6 @@
 #include <haproxy/quic_ssl.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
-#include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)

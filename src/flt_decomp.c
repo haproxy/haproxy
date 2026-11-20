@@ -31,7 +31,6 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
-#include <haproxy/tools.h>
 
 #define DECOMP_STATE_PROCESSING 0x01
 #define DECOMP_STATE_EOM_SEEN   0x02

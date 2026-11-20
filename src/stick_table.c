@@ -42,7 +42,6 @@
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/ticks.h>
-#include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 #if defined(USE_PROMEX)

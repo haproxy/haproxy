@@ -30,7 +30,6 @@
 #include <haproxy/stconn.h>
 #include <haproxy/sym.h>
 #include <haproxy/thread.h>
-#include <haproxy/tools.h>
 
 
 /* These ones are initialized per-thread on startup by init_pools() */

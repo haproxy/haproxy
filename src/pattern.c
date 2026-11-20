@@ -28,7 +28,6 @@
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
-#include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 

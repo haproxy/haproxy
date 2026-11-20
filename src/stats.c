@@ -64,7 +64,6 @@
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/version.h>
 

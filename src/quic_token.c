@@ -1,4 +1,3 @@
-#include <haproxy/tools.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/quic_tls.h>
 #include <haproxy/quic_token.h>

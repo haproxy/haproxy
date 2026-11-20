@@ -33,7 +33,6 @@
 #include <haproxy/namespace.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server.h>
-#include <haproxy/tools.h>
 
 
 #ifdef IPV6_V6ONLY

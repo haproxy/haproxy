@@ -23,7 +23,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/sc_strm.h>
 #include <haproxy/stconn.h>
-#include <haproxy/tools.h>
 
 
 /* Parse an IPv4 or IPv6 address and store it into the sample.

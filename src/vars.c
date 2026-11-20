@@ -18,7 +18,6 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tcpcheck.h>
-#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 #include <haproxy/xxhash.h>
 

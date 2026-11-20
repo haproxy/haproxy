@@ -34,7 +34,6 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stconn.h>
 #include <haproxy/tcpcheck.h>
-#include <haproxy/tools.h>
 #include <haproxy/xxhash.h>
 
 
