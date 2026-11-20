@@ -482,7 +482,11 @@ static void qc_notify_cc_of_newly_acked_pkts(struct quic_conn *qc,
 		if (pkt->largest_acked_pn != -1)
 			qc_treat_ack_of_ack(qc, &pkt->pktns->rx.arngs, pkt->largest_acked_pn);
 		bytes_delivered += pkt->len;
-		pkt_delivered = pkt->rs.delivered;
+		/* Delivery rate sampling is applied to ack-eliciting
+		 * packets only: never read it for the other ones.
+		 */
+		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
+			pkt_delivered = pkt->rs.delivered;
 		ev.ack.acked = pkt->in_flight_len;
 		ev.ack.time_sent = pkt->time_sent_ms;
 		ev.ack.pn = pkt->pn_node.key;

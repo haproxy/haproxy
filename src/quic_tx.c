@@ -2337,6 +2337,11 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 	pkt->largest_acked_pn = -1;
 	pkt->flags = 0;
 	pkt->refcnt = 0;
+	/* Note that <pkt->rs> is deliberately left uninitialized here: it is
+	 * filled in at TX time for ack-eliciting packets only by
+	 * quic_cc_drs_on_pkt_sent() and must never be read for a
+	 * non ack-eliciting packet.
+	 */
 }
 
 /* Build a packet into a buffer at <pos> position, <end> pointing to one byte past
