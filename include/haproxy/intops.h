@@ -24,6 +24,14 @@
 
 #include <haproxy/api.h>
 
+/* if a > max, then bound <a> to <max>. The macro returns the new <a> */
+#define UBOUND(a, max)	({ typeof(a) b = (max); if ((a) > b) (a) = b; (a); })
+
+/* if a < min, then bound <a> to <min>. The macro returns the new <a> */
+#define LBOUND(a, min)	({ typeof(a) b = (min); if ((a) < b) (a) = b; (a); })
+
+#define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
+
 /* exported functions, mostly integer parsing */
 /* rounds <i> down to the closest value having max 2 digits */
 unsigned int round_2dig(unsigned int i);

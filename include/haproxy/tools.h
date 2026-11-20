@@ -44,14 +44,6 @@
 #include <haproxy/tools-t.h>
 
 /****** string-specific macros and functions ******/
-/* if a > max, then bound <a> to <max>. The macro returns the new <a> */
-#define UBOUND(a, max)	({ typeof(a) b = (max); if ((a) > b) (a) = b; (a); })
-
-/* if a < min, then bound <a> to <min>. The macro returns the new <a> */
-#define LBOUND(a, min)	({ typeof(a) b = (min); if ((a) < b) (a) = b; (a); })
-
-#define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
-
 /* use if you want to return a simple hash. Key 0 doesn't hash. */
 #define HA_ANON_STR(key, str) hash_anon(key, str, "", "")
 

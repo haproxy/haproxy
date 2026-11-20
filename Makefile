@@ -1015,7 +1015,7 @@ OBJS += src/mux_h1.o src/log.o						\
         src/cfgparse-global.o src/filters.o src/mux_pt.o		\
         src/flt_http_comp.o src/sock.o src/h1.o src/sink.o		\
         src/ceba_tree.o src/session.o src/payload.o src/htx.o		\
-        src/cebl_tree.o src/ceb32_tree.o src/ceb64_tree.o		\
+        src/cebl_tree.o src/ceb32_tree.o src/ceb64_tree.o src/intops.o	\
         src/server_state.o src/proto_rhttp.o src/flt_trace.o src/fd.o	\
         src/task.o src/map.o src/mworker.o				\
         src/tcp_sample.o src/mjson.o src/h1_htx.o src/tcp_act.o		\
