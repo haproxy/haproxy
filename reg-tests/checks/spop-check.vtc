@@ -27,6 +27,11 @@ server s4 {
   sendhex "00000014 65 00000001 0000 0776657273696F6E 0803312E30"
 } -start
 
+server s5 {
+  recv 82
+  sendhex "00000000 65 00000001 0000"
+} -start
+
 syslog S1 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"SPOA server is ok\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
@@ -45,6 +50,11 @@ syslog S3 -level notice {
 syslog S4 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv failed, reason: Layer7 invalid response.+info: \"unsupported version\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S5 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv failed, reason: Layer7 invalid response.+info: \"invalid frame received\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 haproxy h1 -conf {
@@ -90,9 +100,16 @@ haproxy h1 -conf {
         tcp-request content reject
         server srv ${s1_addr}:${s1_port}
 
+    backend be5
+        log ${S5_addr}:${S5_port} daemon
+        option log-health-checks
+        option spop-check
+        server srv ${s5_addr}:${s5_port} check inter 1s rise 1 fall 1
+
 } -start
 
 syslog S1 -wait
 syslog S2 -wait
 syslog S3 -wait
 syslog S4 -wait
+syslog S5 -wait

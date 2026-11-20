@@ -825,8 +825,14 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 	if (*(ptr+9) != 0 || *(ptr+10) != 0)
 		goto invalid_frame;
 
-	if (b_data(&check->bi) < 4 + flen)
+	/* the length is read from the wire, make the comparison overflow-safe,
+	 * and a frame with no payload is invalid: both the AGENT-HELLO and
+	 * AGENT-DISCONNECT frames carry at least one K/V item.
+	 */
+	if (flen > b_data(&check->bi) - 4)
 		goto too_short;
+	if (!flen)
+		goto invalid_frame;
 
 	ptr += 11;
 	end = b_tail(&check->bi);
@@ -835,7 +841,7 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 		while (ptr < end) {
 			char  *str;
 			uint64_t sz;
-			int ret;
+			int type, ret;
 
 			/* Decode the item key */
 			ret = spoe_decode_buffer(&ptr, end, &str, &sz);
@@ -844,7 +850,9 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 
 			/* Check "status-code" K/V item */
 			if (isteq(ist2(str, sz), ist("status-code"))) {
-				int type = *ptr++;
+				if (ptr == end)
+					goto invalid_frame;
+				type = *ptr++;
 
 				/* The value must be an integer */
 				if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
@@ -861,7 +869,9 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 
 			/* Check "message" K/V item */
 			else if (isteq(ist2(str, sz), ist("message"))) {
-				int type = *ptr++;
+				if (ptr == end)
+					goto invalid_frame;
+				type = *ptr++;
 
 				/* The value must be a string */
 				if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR)
@@ -885,7 +895,7 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
         while (ptr < end) {
                 char  *str;
                 uint64_t sz;
-                int ret;
+                int type, ret;
 
                 /* Decode the item key */
                 ret = spoe_decode_buffer(&ptr, end, &str, &sz);
@@ -894,7 +904,9 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 
                 /* Check "version" K/V item */
 		if (isteq(ist2(str, sz), ist("version"))) {
-                        int type = *ptr++;
+			if (ptr == end)
+				goto invalid_frame;
+			type = *ptr++;
 
                         /* The value must be a string */
                         if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR)
@@ -914,7 +926,9 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 		}
                 /* Check "max-frame-size" K/V item */
                 else if (isteq(ist2(str, sz), ist("max-frame-size"))) {
-                        int type = *ptr++;
+			if (ptr == end)
+				goto invalid_frame;
+			type = *ptr++;
 
                         /* The value must be integer */
                         if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_INT32 &&
@@ -932,7 +946,9 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tc
 		}
 		/* Check "capabilities" K/V item */
                 else if (isteq(ist2(str, sz), ist("capabilities"))) {
-                        int type = *ptr++;
+			if (ptr == end)
+				goto invalid_frame;
+			type = *ptr++;
 
                         /* The value must be a string */
                         if ((type & SPOP_DATA_T_MASK) != SPOP_DATA_T_STR)
