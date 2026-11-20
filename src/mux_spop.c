@@ -467,14 +467,15 @@ static int spop_buf_available(void *target)
 	struct spop_conn *spop_conn = target;
 	struct spop_strm *spop_strm;
 
-	if ((spop_conn->flags & SPOP_CF_DEM_DALLOC) && b_alloc(&spop_conn->dbuf, DB_MUX_RX)) {
+	/* we're still in the queue here, hence DB_F_NOQUEUE */
+	if ((spop_conn->flags & SPOP_CF_DEM_DALLOC) && b_alloc(&spop_conn->dbuf, DB_MUX_RX | DB_F_NOQUEUE)) {
 		TRACE_STATE("unblocking spop_conn, dbuf allocated", SPOP_EV_SPOP_CONN_RECV|SPOP_EV_SPOP_CONN_BLK|SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn);
 		spop_conn->flags &= ~SPOP_CF_DEM_DALLOC;
 		spop_conn_restart_reading(spop_conn, 1);
 		return 1;
 	}
 
-	if ((spop_conn->flags & SPOP_CF_MUX_MALLOC) && b_alloc(br_tail(spop_conn->mbuf), DB_MUX_TX)) {
+	if ((spop_conn->flags & SPOP_CF_MUX_MALLOC) && b_alloc(br_tail(spop_conn->mbuf), DB_MUX_TX | DB_F_NOQUEUE)) {
 		TRACE_STATE("unblocking spop_conn, mbuf allocated", SPOP_EV_SPOP_CONN_SEND|SPOP_EV_SPOP_CONN_BLK|SPOP_EV_SPOP_CONN_WAKE, spop_conn->conn);
 		spop_conn->flags &= ~SPOP_CF_MUX_MALLOC;
 		if (spop_conn->flags & SPOP_CF_DEM_MROOM) {
@@ -486,7 +487,7 @@ static int spop_buf_available(void *target)
 
 	if ((spop_conn->flags & SPOP_CF_DEM_SALLOC) &&
 	    (spop_strm = spop_conn_st_by_id(spop_conn, spop_conn->dsi)) && spop_strm_sc(spop_strm) &&
-	    b_alloc(&spop_strm->rxbuf, DB_SE_RX)) {
+	    b_alloc(&spop_strm->rxbuf, DB_SE_RX | DB_F_NOQUEUE)) {
 		TRACE_STATE("unblocking spop_strm, rxbuf allocated", SPOP_EV_STRM_RECV|SPOP_EV_SPOP_STRM_BLK|SPOP_EV_STRM_WAKE, spop_conn->conn, spop_strm);
 		spop_conn->flags &= ~SPOP_CF_DEM_SALLOC;
 		spop_conn_restart_reading(spop_conn, 1);
