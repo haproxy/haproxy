@@ -3052,7 +3052,7 @@ static int h3_resp_trailers_send(struct qcs *qcs, struct htx *htx, char *fin)
 			list[hdr].v = htx_get_blk_value(htx, blk);
 			hdr++;
 		}
-		else {
+		else if (type != HTX_BLK_NOOP) {
 			TRACE_ERROR("unexpected HTX block", H3_EV_TX_FRAME|H3_EV_TX_HDR, qcs->qcc->conn, qcs);
 			goto err;
 		}
@@ -3405,6 +3405,20 @@ static size_t h3_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, char
 				if (ret < bsize)
 					goto out;
 			}
+			break;
+
+		case HTX_BLK_NOOP:
+			/* Nothing is emitted for a NOOP block. But if it
+			 * carries the EOM flag, the end of the message is
+			 * reported.
+			 */
+			if (blk->flags & HTX_BLK_FL_EOM) {
+				TRACE_USER("transcoding last HTX message", H3_EV_STRM_SEND, qcs->qcc->conn, qcs);
+				*fin = 1;
+			}
+			htx_remove_blk(htx, blk);
+			total += bsize;
+			count -= bsize;
 			break;
 
 		default:

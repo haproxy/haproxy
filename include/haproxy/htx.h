@@ -635,8 +635,8 @@ static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist 
 	return blk;
 }
 
-/* Adds an HTX block of type EOH or EOT in <htx>. It returns the new block on
- * success. Otherwise, it returns NULL.
+/* Adds an HTX block of type EOH, EOT or NOOP in <htx>. It returns the new
+ * block on success. Otherwise, it returns NULL.
  */
 static inline struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
 {
@@ -649,6 +649,19 @@ static inline struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type t
 	blk->info += 1;
 	return blk;
 }
+
+/* Adds a NOOP block in <htx>. It carries no data and nothing is emitted when
+ * it is encountered by the consumers. But, like the EOH and EOT blocks, its
+ * size is 1 to be able to wake the endpoint up when it is emitted alone. It
+ * may carry the EOM flag and it is allowed anywhere in the message.
+ *
+ * It returns the new block on success. Otherwise, it returns NULL.
+ */
+static inline struct htx_blk *htx_add_noop(struct htx *htx)
+{
+	return htx_add_endof(htx, HTX_BLK_NOOP);
+}
+
 
 /* Add all headers from the list <hdrs> into the HTX message <htx>, followed by
  * the EOH. On success, it returns the last block inserted (the EOH), otherwise
@@ -888,8 +901,8 @@ static inline int htx_expect_more(const struct htx *htx)
 /* Set EOM flag in <htx>. This function must always be called to report the end
  * of the message. Corresponding flags must never be added by hand, except from
  * the HTX API itself. It must also be called after the last block of the
- * message was added. Finally, this function takes care to add an EOT block if
- * the HTX message is empty.
+ * message was added. Finally, this function takes care to add a NOOP block if
+ * the HTX message is empty, so the EOM flag is not carried by an EOT block.
  *
  * Returns 1 on success else 0.
  */
@@ -898,7 +911,7 @@ static inline int htx_set_eom(struct htx *htx)
 	struct htx_blk *blk;
 
 	if (htx_is_empty(htx)) {
-		if (!htx_add_endof(htx, HTX_BLK_EOT))
+		if (!htx_add_noop(htx))
 			return 0;
 	}
 
@@ -906,6 +919,7 @@ static inline int htx_set_eom(struct htx *htx)
 
 	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_EOH &&
 	       htx_get_blk_type(blk) != HTX_BLK_EOT &&
+	       htx_get_blk_type(blk) != HTX_BLK_NOOP &&
 	       htx_get_blk_type(blk) != HTX_BLK_DATA);
 	blk->flags |= HTX_BLK_FL_EOM;
 	return 1;
@@ -931,9 +945,9 @@ static inline int htx_copy_msg(struct htx *htx, const struct buffer *msg)
 	return htx_append_msg(htx, htx_msg);
 }
 
-/* Remove all blocks except headers. Trailers will also be removed too.  The EOM
- * flag, if set on the payload part, it is then reinserted. It means a EOT black
- * could be added if the message only contains payload.
+/* Remove all blocks except headers. Trailers will also be removed too. The
+ * EOM flag, if set on the payload part, it is then reinserted. It means a
+ * NOOP block could be added if the message only contains payload.
  */
 static inline void htx_skip_msg_payload(struct htx *htx)
 {
@@ -974,6 +988,7 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_RAW_DATA: return "HTX_BLK_RAW_DATA";
 		case HTX_BLK_TLR:    return "HTX_BLK_TLR";
 		case HTX_BLK_EOT:    return "HTX_BLK_EOT";
+		case HTX_BLK_NOOP:   return "HTX_BLK_NOOP";
 		case HTX_BLK_UNUSED: return "HTX_BLK_UNUSED";
 		default:             return "HTX_BLK_???";
 	};

@@ -4370,6 +4370,19 @@ static size_t fcgi_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, 
 				}
 				__fallthrough;
 
+			case HTX_BLK_NOOP:
+				/* Nothing is emitted for a NOOP block. But if it
+				 * carries the EOM flag, an empty STDIN record
+				 * is sent to signal the end of the request.
+				 */
+				if (blk->flags & HTX_BLK_FL_EOM) {
+					TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
+					ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
+					if (!ret)
+						goto done;
+				}
+				__fallthrough;
+
 			default:
 			  remove_blk:
 				htx_remove_blk(htx, blk);

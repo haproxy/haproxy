@@ -8010,6 +8010,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	int ret = 0;
 	int hdr;
 	int idx;
+	int eom = 0;
 
 	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 
@@ -8024,8 +8025,10 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 		type = htx_get_blk_type(blk);
 
-		if (type == HTX_BLK_EOT)
+		if (type == HTX_BLK_EOT) {
+			eom = !!(blk->flags & HTX_BLK_FL_EOM);
 			break;
+		}
 		if (type == HTX_BLK_TLR) {
 			if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
@@ -8036,7 +8039,7 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 			list[hdr].v = htx_get_blk_value(htx, blk);
 			hdr++;
 		}
-		else {
+		else if (type != HTX_BLK_NOOP) {
 			TRACE_ERROR("will not encode unexpected htx block", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 			goto fail;
 		}
@@ -8045,6 +8048,13 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
  skip_trailers:
 	/* marker for end of trailers */
 	list[hdr].n = ist("");
+
+	/* An EOT block without the EOM flag means the message is not
+	 * finished. The trailers frame must not carry the END_STREAM flag
+	 * and, if there is nothing to emit, it is simply skipped.
+	 */
+	if (!eom && !hdr)
+		goto done;
 
 	mbuf = br_tail(h2c->mbuf);
  retry:
@@ -8068,10 +8078,13 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 	if (outbuf.size < 9)
 		goto full;
 
-	/* len: 0x000000 (fill later), type: 1(HEADERS), flags: ENDH=4,ES=1 */
-	memcpy(outbuf.area, "\x00\x00\x00\x01\x05", 5);
+	/* len: 0x000000 (fill later), type: 1(HEADERS), flags: ENDH=4[+ES=1 if eom] */
+	memcpy(outbuf.area, "\x00\x00\x00\x01\x04", 5);
+	if (eom)
+		outbuf.area[4] |= 0x01;
 	write_n32(outbuf.area + 5, h2s->id); // 4 bytes
 	outbuf.data = 9;
+
 
 	/* encode all headers */
 	for (idx = 0; idx < hdr; idx++) {
@@ -8123,8 +8136,11 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 		 * received an empty trailers block followed or we removed its
 		 * contents above). Because of this we can't send a HEADERS
 		 * frame, so we have to cheat and instead send an empty DATA
-		 * frame conveying the ES flag.
+		 * frame conveying the ES flag. It can only be done when the
+		 * message is finished, an empty DATA frame without the ES
+		 * flag is pointless.
 		 */
+		BUG_ON(!eom);
 		outbuf.area[3] = H2_FT_DATA;
 		outbuf.area[4] = H2_F_DATA_END_STREAM;
 	}
@@ -8153,10 +8169,12 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 		h2c->flags &= ~H2_CF_SHTS_UPDATED;
 	}
 
-	if (h2s->st == H2_SS_OPEN)
-		h2s->st = H2_SS_HLOC;
-	else
-		h2s_close(h2s);
+	if (eom) {
+		if (h2s->st == H2_SS_OPEN)
+			h2s->st = H2_SS_HLOC;
+		else
+			h2s_close(h2s);
+	}
 
 	/* OK we could properly deliver the response */
  done:
@@ -8526,6 +8544,27 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 					if (ret < bsize)
 						goto done;
 				}
+				break;
+
+			case HTX_BLK_NOOP:
+				/* Nothing is emitted for a NOOP block. But if it
+				 * carries the EOM flag, the end of the message
+				 * is reported, like for an empty DATA block.
+				 */
+				if (blk->flags & HTX_BLK_FL_EOM) {
+					h2s->flags &= ~H2_SF_MORE_HTX_DATA;
+					if (!(h2s->flags & H2_SF_BODY_TUNNEL)) {
+						if (h2_send_empty_data_es(h2s) > 0) {
+							if (h2s->st == H2_SS_OPEN)
+								h2s->st = H2_SS_HLOC;
+							else
+								h2s_close(h2s);
+						}
+					}
+				}
+				htx_remove_blk(htx, blk);
+				total += bsize;
+				count -= bsize;
 				break;
 
 			default:

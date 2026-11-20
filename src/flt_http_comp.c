@@ -377,7 +377,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					 * carried by this block. It was lost if the block
 					 * was removed and was the last one of the
 					 * message. In this case, it must be restored,
-					 * adding an EOT block to support it.
+					 * adding a NOOP block to support it.
 					 */
 					if (!htx_msg_ended(htx)) {
 						unsigned int data = htx->data;

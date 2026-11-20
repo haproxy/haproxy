@@ -3361,6 +3361,32 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 			h1m->state = H1_MSG_TRAILERS;
 			break;
 		}
+		else if (type == HTX_BLK_NOOP) {
+			/* Consume the NOOP block, nothing is emitted. If it
+			 * carries the EOM flag, the end of the message is
+			 * reported, exactly like a last DATA block.
+			 */
+			if (blk->flags & HTX_BLK_FL_EOM) {
+				if ((!(h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_REQ)) ||
+				    ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))) {
+					last_data = 1;
+				}
+				else if (h1m->flags & H1_MF_CHNK) {
+					if (h1m->curr_len) {
+						COUNT("chunk smaller than announced");
+						TRACE_ERROR("chunk smaller than announced",
+							    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+						goto error;
+					}
+					/* Emit the last chunk for chunked messages */
+					if (!chunk_memcat(&outbuf, "0\r\n\r\n", 5))
+						goto full;
+					last_data = 1;
+				}
+				else
+					last_data = 1;
+			}
+		}
 		else
 			goto error;
 
@@ -3477,6 +3503,9 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 			v.len = vlen;
 			if (!h1_format_htx_data(v, &outbuf, 0))
 				goto full;
+		}
+		else if (type == HTX_BLK_NOOP) {
+			/* Consume the NOOP block, nothing is emitted */
 		}
 		else
 			goto error;
@@ -3637,8 +3666,9 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 			}
 			h1m->state = H1_MSG_DONE;
 		}
-		else
-			goto error;
+		else if (type == HTX_BLK_NOOP) {
+			/* Consume the NOOP block, nothing is emitted */
+		}
 
 	  nextblk:
 		ret += sz;
