@@ -1186,7 +1186,7 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 		LIST_DELETE(&entry->by_crtlist);
 		LIST_DELETE(&entry->by_ckch_store);
 
-		list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_ckchs) {
+		list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_crtlist_entry) {
 			ckch_inst_free(inst);
 		}
 		crtlist_free_filters(entry->filters);
