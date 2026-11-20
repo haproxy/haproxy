@@ -1432,14 +1432,10 @@ smp_fetch_distcc_body(const struct arg *arg_p, struct sample *smp, const char *k
 				smp->data.type = SMP_T_BIN;
 				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 
-				if (ofs + body > ci_head(chn) - b_orig(&chn->buf) + ci_data(chn)) {
+				if (ofs + body > ci_data(chn)) {
 					/* incomplete body */
-
-					if (ofs + body > channel_recv_limit(chn) + b_orig(&chn->buf) - ci_head(chn)) {
-						/* truncate it to whatever will fit */
-						smp->flags |= SMP_F_MAY_CHANGE;
-						body = channel_recv_limit(chn) + b_orig(&chn->buf) - ci_head(chn) - ofs;
-					}
+					smp->flags |= SMP_F_MAY_CHANGE;
+					body = ci_data(chn) - ofs;
 				}
 
 				chunk_initlen(&smp->data.u.str, ci_head(chn) + ofs, 0, body);
