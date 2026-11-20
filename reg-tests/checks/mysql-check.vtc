@@ -38,8 +38,49 @@ server s5 {
 
 server s6 {
   sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
-  recv 69
+  recv 64
   sendhex "0700000200000002000000"
+  recv 5
+} -start
+
+server s7 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 64
+  sendhex "2B000002FE63616368696E675F736861325F70617373776F7264000000000000000000000000000000000000000000"
+  recv 10
+  sendhex "020000040103"
+  sendhex "0700000500000002000000"
+  expect_close
+} -start
+
+server s8 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 64
+  sendhex "2B000002FE6D7973716C5F6E61746976655F70617373776F7264000000000000000000000000000000000000000000"
+  recv 9
+  sendhex "16000004FF15042332383030304163636573732064656E696564"
+} -start
+
+server s9 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 64
+  sendhex "2B000002FE63616368696E675F736861325F70617373776F7264000000000000000000000000000000000000000000"
+  recv 10
+  sendhex "020000040102"
+} -start
+
+server s10 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 64
+  sendhex "00000002FE"
+  expect_close
+} -start
+
+server s11 {
+  sendhex "4A0000000A382E302E3139000A0000006F3C025E6249410D00FFFFFF0200FFC715000000000000000000007C182159106E2761144322200063616368696E675F736861325F70617373776F726400"
+  recv 64
+  sendhex "16000002FE6D7973716C5F6E61746976655F70617373776F7264"
+  expect_close
 } -start
 
 server s12 {
@@ -82,6 +123,31 @@ syslog S6 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be6/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
+syslog S7 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be7/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+syslog S8 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be8/srv failed, reason: Layer7 wrong status.+code: 1045.+info: \"#28000Access denied\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S9 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be9/srv failed, reason: Layer7 invalid response.+info: \"Full authentication requested by the server, a password is required\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+
+syslog S10 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be10/srv failed, reason: Layer7 invalid response.+info: \"Invalid MySQL authentication method switch request\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
+
+syslog S11 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be11/srv failed, reason: Layer7 invalid response.+info: \"Invalid MySQL authentication method switch request\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+} -start
 
 haproxy h1 -conf {
     global
@@ -148,15 +214,45 @@ haproxy h1 -conf {
     listen mysql3
         bind "fd@${mysql3}"
         tcp-request inspect-delay 100ms
-        tcp-request content accept if { req.len eq 69 } { req.payload(0,69) -m bin "3C000001008208000080000121000000000000000000000000000000000000000000000075736572000063616368696E675F736861325F70617373776F7264000100000001" }
+        tcp-request content accept if { req.len eq 64 } { req.payload(0,64) -m bin "3C000001008208000080000121000000000000000000000000000000000000000000000075736572000063616368696E675F736861325F70617373776F726400" }
         tcp-request content reject
         server srv ${s6_addr}:${s6_port}
+
+    backend be7
+        log ${S7_addr}:${S7_port} daemon
+        option log-health-checks
+        option mysql-check user user post-80
+        server srv ${s7_addr}:${s7_port} check inter 1s rise 1 fall 1
+
+    backend be8
+        log ${S8_addr}:${S8_port} daemon
+        option log-health-checks
+        option mysql-check user user post-80
+        server srv ${s8_addr}:${s8_port} check inter 1s rise 1 fall 1
+
+    backend be9
+        log ${S9_addr}:${S9_port} daemon
+        option log-health-checks
+        option mysql-check user user post-80-sha2
+        server srv ${s9_addr}:${s9_port} check inter 1s rise 1 fall 1
+    backend be10
+        log ${S10_addr}:${S10_port} daemon
+        option log-health-checks
+        option mysql-check user user post-80
+        server srv ${s10_addr}:${s10_port} check inter 1s rise 1 fall 1
+
+    backend be11
+        log ${S11_addr}:${S11_port} daemon
+        option log-health-checks
+        option mysql-check user user post-80
+        server srv ${s11_addr}:${s11_port} check inter 1s rise 1 fall 1
 
     backend be12
         log ${S12_addr}:${S12_port} daemon
         option log-health-checks
         option mysql-check
         server srv ${s12_addr}:${s12_port} check inter 1s rise 1 fall 1
+
 
 } -start
 
@@ -166,4 +262,9 @@ syslog S3 -wait
 syslog S4 -wait
 syslog S5 -wait
 syslog S6 -wait
+syslog S7 -wait
+syslog S8 -wait
+syslog S9 -wait
+syslog S10 -wait
+syslog S11 -wait
 syslog S12 -wait
