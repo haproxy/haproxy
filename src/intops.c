@@ -4,7 +4,23 @@
  * SPDX-License-Identifier: GPL-2.0-or-later.
  */
 
+#include <string.h>
 #include <haproxy/intops.h>
+
+/* enough to store NB_ITOA_STR integers of :
+ *   2^64-1 = 18446744073709551615 or
+ *    -2^63 = -9223372036854775808
+ *
+ * The HTML version needs room for adding the 25 characters
+ * '<span class="rls"></span>' around digits at positions 3N+1 in order
+ * to add spacing at up to 6 positions : 18 446 744 073 709 551 615
+ */
+THREAD_LOCAL char itoa_str[NB_ITOA_STR][171];
+THREAD_LOCAL int itoa_idx = 0; /* index of next itoa_str to use */
+
+/*****************************************************************************
+ * misc general purpose integer processing functions
+ *****************************************************************************/
 
 /* rounds <i> down to the closest value having max 2 digits */
 unsigned int round_2dig(unsigned int i)
@@ -443,4 +459,441 @@ int strl2llrc(const char *s, int len, long long *ret)
 	}
 	*ret = i;
 	return 0;
+}
+
+
+/*****************************************************************************
+ * Here are a number of integer-to-string converters, with different types,
+ * ranges, signedness, paddings etc.
+ *****************************************************************************/
+
+/*
+ * unsigned long long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ulltoa(unsigned long long n, char *dst, size_t size)
+{
+	int i = 0;
+	char *res;
+
+	switch(n) {
+		case 1ULL ... 9ULL:
+			i = 0;
+			break;
+
+		case 10ULL ... 99ULL:
+			i = 1;
+			break;
+
+		case 100ULL ... 999ULL:
+			i = 2;
+			break;
+
+		case 1000ULL ... 9999ULL:
+			i = 3;
+			break;
+
+		case 10000ULL ... 99999ULL:
+			i = 4;
+			break;
+
+		case 100000ULL ... 999999ULL:
+			i = 5;
+			break;
+
+		case 1000000ULL ... 9999999ULL:
+			i = 6;
+			break;
+
+		case 10000000ULL ... 99999999ULL:
+			i = 7;
+			break;
+
+		case 100000000ULL ... 999999999ULL:
+			i = 8;
+			break;
+
+		case 1000000000ULL ... 9999999999ULL:
+			i = 9;
+			break;
+
+		case 10000000000ULL ... 99999999999ULL:
+			i = 10;
+			break;
+
+		case 100000000000ULL ... 999999999999ULL:
+			i = 11;
+			break;
+
+		case 1000000000000ULL ... 9999999999999ULL:
+			i = 12;
+			break;
+
+		case 10000000000000ULL ... 99999999999999ULL:
+			i = 13;
+			break;
+
+		case 100000000000000ULL ... 999999999999999ULL:
+			i = 14;
+			break;
+
+		case 1000000000000000ULL ... 9999999999999999ULL:
+			i = 15;
+			break;
+
+		case 10000000000000000ULL ... 99999999999999999ULL:
+			i = 16;
+			break;
+
+		case 100000000000000000ULL ... 999999999999999999ULL:
+			i = 17;
+			break;
+
+		case 1000000000000000000ULL ... 9999999999999999999ULL:
+			i = 18;
+			break;
+
+		case 10000000000000000000ULL ... ULLONG_MAX:
+			i = 19;
+			break;
+	}
+	if (i + 2 > size) // (i + 1) + '\0'
+		return NULL;  // too long
+	res = dst + i + 1;
+	*res = '\0';
+	for (; i >= 0; i--) {
+		dst[i] = n % 10ULL + '0';
+		n /= 10ULL;
+	}
+	return res;
+}
+
+/*
+ * unsigned long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ultoa_o(unsigned long n, char *dst, size_t size)
+{
+	int i = 0;
+	char *res;
+
+	switch (n) {
+		case 0U ... 9UL:
+			i = 0;
+			break;
+
+		case 10U ... 99UL:
+			i = 1;
+			break;
+
+		case 100U ... 999UL:
+			i = 2;
+			break;
+
+		case 1000U ... 9999UL:
+			i = 3;
+			break;
+
+		case 10000U ... 99999UL:
+			i = 4;
+			break;
+
+		case 100000U ... 999999UL:
+			i = 5;
+			break;
+
+		case 1000000U ... 9999999UL:
+			i = 6;
+			break;
+
+		case 10000000U ... 99999999UL:
+			i = 7;
+			break;
+
+		case 100000000U ... 999999999UL:
+			i = 8;
+			break;
+#if __WORDSIZE == 32
+
+		case 1000000000ULL ... ULONG_MAX:
+			i = 9;
+			break;
+
+#elif __WORDSIZE == 64
+
+		case 1000000000ULL ... 9999999999UL:
+			i = 9;
+			break;
+
+		case 10000000000ULL ... 99999999999UL:
+			i = 10;
+			break;
+
+		case 100000000000ULL ... 999999999999UL:
+			i = 11;
+			break;
+
+		case 1000000000000ULL ... 9999999999999UL:
+			i = 12;
+			break;
+
+		case 10000000000000ULL ... 99999999999999UL:
+			i = 13;
+			break;
+
+		case 100000000000000ULL ... 999999999999999UL:
+			i = 14;
+			break;
+
+		case 1000000000000000ULL ... 9999999999999999UL:
+			i = 15;
+			break;
+
+		case 10000000000000000ULL ... 99999999999999999UL:
+			i = 16;
+			break;
+
+		case 100000000000000000ULL ... 999999999999999999UL:
+			i = 17;
+			break;
+
+		case 1000000000000000000ULL ... 9999999999999999999UL:
+			i = 18;
+			break;
+
+		case 10000000000000000000ULL ... ULONG_MAX:
+			i = 19;
+			break;
+
+#endif
+	}
+	if (i + 2 > size) // (i + 1) + '\0'
+		return NULL;  // too long
+	res = dst + i + 1;
+	*res = '\0';
+	for (; i >= 0; i--) {
+		dst[i] = n % 10U + '0';
+		n /= 10U;
+	}
+	return res;
+}
+
+/*
+ * signed long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ltoa_o(long int n, char *dst, size_t size)
+{
+	char *pos = dst;
+
+	if (n < 0) {
+		if (size < 3)
+			return NULL; // min size is '-' + digit + '\0' but another test in ultoa
+		*pos = '-';
+		pos++;
+		dst = ultoa_o(-n, pos, size - 1);
+	} else {
+		dst = ultoa_o(n, dst, size);
+	}
+	return dst;
+}
+
+/*
+ * signed long long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *lltoa(long long n, char *dst, size_t size)
+{
+	char *pos = dst;
+
+	if (n < 0) {
+		if (size < 3)
+			return NULL; // min size is '-' + digit + '\0' but another test in ulltoa
+		*pos = '-';
+		pos++;
+		dst = ulltoa(-n, pos, size - 1);
+	} else {
+		dst = ulltoa(n, dst, size);
+	}
+	return dst;
+}
+
+/*
+ * write a ascii representation of a unsigned into dst,
+ * return a pointer to the last character
+ * Pad the ascii representation with '0', using size.
+ */
+char *utoa_pad(unsigned int n, char *dst, size_t size)
+{
+	int i = 0;
+	char *ret;
+
+	switch(n) {
+		case 0U ... 9U:
+			i = 0;
+			break;
+
+		case 10U ... 99U:
+			i = 1;
+			break;
+
+		case 100U ... 999U:
+			i = 2;
+			break;
+
+		case 1000U ... 9999U:
+			i = 3;
+			break;
+
+		case 10000U ... 99999U:
+			i = 4;
+			break;
+
+		case 100000U ... 999999U:
+			i = 5;
+			break;
+
+		case 1000000U ... 9999999U:
+			i = 6;
+			break;
+
+		case 10000000U ... 99999999U:
+			i = 7;
+			break;
+
+		case 100000000U ... 999999999U:
+			i = 8;
+			break;
+
+		case 1000000000U ... 4294967295U:
+			i = 9;
+			break;
+	}
+	if (i + 2 > size) // (i + 1) + '\0'
+		return NULL;  // too long
+	i = size - 2; // padding - '\0'
+
+	ret = dst + i + 1;
+	*ret = '\0';
+	for (; i >= 0; i--) {
+		dst[i] = n % 10U + '0';
+		n /= 10U;
+	}
+	return ret;
+}
+
+/*
+ * This function simply returns a locally allocated string containing
+ * the ascii representation for number 'n' in decimal.
+ */
+char *ultoa_r(unsigned long n, char *buffer, int size)
+{
+	char *pos;
+
+	pos = buffer + size - 1;
+	*pos-- = '\0';
+
+	do {
+		*pos-- = '0' + n % 10;
+		n /= 10;
+	} while (n && pos >= buffer);
+	return pos + 1;
+}
+
+/*
+ * This function simply returns a locally allocated string containing
+ * the ascii representation for number 'n' in decimal.
+ */
+char *lltoa_r(long long int in, char *buffer, int size)
+{
+	char *pos;
+	int neg = 0;
+	unsigned long long int n;
+
+	pos = buffer + size - 1;
+	*pos-- = '\0';
+
+	if (in < 0) {
+		neg = 1;
+		n = -in;
+	}
+	else
+		n = in;
+
+	do {
+		*pos-- = '0' + n % 10;
+		n /= 10;
+	} while (n && pos >= buffer);
+	if (neg && pos > buffer)
+		*pos-- = '-';
+	return pos + 1;
+}
+
+/*
+ * This function simply returns a locally allocated string containing
+ * the ascii representation for signed number 'n' in decimal.
+ */
+char *sltoa_r(long n, char *buffer, int size)
+{
+	char *pos;
+
+	if (n >= 0)
+		return ultoa_r(n, buffer, size);
+
+	pos = ultoa_r(-n, buffer + 1, size - 1) - 1;
+	*pos = '-';
+	return pos;
+}
+
+/*
+ * This function simply returns a locally allocated string containing
+ * the ascii representation for number 'n' in decimal, formatted for
+ * HTML output with tags to create visual grouping by 3 digits. The
+ * output needs to support at least 171 characters.
+ */
+const char *ulltoh_r(unsigned long long n, char *buffer, int size)
+{
+	char *start;
+	int digit = 0;
+
+	start = buffer + size;
+	*--start = '\0';
+
+	do {
+		if (digit == 3 && start >= buffer + 7)
+			memcpy(start -= 7, "</span>", 7);
+
+		if (start >= buffer + 1) {
+			*--start = '0' + n % 10;
+			n /= 10;
+		}
+
+		if (digit == 3 && start >= buffer + 18)
+			memcpy(start -= 18, "<span class=\"rls\">", 18);
+
+		if (digit++ == 3)
+			digit = 1;
+	} while (n && start > buffer);
+	return start;
+}
+
+/*
+ * This function simply returns a locally allocated string containing the ascii
+ * representation for number 'n' in decimal, unless n is 0 in which case it
+ * returns the alternate string (or an empty string if the alternate string is
+ * NULL). It use is intended for limits reported in reports, where it's
+ * desirable not to display anything if there is no limit. Warning! it shares
+ * the same vector as ultoa_r().
+ */
+const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
+{
+	return (n) ? ultoa_r(n, buffer, size) : (alt ? alt : "");
 }

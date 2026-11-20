@@ -25,27 +25,9 @@
 #include <netinet/in.h>
 #include <import/cebtree.h>
 
-/* size used for max length of decimal representation of long long int. */
-#define NB_LLMAX_STR (sizeof("-9223372036854775807")-1)
-
-/* number of itoa_str entries */
-#define NB_ITOA_STR	16
-
 /* maximum quoted string length (truncated above) */
 #define QSTR_SIZE 200
 #define NB_QSTR 10
-
-/* returns 1 only if only zero or one bit is set in X, which means that X is a
- * power of 2, and 0 otherwise */
-#define POWEROF2(x) (((x) & ((x)-1)) == 0)
-
-/* return an integer of type <ret> with only the highest bit set. <ret> may be
- * both a variable or a type.
- */
-#define MID_RANGE(ret) ((typeof(ret))1 << (8*sizeof(ret) - 1))
-
-/* return the largest possible integer of type <ret>, with all bits set */
-#define MAX_RANGE(ret) (~(typeof(ret))0)
 
 /* options flags for parse_line() */
 #define PARSE_OPT_SHARP         0x00000001      // '#' ends the line

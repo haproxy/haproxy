@@ -23,6 +23,7 @@
 #define _HAPROXY_INTOPS_H
 
 #include <haproxy/api.h>
+#include <haproxy/intops-t.h>
 
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
 #define UBOUND(a, max)	({ typeof(a) b = (max); if ((a) > b) (a) = b; (a); })
@@ -31,6 +32,9 @@
 #define LBOUND(a, min)	({ typeof(a) b = (min); if ((a) < b) (a) = b; (a); })
 
 #define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
+
+extern THREAD_LOCAL int itoa_idx; /* index of next itoa_str to use */
+extern THREAD_LOCAL char itoa_str[][171];
 
 /* exported functions, mostly integer parsing */
 /* rounds <i> down to the closest value having max 2 digits */
@@ -62,6 +66,15 @@ void mask_prep_rank_map(unsigned long m,
                         unsigned long *a, unsigned long *b,
                         unsigned long *c, unsigned long *d);
 int one_among_mask(unsigned long v, int bit);
+char *ultoa_r(unsigned long n, char *buffer, int size);
+char *lltoa_r(long long int n, char *buffer, int size);
+char *sltoa_r(long n, char *buffer, int size);
+const char *ulltoh_r(unsigned long long n, char *buffer, int size);
+char *ulltoa(unsigned long long n, char *dst, size_t size);
+char *ultoa_o(unsigned long n, char *dst, size_t size);
+char *ltoa_o(long int n, char *dst, size_t size);
+char *lltoa(long long n, char *dst, size_t size);
+char *utoa_pad(unsigned int n, char *dst, size_t size);
 
 
 /* Multiply the two 32-bit operands and shift the 64-bit result right 32 bits.
@@ -693,6 +706,67 @@ static inline int decode_varint(char **buf, char *end, uint64_t *i)
 	r    = ((char *)p - *buf);
 	*buf = (char *)p;
 	return r;
+}
+
+
+/*****************************************************************************
+ * Here are a number of integer-to-string converters, with different types,
+ * ranges, signedness, paddings etc.
+ *****************************************************************************/
+
+
+static inline const char *ultoa(unsigned long n)
+{
+	return ultoa_r(n, itoa_str[0], sizeof(itoa_str[0]));
+}
+
+/*
+ * This function simply returns a locally allocated string containing the ascii
+ * representation for number 'n' in decimal, unless n is 0 in which case it
+ * returns the alternate string (or an empty string if the alternate string is
+ * NULL). It use is intended for limits reported in reports, where it's
+ * desirable not to display anything if there is no limit. Warning! it shares
+ * the same vector as ultoa_r().
+ */
+extern const char *limit_r(unsigned long n, char *buffer, int size, const char *alt);
+
+/* returns a locally allocated string containing the ASCII representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
+ */
+static inline const char *U2A(unsigned long n)
+{
+	const char *ret = ultoa_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
+}
+
+/* returns a locally allocated string containing the HTML representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
+ */
+static inline const char *U2H(unsigned long long n)
+{
+	const char *ret = ulltoh_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
+}
+
+/* returns a locally allocated string containing the ASCII representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
+ */
+static inline const char *LIM2A(unsigned long n, const char *alt)
+{
+	const char *ret = limit_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]), alt);
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
 }
 
 #endif /* _HAPROXY_INTOPS_H */

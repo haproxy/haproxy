@@ -81,22 +81,8 @@ static inline size_t strnlen2(const char *s, size_t maxlen)
 	return len;
 }
 
-/*
- * This function simply returns a locally allocated string containing
- * the ascii representation for number 'n' in decimal.
- */
-extern THREAD_LOCAL int itoa_idx; /* index of next itoa_str to use */
-extern THREAD_LOCAL char itoa_str[][171];
-extern char *ultoa_r(unsigned long n, char *buffer, int size);
-extern char *lltoa_r(long long int n, char *buffer, int size);
-extern char *sltoa_r(long n, char *buffer, int size);
-extern const char *ulltoh_r(unsigned long long n, char *buffer, int size);
 size_t flt_trim(char *buffer, size_t num_start, size_t len);
 char *ftoa_r(double n, char *buffer, int size);
-static inline const char *ultoa(unsigned long n)
-{
-	return ultoa_r(n, itoa_str[0], sizeof(itoa_str[0]));
-}
 
 /* file names management */
 const char *copy_file_name(const char *name);
@@ -108,82 +94,6 @@ void free_all_file_names();
 static inline void drop_file_name(const char **name)
 {
 	*name = NULL;
-}
-
-/*
- * unsigned long long ASCII representation
- *
- * return the last char '\0' or NULL if no enough
- * space in dst
- */
-char *ulltoa(unsigned long long n, char *dst, size_t size);
-
-
-/*
- * unsigned long ASCII representation
- *
- * return the last char '\0' or NULL if no enough
- * space in dst
- */
-char *ultoa_o(unsigned long n, char *dst, size_t size);
-
-/*
- * signed long ASCII representation
- *
- * return the last char '\0' or NULL if no enough
- * space in dst
- */
-char *ltoa_o(long int n, char *dst, size_t size);
-
-/*
- * signed long long ASCII representation
- *
- * return the last char '\0' or NULL if no enough
- * space in dst
- */
-char *lltoa(long long n, char *dst, size_t size);
-
-/*
- * write a ascii representation of a unsigned into dst,
- * return a pointer to the last character
- * Pad the ascii representation with '0', using size.
- */
-char *utoa_pad(unsigned int n, char *dst, size_t size);
-
-/*
- * This function simply returns a locally allocated string containing the ascii
- * representation for number 'n' in decimal, unless n is 0 in which case it
- * returns the alternate string (or an empty string if the alternate string is
- * NULL). It use is intended for limits reported in reports, where it's
- * desirable not to display anything if there is no limit. Warning! it shares
- * the same vector as ultoa_r().
- */
-extern const char *limit_r(unsigned long n, char *buffer, int size, const char *alt);
-
-/* returns a locally allocated string containing the ASCII representation of
- * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
- * function call (eg: printf), shared with the other similar functions making
- * use of itoa_str[].
- */
-static inline const char *U2A(unsigned long n)
-{
-	const char *ret = ultoa_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
-	if (++itoa_idx >= NB_ITOA_STR)
-		itoa_idx = 0;
-	return ret;
-}
-
-/* returns a locally allocated string containing the HTML representation of
- * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
- * function call (eg: printf), shared with the other similar functions making
- * use of itoa_str[].
- */
-static inline const char *U2H(unsigned long long n)
-{
-	const char *ret = ulltoh_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
-	if (++itoa_idx >= NB_ITOA_STR)
-		itoa_idx = 0;
-	return ret;
 }
 
 /* returns a locally allocated string containing the ASCII representation of
@@ -207,19 +117,6 @@ static inline const char *F2A(double n)
 static inline const char *F2H(double n)
 {
 	const char *ret = ftoa_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
-	if (++itoa_idx >= NB_ITOA_STR)
-		itoa_idx = 0;
-	return ret;
-}
-
-/* returns a locally allocated string containing the ASCII representation of
- * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
- * function call (eg: printf), shared with the other similar functions making
- * use of itoa_str[].
- */
-static inline const char *LIM2A(unsigned long n, const char *alt)
-{
-	const char *ret = limit_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]), alt);
 	if (++itoa_idx >= NB_ITOA_STR)
 		itoa_idx = 0;
 	return ret;
