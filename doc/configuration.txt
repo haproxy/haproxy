@@ -1874,6 +1874,7 @@ The following keywords are supported in the "global" section :
    - presetenv
    - prealloc-fd
    - resetenv
+   - unresolvable-server-fqdn
    - set-dumpable
    - set-var
    - setenv
@@ -4099,6 +4100,18 @@ unix-bind [ prefix <prefix> ] [ mode <mode> ] [ user <user> ] [ uid <uid> ]
   all have the same meaning as their homonyms used by the "bind" statement. If
   both are specified, the "bind" statement has priority, meaning that the
   "unix-bind" settings may be seen as process-wide default settings.
+
+unresolvable-server-fqdn [ fail | warn ]
+  Server names with more than 63 characters per FQDN component cannot be
+  resolved by DNS (this is a limitation of the DNS protocol, not haproxy). Any
+  server with such a name will never work, and as any configuration error, will
+  trigger a fatal error preventing it from starting. However, some bogus
+  configuration generators may occasionally generate such invalid names without
+  checking them, preventing haproxy from starting. Similarly, hosting providers
+  might face the issue if their customers are free to choose any server name
+  without and input control. If this happens, setting this option to "warn"
+  will turn the error into a warning and will force the server into maintenance
+  mode so that it never tries to resolve. The default setting is "fail".
 
 unsetenv [<name> ...]
   Removes environment variables specified in arguments. This can be useful to

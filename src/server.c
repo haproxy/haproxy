@@ -82,6 +82,7 @@ struct task *idle_conn_task[MAX_THREADS] __read_mostly = {};
 struct list servers_to_init = LIST_HEAD_INIT(servers_to_init);
 static struct task *server_atomic_sync_task = NULL;
 static event_hdl_async_equeue server_atomic_sync_queue;
+static int srv_unresolvable_fqdn_warn;
 
 /* SERVER DELETE(n)->ADD global tracker:
  * This is meant to provide srv->rid (revision id) value.
@@ -3940,14 +3941,34 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 				if ((newsrv->srvrq = find_srvrq_by_name(fqdn, curproxy)) == NULL)
 					newsrv->srvrq = new_resolv_srvrq(newsrv, fqdn);
 				if (newsrv->srvrq == NULL) {
+					if (srv_unresolvable_fqdn_warn) {
+						ha_warning("%s %s/%s: invalid FQDN <%s>, skipping.\n",
+							   (parse_flags & SRV_PARSE_TEMPLATE) ? "server-template" : "server",
+							   curproxy->id,
+							   (parse_flags & SRV_PARSE_TEMPLATE) ? args[2] : args[1],
+							   fqdn);
+						(*cur_arg)++;
+						goto skip_addr;
+					}
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 				LIST_APPEND(&newsrv->srvrq->attached_servers, &newsrv->srv_rec_item);
 			}
 			else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
-				ha_alert("Can't create DNS resolution for server '%s'\n",
-				         newsrv->id);
+				if (srv_unresolvable_fqdn_warn) {
+					ha_warning("%s %s/%s: invalid FQDN <%s>, skipping.\n",
+						   (parse_flags & SRV_PARSE_TEMPLATE) ? "server-template" : "server",
+						   curproxy->id,
+						   (parse_flags & SRV_PARSE_TEMPLATE) ? args[2] : args[1],
+						   fqdn);
+					(*cur_arg)++;
+					goto skip_addr;
+				}
+				ha_alert("Can't create DNS resolution for server '%s' ('%s'). If you have no control "
+				         "over the server's syntax and wish to start regardless of this error, please "
+				         "consider setting 'unresolvable-server-fqdn' to 'warn'.\n",
+				         newsrv->id, fqdn);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -8511,6 +8532,25 @@ static int cfg_parse_idle_pool_shared(char **args, int section_type, struct prox
 	return 0;
 }
 
+/* config parser for global "unresolvable-server-fqdn" */
+static int cfg_parse_unres_srv_fqdn(char **args, int section_type, struct proxy *curpx,
+                                    const struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "warn") == 0)
+		srv_unresolvable_fqdn_warn = 1;
+	else if (strcmp(args[1], "fail") == 0)
+		srv_unresolvable_fqdn_warn = 0;
+	else {
+		memprintf(err, "'%s' expects either 'warn' or 'fail'", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 /* config parser for global "tune.pool-{low,high}-fd-ratio" */
 static int cfg_parse_pool_fd_ratio(char **args, int section_type, struct proxy *curpx,
                                    const struct proxy *defpx, const char *file, int line,
@@ -8538,6 +8578,7 @@ static int cfg_parse_pool_fd_ratio(char **args, int section_type, struct proxy *
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "unresolvable-server-fqdn",    cfg_parse_unres_srv_fqdn },
 	{ CFG_GLOBAL, "tune.idle-pool.shared",       cfg_parse_idle_pool_shared },
 	{ CFG_GLOBAL, "tune.pool-high-fd-ratio",     cfg_parse_pool_fd_ratio },
 	{ CFG_GLOBAL, "tune.pool-low-fd-ratio",      cfg_parse_pool_fd_ratio },
