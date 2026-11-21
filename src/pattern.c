@@ -498,6 +498,9 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
+	if (!smp->data.u.str.data)
+		return ret;
+
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
 		if (!pat_match_ensure_str(smp))
@@ -565,6 +568,9 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *pattern;
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
+
+	if (!smp->data.u.str.data)
+		return ret;
 
 	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
@@ -680,6 +686,9 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
+	if (!smp->data.u.str.data)
+		return ret;
+
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
 		if (!pat_match_ensure_str(smp))
@@ -750,6 +759,9 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
 
+	if (!smp->data.u.str.data)
+		return ret;
+
 	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
@@ -797,6 +809,9 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern *pattern;
 	struct pattern *ret = NULL;
 	struct lru64 *lru = NULL;
+
+	if (!smp->data.u.str.data)
+		return ret;
 
 	if (pat_lru_tree && !LIST_ISEMPTY(&expr->patterns) && expr->ref->entry_cnt >= 20) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
@@ -911,6 +926,9 @@ struct pattern *pat_match_dir(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern_list *lst;
 	struct pattern *pattern;
 
+	if (!smp->data.u.str.data)
+		return NULL;
+
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
@@ -931,6 +949,9 @@ struct pattern *pat_match_dom(struct sample *smp, struct pattern_expr *expr, int
 {
 	struct pattern_list *lst;
 	struct pattern *pattern;
+
+	if (!smp->data.u.str.data)
+		return NULL;
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
