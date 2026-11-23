@@ -3414,7 +3414,7 @@ static int qcc_io_send(struct qcc *qcc)
 	}
 
 	if (qcc->conn->flags & CO_FL_ERROR && !(qcc->flags & QC_CF_ERR_CONN)) {
-		TRACE_ERROR("error reported by transport layer",
+		TRACE_STATE("error reported by transport layer",
 		            QMUX_EV_QCC_SEND, qcc->conn);
 		qcc->flags |= QC_CF_ERR_CONN;
 	}
