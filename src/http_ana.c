@@ -213,6 +213,14 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		goto return_bad_req;
 	}
 
+	/* Note that Expect: is not supported in HTTP/1.0 and must be dropped */
+	if (unlikely(!(msg->flags & HTTP_MSGF_VER_11))) {
+		struct http_hdr_ctx ctx = { .blk = NULL };
+
+		while (http_find_header(htx, ist("expect"), &ctx, 1))
+			http_remove_header(htx, &ctx);
+	}
+
 	/*
 	 * 2: check if the URI matches the monitor_uri.  We have to do this for
 	 * every request which gets in, because the monitor-uri is defined by
