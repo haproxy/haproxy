@@ -285,7 +285,7 @@ haproxy h2 -cli {
 	expect !~ " on\n"
 
 	send "show http-hardening untrusted"
-	expect ~ " 1 reject-duplicate-host-header +req +off\n 2 reject-lowercase-method +req +on\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +off\n 5 delete-underscore-in-header-name +- +on\n 6 delete-underscore-in-trailer-name +- +on\n 7 delete-unregistered-header-fields +- +off\n 8 delete-unregistered-trailer-fields +- +off\n 9 delete-all-trailer-fields +- +off\n10 reject-header-trailer-folding +- +on\n11 reject-ctl-in-header-trailer +- +on\n12 reject-content-length-with-te +- +on\n13 reject-content-length-leading-zero +- +on\n14 reject-duplicate-content-length +- +on\n"
+	expect ~ " 1 reject-duplicate-host-header +req +off\n 2 reject-lowercase-method +req +on\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +off\n 5 delete-underscore-in-header-name +- +on\n 6 delete-underscore-in-trailer-name +- +on\n 7 delete-unregistered-header-fields +- +off\n 8 delete-unregistered-trailer-fields +- +off\n 9 delete-all-trailer-fields +- +off\n10 reject-header-trailer-folding +- +on\n11 reject-ctl-in-header-trailer +- +on\n12 reject-content-length-with-te +- +on\n13 reject-content-length-leading-zero +- +on\n14 reject-duplicate-content-length +- +on\n15 reject-forbidden-payload +res +on\n"
 
 	send "show http-hardening other"
 	expect ~ " 2 reject-lowercase-method +req +off\n(.*\n)*10 reject-header-trailer-folding +- +on\n"

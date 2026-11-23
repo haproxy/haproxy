@@ -1523,6 +1523,17 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+	if (sl->info.res.status < 200 || sl->info.res.status == 204) {
+		/* these responses must not have a payload */
+		if ((h3s->flags & H3_SF_HAVE_CLEN) && h3s->body_len && http_harden(HTTP_HRD_REJ_FORB_PAYLOAD)) {
+			TRACE_ERROR("unexpected response payload", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+			h3s->err = H3_ERR_MESSAGE_ERROR;
+			qcc_report_glitch(h3c->qcc, 1);
+			len = -1;
+			goto out;
+		}
+	}
+
 	/* Detect if an interim or final response was handled. */
 	if (sl->info.res.status >= 100 && sl->info.res.status < 200) {
 		TRACE_USER("receiving interim response", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);

@@ -355,6 +355,15 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		 (code == 204) || (code == 304)) {
 		/* Responses known to have no body. */
 		if ((code >= 100 && code < 200) || (code == 204)) {
+			if (((h1m->flags & H1_MF_XFER_ENC) ||
+			     ((h1m->flags & H1_MF_CLEN) && h1m->body_len)) &&
+			    http_harden(HTTP_HRD_REJ_FORB_PAYLOAD)) {
+				/* a non-null content-length or a transfer-encoding
+				 * with a bodyless status code.
+				 */
+				goto error;
+			}
+
 			if (h1m->flags & H1_MF_XFER_ENC)
 				http_del_hdr(hdrs, ist("transfer-encoding"));
 			if (h1m->flags & H1_MF_CLEN)

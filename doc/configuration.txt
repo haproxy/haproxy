@@ -35200,6 +35200,14 @@ http-hardening <name> [from <name2>]
         even if not rejected, duplicate host header fields are folded into a
         single one.
 
+  - reject-forbidden-payload (inbound response)
+        Rejects responses with status codes 204 or below 200 that may never
+        contain any payload, if a "content-length" header field is present with
+        a value greater than zero or if a "transfer-encoding" header field is
+        present. These may only be caused by bugs or by attempts by servers to
+        inject contents (e.g. cache poisonning attacks). It is enabled by
+        default on untrusted connections.
+
   - reject-header-trailer-folding (inbound request and response)
         Rejects requests and responses which contain folded header fields or
         trailer fields. Folding consists in having a single field span multiple

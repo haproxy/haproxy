@@ -807,6 +807,13 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 			goto fail;
 	}
 
+	if (sl->info.res.status < 200 || sl->info.res.status == 204) {
+		/* these responses must not have a payload */
+		if ((*msgf & H2_MSGF_BODY_CL) && *body_len &&
+		    http_harden(HTTP_HRD_REJ_FORB_PAYLOAD))
+			goto fail;
+	}
+
 	if (sl->info.res.status == 101 && upgrade_protocol) {
 		if (!htx_add_header(htx, ist("connection"), ist("upgrade")))
 			goto fail;
