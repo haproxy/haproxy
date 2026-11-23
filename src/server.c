@@ -4061,13 +4061,18 @@ static struct server *lookup_srv_be_arg(struct ist sv_name,
 {
 	struct server *srv;
 	struct ist be_name;
+	const char *be_name0;
 	struct proxy *px = curproxy;
 
 	if (istchr(sv_name, '/')) {
 		be_name = istsplit(&sv_name, '/');
-		px = proxy_be_by_name(ist0(be_name));
+		be_name0 = ist0(be_name);
+
+		px = proxy_be_by_name(be_name0);
+		if (!px)
+			px = proxy_find_by_name(be_name0, PR_CAP_DEF, 0);
 		if (!px) {
-			memprintf(msg, "unknown backend '%s'", istptr(be_name));
+			memprintf(msg, "unknown backend or defaults '%s'", istptr(be_name));
 			return NULL;
 		}
 	}

@@ -19320,11 +19320,14 @@ from <origin>
       is mostly useful for dynamic servers created on the CLI which by default
       ignore any default-server, which is equivalent to the "none" value.
   - srv:[<bename>/]<srvname>
-      instructs to reuse the settings from the designated backend's server or named
-      default-server resulting from the processing of all its default-server
-      directives using the same name. The backend name is optional. If unset,
-      this designates the proxy where the currently newly defined server will
-      be attached.
+      instructs to reuse the settings from the designated backend's server or
+      named default-server resulting from the processing of all its
+      default-server directives using the same name. The backend name is
+      optional. If unset, this designates the proxy where the currently newly
+      defined server will be attached. Alternatively, a named defaults section
+      can also be specified to inherit from a named default-server. Only a
+      server or named default-server directly declared in the target backend or
+      defaults section can be specified; inherited entries are not resolved.
 
 The currently supported server settings are the following ones. Note that all
 these settings are supported both by "server" and "default-server" keywords,

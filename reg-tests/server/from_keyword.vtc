@@ -14,6 +14,9 @@ haproxy h1 -conf {
 		thread-groups 1
 	.endif
 
+	defaults defpx
+		default-server name srv weight 20
+
 	defaults
 		mode http
 		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -55,6 +58,9 @@ haproxy h1 -conf {
 		default-server name other weight 5
 		server srvconf7 ${s1_addr}:${s1_port} from srv:other
 
+		# inherit from a defaults section
+		server srvconf8 ${s1_addr}:${s1_port} from srv:defpx/srv
+
 	backend be_defempty
 		default-server check
 		# reset default-server will be purged on post parsing
@@ -88,6 +94,9 @@ haproxy h1 -cli {
 
 	send "get weight be/srvconf7"
 	expect ~ "5 \\(initial 5\\)"
+
+	send "get weight be/srvconf8"
+	expect ~ "20 \\(initial 20\\)"
 }
 
 # dynamic servers
