@@ -171,6 +171,7 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_407] = 407,
 	[HTTP_ERR_408] = 408,
 	[HTTP_ERR_410] = 410,
+	[HTTP_ERR_411] = 411,
 	[HTTP_ERR_413] = 413,
 	[HTTP_ERR_414] = 414,
 	[HTTP_ERR_421] = 421,
@@ -259,6 +260,14 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>410 Gone</h1>\nThe resource is no longer available and will not be available again.\n</body></html>\n",
+
+	[HTTP_ERR_411] =
+	"HTTP/1.1 411 Length Required\r\n"
+	"Content-length: 115\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>411 Length Required</h1>\nThe request was sent without a required length indication.\n</body></html>\n",
 
 	[HTTP_ERR_413] =
 	"HTTP/1.1 413 Payload Too Large\r\n"
@@ -406,19 +415,19 @@ enum http_meth_t find_http_meth(const char *str, const int len)
 int http_get_status_idx(unsigned int status)
 {
 	/* This table was built using dev/phash and easily finds solutions up
-	 * to 21 different entries and produces much better code with 32
+	 * to 22 different entries and produces much better code with 32
 	 * (padded with err 500 below as it's the default, though only [7] is
 	 * the real one).
 	 */
 	const uchar codes[32] = {
-		HTTP_ERR_500, HTTP_ERR_502, HTTP_ERR_429, HTTP_ERR_500,
-		HTTP_ERR_414, HTTP_ERR_404, HTTP_ERR_500, HTTP_ERR_500,
-		HTTP_ERR_500, HTTP_ERR_200, HTTP_ERR_422, HTTP_ERR_407,
-		HTTP_ERR_500, HTTP_ERR_503, HTTP_ERR_500, HTTP_ERR_500,
-		HTTP_ERR_425, HTTP_ERR_410, HTTP_ERR_405, HTTP_ERR_400,
-		HTTP_ERR_501, HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_413,
-		HTTP_ERR_408, HTTP_ERR_403, HTTP_ERR_504, HTTP_ERR_500,
-		HTTP_ERR_431, HTTP_ERR_421, HTTP_ERR_500, HTTP_ERR_401,
+		HTTP_ERR_500, HTTP_ERR_502, HTTP_ERR_429, HTTP_ERR_500, 
+		HTTP_ERR_414, HTTP_ERR_404, HTTP_ERR_500, HTTP_ERR_500, 
+		HTTP_ERR_500, HTTP_ERR_200, HTTP_ERR_422, HTTP_ERR_407, 
+		HTTP_ERR_500, HTTP_ERR_503, HTTP_ERR_500, HTTP_ERR_500, 
+		HTTP_ERR_425, HTTP_ERR_410, HTTP_ERR_405, HTTP_ERR_400, 
+		HTTP_ERR_501, HTTP_ERR_500, HTTP_ERR_500, HTTP_ERR_413, 
+		HTTP_ERR_408, HTTP_ERR_403, HTTP_ERR_504, HTTP_ERR_500, 
+		HTTP_ERR_431, HTTP_ERR_421, HTTP_ERR_411, HTTP_ERR_401,
 	};
 	uint hash = ((status * 406) >> 5) % 32;
 	uint ret  = codes[hash];
