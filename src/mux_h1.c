@@ -4451,10 +4451,13 @@ static int h1_process(struct h1c * h1c)
 	/* H1 connection must be released ASAP if:
 	 *  - an error occurred on the H1C or
 	 *  - a read0 was received or
-	 *  - the connection is closing and all outgoing data sent
+	 *  - the connection is closing, all outgoing data sent and no more
+	 *    stream attached, unless a silent shutdown was requested (it must
+	 *    be released ASAP, even if a stream is still attached)
 	 */
 	if ((h1c->flags & (H1C_F_EOS|H1C_F_ERROR|H1C_F_ABRT_PENDING|H1C_F_ABRTED)) ||
-	    (h1c->state >= H1_CS_CLOSING && !b_data(&h1c->obuf))) {
+	    (h1c->state >= H1_CS_CLOSING && !b_data(&h1c->obuf) &&
+	     (!h1c->h1s || (h1c->flags & H1C_F_SILENT_SHUT)))) {
 		if (h1c->state != H1_CS_RUNNING) {
 			/* No stream connector or upgrading */
 			if (h1c->state == H1_CS_IDLE)
