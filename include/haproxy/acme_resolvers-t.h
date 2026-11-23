@@ -8,6 +8,11 @@
 struct dns_counters;
 
 /* TXT records for dns-01 */
+struct acme_rslv_txt {
+	struct acme_rslv_txt *next;
+	struct ist value;                        /* owned TXT value */
+};
+
 
 struct acme_rslv {
 	enum obj_type obj_type;                   /* OBJ_TYPE_ACME_RSLV */
@@ -19,7 +24,7 @@ struct acme_rslv {
 	int result;                               /* RSLV_STATUS_* — NONE until done */
 	int error_code;                           /* RSLV_RESP_* from the error callback */
 	struct task *acme_task;                    /* ACME task to wake on completion, or NULL */
-	struct ist txt;                           /* first TXT record found */
+	struct acme_rslv_txt *txt;                /* owned list of TXT records */
 	int (*success_cb)(struct resolv_requester *, struct dns_counters *);
 	int (*error_cb)(struct resolv_requester *, int);
 };

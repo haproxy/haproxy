@@ -34688,17 +34688,17 @@ challenge-ready <value>[,<value>]*
            It is also possible to signal the "cli" readiness using the
            ACME.challenge_ready() lua function.
 
-    dns  - perform a DNS pre-check by resolving the TXT record for
+    dns  - perform a DNS pre-check by resolving the TXT records for
            "_acme-challenge.<domain>" using the configured "default" resolvers
            section, not the authoritative name servers. The challenge is not
-           submitted until the TXT record matches the expected token. Results
+           submitted until a TXT record matches the expected token. Results
            may therefore be affected by DNS caching at the resolver level. The
            delay between resolution attempts is controlled by "dns-delay". This
            option is independent of the CLI command, so no human intervention
            is required.
 
-           For dns-01, the TXT record at "_acme-challenge.<domain>" is
-           resolved and must match the expected token. For dns-persist-01,
+           For dns-01, the TXT records at "_acme-challenge.<domain>" are
+           resolved and one must match the expected token. For dns-persist-01,
            the TXT record at "_validation-persist.<domain>" is resolved and
            only its presence is checked.
 

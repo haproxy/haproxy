@@ -17,40 +17,60 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/resolvers.h>
 
-/* success callback, copy the TXT string to rslv->txt */
+static void acme_rslv_clear_txt(struct acme_rslv *rslv)
+{
+	struct acme_rslv_txt *txt;
+
+	while (rslv->txt) {
+		txt = rslv->txt;
+		rslv->txt = txt->next;
+		istfree(&txt->value);
+		free(txt);
+	}
+}
+
+/* Success callback, copy all TXT records to rslv->txt. */
 static int acme_rslv_success_cb(struct resolv_requester *req, struct dns_counters *counters)
 {
 	struct acme_rslv *rslv = objt_acme_rslv(req->owner);
 	struct resolv_resolution *res;
 	struct eb32_node *eb32;
 	struct resolv_answer_item *item;
+	struct acme_rslv_txt *txt;
 
 	if (!rslv)
 		return 1;
 
 	rslv->result = RSLV_STATUS_INVALID;
+	acme_rslv_clear_txt(rslv);
 
 	res = req->resolution;
 	if (!res)
 		goto done;
 
-	/* XXX: must fail on multiple TXT entries for the same dn */
-
-	/* copy the data from the response tree */
+	/* The response tree is shared and its records may be purged after this
+	 * callback. Copy each TXT record into an owned list in a single pass.
+	 */
 	for (eb32 = eb32_first(&res->response.answer_tree); eb32 != NULL; eb32 = eb32_next(eb32)) {
 		item = eb32_entry(eb32, typeof(*item), link);
-		/* only handle 1 entry */
-		if (item->type == DNS_RTYPE_TXT) {
-			int len = item->data_len;
-
-			if (len > DNS_MAX_NAME_SIZE)
-				len = DNS_MAX_NAME_SIZE;
-			rslv->txt = istdup(ist2(item->data.target, len));
-			break;
+		if (item->type != DNS_RTYPE_TXT)
+			continue;
+		txt = malloc(sizeof(*txt));
+		if (!txt)
+			goto error;
+		txt->value = istdup(ist2(item->data.target, item->data_len));
+		if (!isttest(txt->value)) {
+			free(txt);
+			goto error;
 		}
+		txt->next = rslv->txt;
+		rslv->txt = txt;
 	}
-
 	rslv->result = RSLV_STATUS_VALID;
+	goto done;
+
+error:
+	acme_rslv_clear_txt(rslv);
 done:
 	/* if there's no other DNS task for this acme task, wake up acme_task */
 	if (HA_ATOMIC_SUB_FETCH(rslv->dnstasks, 1) == 0) {
@@ -88,7 +108,7 @@ void acme_rslv_free(struct acme_rslv *rslv)
 		HA_SPIN_UNLOCK(DNS_LOCK, &rslv->resolvers->lock);
 	}
 	free(rslv->hostname_dn);
-	istfree(&rslv->txt);
+	acme_rslv_clear_txt(rslv);
 	free(rslv);
 }
 

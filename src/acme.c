@@ -3013,20 +3013,24 @@ re:
 			for (auth = ctx->auths; auth != NULL; auth = auth->next) {
 				if (auth->ready == ctx->cfg->cond_ready)
 					continue;
-				/* for dns-01, verify the TXT record content matches the
-				 * expected token. for dns-persist-01, only check that
-				 * the record exists since the resolver cannot read
-				 * multiple strings within a single TXT entry */
+				/* For dns-01, at least one TXT record must match the expected
+				 * token. For dns-persist-01, only check that a record exists.
+				 */
 				if (auth->rslv->result == RSLV_STATUS_VALID) {
 					if (strcasecmp(ctx->cfg->challenge, "dns-01") == 0) {
-						if (isteq(auth->rslv->txt, auth->token)) {
+						struct acme_rslv_txt *txt;
+
+						for (txt = auth->rslv->txt; txt != NULL; txt = txt->next) {
+							if (isteq(txt->value, auth->token))
+								break;
+						}
+						if (txt) {
 							auth->ready |= ACME_RDY_DNS;
 						} else {
 							send_log(NULL, LOG_NOTICE,
-							"acme: %s: dns-01: TXT record mismatch for \"_acme-challenge.%.*s\": expected \"%.*s\", got \"%.*s\"\n",
+							"acme: %s: dns-01: no matching TXT record for \"_acme-challenge.%.*s\": expected \"%.*s\"\n",
 							         ctx->store->path, (int)auth->dns.len, auth->dns.ptr,
-							         (int)auth->token.len, auth->token.ptr,
-							         (int)auth->rslv->txt.len, auth->rslv->txt.ptr);
+							         (int)auth->token.len, auth->token.ptr);
 							all_ready = 0;
 						}
 					} else if (strcasecmp(ctx->cfg->challenge, "dns-persist-01") == 0) {
