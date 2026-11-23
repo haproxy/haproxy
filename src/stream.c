@@ -392,7 +392,7 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	struct stream *s;
 	struct task *t;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_NEW);
+	TRACE_ENTER(STRM_EV_STRM_NEW);
 	if (unlikely((s = pool_alloc(pool_head_stream)) == NULL))
 		goto out_fail_alloc;
 
@@ -641,7 +641,7 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	 * stream is fully initialized before calling task_wakeup. So
 	 * the caller must handle the task_wakeup
 	 */
-	DBG_TRACE_LEAVE(STRM_EV_STRM_NEW, s);
+	TRACE_LEAVE(STRM_EV_STRM_NEW, s);
 	task_wakeup(s->task, TASK_WOKEN_INIT);
 	return s;
 
@@ -659,7 +659,7 @@ void *stream_new(struct session *sess, struct stconn *sc, struct buffer *input)
 	if (s)
 		pool_free(pool_head_strm_memslot, s->memory_slot);
 	pool_free(pool_head_stream, s);
-	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_NEW|STRM_EV_STRM_ERR);
+	TRACE_DEVEL("leaving on error", STRM_EV_STRM_NEW|STRM_EV_STRM_ERR);
 	return NULL;
 }
 
@@ -674,7 +674,7 @@ void stream_free(struct stream *s)
 	int i;
 	int flush_pools = 0;
 
-	DBG_TRACE_POINT(STRM_EV_STRM_FREE, s);
+	TRACE_POINT(STRM_EV_STRM_FREE, s);
 
 	/* detach the stream from its own task before even releasing it so
 	 * that walking over a task list never exhibits a dying stream.
@@ -1070,7 +1070,7 @@ void back_establish(struct stream *s)
 	struct channel *rep = &s->res;
 	uint8_t do_log = 0;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	/* First, centralize the timers information, and clear any irrelevant
 	 * timeout.
 	 */
@@ -1083,7 +1083,7 @@ void back_establish(struct stream *s)
 		s->req.flags |= CF_WRITE_EVENT;
 		s->res.flags |= CF_READ_EVENT;
 		s->conn_err_type = STRM_ET_DATA_ERR;
-		DBG_TRACE_STATE("read/write error", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("read/write error", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	}
 
 	if (objt_server(s->target))
@@ -1137,10 +1137,10 @@ void back_establish(struct stream *s)
 	 * left to send, or can't, switch to SC_ST_DIS now. */
 	if ((s->scb->flags & (SC_FL_EOS|SC_FL_ABRT_DONE)) || (s->scf->flags & SC_FL_SHUT_DONE)) {
 		s->scb->state = SC_ST_DIS;
-		DBG_TRACE_STATE("response channel shutdwn for read/write", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("response channel shutdwn for read/write", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	}
 
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
 /* Set correct stream termination flags in case no analyser has done it. It
@@ -1269,7 +1269,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA, s);
+	TRACE_ENTER(STRM_EV_STRM_ANA, s);
 
 	/* now check whether we have some switching rules for this request */
 	if (!(s->flags & SF_BE_ASSIGNED)) {
@@ -1316,7 +1316,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		if (!backend) {
 			if ((s->flags & SF_IGNORE)) {
 				/* TCP stream upgrade to HTTP/2. */
-				DBG_TRACE_DEVEL("leaving with no backend because of a destructive upgrade", STRM_EV_STRM_ANA, s);
+				TRACE_DEVEL("leaving with no backend because of a destructive upgrade", STRM_EV_STRM_ANA, s);
 				return 0;
 			}
 
@@ -1373,7 +1373,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		break;
 	}
 
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
+	TRACE_LEAVE(STRM_EV_STRM_ANA, s);
 	return 1;
 
  sw_failed:
@@ -1389,7 +1389,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		s->txn.http->status = 500;
 	s->req.analysers &= AN_REQ_FLT_END;
 	s->req.analyse_exp = TICK_ETERNITY;
-	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_STRM_ERR, s);
+	TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_STRM_ERR, s);
 	return 0;
 }
 
@@ -1403,7 +1403,7 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 	struct session *sess = s->sess;
 	struct server_rule *rule;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA, s);
+	TRACE_ENTER(STRM_EV_STRM_ANA, s);
 
 	if (!(s->flags & SF_ASSIGNED)) {
 		list_for_each_entry(rule, &px->server_rules, list) {
@@ -1440,7 +1440,7 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
+	TRACE_LEAVE(STRM_EV_STRM_ANA, s);
 	return 1;
 }
 
@@ -1497,7 +1497,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 	struct session *sess  = s->sess;
 	struct sticking_rule  *rule;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA, s);
+	TRACE_ENTER(STRM_EV_STRM_ANA, s);
 
 	list_for_each_entry(rule, &px->sticking_rules, list) {
 		struct stktable_key *key;
@@ -1551,7 +1551,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
+	TRACE_LEAVE(STRM_EV_STRM_ANA, s);
 	return 1;
 }
 
@@ -1567,7 +1567,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 	int i;
 	int nbreq = s->store_count;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA, s);
+	TRACE_ENTER(STRM_EV_STRM_ANA, s);
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
 		struct stktable_key *key;
@@ -1660,7 +1660,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
 
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
+	TRACE_LEAVE(STRM_EV_STRM_ANA, s);
 	return 1;
 }
 
@@ -1950,7 +1950,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	scf = s->scf;
 	scb = s->scb;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC, s);
+	TRACE_ENTER(STRM_EV_STRM_PROC, s);
 
 	/* This flag must explicitly be set every time */
 	req->flags &= ~CF_WAKE_WRITE;
@@ -2118,7 +2118,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	rp_prod_last = scb->state;
 
 	/* Check for connection closure */
-	DBG_TRACE_POINT(STRM_EV_STRM_PROC, s);
+	TRACE_POINT(STRM_EV_STRM_PROC, s);
 
 	/* nothing special to be done on client side */
 	if (unlikely(scf->state == SC_ST_DIS)) {
@@ -2625,7 +2625,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 				b_free(&req->buf);
 				offer_buffers(s, 1);
 				req->buf = sbuf;
-				DBG_TRACE_DEVEL("request moved to a small buffer", STRM_EV_STRM_PROC, s);
+				TRACE_DEVEL("request moved to a small buffer", STRM_EV_STRM_PROC, s);
 			}
 
 		} while (scb->state == SC_ST_ASS);
@@ -2839,11 +2839,11 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		s->pending_events &= ~STRM_EVT_TIMER;
 		stream_release_buffers(s);
 
-		DBG_TRACE_DEVEL("queuing", STRM_EV_STRM_PROC, s);
+		TRACE_DEVEL("queuing", STRM_EV_STRM_PROC, s);
 		return t; /* nothing more to do */
 	}
 
-	DBG_TRACE_DEVEL("releasing", STRM_EV_STRM_PROC, s);
+	TRACE_DEVEL("releasing", STRM_EV_STRM_PROC, s);
 
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_DEC(&s->be->beconn);

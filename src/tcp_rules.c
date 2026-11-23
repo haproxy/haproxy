@@ -100,7 +100,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	int partial;
 	int act_opts = 0;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
 	def_rules = ((s->be->defpx &&
 	              (sess->fe->mode == PR_MODE_TCP || sess->fe->mode == PR_MODE_HTTP) &&
@@ -253,7 +253,7 @@ resume_execution:
 	req->analysers &= ~an_bit;
 	s->current_rule = s->current_rule_list = NULL;
 	req->analyse_exp = s->rules_exp = TICK_ETERNITY;
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 
  missing_data:
@@ -262,7 +262,7 @@ resume_execution:
 	if (!tick_isset(s->rules_exp) && s->be->tcp_req.inspect_delay)
 		s->rules_exp = tick_add(now_ms, s->be->tcp_req.inspect_delay);
 	req->analyse_exp = tick_first((tick_is_expired(req->analyse_exp, now_ms) ? 0 : req->analyse_exp), s->rules_exp);
-	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 0;
 
  deny:
@@ -304,7 +304,7 @@ resume_execution:
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
-	DBG_TRACE_DEVEL("leaving on error|deny|abort", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
+	TRACE_DEVEL("leaving on error|deny|abort", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
 	return 0;
 }
 
@@ -322,7 +322,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	int partial;
 	int act_opts = 0;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
 	def_rules = (s->be->defpx && (s->be->mode == PR_MODE_TCP || s->be->mode == PR_MODE_HTTP) ? &s->be->defpx->tcp_rep.inspect_rules : NULL);
 	rules = &s->be->tcp_rep.inspect_rules;
@@ -481,7 +481,7 @@ resume_execution:
 	rep->analysers &= ~an_bit;
 	s->current_rule = s->current_rule_list = NULL;
 	rep->analyse_exp = s->rules_exp = TICK_ETERNITY;
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 
  missing_data:
@@ -490,7 +490,7 @@ resume_execution:
 	if (!tick_isset(s->rules_exp) && s->be->tcp_rep.inspect_delay)
 		s->rules_exp = tick_add(now_ms, s->be->tcp_rep.inspect_delay);
 	rep->analyse_exp = tick_first((tick_is_expired(rep->analyse_exp, now_ms) ? 0 : rep->analyse_exp), s->rules_exp);
-	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 0;
 
   deny:
@@ -539,7 +539,7 @@ resume_execution:
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_D;
-	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
+	TRACE_DEVEL("leaving on error", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA|STRM_EV_TCP_ERR, s);
 	return 0;
 }
 

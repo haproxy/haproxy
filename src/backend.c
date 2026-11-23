@@ -1698,7 +1698,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(sess, target, hash);
 	if (srv_conn) {
-		//DBG_TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
+		//TRACE_STATE("reuse connection from session", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
 	}
 	else if (srv && reuse_mode != PR_O_REUSE_NEVR) {
 		/* Below we pick connections from the safe, idle  or
@@ -1724,7 +1724,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 			if (srv_conn) {
 				/* connection cannot be in idle list if used as an avail idle conn. */
 				BUG_ON(LIST_INLIST(&srv_conn->idle_list));
-				//DBG_TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
+				//TRACE_STATE("reuse connection from avail", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
 			}
 		}
 
@@ -1755,7 +1755,7 @@ int be_reuse_connection(int64_t hash, struct session *sess,
 			}
 
 			if (srv_conn) {
-				//DBG_TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
+				//TRACE_STATE("reuse connection from idle/safe", STRM_EV_STRM_PROC|STRM_EV_CS_ST, strm);
 			}
 		}
 	}
@@ -1855,7 +1855,7 @@ int connect_server(struct stream *s)
 	 * same as the main protocol of the server.
 	 */
 	if (unlikely(s->flags & SF_WEBSOCKET) && srv && !srv_check_reuse_ws(srv)) {
-		DBG_TRACE_STATE("skip idle connections reuse: websocket stream", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		TRACE_STATE("skip idle connections reuse: websocket stream", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
 	else {
 		const int not_first_req = s->txn.http && s->txn.http->flags & TX_NOT_FIRST;
@@ -1934,7 +1934,7 @@ int connect_server(struct stream *s)
 		unsigned int total_conns;
 
 		if (srv && (srv->flags & SRV_F_RHTTP)) {
-			DBG_TRACE_USER("cannot open a new connection for reverse server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			TRACE_USER("cannot open a new connection for reverse server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			s->conn_err_type = STRM_ET_CONN_ERR;
 			return SF_ERR_INTERNAL;
 		}
@@ -1976,7 +1976,7 @@ int connect_server(struct stream *s)
 		}
 		srv_conn = conn_new(s->target);
 		if (srv_conn) {
-			DBG_TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			TRACE_STATE("alloc new be connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			srv_conn->owner = s->sess;
 
 			/* connection will be attached to the session if
@@ -2168,7 +2168,7 @@ int connect_server(struct stream *s)
 				 */
 				may_start_mux_now = 0;
 				srv_conn->flags |= CO_FL_SSL_NO_CACHED_INFO;
-				DBG_TRACE_STATE("update alpn for websocket", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+				TRACE_STATE("update alpn for websocket", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			}
 		}
 #endif
@@ -2471,7 +2471,7 @@ void back_try_conn_req(struct stream *s)
 	struct stconn *sc = s->scb;
 	struct channel *req = &s->req;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	if (sc->state == SC_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
@@ -2482,7 +2482,7 @@ void back_try_conn_req(struct stream *s)
 		 */
 		if (back_may_abort_req(req, s)) {
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
-			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+			TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
@@ -2495,7 +2495,7 @@ void back_try_conn_req(struct stream *s)
 				srv_inc_sess_ctr(srv);
 			if (srv)
 				srv_set_sess_last(srv);
-			DBG_TRACE_STATE("connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			TRACE_STATE("connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -2535,7 +2535,7 @@ void back_try_conn_req(struct stream *s)
 			sc->state = SC_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, sc);
-			DBG_TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+			TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
@@ -2547,7 +2547,7 @@ void back_try_conn_req(struct stream *s)
 		sc->flags &= ~SC_FL_ERROR;
 		back_handle_st_cer(s);
 
-		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		/* now sc->state is one of SC_ST_CLO, SC_ST_TAR, SC_ST_ASS, SC_ST_REQ */
 	}
 	else if (sc->state == SC_ST_QUE) {
@@ -2565,7 +2565,7 @@ void back_try_conn_req(struct stream *s)
 				s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 				sc->state = SC_ST_ASS;
 			}
-			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -2591,7 +2591,7 @@ void back_try_conn_req(struct stream *s)
 			sc->state = SC_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, sc);
-			DBG_TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -2603,7 +2603,7 @@ void back_try_conn_req(struct stream *s)
 			pendconn_cond_unlink(s->pend_pos);
 
 			s->conn_err_type |= STRM_ET_QUEUE_ABRT;
-			DBG_TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+			TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
@@ -2613,7 +2613,7 @@ void back_try_conn_req(struct stream *s)
 		/* Connection request might be aborted */
 		if (back_may_abort_req(req, s)) {
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
-			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+			TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
@@ -2632,11 +2632,11 @@ void back_try_conn_req(struct stream *s)
 		else
 			sc->state = SC_ST_REQ;
 
-		DBG_TRACE_STATE("retry connection now", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		TRACE_STATE("retry connection now", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	return;
 
 abort_connection:
@@ -2648,7 +2648,7 @@ abort_connection:
 	sc->state = SC_ST_CLO;
 	if (s->srv_error)
 		s->srv_error(s, sc);
-	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+	TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	return;
 }
 
@@ -2665,7 +2665,7 @@ void back_handle_st_req(struct stream *s)
 	if (sc->state != SC_ST_REQ)
 		return;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
 		struct appctx *appctx = sc_appctx(sc);
@@ -2686,10 +2686,10 @@ void back_handle_st_req(struct stream *s)
 				sc->state = SC_ST_CLO;
 				if (s->srv_error)
 					s->srv_error(s, sc);
-				DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+				TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 				goto end;
 			}
-			DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		}
 
 		BUG_ON(appctx->applet != __objt_applet(s->target));
@@ -2698,7 +2698,7 @@ void back_handle_st_req(struct stream *s)
 		sc_will_read(sc);
 		applet_need_more_data(appctx);
 		appctx_wakeup(appctx);
-		DBG_TRACE_STATE("applet ready", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		TRACE_STATE("applet ready", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 		goto end;
 	}
 
@@ -2708,7 +2708,7 @@ void back_handle_st_req(struct stream *s)
 		 * connection request, or we encountered an error.
 		 */
 		if (sc->state == SC_ST_QUE) {
-			DBG_TRACE_STATE("connection request queued", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+			TRACE_STATE("connection request queued", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 			goto end;
 		}
 
@@ -2721,7 +2721,7 @@ void back_handle_st_req(struct stream *s)
 		sc->state = SC_ST_CLO;
 		if (s->srv_error)
 			s->srv_error(s, sc);
-		DBG_TRACE_STATE("connection request failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("connection request failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -2729,10 +2729,10 @@ void back_handle_st_req(struct stream *s)
 	s->logs.t_queue = ns_to_ms(now_ns - s->logs.accept_ts);
 	sc->state = SC_ST_ASS;
 	be_set_sess_last(s->be);
-	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
 /* This function is called with (sc->state == SC_ST_CON) meaning that a
@@ -2747,7 +2747,7 @@ void back_handle_st_con(struct stream *s)
 	struct stconn *sc = s->scb;
 	struct channel *req = &s->req;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	/* the client might want to abort */
 	if ((s->scf->flags & SC_FL_SHUT_DONE) ||
@@ -2759,7 +2759,7 @@ void back_handle_st_con(struct stream *s)
 		if (s->srv_error)
 			s->srv_error(s, sc);
 		/* Note: state = SC_ST_DIS now */
-		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -2774,11 +2774,11 @@ void back_handle_st_con(struct stream *s)
 		}
 
 		sc->state  = SC_ST_CER;
-		DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 	}
 
  end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
 /* This function is called with (sc->state == SC_ST_CER) meaning that a
@@ -2795,7 +2795,7 @@ void back_handle_st_cer(struct stream *s)
 	struct stconn *sc = s->scb;
 	int must_tar = !!(sc->flags & SC_FL_ERROR);
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	s->conn_exp = TICK_ETERNITY;
 	s->flags &= ~SF_CONN_EXP;
@@ -2830,7 +2830,7 @@ void back_handle_st_cer(struct stream *s)
 			 * client provoke retries.
 			 */
 			s->conn_retries = s->max_retries;
-			DBG_TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+			TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		}
 	}
 
@@ -2856,7 +2856,7 @@ void back_handle_st_cer(struct stream *s)
 		if (s->srv_error)
 			s->srv_error(s, sc);
 
-		DBG_TRACE_STATE("connection failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("connection failed", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -2890,7 +2890,7 @@ void back_handle_st_cer(struct stream *s)
 		if (s->srv_error)
 			s->srv_error(s, sc);
 
-		DBG_TRACE_STATE("error resetting endpoint", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+		TRACE_STATE("error resetting endpoint", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -2922,11 +2922,11 @@ void back_handle_st_cer(struct stream *s)
 			sc->state = SC_ST_TAR;
 			s->conn_exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
-		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+		TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	}
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
 /* This function is called with (sc->state == SC_ST_RDY) meaning that a
@@ -2941,7 +2941,7 @@ void back_handle_st_rdy(struct stream *s)
 	struct stconn *sc = s->scb;
 	struct channel *req = &s->req;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
 		/* Here the appctx must exists because the SC was set to
@@ -2984,7 +2984,7 @@ void back_handle_st_rdy(struct stream *s)
 			s->conn_err_type |= STRM_ET_CONN_ABRT;
 			if (s->srv_error)
 				s->srv_error(s, sc);
-			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+			TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
@@ -2993,7 +2993,7 @@ void back_handle_st_rdy(struct stream *s)
 			if (!s->conn_err_type)
 				s->conn_err_type = STRM_ET_CONN_ERR;
 			sc->state = SC_ST_CER;
-			DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
+			TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_CS_ST|STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 	}
@@ -3001,12 +3001,12 @@ void back_handle_st_rdy(struct stream *s)
 	/* data were sent and/or we had no error, back_establish() will
 	 * now take over.
 	 */
-	DBG_TRACE_STATE("connection established", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_STATE("connection established", STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 	s->conn_err_type = STRM_ET_NONE;
 	sc->state = SC_ST_EST;
 
   end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
+	TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_CS_ST, s);
 }
 
 /* sends a log message when a backend goes down, and also sets last
@@ -3040,7 +3040,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 	uint32_t addr;
 	char *p;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 
 	if (s->flags & SF_ASSIGNED)
 		goto no_cookie;
@@ -3082,7 +3082,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 no_cookie:
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 }
 
