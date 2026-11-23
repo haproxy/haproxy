@@ -223,6 +223,7 @@ enum http_violation_idx {
 	HTTP_VIO_AUTH_HOST_DIFF,   // authority and host field mismatch
 	HTTP_VIO_VERSION_STRING,   // unsupported version string
 	HTTP_VIO_WEBSOCKET_KEY,    // invalid or missing websocket-key header
+	HTTP_VIO_1XX_HTTP_1_0,     // 1xx in response from or to HTTP/1.0
 	/* insert new violations above this line */
 	HTTP_VIO_TOTAL_COUNT = 32, // end marker
 	HTTP_VIO_NONE,             // special code for none

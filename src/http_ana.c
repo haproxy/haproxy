@@ -1602,29 +1602,41 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * response, and we're waiting for the next one. Let's allow this response
 	 * to go to the client and wait for the next one. There's an exception for
 	 * 101 which is used later in the code to switch protocols.
+	 *
+	 * Anyway, for HTTP/1.0 (client or server), <200 is forbidden.
 	 */
-	if (txn->status < 200 &&
-	    (txn->status == 100 || txn->status >= 102)) {
-		FLT_STRM_CB(s, flt_http_reset(s, msg));
-		htx->first = channel_htx_fwd_headers(rep, htx);
-		msg->msg_state = HTTP_MSG_RPBEFORE;
-		msg->flags = 0;
-		txn->server_status = txn->status = 0;
-		s->logs.t_data = -1; /* was not a response yet */
-		s->scf->flags |= SC_FL_SND_ASAP; /* Send ASAP informational messages */
-		goto next_one;
-	}
+	if (unlikely(txn->status < 200)) {
+		if (!(txn->req.flags & txn->rsp.flags & HTTP_MSGF_VER_11) &&
+		    !(s->be->options2 & PR_O2_RSPBUG_OK &&
+		      global.acc_hres_vio & (1U << HTTP_VIO_1XX_HTTP_1_0))) {
+			/* at least one side is not 1.1 compatible, this is a violation */
+			if (objt_server(s->target))
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
+			goto return_bad_res;
+		}
 
-	/* A 101-switching-protocols must contains a Connection header with the
-	 * "upgrade" option and the request too. It means both are agree to
-	 * upgrade. It is not so strict because there is no test on the Upgrade
-	 * header content. But it is probably stronger enough for now.
-	 */
-	if (txn->status == 101 &&
-	    (!(txn->req.flags & HTTP_MSGF_CONN_UPG) || !(txn->rsp.flags & HTTP_MSGF_CONN_UPG))) {
-		if (objt_server(s->target))
-			health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
-		goto return_bad_res;
+		if (txn->status == 100 || txn->status >= 102) {
+			FLT_STRM_CB(s, flt_http_reset(s, msg));
+			htx->first = channel_htx_fwd_headers(rep, htx);
+			msg->msg_state = HTTP_MSG_RPBEFORE;
+			msg->flags = 0;
+			txn->server_status = txn->status = 0;
+			s->logs.t_data = -1; /* was not a response yet */
+			s->scf->flags |= SC_FL_SND_ASAP; /* Send ASAP informational messages */
+			goto next_one;
+		}
+
+		/* A 101-switching-protocols must contains a Connection header with the
+		 * "upgrade" option and the request too. It means both are agree to
+		 * upgrade. It is not so strict because there is no test on the Upgrade
+		 * header content. But it is probably stronger enough for now.
+		 */
+		if (txn->status == 101 &&
+		    (!(txn->req.flags & HTTP_MSGF_CONN_UPG) || !(txn->rsp.flags & HTTP_MSGF_CONN_UPG))) {
+			if (objt_server(s->target))
+				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
+			goto return_bad_res;
+		}
 	}
 
 	/*

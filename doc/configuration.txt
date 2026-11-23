@@ -2291,6 +2291,13 @@ acceptable-http-response-violations { [-+]<http-violation>[,...] }
       should only be used between trusted WebSocket endpoints, and the risk is
       moderate.
 
+    - "http-1.0-status-1xx" (response): this controls the acceptance of HTTP
+      status codes below 200 in responses from or to HTTP/1.0 messages. These
+      ranges were specified as reserved and are not uniformly implemented
+      across implementations, and present a risk of smuggling. This should only
+      be used with confirmed valid endpoints, and the risk is low because
+      HTTP/1.0-only agents became rare.
+
   By default, for backward compatibility, all violations above are flagged as
   acceptable, meaning that a proxy having "option accept-unsafe-http-*" will
   accept them all. It may be a good practice to explicitly reset them to "none"
