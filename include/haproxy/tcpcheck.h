@@ -56,12 +56,6 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_ruleset *r
 
 void free_tcpcheck_http_hdr(struct tcpcheck_http_hdr *hdr);
 
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_iniths(struct check *check, struct tcpcheck_rule *rule, int last_read);
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_ok(struct check *check, struct tcpcheck_rule *rule, int last_read);
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth(struct check *check, struct tcpcheck_rule *rule, int last_read);
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth_done(struct check *check, struct tcpcheck_rule *rule, int last_read);
-enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct tcpcheck_rule *rule, int last_read);
-enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *check, struct tcpcheck_rule *rule, int last_read);
 enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct tcpcheck_rule *rule, int last_read);
 enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpcheck_rule *rule);
 enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_rule *rule);

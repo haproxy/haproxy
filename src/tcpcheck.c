@@ -651,7 +651,7 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
  * TCPCHK_EVAL_CONTINUE to evaluate the next rule or TCPCHK_EVAL_STOP if an
  * error occurred.
  */
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_iniths(struct check *check, struct tcpcheck_rule *rule, int last_read)
+static enum tcpcheck_eval_ret tcpcheck_mysql_expect_iniths(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	return tcpcheck_mysql_expect_packet(check, rule, 0, last_read);
 }
@@ -661,7 +661,7 @@ enum tcpcheck_eval_ret tcpcheck_mysql_expect_iniths(struct check *check, struct 
  * data, TCPCHK_EVAL_CONTINUE to evaluate the next rule or TCPCHK_EVAL_STOP if
  * an error occurred.
  */
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_ok(struct check *check, struct tcpcheck_rule *rule, int last_read)
+static enum tcpcheck_eval_ret tcpcheck_mysql_expect_ok(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	unsigned int hslen = 0;
 
@@ -749,7 +749,7 @@ static int tcpcheck_mysql_store_var(struct check *check, struct ist name, int ty
  * TCPCHK_EVAL_WAIT to wait for more data, TCPCHK_EVAL_CONTINUE to evaluate
  * the next rule or TCPCHK_EVAL_STOP if an error occurred.
  */
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth(struct check *check, struct tcpcheck_rule *rule, int last_read)
+static enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	enum healthcheck_status status = HCHK_STATUS_L7RSP;
@@ -904,7 +904,7 @@ enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth(struct check *check, struct tc
  * the next rule or TCPCHK_EVAL_STOP if an error occurred or if the check
  * succeeded.
  */
-enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth_done(struct check *check, struct tcpcheck_rule *rule, int last_read)
+static enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth_done(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	enum healthcheck_status status = HCHK_STATUS_L7RSP;
@@ -1005,7 +1005,7 @@ enum tcpcheck_eval_ret tcpcheck_mysql_expect_auth_done(struct check *check, stru
  * TCPCHK_EVAL_CONTINUE to evaluate the next rule or TCPCHK_EVAL_STOP if an
  * error occurred.
  */
-enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct tcpcheck_rule *rule, int last_read)
+static enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	enum healthcheck_status status;
@@ -1131,7 +1131,7 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
  * TCPCHK_EVAL_CONTINUE to evaluate the next rule or TCPCHK_EVAL_STOP if an
  * error occurred.
  */
-enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tcpcheck_rule *rule, int last_read)
+static enum tcpcheck_eval_ret tcpcheck_spop_expect_hello(struct check *check, struct tcpcheck_rule *rule, int last_read)
 {
 	enum tcpcheck_eval_ret ret = TCPCHK_EVAL_CONTINUE;
 	enum healthcheck_status status;
