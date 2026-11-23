@@ -110,4 +110,19 @@ int main(int argc, char **argv)
 	mul = bmul; xor = bxor;
 	for (i = 0; i < CODES && codes[i] >= 0; i++)
 		printf("hash(%4u) = %2u   //   [%2u] = %4u\n", codes[i], hash(codes[i]), hash(codes[i]), codes[i]);
+
+	printf("// table:\n\t");
+	for (h = 0; h < CODES; h++) {
+		for (i = 0; i < CODES && codes[i] >= 0; i++) {
+			if (hash(codes[i]) == h) {
+				printf("HTTP_ERR_%03u, ", codes[i]);
+					break;
+			}
+		}
+		if (codes[i] < 0) // nothing here
+			printf("HTTP_ERR_500, ", h);
+		if ((h & 3) == 3)
+			printf("\n\t");
+	}
+	putchar('\n');
 }
