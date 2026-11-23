@@ -1802,6 +1802,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-content-length-leading-zero",HTTP_HRD_REJ_CL_LEAD_ZERO, HTTP_DIR_BOTH },
 	{ "reject-duplicate-content-length",   HTTP_HRD_REJ_CL_DUP, HTTP_DIR_BOTH },
 	{ "reject-forbidden-payload",          HTTP_HRD_REJ_FORB_PAYLOAD, HTTP_DIR_RES },
+	{ "reject-out-of-range-status",        HTTP_HRD_REJ_OOR_STATUS, HTTP_DIR_RES },
 	/* insert new hardening options above this line */
 	{ "all-reject",                     HTTP_HRD_ALL_REJECT,       HTTP_DIR_BOTH },
 	{ "all-delete",                     HTTP_HRD_ALL_DELETE,       HTTP_DIR_BOTH },

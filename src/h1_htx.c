@@ -328,6 +328,11 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		/* FIXME: Check the codes 1xx ? */
 	}
 
+	/* reject-status-out-of-range allows to reject out-of-range statuses */
+	if (unlikely(code < 100 || code > 599) && http_harden(HTTP_HRD_REJ_OOR_STATUS)) {
+		goto error;
+	}
+
 	/* Be sure the message, once converted into HTX, will not exceed the max
 	 * size allowed.
 	 */

@@ -1523,6 +1523,16 @@ static ssize_t h3_resp_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+	/* reject-status-out-of-range allows to reject out-of-range statuses */
+	if (unlikely(sl->info.res.status < 100 || sl->info.res.status > 599) &&
+	    http_harden(HTTP_HRD_REJ_OOR_STATUS)) {
+		TRACE_ERROR("hardening rejected out of range status code", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_MESSAGE_ERROR;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
+	}
+
 	if (sl->info.res.status < 200 || sl->info.res.status == 204) {
 		/* these responses must not have a payload */
 		if ((h3s->flags & H3_SF_HAVE_CLEN) && h3s->body_len && http_harden(HTTP_HRD_REJ_FORB_PAYLOAD)) {

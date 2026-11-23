@@ -35228,6 +35228,14 @@ http-hardening <name> [from <name2>]
         recommended on untrusted listeners. It is enabled by default on
         untrusted connections.
 
+  - reject-out-of-range-status (inbound, response)
+        Rejects responses containing a status code lower than 100 or higher
+        than 599. These ones are not specified by the standard and are handled
+        differently by multiple implementations. They are never used over the
+        internet and usually only exist in local deployments. This is
+        recommended on public-facing backends. It is enabled by default on
+        untrusted connections.
+
   - reject-underscore-in-header-name (inbound, request and response)
         Rejects requests and responses in which one header field name contains
         an underscore character ('_' or \x5C). This character is perfectly
