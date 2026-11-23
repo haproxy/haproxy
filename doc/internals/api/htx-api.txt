@@ -157,9 +157,9 @@ continuous again.
 
 An HTX block can be as well a start-line as a header, a body part or a
 trailer. For all these types of block, a payload is attached to the block. It
-can also be a marker, the end-of-headers or end-of-trailers. For these blocks,
-there is no payload but it counts for a byte. It is important to not skip it
-when data are forwarded.
+can also be a marker, the end-of-headers, the end-of-trailers, or a no-op
+block. For these blocks, there is no payload but it counts for a byte. It is
+important to not skip it when data are forwarded.
 
 As already said, a block is composed of metadata and a payload. Metadata are
 stored in the blocks part and are composed of 3 fields :
@@ -199,6 +199,7 @@ Supported types are :
     - 0101  (5) : A trailer block
     - 0110  (6) : The end-of-trailers marker
     - 0111  (7) : A raw data block (tunneled data)
+    - 1000  (8) : A no-op block
     - 1111 (15) : An unused block
 
 Other types are unused for now and reserved for futur extensions.
@@ -212,6 +213,8 @@ An HTX message is typically composed of following blocks, in this order :
     - zero or more trailer blocks (optional)
     - an end-of-trailers marker (optional but always set if there is at least
       one trailer block)
+    - zero or more no-op blocks (allowed anywhere in the message, but in
+      practice only added to carry the EOM flag on an otherwise empty message)
     - zero or more raw data blocks (only for tunneled messages, always after
       the end of the message)
 
@@ -223,9 +226,9 @@ responses are part of the same HTX message.
 
 When the end of the message is reached, the HTX_BLK_FL_EOM flag is set on the
 last block of the message. It means no more data are expected for this message,
-except tunneled data. Only an EOH, an EOT or a DATA block may carry this flag,
-because only these blocks may end a message. If the message is empty, an EOT
-block is added to carry the flag.
+except tunneled data. Only an EOH, an EOT, a DATA or a NOOP block may carry this
+flag, because only these blocks may end a message. If the message is empty, a
+NOOP block is added to carry the flag.
 
 Nothing must ever be added in a message already ended, except tunneled data. A
 dedicated block type, RAW_DATA, is used for them. This way, HTTP data and
@@ -305,7 +308,7 @@ processed (copied or removed). All other types of block must be entirely
 processed. This means these blocks can be resized.
 
 
-3.4. The end-of markers
+3.4. The end-of markers and the no-op block
 
 These blocks are used to delimit parts of an HTX message. It exists two
 markers :
@@ -314,8 +317,21 @@ markers :
     - end-of-trailers (EOT)
 
 EOH is always present in an HTX message. EOT is optional. However, an EOT block
-is added by htx_set_eom() when the end of an empty message is reported, because
-the flag marking the end of the message must be carried by a block.
+is always set if there is at least one trailer block.
+
+The no-op block (NOOP) is a special marker. It carries no data and nothing is
+emitted when a consumer encounters it. But, like the EOH and EOT blocks, its
+size is 1, to be able to wake the endpoint up when it is emitted alone. It may
+carry the EOM flag and it is allowed anywhere in the message. In practice, a
+NOOP block carrying the EOM flag is added by htx_set_eom() to report the end of
+an empty message, because the flag marking the end of the message must be
+carried by a block. It is thus a carrier for "nothing to send but the message
+is over".
+
+As a consequence, an EOT block without the EOM flag is a valid state. It means
+the end of the trailers was reached but the message is not finished and more
+data may follow. Consumers must not rely on an EOT block alone to decide a
+message is ended; they must check the EOM flag instead.
 
 
 4. The HTX API
@@ -390,9 +406,10 @@ allocated in an HTX message. Then, there is an add function per block's type :
       message already ended, the flag marking the end of the message being
       preserved.
 
-    - htx_add_endof() must be used to add any end-of marker. The block's type
-      (EOH or EOT) must be specified. The inserted HTX block is returned on
-      success or NULL if an error occurred.
+    - htx_add_endof() must be used to add any end-of marker or a no-op block.
+      The block's type (EOH, EOT or NOOP) must be specified. The inserted HTX
+      block is returned on success or NULL if an error occurred. Alternatively,
+      htx_add_noop() is a shortcut to add a NOOP block.
 
     - htx_add_all_headers() and htx_add_all_trailers() add, respectively, a list
       of headers and a list of trailers, followed by the appropriate end-of
@@ -578,7 +595,7 @@ block :
 
     - htx_get_blk_value() returns the value of a block, depending on its
       type. For header and trailer blocks, it is the value field. For markers
-      (EOH or EOT), an empty string is returned. For other blocks an ist
+      (EOH, EOT or NOOP), an empty string is returned. For other blocks an ist
       pointing on the block payload is returned.
 
     - htx_msg_ended() may be used to know if the end of the message was
@@ -649,5 +666,5 @@ message. These functions are used by HTX analyzers or by multiplexers.
 
     - htx_skip_msg_payload() removes all blocks except the headers part. The
       trailers are removed too. If the removed part was carrying the end of the
-      message, it is reported again on the remaining part, possibly by adding an
-      EOT block if the message becomes empty.
+      message, it is reported again on the remaining part, possibly by adding a
+      NOOP block if the message becomes empty.
