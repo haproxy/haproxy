@@ -249,6 +249,164 @@ static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int st
 	return bytes;
 }
 
+/* Parses the chunk extensions of a chunk-size line, which must exactly follow
+ * this syntax (RFC9112#7.1.1):
+ *
+ *     *( BWS ';' BWS name [ BWS '=' BWS value ] )
+ *
+ *   with:
+ *     name:  token
+ *     value: token / quoted-string
+ *
+ * BWS are only permitted before a ';' or around the '=', so no space may
+ * appear before the CR. It works on contiguous memory, using the same reverse
+ * index convention as the contiguous chunks parser: the current character is
+ * end[ridx], with ridx < 0 and reaching zero at the end of the input. It
+ * must be called on the first character after the chunk size when it is not
+ * a CR. It returns:
+ *   < 0 : extensions are valid, this is the new reverse index of the final CR
+ *   = 0 : more data are needed
+ *   > 0 : invalid syntax, this is the opposite of the faulty char's index
+ *
+ * It is force-inlined because some attacks consist in sending tons of tiny
+ * chunks carrying an extension each (e.g. "1;1\r\n1\r\n"), so this must cost
+ * no more than the size parsing itself.
+ */
+static forceinline ssize_t h1_parse_chunk_ext(const char *end, ssize_t ridx)
+{
+	int quote = 0;
+	int equal = 0;
+	int bws = 0;
+
+	while (1) {
+		if (likely(end[ridx] == '\r')) {
+			/* CR, the CRLF is checked by the caller */
+			if (unlikely(bws || equal || quote)) {
+				/* BWS or equal or quote before the end */
+				goto out;
+			}
+			return ridx;
+		}
+		else if (likely(end[ridx] == ';')) {
+			int backslash = 0;
+			int token = 0;
+
+			/* chunk extension, ends at next CRLF */
+			if (!++ridx)
+				return 0;
+
+			/* skip second BWS (before name) */
+			bws = 0;
+			while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+				bws = 1;
+				if (!++ridx)
+					return 0;
+			}
+
+			/* token */
+			token = 0;
+			while (HTTP_IS_TOKEN(end[ridx])) {
+				token = 1;
+				if (!++ridx)
+					return 0;
+			}
+
+			if (!token) // empty name
+				goto out;
+
+			/* BWS before '=' */
+			bws = 0;
+			while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+				bws = 1;
+				if (!++ridx)
+					return 0;
+			}
+
+			/* if not '=', must be another ext or CR. Pending
+			 * bws will be handled there.
+			 */
+			if (end[ridx] != '=')
+				continue;
+
+			if (!++ridx)
+				return 0;
+
+			/* We have a value; it must be a non-empty token
+			 * or quoted string after BWS.
+			 */
+			equal = 1;
+
+			/* BWS after '=' */
+			bws = 0;
+			while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+				bws = 1;
+				if (!++ridx)
+					return 0;
+			}
+
+			if (HTTP_IS_TOKEN(end[ridx])) {
+				token = 1;
+				bws = equal = 0;
+				do {
+					if (!++ridx)
+						return 0;
+				} while (HTTP_IS_TOKEN(end[ridx]));
+
+				/* we have a token, the rest will be validated
+				 * with the next ext or the CR. bws is zero in
+				 * this case.
+				 */
+				equal = 0;
+				continue;
+			}
+
+			/* not a token ? must be a quoted string then */
+			if (end[ridx] != '"')
+				goto out;
+
+			if (!++ridx)
+				return 0;
+
+			quote = 1;
+			bws = 0;
+			while (!HTTP_IS_CTL(end[ridx]) || HTTP_IS_SPHT(end[ridx])) {
+				if (backslash)
+					backslash = 0; // escaped char
+				else if (end[ridx] == '"') { // end of quoted-pair
+					quote = 0;
+					if (!++ridx)
+						return 0;
+					break;
+				}
+				else if (quote && end[ridx] == '\\')
+					backslash = 1;
+				if (!++ridx)
+					return 0;
+			}
+
+			/* closing quote met, here we must have CR, BWS or ';',
+			 * ready for another run.
+			 */
+			equal = 0;
+			continue;
+		}
+		else if (unlikely(HTTP_IS_SPHT(end[ridx]))) {
+			/* Skip spaces; they're only allowed before the ';' */
+			bws = 1;
+			do {
+				if (!++ridx)
+					return 0;
+			} while (HTTP_IS_SPHT(end[ridx]));
+		}
+		else {
+			/* all other characters are unexpected, especially LF alone */
+			goto out;
+		}
+	}
+ out:
+	return -ridx;
+}
+
 /* Parse the chunk size start at buf + start and stops before buf + stop. The
  * positions are relative to the buffer's head.
  * It returns the chunk size in <res> and the amount of bytes read this way :

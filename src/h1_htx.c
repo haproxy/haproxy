@@ -693,6 +693,7 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 	size_t lmax, total = 0;
 	uint64_t chksz;
 	struct htx_ret htxret;
+	ssize_t ext;
 
 	lmax = *max;
 	if (lmax <= sizeof(struct htx_blk))
@@ -732,10 +733,6 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 		lmax = htx_get_blksz(htxret.blk) - dpos;
 
 	while (1) {
-		int quote = 0;
-		int equal = 0;
-		int bws = 0;
-
 		/* The chunk size is in the following form, though we are only
 		 * interested in the size and CRLF :
 		 *    1*HEXDIGIT *WSP *[ ';' extensions ] CRLF
@@ -777,145 +774,20 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 		}
 
 		/* Up to there, we know that at least one byte is present. Check
-		 * for the end of chunk size. We may run into optional extensions
-		 * (fairly unlikely), the syntax of the extension after the size
-		 * must be strictly followed:
-		 *     *( BWS ';' BWS <name> [ BWS '=' BWS <value> ] )
+		 * for the end of chunk size. Anything but a CR must be chunk
+		 * extensions, whose syntax must be strictly followed.
 		 */
-		while (1) {
-			if (likely(end[ridx] == '\r')) {
-				/* Parse CRLF */
-				if (unlikely(bws || equal || quote)) {
-					/* BWS or equal or quote before the end */
-					goto parsing_error;
-				}
-				if (!++ridx)
-					goto end_parsing;
-				if (unlikely(end[ridx] != '\n')) {
-					/* CR must be followed by LF */
-					goto parsing_error;
-				}
-
-				/* done */
-				++ridx;
-				break;
-			}
-			else if (likely(end[ridx] == ';')) {
-				int backslash = 0;
-				int token = 0;
-
-				/* chunk extension, ends at next CRLF */
-				if (!++ridx)
-					goto end_parsing;
-
-				/* skip second BWS (before name) */
-				bws = 0;
-				while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
-					bws = 1;
-					if (!++ridx)
-						goto end_parsing;
-				}
-
-				/* token */
-				token = 0;
-				while (HTTP_IS_TOKEN(end[ridx])) {
-					token = 1;
-					if (!++ridx)
-						goto end_parsing;
-				}
-
-				if (!token) // empty name
-					goto parsing_error;
-
-				/* BWS before '=' */
-				bws = 0;
-				while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
-					bws = 1;
-					if (!++ridx)
-						goto end_parsing;
-				}
-
-				/* if not '=', must be another ext or CR. Pending
-				 * bws will be handled there.
-				 */
-				if (end[ridx] != '=')
-					continue;
-
-				if (!++ridx)
-					goto end_parsing;
-
-				/* We have a value; it must be a non-empty token
-				 * or quoted string after BWS.
-				 */
-				equal = 1;
-
-				/* BWS after '=' */
-				bws = 0;
-				while (unlikely(HTTP_IS_SPHT(end[ridx]))) {
-					bws = 1;
-					if (!++ridx)
-						goto end_parsing;
-				}
-
-				if (HTTP_IS_TOKEN(end[ridx])) {
-					token = 1;
-					bws = equal = 0;
-					do {
-						if (!++ridx)
-							goto end_parsing;
-					} while (HTTP_IS_TOKEN(end[ridx]));
-
-					/* we have a token, the rest will be validated
-					 * with the next ext or the CR. bws is zero in
-					 * this case.
-					 */
-					equal = 0;
-					continue;
-				}
-
-				/* not a token ? must be a quoted string then */
-				if (end[ridx] != '"')
-					goto parsing_error;
-
-				if (!++ridx)
-					goto end_parsing;
-
-				quote = 1;
-				bws = 0;
-				while (!HTTP_IS_CTL(end[ridx]) || HTTP_IS_SPHT(end[ridx])) {
-					if (backslash)
-						backslash = 0; // escaped char
-					else if (end[ridx] == '"') { // end of quoted-pair
-						quote = 0;
-						if (!++ridx)
-							goto end_parsing;
-						break;
-					}
-					else if (quote && end[ridx] == '\\')
-						backslash = 1;
-					if (!++ridx)
-						goto end_parsing;
-				}
-
-				/* closing quote met, here we must have CR, BWS or ';',
-				 * ready for another run.
-				 */
-				equal = 0;
-				continue;
-			}
-			else if (unlikely(HTTP_IS_SPHT(end[ridx]))) {
-				/* Skip spaces; they're only allowed before the ';' */
-				bws = 1;
-				do {
-					if (!++ridx)
-						goto end_parsing;
-				} while (HTTP_IS_SPHT(end[ridx]));
-			}
-			else {
-				/* all other characters are unexpected, especially LF alone */
-				goto parsing_error;
-			}
+		if (unlikely(end[ridx] != '\r'))
+			goto chunk_ext;
+	chunk_ext_done:
+		/* Parse CRLF */
+		if (!++ridx)
+			goto end_parsing;
+		if (unlikely(end[ridx] != '\n')) {
+			/* CR must be followed by LF */
+			goto parsing_error;
 		}
+		++ridx;
 
 		/* Exit if it is the last chunk */
 		if (unlikely(!chksz)) {
@@ -976,7 +848,19 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 	h1m->err_state = h1m->state;
 	h1m->err_pos = ofs + end + ridx - start;
 	return 0;
+
+  chunk_ext:
+	ext = h1_parse_chunk_ext(end, ridx);
+	if (likely(ext < 0)) {
+		ridx = ext;
+		goto chunk_ext_done;
+	}
+	if (!ext)
+		goto end_parsing;
+	ridx = -ext;
+	goto parsing_error;
 }
+
 
 /* Parse HTTP chunks. This function relies on an optimized function to parse
  * contiguous chunks if possible. Otherwise, when a chunk is incomplete or when
