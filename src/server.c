@@ -986,6 +986,15 @@ static int srv_parse_error_limit(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Reports incorrect position of "from" server keyword. */
+static int srv_parse_from(char **args, int *cur_arg,
+                          struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	memprintf(err, "'%s' is a positional keyword. It must be specified"
+	               " before any other server setting", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+}
+
 /* Parse the "guid" keyword */
 static int srv_parse_guid(char **args, int *cur_arg,
                         struct proxy *curproxy, struct server *newsrv, char **err)
@@ -2502,6 +2511,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "disabled",             srv_parse_disabled,             0,  1,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",              srv_parse_enabled,              0,  1,  0 }, /* Start the server in 'enabled' state */
 	{ "error-limit",          srv_parse_error_limit,          1,  1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
+	{ "from",                 srv_parse_from,                 1,  1,  1 }, /* Not a real parser - prevent conflict with 'from' positional keyword */
 	{ "guid",                 srv_parse_guid,                 1,  0,  1 }, /* Set global unique ID of the server */
 	{ "ws",                   srv_parse_ws,                   1,  1,  1 }, /* websocket protocol */
 	{ "hash-key",             srv_parse_hash_key,             1,  1,  1 }, /* Configure how chash keys are computed */
