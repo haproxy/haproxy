@@ -25,6 +25,20 @@ server s1 -repeat 20 {
     expect req.bodylen == 5
     txresp -hdr "connection: close"
 } -start
+
+server s2 -repeat 18 {
+    rxreq
+    expect req.bodylen == 16384
+    txresp -hdr "connection: close"
+} -start
+
+# must never be reached: invalid large chunks are rejected on the size line,
+# while a request mistakenly accepted would wait for its data and time out
+# (also with a 400).
+server s3 {
+    rxreq
+    expect req.method == "NEVER"
+} -start
 # response: quoted extension with escapes
 server sr1 {
     rxreq
@@ -65,6 +79,7 @@ haproxy h1 -conf {
     .if feature(THREAD)
         thread-groups 1
     .endif
+        tune.bufsize 16384
 
     defaults
         mode http
@@ -75,6 +90,15 @@ haproxy h1 -conf {
     listen req
         bind "fd@${req}"
         server s1 ${s1_addr}:${s1_port}
+
+    listen reqbig
+        bind "fd@${reqbig}"
+        server s2 ${s2_addr}:${s2_port}
+
+    listen reqbad
+        bind "fd@${reqbad}"
+        server s3 ${s3_addr}:${s3_port}
+
     listen rsp1
         bind "fd@${rsp1}"
         server sr1 ${sr1_addr}:${sr1_port}
@@ -548,4 +572,403 @@ client cr7 -connect ${h1_rsp7_sock} {
     expect resp.status == 502
 } -run
 
+# The same chunk-size lines with a chunk larger than the buffer: the contiguous
+# parser leaves them to h1_parse_chunk_size(). Valid ones are followed by the
+# 16kB of data, invalid ones must be rejected on the size line alone, without
+# reaching the server.
+
+# accepted (large chunk): no extension
+client c101 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): name only
+client c102 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): name and token value
+client c103 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): BWS before ';'
+client c104 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000 ;a=b\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): BWS (tab) before ';'
+client c105 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000\t;a=b\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): BWS after ';'
+client c106 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000; a=b\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): BWS before '='
+client c107 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a =b\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): BWS after '='
+client c108 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a= b\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): BWS everywhere
+client c109 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000 \t; \ta \t= \tb\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): all tchars in name and value
+client c110 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;!#$%&'*+-.^_`|~09AZaz=!#$%&'*+-.^_`|~09AZaz\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): quoted value
+client c111 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\"\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): empty quoted value
+client c112 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"\"\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): quoted value with SP, HTAB, ';', '=' and ','
+client c113 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b c\td;e=f,g\"\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): quoted value with escaped quote
+client c114 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\\\"c\"\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): quoted value ending with escaped backslash
+client c115 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\\\\\"\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): quoted value with obs-text, raw and escaped
+client c116 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"\xe9\\\xe9\"\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): several extensions
+client c117 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a;b=c;d=\"e\"\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# accepted (large chunk): BWS before a second extension
+client c118 -connect ${h1_reqbig_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b ;c=\"d\" ;e\r\n"
+    send_n 256 "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    send "\r\n0\r\n\r\n"
+    rxresp
+    expect resp.status == 200
+} -run
+
+# rejected (large chunk): trailing SP after the size
+client c119 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000 \r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): trailing HTAB after the size
+client c120 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000\t\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): empty name
+client c121 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): empty name after BWS
+client c122 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000; \r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): empty name with a value
+client c123 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;=b\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): two ';' in a row
+client c124 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;;a\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): empty value
+client c125 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): empty value after BWS
+client c126 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a= \r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): trailing BWS after the name
+client c127 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a \r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): trailing BWS after a token value
+client c128 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b \r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): trailing BWS after a quoted value
+client c129 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\" \r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): SP inside the name
+client c130 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a b\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): SP inside a token value
+client c131 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b c\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): second '='
+client c132 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b=c\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): '@' in the name
+client c133 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a@b\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): '/' in the name
+client c134 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a/b\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): obs-text in the name
+client c135 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a\xe9\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): ',' in a token value
+client c136 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b,c\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): obs-text in a token value
+client c137 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\xe9\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): backslash in a token value
+client c138 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b\\c\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): quote inside a token value
+client c139 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b\"c\"\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): quoted name
+client c140 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;\"a\"=b\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): text after a quoted value
+client c141 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\"c\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): unterminated quoted value
+client c142 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): closing quote escaped
+client c143 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\\\"\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): CR inside a quoted value
+client c144 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\rc\"\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): LF inside a quoted value
+client c145 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\nc\"\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): CTL inside a quoted value
+client c146 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\x01c\"\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): DEL inside a quoted value
+client c147 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\x7fc\"\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): escaped CTL inside a quoted value
+client c148 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=\"b\\\x01c\"\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): bare LF after an extension
+client c149 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=b\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): empty value followed by another extension with a value
+client c150 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a=;b=c\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+# rejected (large chunk): empty value after BWS followed by another extension with a value
+client c151 -connect ${h1_reqbad_sock} {
+    send "POST / HTTP/1.1\r\nhost: a\r\ntransfer-encoding: chunked\r\n\r\n4000;a= ;b=c\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
 server s1 -wait
+server s2 -wait
