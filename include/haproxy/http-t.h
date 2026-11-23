@@ -255,6 +255,8 @@ struct http_violation {
 #define HTTP_HRD_REJ_CTL_IN_HDR             0x00000400
 #define HTTP_HRD_REJ_CL_TE                  0x00000800
 #define HTTP_HRD_REJ_CL_LEAD_ZERO           0x00001000
+#define HTTP_HRD_REJ_CL_DUP                 0x00002000
+
 /* insert new masks above this line */
 /* update this one with new rejects */
 #define HTTP_HRD_ALL_REJECT                 (HTTP_HRD_REJ_DUP_HOST_HDR   | \
@@ -264,7 +266,8 @@ struct http_violation {
                                              HTTP_HRD_REJ_HDR_FOLD       | \
                                              HTTP_HRD_REJ_CTL_IN_HDR     | \
                                              HTTP_HRD_REJ_CL_TE          | \
-                                             HTTP_HRD_REJ_CL_LEAD_ZERO)
+                                             HTTP_HRD_REJ_CL_LEAD_ZERO   | \
+                                             HTTP_HRD_REJ_CL_DUP)
 
 #define HTTP_HRD_ALL_DELETE                 (HTTP_HRD_DEL_USCORE_HDR_NAM         | \
                                              HTTP_HRD_DEL_USCORE_TLR_NAM         | \
@@ -284,7 +287,8 @@ struct http_violation {
                                                 HTTP_HRD_DEL_USCORE_HDR_NAM  | \
                                                 HTTP_HRD_DEL_USCORE_TLR_NAM  | \
                                                 HTTP_HRD_REJ_CL_TE           | \
-                                                HTTP_HRD_REJ_CL_LEAD_ZERO)
+                                                HTTP_HRD_REJ_CL_LEAD_ZERO    | \
+                                                HTTP_HRD_REJ_CL_DUP)
 
 #define HTTP_HRD_TRUSTED_DEFAULT               HTTP_HRD_DEFAULT
 

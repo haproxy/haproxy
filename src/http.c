@@ -849,7 +849,7 @@ int http_parse_cont_len_header(struct ist *value, unsigned long long *body_len,
 		}
 
 		/* if duplicate, must be equal */
-		if (check_prev && cl != *body_len)
+		if (check_prev && (cl != *body_len || http_harden(HTTP_HRD_REJ_CL_DUP)))
 			goto fail;
 
 		/* OK, store this result as the one to be indexed */
@@ -1800,6 +1800,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-ctl-in-header-trailer",      HTTP_HRD_REJ_CTL_IN_HDR, HTTP_DIR_BOTH },
 	{ "reject-content-length-with-te",     HTTP_HRD_REJ_CL_TE, HTTP_DIR_BOTH },
 	{ "reject-content-length-leading-zero",HTTP_HRD_REJ_CL_LEAD_ZERO, HTTP_DIR_BOTH },
+	{ "reject-duplicate-content-length",   HTTP_HRD_REJ_CL_DUP, HTTP_DIR_BOTH },
 	/* insert new hardening options above this line */
 	{ "all-reject",                     HTTP_HRD_ALL_REJECT,       HTTP_DIR_BOTH },
 	{ "all-delete",                     HTTP_HRD_ALL_DELETE,       HTTP_DIR_BOTH },

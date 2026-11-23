@@ -35183,6 +35183,17 @@ http-hardening <name> [from <name2>]
         listeners. See also the has_ctl() converter used for detecting them.
         It is enabled by default on untrusted connections.
 
+  - reject-duplicate-content-length (inbound request and response)
+        Rejects requests and responses having a duplicate Content-Length header
+        field even if all values perfectly match. While these are tolerated by
+        the standard and is properly sanitized by HAProxy, it can still fool
+        some other reverse-proxies seeing the message before HAProxy and not
+        parsing it correctly. These are still seldom seen in legacy client or
+        server applications, sometimes in relation with compression and/or
+        caching. While HAProxy properly normalizes them, it is generally safe
+        to reject them on public facing listeners. It is enabled by default on
+        untrusted connections.
+
   - reject-duplicate-host-header (inbound request)
         Rejects requests containing more than one "Host" header field, even if
         valid and identical. This is recommended on untrusted listeners. Note that
