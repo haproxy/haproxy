@@ -417,34 +417,42 @@ static forceinline ssize_t h1_parse_chunk_ext(const char *end, ssize_t ridx)
  * byte of data after the chunk size, so that we know we can forward exactly
  * msg->next bytes, and msg->sol to contain the exact number of bytes forming
  * the chunk size. That way it is always possible to differentiate between the
- * start of the body and the start of the data. Note: this function is designed
- * to parse wrapped CRLF at the end of the buffer.
+ * start of the body and the start of the data.
+ *
+ * The line is parsed on contiguous memory, using the same reverse index as
+ * the contiguous chunks parser. If it crosses the buffer's end, the buffer is
+ * realigned and the parsing restarts. Positions relative to the buffer's head
+ * remain valid.
  */
-static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int stop, uint64_t *res)
+static inline int h1_parse_chunk_size(struct buffer *buf, int start, int stop, uint64_t *res)
 {
-	const char *ptr = b_peek(buf, start);
-	const char *ptr_old = ptr;
-	const char *end = b_wrap(buf);
-	uint64_t chunk = 0;
-	int backslash = 0;
-	int quote = 0;
+	const char *end;
+	ssize_t ridx, avail;
+	uint64_t chunk;
+	int wraps;
 
-	stop -= start; // bytes left
-	start = stop;  // bytes to transfer
+ restart:
+	/* <avail> contiguous bytes are present before <end> */
+	avail = stop - start;
+	wraps = avail > b_wrap(buf) - b_peek(buf, start);
+	if (wraps)
+		avail = b_wrap(buf) - b_peek(buf, start);
+	end = b_peek(buf, start) + avail;
+	ridx = -avail;
+	chunk = 0;
 
 	/* The chunk size is in the following form, though we are only
 	 * interested in the size and CRLF :
-	 *    1*HEXDIGIT *WSP *[ ';' extensions ] CRLF
+	 *    1*HEXDIGIT *[ BWS ';' extensions ] CRLF
 	 */
 	while (1) {
 		int c;
-		if (!stop)
-			return 0;
-		c = hex2i(*ptr);
+
+		if (!ridx)
+			goto need_more;
+		c = hex2i(end[ridx]);
 		if (c < 0) /* not a hex digit anymore */
 			break;
-		if (unlikely(++ptr >= end))
-			ptr = b_orig(buf);
 		chunk = (chunk << 4) + c;
 		if (unlikely(chunk & 0xF0000000000000ULL)) {
 			/* Don't get more than 13 hexa-digit (2^52 - 1) to never fed possibly
@@ -452,91 +460,51 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 			 */
 			goto error;
 		}
-		stop--;
+		++ridx;
 	}
 
 	/* empty size not allowed */
-	if (unlikely(ptr == ptr_old))
+	if (unlikely(ridx == -avail))
 		goto error;
 
-	while (HTTP_IS_SPHT(*ptr)) {
-		if (++ptr >= end)
-			ptr = b_orig(buf);
-		if (--stop == 0)
-			return 0;
-	}
+	/* Anything but a CR must be chunk extensions */
+	if (unlikely(end[ridx] != '\r')) {
+		ssize_t ext = h1_parse_chunk_ext(end, ridx);
 
-	/* Up to there, we know that at least one byte is present at *ptr. Check
-	 * for the end of chunk size.
-	 */
-	while (1) {
-		if (likely(*ptr == '\r')) {
-			/* we now have a CR, it must be followed by a LF */
-			if (++ptr >= end)
-				ptr = b_orig(buf);
-			if (--stop == 0)
-				return 0;
-
-			if (*ptr != '\n')
-				goto error;
-			if (++ptr >= end)
-				ptr = b_orig(buf);
-			--stop;
-			/* done */
-			break;
-		}
-		else if (likely(*ptr == ';')) {
-			/* chunk extension, ends at next CRLF */
-			if (++ptr >= end)
-				ptr = b_orig(buf);
-			if (--stop == 0)
-				return 0;
-
-			/* The loop seeks the first CRLF or non-tab CTL char
-			 * and stops there. If a backslash/quote is active,
-			 * it's an error. If none, we assume it's the CRLF
-			 * and go back to the top of the loop checking for
-			 * CR then LF. This way CTLs, lone LF etc are handled
-			 * in the fallback path. This allows to protect
-			 * remotes against their own possibly non-compliant
-			 * chunk-ext parser which could mistakenly skip a
-			 * quoted CRLF. Chunk-ext are not used anyway, except
-			 * by attacks.
-			 */
-			while (!HTTP_IS_CTL(*ptr) || HTTP_IS_SPHT(*ptr)) {
-				if (backslash)
-					backslash = 0; // escaped char
-				else if (*ptr == '\\' && quote)
-					backslash = 1;
-				else if (*ptr == '\\') // backslash not permitted outside quotes
-					goto error;
-				else if (*ptr == '"')  // begin/end of quoted-pair
-					quote = !quote;
-				if (++ptr >= end)
-					ptr = b_orig(buf);
-				if (--stop == 0)
-					return 0;
-			}
-
-			/* mismatched quotes / backslashes end here */
-			if (quote || backslash)
-				goto error;
-
-			/* CTLs (CRLF) fall to the common check */
-			continue;
-		}
-		else
+		if (!ext)
+			goto need_more;
+		if (ext > 0) {
+			ridx = -ext;
 			goto error;
+		}
+		ridx = ext;
 	}
 
-	/* OK we found our CRLF and now <ptr> points to the next byte, which may
+	/* we now have a CR, it must be followed by a LF */
+	if (!++ridx)
+		goto need_more;
+	if (end[ridx] != '\n')
+		goto error;
+	++ridx;
+
+	/* OK we found our CRLF and now end[ridx] is the next byte, which may
 	 * or may not be present. Let's return the number of bytes parsed.
 	 */
 	*res = chunk;
-	return start - stop;
+	return avail + ridx;
+
+ need_more:
+	if (wraps) {
+		/* the line crosses the buffer's end, realign and retry */
+		b_slow_realign_ofs(buf, trash.area, 0);
+		goto restart;
+	}
+	return 0;
+
  error:
 	*res = 0; // just to stop gcc's -Wuninitialized warning :-(
-	return -stop;
+	/* position relative to <stop>: bytes left from the faulty char */
+	return ridx - (stop - start - avail);
 }
 
 /* initializes an H1 message for a request */
