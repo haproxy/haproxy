@@ -6941,6 +6941,12 @@ static size_t h2s_snd_fhdrs(struct h2s *h2s, struct htx *htx)
 					goto fail;
 				}
 			}
+			else if (unlikely(h2s->flags & H2_SF_EXT_CONNECT_RCVD) &&
+				 h2s->status >= 200 && h2s->status < 300) {
+				/* no 101 from the server: a 2xx would mean the tunnel is established */
+				TRACE_ERROR("upgrade not performed by the server, reject the 2xx response to Extended CONNECT", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
+				goto fail;
+			}
 			else if ((h2s->flags & H2_SF_BODY_TUNNEL) && h2s->status >= 300) {
 				/* Abort the tunnel attempt */
 				h2s->flags &= ~H2_SF_BODY_TUNNEL;
