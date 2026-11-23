@@ -1667,6 +1667,7 @@ const struct http_violation http_violations[] = {
 	{ "invalid-version-string",         HTTP_VIO_VERSION_STRING,   HTTP_DIR_BOTH },
 	{ "invalid-websocket-key",          HTTP_VIO_WEBSOCKET_KEY,    HTTP_DIR_BOTH },
 	{ "http-1.0-status-1xx",            HTTP_VIO_1XX_HTTP_1_0,     HTTP_DIR_RES  },
+	{ "trace-with-content",             HTTP_VIO_TRACE_CONTENT,    HTTP_DIR_REQ  },
 	/* insert new violations above this line */
 	{ "all",                            HTTP_VIO_ALL,              HTTP_DIR_BOTH },
 	{ NULL, 0 }

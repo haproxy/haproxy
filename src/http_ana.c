@@ -205,6 +205,19 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (sl->flags & HTX_SL_F_CONN_UPG)
 		msg->flags |= HTTP_MSGF_CONN_UPG;
 
+	/* check for incompatibilities with content */
+	if (!(msg->flags & HTTP_MSGF_BODYLESS)) {
+		/* there IS a body, either via T-E, or C-L > 0. For TRACE, this
+		 * is a violation of RFC9110 #9.3.8.
+		 */
+		if (txn->meth == HTTP_METH_TRACE &&
+		    !(s->be->options2 & PR_O2_REQBUG_OK &&
+		      global.acc_hreq_vio & (1U << HTTP_VIO_TRACE_CONTENT))) {
+			stream_inc_http_err_ctr(s);
+			goto return_bad_req;
+		}
+	}
+
 	/* we can make use of server redirect on GET and HEAD */
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 		s->flags |= SF_REDIRECTABLE;

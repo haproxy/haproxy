@@ -2298,6 +2298,15 @@ acceptable-http-response-violations { [-+]<http-violation>[,...] }
       be used with confirmed valid endpoints, and the risk is low because
       HTTP/1.0-only agents became rare.
 
+    - "trace-with-content" (request): this controls the acceptance of TRACE
+      HTTP requests containing a message body. This is forbidden by latest
+      updates of the specification because it can be used to build smuggling
+      attacks with certain servers. TRACE is exclusively used for attacks and
+      occasionally for debugging anyway. The risk is high, particularly for
+      requests originating from untrusted clients. Do not enable this without
+      verifying that servers support it and that the application absolutely
+      requires it.
+
   By default, for backward compatibility, all violations above are flagged as
   acceptable, meaning that a proxy having "option accept-unsafe-http-*" will
   accept them all. It may be a good practice to explicitly reset them to "none"
