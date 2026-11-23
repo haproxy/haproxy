@@ -19319,6 +19319,8 @@ from <origin>
       behavior for servers defined in the configuration file. This empty value
       is mostly useful for dynamic servers created on the CLI which by default
       ignore any default-server, which is equivalent to the "none" value.
+      Alternatively, a named defaults section can also be used as an argument
+      to reuse its unnamed default-server.
   - srv:[<bename>/]<srvname>
       instructs to reuse the settings from the designated backend's server or
       named default-server resulting from the processing of all its

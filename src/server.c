@@ -4123,8 +4123,10 @@ static int _srv_parse_from(struct server *srv, char **args, int *cur_arg,
 
 			if (istlen(be_name)) {
 				px = proxy_be_by_name(istptr(be_name));
+				if (!px)
+					px = proxy_find_by_name(istptr(be_name), PR_CAP_DEF, 0);
 				if (!px) {
-					ha_alert("from: unknown backend instance '%s'.\n",
+					ha_alert("from: unknown backend or defaults instance '%s'.\n",
 					         istptr(be_name));
 					err_code = ERR_ALERT | ERR_FATAL;
 					goto out;
