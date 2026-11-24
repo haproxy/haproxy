@@ -807,7 +807,7 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 			goto end_parsing;
 		}
 
-		memcpy(dptr + dpos, end + ridx, chksz);
+		memcpy_opt_small(dptr + dpos, end + ridx, chksz);
 		h1m->body_len += chksz;
 		lmax  -= chksz;
 		dpos += chksz;
