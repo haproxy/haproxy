@@ -1741,6 +1741,21 @@ abort ssl crl-file <crlfile>
 
   See also "set ssl crl-file" and "commit ssl crl-file".
 
+acme challenge_ready <certificate> domain <domain>
+  Acknowledge deployment of one authorization for a certificate configured
+  with "challenge-ready cli". The domain is an exact identifier: "example.com"
+  selects the non-wildcard authorization, while "*.example.com" selects only
+  the wildcard authorization.
+
+  For dns-01, publish the required TXT value before acknowledging it. When
+  both authorizations are pending, preserve both values in the same
+  "_acme-challenge.example.com" TXT RRset and acknowledge each separately.
+  The response reports the number still awaiting acknowledgement. Configured
+  delays and DNS pre-checks still apply after the final acknowledgement.
+
+  Available on the master CLI and stats socket at admin level. Quote the
+  command when passing it through a shell to prevent pathname expansion.
+
 acme renew <certificate>
   Starts an ACME certificate generation task with the given certificate name.
   The certificate must be linked to an acme section, see section 12.8 "ACME"
