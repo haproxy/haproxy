@@ -2069,6 +2069,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 	t2->data = ret;
 
 	mjson_get_bool(hc->res.buf.area, hc->res.buf.data, "$.wildcard", &wildcard);
+	auth->wildcard = wildcard;
 
 	auth->dns = istdup(ist2(t2->area, t2->data));
 
@@ -2204,8 +2205,8 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 			auth->token = istdup(ist2(dns_record->area, dns_record->data));
 
 			if (ctx->cfg->cond_ready & ACME_RDY_CLI)
-				send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready %s domain %.*s\" command over the CLI\n",
-			                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)auth->token.len, auth->token.ptr, ctx->store->path, (int)auth->dns.len, auth->dns.ptr);
+				send_log(NULL, LOG_NOTICE,"acme: %s: dns-01 requires to set the \"_acme-challenge.%.*s\" TXT record to \"%.*s\" and use the \"acme challenge_ready %s domain %s%.*s\" command over the CLI\n",
+				                                             ctx->store->path, (int)auth->dns.len, auth->dns.ptr, (int)auth->token.len, auth->token.ptr, ctx->store->path, auth->wildcard ? "*." : "", (int)auth->dns.len, auth->dns.ptr);
 
 			/* dump to the "dpapi" sink */
 			line[nmsg++] = ist("acme deploy ");
@@ -2242,6 +2243,7 @@ int acme_res_auth(struct task *task, struct acme_ctx *ctx, struct acme_auth *aut
 
 				cb_data.safe.crtname    = strdup(ctx->store->path);
 				cb_data.safe.domain     = isttest(auth->dns) ? strndup(auth->dns.ptr, auth->dns.len) : NULL;
+				cb_data.safe.wildcard   = auth->wildcard;
 				cb_data.safe.thumbprint = ctx->cfg->account.thumbprint ? strdup(ctx->cfg->account.thumbprint) : NULL;
 				cb_data.safe.dns_record = strndup(dns_record->area, dns_record->data);
 				cb_data.safe.provider   = ctx->cfg->provider ? strdup(ctx->cfg->provider) : NULL;
@@ -3593,6 +3595,8 @@ int acme_challenge_ready(const char *crt, const char *dns)
 	struct ebmb_node *node = NULL;
 	struct acme_ctx *ctx = NULL;
 	struct acme_auth *auth = NULL;
+	int wildcard = strncmp(dns, "*.", 2) == 0;
+	struct ist domain = ist(dns + (wildcard ? 2 : 0));
 	int found = 0;
 	int remain = 0;
 
@@ -3607,7 +3611,7 @@ int acme_challenge_ready(const char *crt, const char *dns)
 	if (ctx->cfg->cond_ready & ACME_RDY_CLI)
 		auth = ctx->auths;
 	while (auth) {
-		if (isteq(ist(dns), auth->dns)) {
+		if (auth->wildcard == wildcard && isteq(domain, auth->dns)) {
 			if ((auth->ready & ACME_RDY_CLI) == 0) {
 				auth->ready |= ACME_RDY_CLI;
 				found++;
@@ -3772,7 +3776,7 @@ INITCALL0(STG_REGISTER, __acme_init);
 static int class_acme_event_ref;
 
 /* Push a new AcmeEvent object for an ACME_DEPLOY event onto the Lua stack.
- * The object exposes crtname, domain, thumbprint, dns_record fields, and
+ * The object exposes crtname, domain, wildcard, thumbprint, dns_record fields, and
  * optionally provider and vars if they were configured.
  */
 static void hlua_fcn_new_acme_event_deploy(lua_State *L, const struct event_hdl_cb_data_acme_deploy *e)
@@ -3787,6 +3791,9 @@ static void hlua_fcn_new_acme_event_deploy(lua_State *L, const struct event_hdl_
 
 	lua_pushstring(L, e->safe.domain ? e->safe.domain : "");
 	lua_setfield(L, -2, "domain");
+
+	lua_pushboolean(L, e->safe.wildcard);
+	lua_setfield(L, -2, "wildcard");
 
 	lua_pushstring(L, e->safe.thumbprint ? e->safe.thumbprint : "");
 	lua_setfield(L, -2, "thumbprint");

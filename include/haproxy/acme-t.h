@@ -88,6 +88,7 @@ struct acme_auth {
        struct ist auth;   /* auth URI */
        struct ist chall;  /* challenge URI */
        struct ist token;  /* token */
+       int wildcard;      /* authorization covers *.dns */
        int validated;     /* already validated */
        struct acme_rslv *rslv; /* acme dns-01 resolver */
        int ready;         /* is the challenge ready ? */
@@ -142,6 +143,7 @@ struct event_hdl_cb_data_acme_deploy {
 	struct {
 		char *crtname;    /* certificate store name (heap-allocated) */
 		char *domain;     /* domain being challenged (heap-allocated) */
+		int wildcard;    /* authorization covers *.domain */
 		char *thumbprint; /* account key JWK thumbprint (heap-allocated) */
 		char *dns_record; /* DNS TXT record value to set (heap-allocated) */
 		char *provider;   /* DNS provider name (heap-allocated, may be NULL) */
