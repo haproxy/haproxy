@@ -209,8 +209,8 @@ static inline uint32_t rbit5(uint32_t v)
 #endif
 
 /* helper function to reverse up to 9 bits in <input> which is expected to be
- * <len> bits long. The function might work with more than 9 bits in certain
- * cases with no guarantees, so don't go over 9.
+ * <len> bits long. The generic version is exact up to 10 bits, use rbit15()
+ * for longer codes.
  */
 static inline uint32_t rbit9(uint32_t input, int len)
 {
@@ -232,6 +232,34 @@ static inline uint32_t rbit9(uint32_t input, int len)
 	l = input;
 	h = rbit5(h); l = rbit5(l);
 	return ((l << 5) | h) >> (10 - len); /* new_h = [rev(l):5][rev(h):5] */
+#endif
+}
+
+/* helper function to reverse up to 16 bits in <input> which is expected to be
+ * <len> bits long, len being 1 to 16, the longest deflate code. It is meant
+ * for table generation, not for the decoding path. On ARM the rbit instruction
+ * covers any length. On other archs we do them the usual way in log2 masks.
+ */
+static inline uint32_t rbit16(uint32_t input, int len)
+{
+#if defined(__aarch64__) || defined(__ARM_ARCH_7A__)
+	/* ARM >= v7 has a fast rbit instruction */
+	input <<= 32 - len; // align left before reversal
+# if defined(__ARM_ARCH_ISA_A64)
+	// 64 bit mode
+	__asm__ ("rbit %w0, %w0" : "+r" (input));
+# else
+	// 32 bit mode (e.g. armv7 compiler building for armv8
+	__asm__ ("rbit %0, %0" : "+r" (input));
+# endif
+	return input;
+
+#else /* not arm */
+	input = ((input >> 1) & 0x5555) | ((input & 0x5555) << 1);
+	input = ((input >> 2) & 0x3333) | ((input & 0x3333) << 2);
+	input = ((input >> 4) & 0x0f0f) | ((input & 0x0f0f) << 4);
+	input = ((input >> 8) & 0x00ff) | ((input & 0x00ff) << 8);
+	return input >> (16 - len);
 #endif
 }
 

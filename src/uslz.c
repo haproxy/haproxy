@@ -209,12 +209,20 @@ static int gen_huffman_table(unsigned int symbols,
 	return 1;
 }
 
+/* Fast table entry for codes too long for the table or unused codes: a zero
+ * length, so that the readers fall back to the tree walk, and symbol 511, above
+ * all literals, so that the literal loop of dynamic blocks leaves on its
+ * literal test alone.
+ */
+#define USLZ_FAST_LONG (511U << 7)
+
 /*
  * gen_fast_table: fill the direct lookup <table> of <tbits> bits from the code
  * lengths in <lengths>, for an alphabet of <symbols> symbols. Entries have the
  * same layout as fixed_huff_dec_table[]: the symbol in the upper bits and the
- * code length in the low 4 bits. Codes longer than <tbits> are left at zero
- * and are decoded by walking the tree built by gen_huffman_table() instead.
+ * code length in the low 4 bits. Codes longer than <tbits> are left at
+ * USLZ_FAST_LONG and are decoded by walking the tree built by
+ * gen_huffman_table() instead.
  *
  * Each code is replicated over every combination of the bits above it, so
  * that a lookup performed with fewer than <tbits> bits still finds it,
@@ -232,7 +240,9 @@ static void gen_fast_table(unsigned int symbols, const unsigned char *lengths,
 	unsigned short count[16];
 	unsigned int i, len, code;
 
-	memset(table, 0, (1U << tbits) * sizeof(*table));
+	/* entries left unassigned carry USLZ_FAST_LONG */
+	for (i = 0; i < (1U << tbits); i++)
+		table[i] = USLZ_FAST_LONG;
 	memset(count, 0, sizeof(count));
 
 	for (i = 0; i < symbols; i++)
@@ -260,8 +270,10 @@ static void gen_fast_table(unsigned int symbols, const unsigned char *lengths,
 		if (len > tbits)
 			continue;
 
-		/* codes appear bit-reversed in the accumulator */
-		rev = rbit9(code, len);
+		/* codes appear bit-reversed in the accumulator, and may be
+		 * up to 15 bits long when the table is that wide.
+		 */
+		rev = rbit16(code, len);
 		step = 1U << len;
 		for (; rev < (1U << tbits); rev += step)
 			table[rev] = (i << 7) | len;
@@ -550,6 +562,53 @@ static inline int gethuff_fast(const unsigned char **in_ptr, const unsigned char
 				goto have_symbol;                              \
 			}                                                      \
 			*out++ = state->symbol;                                \
+		}                                                              \
+	} while (0)
+
+/* Number of literals of dynamic blocks decoded per refill. The loop is only
+ * built on 64-bit platforms, where a refill brings at least 56 bits. A dynamic
+ * tree may have codes of up to 15 bits, but gen_fast_table() only places in
+ * fast_lit[] those of at most USLZ_FAST_BITS bits, and the longer ones consume
+ * nothing (see USLZ_FAST_LONG), so whatever the tree, a lookup consumes at
+ * most USLZ_FAST_BITS bits: 5 lookups per refill with 10-bit tables. It is
+ * capped to the 7 DYN_LITERAL() calls of the loop.
+ */
+#if USLZ_FAST_BITS
+#define DYN_LIT_PER_REFILL (56 / USLZ_FAST_BITS > 7 ? 7 : 56 / USLZ_FAST_BITS)
+#else
+#define DYN_LIT_PER_REFILL 0 /* no fast table, the loop is never entered */
+#endif
+
+/* same as FIXED_LITERAL() above for dynamic blocks, from fast_lit[]. A code
+ * too long for the table reads USLZ_FAST_LONG, whose zero length consumes
+ * nothing, and goes to the generic path at <dyn_slow> to be walked in the
+ * tree.
+ *
+ * As in FIXED_LITERAL(), <num_bits> is decremented by the whole entry rather
+ * than by its length (bits 0-3) to save a mask per literal: <num_bits> being
+ * 8-bit, the symbol part (sym << 7) only subtracts 0 or 128, which can only
+ * flip bit 7 since <num_bits> never exceeds 63. Bit 7 is cleared by the
+ * "num_bits &= 0x3F" after the last literal of the refill, or on exit.
+ *
+ * Any other symbol than a literal is consumed and handled at
+ * <dyn_match>.
+ */
+#define DYN_LITERAL(ofs)                                                       \
+	do {                                                                   \
+		if (ofs < DYN_LIT_PER_REFILL) {                                \
+			unsigned int entry, sym;                               \
+			entry = state->fast_lit[bit_accum & ((1U << USLZ_FAST_BITS) - 1)]; \
+			bit_accum >>= entry & 0xF;                             \
+			num_bits   -= entry;                                   \
+			sym = entry >> 7;                                      \
+			if (sym >= 256) {                                      \
+				num_bits &= 0x3F;                              \
+				if (!(entry & 0xF))                            \
+					goto dyn_slow;                         \
+				state->symbol = sym;                           \
+				goto dyn_match;                                \
+			}                                                      \
+			*out++ = sym;                                          \
 		}                                                              \
 	} while (0)
 
@@ -860,13 +919,6 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 	}  /* if (state->block_type == 0) */
 
 	if (state->block_type == 2) {  /* Dynamic tables. */
-		/* codelen_order: Order of code lengths in the block header for the
-		 * code length alphabet.
-		 */
-		static const unsigned char codelen_order[19] = {
-			16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
-		};
-
 		/* Retrieve the three code counts from the block header. */
 		state->state = USLZ_ST_LITERAL_COUNT;
 
@@ -1062,14 +1114,184 @@ static enum uslz_decode_ret uslz_decode_block(struct uslz_stream *state)
 			 */
 			int ret = -1;
 
-			if (USLZ_FAST_BITS && !state->huff_index)
+			if (USLZ_FAST_BITS && !state->huff_index) {
+#if defined(UNALIGNED_LE_OK) && __SIZEOF_LONG__ >= 8
+				/* Fast loop, the same as for fixed blocks
+				 * above, from the block's own fast_lit[] table:
+				 * up to 5 literals per refill, and the matches
+				 * at <dyn_match>, after which the loop goes on
+				 * with the next symbol. A code too long for the
+				 * table is walked in the tree at <dyn_slow>,
+				 * and what the loop cannot handle is left to
+				 * the generic path. Only built on 64-bit
+				 * platforms, see DYN_LIT_PER_REFILL and
+				 * <dyn_match>.
+				 */
+				while (out_lim - out >= DYN_LIT_PER_REFILL &&
+				       in_top - in_ptr >= __SIZEOF_LONG__) {
+					unsigned int dist_entry, dist_sym, dist;
+
+					REFILL();
+					DYN_LITERAL(0); DYN_LITERAL(1);
+					DYN_LITERAL(2); DYN_LITERAL(3);
+					DYN_LITERAL(4); DYN_LITERAL(5);
+					DYN_LITERAL(6);
+					num_bits &= 0x3F;
+					continue;
+
+ dyn_match:
+					/* The symbol is not a literal: it is a
+					 * match length or the end of block. The
+					 * match is decoded and copied here, then
+					 * the loop goes on with the next symbol.
+					 * The end of block, and any case the code
+					 * below doesn't handle, is left to the
+					 * generic path at the step reached.
+					 *
+					 * 258 bytes of output room are needed
+					 * (the longest match), so that the copy
+					 * never has to stop at <out_lim>. A
+					 * refill's worth of input guarantees
+					 * that after REFILL() the accumulator
+					 * holds at least 56 bits, the loop
+					 * being only built on 64-bit platforms:
+					 * the length's extra bits (5 at most),
+					 * the distance code if it is found in
+					 * fast_dist[] (USLZ_FAST_DBITS, 15 at
+					 * most) and the distance's extra bits
+					 * (13 at most) take 33 at most.
+					 */
+					if (state->symbol == 256 || out_lim - out < 258 ||
+					    in_top - in_ptr < __SIZEOF_LONG__)
+						goto have_symbol;
+					REFILL();
+
+					/* Length codes (RFC1951 3.2.5): 257 to
+					 * 264 are lengths 3 to 10 without extra
+					 * bits. 265 to 284 go by groups of 4
+					 * sharing the same number of extra bits,
+					 * 1 for 265-268 up to 5 for 281-284, that
+					 * is (sym - 261) / 4. Within a group, the
+					 * base length of each code is 4, 5, 6 or 7
+					 * (4 plus its position in the group,
+					 * (sym - 265) & 3) shifted left by this
+					 * number, plus 3: 265 is 11, 266 is 13,
+					 * ..., 284 is 227.
+					 * The extra bits, taken from the bottom
+					 * of the accumulator, are added to the
+					 * base. 285 is 258 without extra bits,
+					 * and 286-287 are invalid.
+					 */
+					if (state->symbol <= 264)
+						len = state->symbol - 254;
+					else if (state->symbol <= 284) {
+						get_bits = (state->symbol - 261) / 4;
+						len = bit_accum & ((1UL << get_bits) - 1);
+						bit_accum >>= get_bits;
+						num_bits -= get_bits;
+						len += 3 + ((4 + ((state->symbol - 265) & 3)) << get_bits);
+					}
+					else if (state->symbol == 285)
+						len = 258;
+					else
+						goto have_symbol;
+
+					/* The distance code, from fast_dist[]
+					 * whose entries are built like those of
+					 * fast_lit[]: the symbol above bit 7 and
+					 * the code's length in bits 0-3, zero for
+					 * a code too long for the table, which is
+					 * left to the generic path at the
+					 * distance step (the length is known).
+					 */
+					dist_entry = state->fast_dist[bit_accum & ((1U << USLZ_FAST_DBITS) - 1)];
+					if (!USLZ_FAST_DBITS || !(dist_entry & 0xF)) {
+						state->repeat_length = len;
+						state->state = USLZ_ST_READ_DISTANCE;
+						goto state_READ_DISTANCE;
+					}
+					bit_accum >>= dist_entry & 0xF;
+					num_bits -= dist_entry & 0xF;
+					dist_sym = dist_entry >> 7;
+
+					/* Distance codes (RFC1951 3.2.5): 0 to 3
+					 * are distances 1 to 4 without extra
+					 * bits. 4 to 29 go by pairs sharing the
+					 * same number of extra bits, 1 for 4-5 up
+					 * to 13 for 28-29, that is (sym - 2) / 2.
+					 * Within a pair, the base distance is 2
+					 * for the even code and 3 for the odd
+					 * one (2 + (sym & 1)), shifted left by
+					 * this number, plus 1: 4 is 5, 5 is 7,
+					 * ..., 29 is 24577.
+					 * The extra bits are added to the base.
+					 * 30 and 31 are invalid.
+					 */
+					if (dist_sym <= 3)
+						dist = dist_sym + 1;
+					else if (dist_sym <= 29) {
+						get_bits = (dist_sym - 2) / 2;
+						dist = bit_accum & ((1UL << get_bits) - 1);
+						bit_accum >>= get_bits;
+						num_bits -= get_bits;
+						dist += 1 + ((2 + (dist_sym & 1)) << get_bits);
+					}
+					else {
+						err_code = USLZ_DECODE_E_INVALID_SYMBOL;
+						goto error_return;
+					}
+
+					/* A distance larger than what was written
+					 * since <out_base> starts the match in the
+					 * upper part of the ring (history before
+					 * the last wrap), or is invalid: the
+					 * generic copy handles both.
+					 */
+					if (dist > (unsigned long)(out - out_base)) {
+						state->repeat_length = len;
+						state->distance = dist;
+						goto state_READ_DISTANCE_RET;
+					}
+
+					/* Same copy as the generic path: when the
+					 * source and the destination don't
+					 * overlap, memcpy(), otherwise the bytes
+					 * being written are part of the source
+					 * and are replicated one at a time.
+					 */
+					if (dist >= len)
+						memcpy(out, out - dist, len);
+					else {
+						const unsigned char *src = out - dist;
+						unsigned char *dst = out;
+						unsigned int cnt = len;
+
+						do {
+							*dst++ = *src++;
+							__asm__("" : "+r"(dst)); // same as the generic copy
+						} while (--cnt);
+					}
+					out += len;
+				}
+				/* same as for fixed blocks above */
+				if (out == out_lim)
+					continue;
+#endif
 				ret = gethuff_fast(&in_ptr, in_top, &num_bits, &bit_accum,
 				                   &state->symbol, state->fast_lit,
 				                   USLZ_FAST_BITS);
+			}
 			if (!ret)
 				goto out_of_data;
-			if (ret < 0)
+			if (ret < 0) {
+#if defined(UNALIGNED_LE_OK) && __SIZEOF_LONG__ >= 8
+				/* note that dyn_slow can jump here from above
+				 * because it leaves ret to -1.
+				 */
+			dyn_slow:
+#endif
 				GETHUFF(state->symbol, state->literal_table);
+			}
 		}
 
 #if defined(UNALIGNED_LE_OK)
