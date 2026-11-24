@@ -1892,7 +1892,7 @@ static ssize_t h3_parse_settings_frm(struct h3c *h3c, const struct buffer *buf,
 		 */
 
 		/* Ignore duplicate check for ID too big used for GREASE. */
-		if (id < sizeof(mask)) {
+		if (id < (8 * sizeof(mask))) {
 			if (ha_bit_test(id, &mask)) {
 				h3c->err = H3_ERR_SETTINGS_ERROR;
 				return -1;
