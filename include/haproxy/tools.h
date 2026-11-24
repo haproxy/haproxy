@@ -567,6 +567,47 @@ size_t my_memspn(const void *, size_t, const void *, size_t);
  */
 size_t my_memcspn(const void *, size_t, const void *, size_t);
 
+/* Equivalent of memcpy() optimized for ultra-small copies of 32 bytes or less,
+ * typically when copying many tiny objects of variable size, for which the
+ * call to the libc's memcpy() would cost much more than the copy itself.
+ * Sizes from 1 to 32 are copied inline using at most two possibly overlapping
+ * fixed-size copies, after two to four tests. A size of zero is not supported
+ * (one byte is always copied). Larger sizes fall back to memcpy().
+ */
+static forceinline void memcpy_opt_small(void *dst, const void *src, size_t len)
+{
+	char *d = dst;
+	const char *s = src;
+
+	if (len < 4) {
+		/* 1..3 bytes */
+		d[0] = s[0];
+		if (len < 2)
+			return;
+		memcpy(d + len - 2, s + len - 2, 2);
+	}
+	else if (len <= 32) {
+		if (len <= 16) {
+			/* 4..16 bytes */
+			if (len < 8) {
+				memcpy(d, s, 4);
+				memcpy(d + len - 4, s + len - 4, 4);
+			}
+			else {
+				memcpy(d, s, 8);
+				memcpy(d + len - 8, s + len - 8, 8);
+			}
+		}
+		else {
+			/* 17..32 bytes */
+			memcpy(d, s, 16);
+			memcpy(d + len - 16, s + len - 16, 16);
+		}
+	}
+	else
+		memcpy(d, s, len);
+}
+
 /* This function returns the first unused key greater than or equal to <key> in
  * ID tree <root>. Zero is returned if no place is found.
  */
