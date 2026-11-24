@@ -2364,7 +2364,7 @@ ca-base <dir>
   directives. Absolute locations specified in "ca-file", "ca-verify-file" and
   "crl-file" prevail and ignore "ca-base".
 
-chroot { <jail dir> | auto }
+chroot { <jail dir> | auto | opportunistic }
   Changes current directory to <jail dir> and performs a chroot() there before
   dropping privileges. This increases the security level in case an unknown
   vulnerability would be exploited, since it would make it very hard for the
@@ -2378,15 +2378,17 @@ chroot { <jail dir> | auto }
   As a special case, <jail dir> may be set to "auto", in which case haproxy
   creates an anonymous temporary directory, unlinks it, and chroots into it.
   The resulting jail has no name in the filesystem and is empty and read-only,
-  removing the need to prepare a dedicated jail directory.
+  removing the need to prepare a dedicated jail directory. "opportunistic" is
+  the same except that no error is displayed on failure.
 
   When starting with sufficient privileges and when "set-dumpable" is not set,
-  haproxy will automatically apply "chroot auto" if no "chroot" directive is
-  used, i.e. it will isolate itself in a chroot jail, and will emit a warning
-  if it fails to do so. If there is a compelling reason not to use chroot (e.g.
-  access to a server via a UNIX socket outside of the jail), it remains
-  possible to silence the warning by adding an explicit "chroot /", which has
-  the benefit of being visible in a configuration.
+  haproxy will automatically apply "chroot opportunistic" if no "chroot"
+  directive is used, i.e. it will try to isolate itself in a chroot jail, and
+  will only emit a warning if it fails to do so while being started as root. If
+  there is a compelling reason not to use chroot (e.g. access to a server via a
+  UNIX socket outside of the jail), it remains possible to silence the warning
+  by adding an explicit "chroot /", which has the benefit of being visible in a
+  configuration.
 
 close-spread-time <time>
   Define a time window during which idle connections and active connections

@@ -3420,22 +3420,37 @@ static void setup_user_ns(uid_t euid, gid_t egid)
 }
 #endif
 
+/* Try to chroot in directory <path>. Returns <0 on failure, 0 on success. If
+ * <path> is "auto", a temporary directory is created on the fly under /tmp to
+ * chroot into. If <path> is "opportunistic", then it is handled like "auto"
+ * except that everything is made as a best-effort attempt and no alert is
+ * shown on failure (but the caller still detects it). On systems supporting
+ * them, a user namespace may be created before retrying when facing EPERM,
+ * which would permits non-privileged users to chroot as well.
+ */
 static int do_chroot(const char *prog, const char *path)
 {
 	const char *dir, *chroot_dir;
 	int error, chroot_error;
-	char tmpdir[] = "/tmp/haproxy.XXXXXX";
+	int is_auto = 0;
+	int is_opp = 0;
 
+	is_auto = strcmp(path, "auto") == 0;
+	is_opp = strcmp(path, "opportunistic") == 0;
 	error = chroot_error = 0;
 	dir = chroot_dir = path;
-	if (strcmp(path, "auto") == 0) {
-		/* When "chroot auto" is used, we attempt to chroot to an
-		 * anonymous and read-only directory.
+
+	if (is_auto || is_opp) {
+		/* When "chroot auto" or "chroot opportunistic" is used, we
+		 * attempt to chroot to an anonymous and read-only directory.
 		 */
+		char tmpdir[] = "/tmp/haproxy.XXXXXX";
+
 		dir = mkdtemp(tmpdir);
 		if (dir == NULL) {
-			ha_alert("[%s.main()] Cannot create(%s) for chroot auto.\n",
-			         prog, tmpdir);
+			if (!is_opp)
+				ha_alert("[%s.main()] Cannot create(%s) for chroot auto.\n",
+				         prog, tmpdir);
 			return -1;
 		}
 		error = chdir(tmpdir);
@@ -3469,7 +3484,8 @@ static int do_chroot(const char *prog, const char *path)
 		error = chdir("/");
 
 	if (error || chroot_error) {
-		ha_alert("[%s.main()] Cannot chroot(%s).\n", prog, dir);
+		if (!is_opp)
+			ha_alert("[%s.main()] Cannot chroot(%s).\n", prog, dir);
 		return -1;
 	}
 
@@ -3803,34 +3819,26 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/* privileged users should use chroot whenever possible; use chroot /
-	 * if really not wanted.
+	/* privileged users should use chroot whenever possible, and anyone
+	 * with enough permission to try to do so; use chroot / if really not
+	 * wanted. Let's try below, and silently fail. For root however, a
+	 * warning is emitted because that's not expected.
 	 */
-
 	if (!global.chroot && !(global.tune.options & GTUNE_SET_DUMPABLE)) {
 		int chroot_permitted = geteuid() == 0;
 
-#if defined(USE_PRCTL) && defined(PR_CAPBSET_READ) && defined(CAP_SYS_CHROOT)
-		int ret = prctl(PR_CAPBSET_READ, CAP_SYS_CHROOT, 0, 0, 0);
-		if (ret == 1)
-			chroot_permitted = 1;
-		else if (ret == 0)
-			chroot_permitted = 0;
-		/* errors mean prctl() not supported, so don't update the verdict */
-#endif
-		if (chroot_permitted && do_chroot(argv[0], "auto") != 0) {
-			ha_warning("[%s.main()] HAProxy was started as root without any 'chroot' "
-			           "directive, and an attempt at automatically chrooting failed, "
-			           "so the haproxy process is not as protected as it could be. "
-			           "Please report this event to developers with as many details as "
-			           "possible about your execution environment so they can evaluate "
-			           "if anything can be done to better support it. A chroot limits "
-			           "filesystem access of an intruder to a single, preferably empty, "
-			           "directory. It is strongly recommended to enable this feature "
-			           "whenever possible (it's always possible when starting as root), "
-			           "via 'chroot auto' in the global section. If you think you have "
-			           "good reasons for running outside a chroot, explicitly configure "
-			           "'chroot /' to silence this warning.\n", argv[0]);
+		if (do_chroot(argv[0], "opportunistic") != 0) {
+			if (chroot_permitted)
+				ha_warning("[%s.main()] "
+				           "HAProxy was started as root without any 'chroot' directive"
+				           "directive, and an attempt at opportunistically chrooting failed, "
+				           "so the haproxy process is not as protected as it could be. "
+				           "A chroot limits filesystem access of an intruder to a single, "
+				           "preferably empty, directory. It is strongly recommended to enable "
+				           "this feature whenever possible (it should always be possible when "
+				           "starting as root), via 'chroot auto' in the global section. If you "
+				           "think you have good reasons for running outside a chroot, explicitly "
+				           "configure 'chroot /' to silence this warning.\n", argv[0]);
 		}
 	}
 
