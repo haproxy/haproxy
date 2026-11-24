@@ -311,7 +311,8 @@ static size_t raw_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 		if (ret > 0) {
 			b_add(buf, ret);
 			done += ret;
-			if (ret < try) {
+			/* with kTLS a short read is only the end of a record */
+			if (ret < try && !msg_control) {
 				/* socket buffer exhausted */
 				fd_cant_recv(conn->handle.fd);
 
