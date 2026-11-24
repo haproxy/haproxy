@@ -76,12 +76,14 @@ enum h3_ft       {
 
 	H3_FT_DATA         = 0x00,
 	H3_FT_HEADERS      = 0x01,
-	/* hole */
+	H3_FT_RESERVED_1   = 0x02,
 	H3_FT_CANCEL_PUSH  = 0x03,
 	H3_FT_SETTINGS     = 0x04,
 	H3_FT_PUSH_PROMISE = 0x05,
-	/* hole */
+	H3_FT_RESERVED_2   = 0x06,
 	H3_FT_GOAWAY       = 0x07,
+	H3_FT_RESERVED_3   = 0x08,
+	H3_FT_RESERVED_4   = 0x09,
 	/* hole */
 	H3_FT_MAX_PUSH_ID  = 0x0d,
 };

@@ -468,6 +468,20 @@ static int h3_check_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype
 			ret = H3_ERR_MISSING_SETTINGS;
 		break;
 
+	case H3_FT_RESERVED_1:
+	case H3_FT_RESERVED_2:
+	case H3_FT_RESERVED_3:
+	case H3_FT_RESERVED_4:
+		/* RFC 9114 7.2.8. Reserved Frame Types
+		 *
+		 * Frame types that were used in HTTP/2 where there is no corresponding
+		 * HTTP/3 frame have also been reserved (Section 11.2.1). These frame
+		 * types MUST NOT be sent, and their receipt MUST be treated as a
+		 * connection error of type H3_FRAME_UNEXPECTED.
+		 */
+		ret = H3_ERR_FRAME_UNEXPECTED;
+		break;
+
 	default:
 		/* RFC 9114 9. Extensions to HTTP/3
 		 *
@@ -4026,11 +4040,15 @@ static inline const char *h3_ft_str(uint64_t type)
 	switch (type) {
 	case H3_FT_DATA:         return "DATA";
 	case H3_FT_HEADERS:      return "HEADERS";
+	case H3_FT_RESERVED_1:   return "RESERVED_1";
 	case H3_FT_SETTINGS:     return "SETTINGS";
 	case H3_FT_PUSH_PROMISE: return "PUSH_PROMISE";
-	case H3_FT_MAX_PUSH_ID:  return "MAX_PUSH_ID";
+	case H3_FT_RESERVED_2:   return "RESERVED_2";
 	case H3_FT_CANCEL_PUSH:  return "CANCEL_PUSH";
 	case H3_FT_GOAWAY:       return "GOAWAY";
+	case H3_FT_RESERVED_3:   return "RESERVED_3";
+	case H3_FT_RESERVED_4:   return "RESERVED_4";
+	case H3_FT_MAX_PUSH_ID:  return "MAX_PUSH_ID";
 	default:                 return "_UNKNOWN_";
 	}
 }
