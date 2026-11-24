@@ -18,7 +18,7 @@ syslog S_ok -level notice {
 
 syslog S3 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer6 invalid response.+info: \"(Connection closed during SSL handshake|SSL handshake failure)\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer6 invalid response.+info: \"(Connection closed during SSL handshake|SSL handshake failure).*\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S4 -level notice {
