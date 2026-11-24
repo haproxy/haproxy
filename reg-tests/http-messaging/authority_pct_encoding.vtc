@@ -1,0 +1,85 @@
+varnishtest "Percent-encoding is rejected in the authority and the Host header"
+
+# RFC3986 permits percent-encoded characters in the authority, but they must
+# not be used over HTTP: an escaped character may fool a URI parser on a
+# backend server (e.g. an escaped "@" or "/" changing how the request is
+# routed) and the authority is reassembled into an absolute URI and the Host
+# header. This is checked on all three HTTP versions.
+
+feature ignore_unknown_macro
+
+# H2 frontend replying itself: the point is to check the requests are
+# rejected or accepted, not what is forwarded.
+haproxy h1 -conf {
+    global
+	.if feature(THREAD)
+		thread-groups 1
+	.endif
+
+	defaults
+		mode http
+		timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout client  "${HAPROXY_TEST_TIMEOUT-5s}"
+		timeout server  "${HAPROXY_TEST_TIMEOUT-5s}"
+
+	frontend fe_h1
+		bind "fd@${fe_h1}"
+		http-request return status 200
+
+	frontend fe_h2
+		bind "fd@${fe_h2}" proto h2
+		http-request return status 200
+} -start
+
+# H1: percent-encoded char in the authority part of an absolute URI.
+client c_uri_auth -connect ${h1_fe_h1_sock} {
+	txreq -req GET -url "http://ex%41mple.com/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 400
+} -run
+
+# H1: percent-encoded char in the Host header value.
+client c_host_hdr -connect ${h1_fe_h1_sock} {
+	txreq -req GET -url / -hdr "host: ex%41mple.com"
+	rxresp
+	expect resp.status == 400
+} -run
+
+# H1: no percent char, the request must pass.
+client c_valid -connect ${h1_fe_h1_sock} {
+	txreq -req GET -url "http://example.com/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+} -run
+
+# H2: percent-encoded char in :authority
+client c_h2_authority -connect ${h1_fe_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "ex%41mple.com"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
+
+# H2: unencoded authority and Host, the request must pass.
+client c_h2_valid -connect ${h1_fe_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "example.com" -hdr "host" "example.com"
+		rxresp
+		expect resp.status == 200
+	} -run
+} -run
