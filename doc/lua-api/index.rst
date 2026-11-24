@@ -4874,8 +4874,14 @@ ACME class
   and validation has been triggered. Raises a Lua error if the certificate or
   domain is not found.
 
+  The domain is an exact authorization identifier. Use ``example.com`` for
+  the non-wildcard authorization and ``*.example.com`` for the wildcard
+  authorization. The ``*.`` prefix is literal, not a matching pattern; a bare
+  ``*`` does not select all challenges. When both authorizations are pending,
+  each must be acknowledged separately after publishing its TXT value.
+
   :param string crt: The filename of the certificate.
-  :param string dns: The domain name for which the challenge is ready.
+  :param string dns: The exact domain identifier, including ``*.`` for a wildcard.
   :returns: The number of remaining challenges (integer), or 0 when all
    challenges are done and validation has been triggered.
 
@@ -4896,7 +4902,19 @@ See :js:func:`core.event_sub()` for more info.
 
 .. js:attribute:: AcmeEvent.domain
 
-  Contains the domain being challenged.
+  Contains the base domain being challenged, without a wildcard prefix. Both
+  ``example.com`` and ``*.example.com`` authorizations have ``example.com``
+  here, and publish TXT values at ``_acme-challenge.example.com``.
+
+  Only available for **ACME_DEPLOY** events.
+
+.. js:attribute:: AcmeEvent.wildcard
+
+  Boolean indicating whether the authorization covers ``*.domain``. Construct
+  the identifier for :js:func:`ACME.challenge_ready` by prepending ``*.`` to
+  ``domain`` only when this field is true. Do not add this prefix to the DNS
+  TXT record owner. Preserve other TXT values when publishing a token: apex
+  and wildcard authorizations can require different values at the same owner.
 
   Only available for **ACME_DEPLOY** events.
 
