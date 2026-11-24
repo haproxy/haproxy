@@ -30108,25 +30108,25 @@ different server implementations, as not all will normalize everything exactly
 the same way. Please consider the variants below, some of which might target a
 different resource on some servers, or might alias to /admin on other servers:
 
-    Request path          Why it may reach the same resource
-    --------------------+---------------------------------------------------
-    /Admin                case-insensitive file systems or applications
-    /admin/               trailing slash (when an exact match was used)
-    //admin               repeated slashes are merged
-    /./admin              "." segment is dropped
-    /x/../admin           ".." segment is resolved
-    /admin//../           when ".." is resolved before "//", it gives "/admin/"
-    /admin//a/../         when ".." is resolved after "//", it gives "/admin/"
-    /%61dmin              %-encoded character, decoded by the server
-    /%2e/admin            %-encoded "." segment, decoded then dropped
-    /%u0061dmin           non-standard "%u" encoding, supported by some servers
-    /\admin               "\" used as a directory delimiter
-    /%5Cadmin             same as "\", but %-encoded
-    /;x=1/admin           path parameters, dropped by some frameworks
-    /admin%00.png         truncation at an encoded NUL by some servers
-    /admin%3ffoo          %3f turned to '?' by some proxies, splitting the path
-    /%2561dmin            %-encoded '%' before 'a', resolved by some proxies
-    --------------------+---------------------------------------------------
+Request path          Why it may reach the same resource
+--------------------+---------------------------------------------------
+/Admin                case-insensitive file systems or applications
+/admin/               trailing slash (when an exact match was used)
+//admin               repeated slashes are merged
+/./admin              "." segment is dropped
+/x/../admin           ".." segment is resolved
+/admin//../           when ".." is resolved before "//", it gives "/admin/"
+/admin//a/../         when ".." is resolved after "//", it gives "/admin/"
+/%61dmin              %-encoded character, decoded by the server
+/%2e/admin            %-encoded "." segment, decoded then dropped
+/%u0061dmin           non-standard "%u" encoding, supported by some servers
+/\admin               "\" used as a directory delimiter
+/%5Cadmin             same as "\", but %-encoded
+/;x=1/admin           path parameters, dropped by some frameworks
+/admin%00.png         truncation at an encoded NUL by some servers
+/admin%3ffoo          %3f turned to '?' by some proxies, splitting the path
+/%2561dmin            %-encoded '%' before 'a', resolved by some proxies
+--------------------+---------------------------------------------------
 
 The possibilities are numerous, and given that different servers will see these
 as different resources, there's no universal way to decode and match such a
