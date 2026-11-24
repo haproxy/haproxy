@@ -3073,6 +3073,7 @@ static size_t h1_make_eoh(struct h1s *h1s, struct h1m *h1m, struct htx *htx, siz
 		}
 		else if (!chunk_memcat(&outbuf, "\r\n", 2))
 			goto full;
+		h1s->flags |= H1S_F_EOM_SENT;
 		h1m->state = H1_MSG_DONE;
 	}
 	else {
@@ -3407,14 +3408,21 @@ static size_t h1_make_data(struct h1s *h1s, struct h1m *h1m, struct buffer *buf,
 				goto full;
 		}
 
-		if (last_data)
+		if (last_data) {
 			h1m->state = H1_MSG_DONE;
+			break;
+		}
 	}
 
   copy:
 	TRACE_PROTO("H1 message payload data xferred", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){ret});
 	b_add(&h1c->obuf, outbuf.data);
   end:
+	if (h1m->state == H1_MSG_DONE) {
+		/* MSG_DONE here means EOM was seen */
+		h1s->flags |= H1S_F_EOM_SENT;
+	}
+
 	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
 	return ret;
   full:
@@ -3511,7 +3519,9 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 				goto full;
 		}
 		else if (type == HTX_BLK_NOOP) {
-			/* Consume the NOOP block, nothing is emitted */
+			/* Consume the NOOP block, nothing is emitted. But EOM flag is unexpected */
+			if (blk->flags & HTX_BLK_FL_EOM)
+				goto error;
 		}
 		else
 			goto error;
@@ -3539,59 +3549,6 @@ static size_t h1_make_tunnel(struct h1s *h1s, struct h1m *h1m, struct buffer *bu
 	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 	h1c->flags |= H1C_F_OUT_FULL;
 	goto copy;
-
-  error:
-	ret = 0;
-	htx->flags |= HTX_FL_PROCESSING_ERROR;
-	h1s->flags |= H1S_F_PROCESSING_ERROR;
-	se_fl_set(h1s->sd, SE_FL_ERROR);
-	TRACE_ERROR("processing error on tunneled",
-		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-	goto end;
-}
-
-/* Skip tunneled data from the HTX message <htx> for the stream <h1s>. Both
- * the request and the response are in DONE state on the server side and no
- * tunnel was established. Some raw data may still be in flight and must be
- * discarded instead of reporting a processing error. Return the number of
- * bytes consumed, at most <count>, or zero if nothing was done or on error.
- */
-static size_t h1_skip_tunnel(struct h1s *h1s, struct htx *htx, size_t count)
-{
-	struct h1c *h1c = h1s->h1c;
-	struct htx_blk *blk;
-	enum htx_blk_type type;
-	uint32_t sz;
-	size_t ret = 0;
-
-	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){count});
-
-	blk = htx_get_head_blk(htx);
-
-	while (blk && count) {
-		uint32_t vlen;
-
-		type = htx_get_blk_type(blk);
-		if (type != HTX_BLK_RAW_DATA)
-			goto error;
-
-		sz = htx_get_blksz(blk);
-		vlen = MIN(sz, count);
-		ret += vlen;
-		count -= vlen;
-		if (sz == vlen)
-			blk = htx_remove_blk(htx, blk);
-		else {
-			htx_cut_data_blk(htx, blk, vlen);
-			break;
-		}
-	}
-
-	TRACE_PROTO("H1 tunneled data skipped", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
-
-  end:
-	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
-	return ret;
 
   error:
 	ret = 0;
@@ -3671,15 +3628,22 @@ static size_t h1_make_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx
 					    H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s);
 			}
 			h1m->state = H1_MSG_DONE;
+			if (blk->flags & HTX_BLK_FL_EOM)
+				h1s->flags |= H1S_F_EOM_SENT;
 		}
 		else if (type == HTX_BLK_NOOP) {
-			/* Consume the NOOP block, nothing is emitted */
+			/* Consume the NOOP block, nothing is emitted. But EOM is unexpected before EOT */
+			if (blk->flags & HTX_BLK_FL_EOM)
+				goto error;
 		}
 
 	  nextblk:
 		ret += sz;
 		count -= sz;
 		blk = htx_remove_blk(htx, blk);
+
+		if (h1m->state == H1_MSG_DONE)
+			break;
 	}
 
   copy:
@@ -3744,6 +3708,77 @@ end:
 full:
 	TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 	h1c->flags |= H1C_F_OUT_FULL;
+	goto end;
+}
+
+/* Process HTX blocks in DONE state. There is noting more to send here but some
+ * blocks may still be there: NOOP blocks, but only one can carry the EOM flag,
+ * or RAW_DATA blocks after a tunnel rejection (on backend side, EOM seen and
+ * response in done state). All other blocks are rejected with an error.
+ * Return the number of bytes consumed, at most <count>, or zero if nothing was
+ * done or on error.
+ */
+static size_t h1_make_done(struct h1s *h1s, struct htx *htx, size_t count)
+{
+	struct h1c *h1c = h1s->h1c;
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+	uint32_t sz;
+	size_t ret = 0;
+
+	TRACE_ENTER(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){count});
+
+	blk = htx_get_head_blk(htx);
+
+	while (blk && count) {
+		uint32_t vlen;
+
+		type = htx_get_blk_type(blk);
+		sz = htx_get_blksz(blk);
+		vlen = sz;
+
+		if (type == HTX_BLK_NOOP) {
+			if (blk->flags & HTX_BLK_FL_EOM) {
+				if (h1s->flags & H1S_F_EOM_SENT)
+					goto error;
+				h1s->flags |= H1S_F_EOM_SENT;
+			}
+		}
+		else if (type == HTX_BLK_RAW_DATA) {
+			if (!(h1c->flags & H1C_F_IS_BACK) ||
+			    !(h1s->flags & H1S_F_EOM_SENT) ||
+			    h1s->res.state != H1_MSG_DONE)
+				goto error;
+
+			if (vlen > count)
+				vlen = count;
+			TRACE_PROTO("H1 tunneled data skipped", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
+		}
+		else
+			goto error;
+
+		ret += vlen;
+		count -= vlen;
+		if (sz == vlen)
+			blk = htx_remove_blk(htx, blk);
+		else {
+			htx_cut_data_blk(htx, blk, vlen);
+			break;
+		}
+	}
+
+
+  end:
+	TRACE_LEAVE(H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, htx, (size_t[]){ret});
+	return ret;
+
+  error:
+	ret = 0;
+	htx->flags |= HTX_FL_PROCESSING_ERROR;
+	h1s->flags |= H1S_F_PROCESSING_ERROR;
+	se_fl_set(h1s->sd, SE_FL_ERROR);
+	TRACE_ERROR("processing error in done state",
+		    H1_EV_TX_DATA|H1_EV_STRM_ERR|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 	goto end;
 }
 
@@ -3817,12 +3852,8 @@ static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 				break;
 
 			case H1_MSG_DONE:
-				if ((h1c->flags & H1C_F_IS_BACK) && h1s->res.state == H1_MSG_DONE) {
-					ret = h1_skip_tunnel(h1s, htx, count);
-					break;
-				}
-				TRACE_STATE("unexpected data xferred in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
-				__fallthrough;
+				ret = h1_make_done(h1s, htx, count);
+				break;
 
 			default:
 				ret = 0;
