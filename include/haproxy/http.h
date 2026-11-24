@@ -84,6 +84,7 @@ int http_compare_etags(struct ist etag1, struct ist etag2);
 
 struct ist http_trim_leading_spht(struct ist value);
 struct ist http_trim_trailing_spht(struct ist value);
+void http_dump_settings(const char *what);
 
 /*
  * Given a path string and its length, find the position of beginning of the

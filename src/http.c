@@ -2331,6 +2331,68 @@ static int http_parse_http_err_fail_codes(char **args, int section_type, struct 
 
 }
 
+/* dump various HTTP settings to stdout, used by -dH on the cmdline. Supports
+ * a comma-delimited list of classes, dumps everything by default.
+ */
+void http_dump_settings(const char *what)
+{
+	const char *end;
+	int all = 0;
+
+	if (!*what) {
+		/* empty: dump everything */
+		what = "*";
+		all = 1;
+	}
+
+	for (; what && *what; what = end) {
+		end = strchr(what, ',');
+		if (!end)
+			end = what + strlen(what);
+
+		if (strncmp(what, "help", end - what) == 0) {
+			printf("# List of supported HTTP classes:\n");
+			printf("harden: list all hardening profiles\n");
+			continue;
+		}
+		else if (strncmp(what, "all", end - what) == 0) {
+			all = 1;
+		}
+
+		if (all || strncmp(what, "harden", end - what) == 0) {
+			const struct http_hardening_kw *kw;
+			int len, max;
+
+			printf("# List of HTTP hardening profiles, and default settings:\n");
+
+			len = max = 0;
+			for (kw = http_hardening_kws; kw->name; kw++) {
+				len = strlen(kw->name);
+				max = len > max ? len : max;
+			}
+			max += 2;
+
+			printf("http-hardening trusted\n");
+			if (!HTTP_HRD_TRUSTED_DEFAULT)
+				printf("\tall off\n");
+			else for (kw = http_hardening_kws; kw->name; kw++) {
+				// only report single bit flags
+				if (!(kw->mask & (kw->mask - 1)))
+					printf("\t%-*s %s\n", max, kw->name, (kw->mask & HTTP_HRD_TRUSTED_DEFAULT) ? "on" : "off");
+			}
+
+			printf("\nhttp-hardening untrusted\n");
+			if (!HTTP_HRD_UNTRUSTED_DEFAULT)
+				printf("\tall off\n");
+			else for (kw = http_hardening_kws; kw->name; kw++) {
+				// only report single bit flags
+				if (!(kw->mask & (kw->mask - 1)))
+					printf("\t%-*s %s\n", max, kw->name, (kw->mask & HTTP_HRD_UNTRUSTED_DEFAULT) ? "on" : "off");
+			}
+		}
+	}
+}
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "http-err-codes",      http_parse_http_err_fail_codes },
 	{ CFG_GLOBAL, "http-fail-codes",     http_parse_http_err_fail_codes },

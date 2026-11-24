@@ -795,6 +795,7 @@ static void usage(char *name)
 #if defined(USE_CPU_AFFINITY)
 		"        -dc dumps the list of selected and evicted CPUs\n"
 #endif
+		"        -dH{class[,...]} dump HTTP settings\n"
 		"        -dK{class[,...]} dump registered keywords (use 'help' for list)\n"
 		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
@@ -1653,6 +1654,9 @@ void haproxy_init_args(int argc, char **argv)
 			}
 # endif /* HA_HAVE_DL_ITERATE_PHDR */
 #endif
+			else if (*flag == 'd' && flag[1] == 'H') {
+				http_dump_settings(flag + 2);
+			}
 			else if (*flag == 'd' && flag[1] == 'K') {
 				arg_mode |= MODE_DUMP_KWD;
 				kwd_dump = flag + 2;

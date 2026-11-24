@@ -35009,17 +35009,53 @@ section). Since the same profile may be used on either side, controls are
 expressed relative to the traffic received or sent by that side, and never in
 terms of requests or responses.
 
-http-hardening <name> [from <name2>]
+http-hardening <name> [from <source>]
   Declares a new hardening profile <name>. A profile can only be declared once.
-  The name "auto" is reserved. When "from" is used, the profile starts with the
-  settings of the already declared profile <name2>, otherwise it starts with
-  the defaults. A profile must be declared before being referenced by a "bind"
-  or "server" line or by "from", like for "defaults" sections.
+  The name "auto" is reserved and may neither be defined nor referenced as a
+  source in "from". When "from" is used, the profile starts with the settings
+  of the already existing profile <source>, otherwise it starts with the
+  defaults. A profile must be declared before being referenced by a "bind" or
+  "server" line or by "from", like for "defaults" sections.
 
-  The profiles "untrusted" and "trusted" always exist even if never declared.
-  They may be declared once to change their settings, in which case they start
-  from their defaults. They are supported in "from" to create new profiles. The
-  reserved name "auto" may not be defined nor used in "from".
+  The profiles "untrusted" and "trusted" always exist and are preset to their
+  respective default values so that they don't need to be declared for most
+  common use cases. Their default settings (the list of on/off controls) may be
+  displayed at boot time by passing "-dHharden" on the command line, and should
+  reflect the following values:
+
+    http-hardening trusted
+        all off
+
+    http-hardening untrusted
+        reject-duplicate-host-header off
+        reject-lowercase-method on
+        reject-underscore-in-header-name off
+        reject-underscore-in-trailer-name off
+        delete-underscore-in-header-name on
+        delete-underscore-in-trailer-name on
+        delete-unregistered-header-fields off
+        delete-unregistered-trailer-fields off
+        delete-all-trailer-fields off
+        reject-header-trailer-folding on
+        reject-ctl-in-header-trailer on
+        reject-content-length-with-te on
+        reject-content-length-leading-zero on
+        reject-duplicate-content-length on
+        reject-forbidden-payload on
+        reject-out-of-range-status on
+
+  It is possible to change their settings from the defaults, by declaring the
+  profiles once, along with the settings to change, in which case they will
+  inherit from their defaults first. They may even be declared with a "from"
+  keyword to ignore their defaults and start from another profile instead,
+  including one of them. For example, in order to simply apply all "untrusted"
+  settings to the "trusted" profile, just do this:
+
+    http-hardening trusted from untrusted
+
+  Like other profiles, they are supported as sources in "from" to create new
+  profiles. All enabled hardening profiles' settings may be consulted at run
+  time using "show http-hardening" on the CLI.
 
 <keyword> { on | off }
   Enables or disables the hardening check designated by <keyword> in the
