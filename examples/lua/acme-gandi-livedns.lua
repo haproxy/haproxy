@@ -32,10 +32,10 @@ local GANDI_API_URL = "https://api.gandi.net/v5/livedns"
 -- Gandi LiveDNS helpers
 -- ---------------------------------------------------------------------------
 
--- Try to set the _acme-challenge TXT record for <domain> to <txt_value>.
+-- Try to set the _acme-challenge TXT records for <domain> to <txt_values>.
 -- Probes each possible parent zone (longest first) until Gandi accepts one.
 -- Returns the zone and record name on success, or nil on failure.
-local function dns_set_txt(domain, txt_value)
+local function dns_set_txt(domain, txt_values)
     local labels = {}
     for label in domain:gmatch("[^.]+") do
         labels[#labels + 1] = label
@@ -45,16 +45,9 @@ local function dns_set_txt(domain, txt_value)
         local zone = table.concat(labels, ".", i + 1)
         local name = "_acme-challenge." .. table.concat(labels, ".", 1, i)
         local url  = string.format("%s/domains/%s/records/%s/TXT", GANDI_API_URL, zone, name)
-        local body = string.format('{"rrset_values":["%s"],"rrset_ttl":300}', txt_value)
+        local body = string.format('{"rrset_values":["%s"],"rrset_ttl":300}', table.concat(txt_values, '","'))
 
         core.log(core.debug, string.format("acme: trying PUT %s", url))
-
-        -- Remove any stale TXT record first so the new value propagates cleanly.
-        local hc_del = core.httpclient()
-        hc_del:delete({
-            url     = url,
-            headers = { ["Authorization"] = { "Bearer " .. GANDI_API_KEY } },
-        })
 
         local hc  = core.httpclient()
         local res = hc:put({
@@ -109,7 +102,7 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Track deployed TXT records per cert path so they can be cleaned up.
--- deployed[crt][domain] = { zone = ..., name = ... }
+-- deployed[crt][domain] = { values = {...}, lock = queue, zone = ..., name = ... }
 local deployed = {}
 
 -- Spawn a background task per ACME_DEPLOY event to set the TXT record and
@@ -119,31 +112,41 @@ core.event_sub({"ACME_DEPLOY"}, function(event, data, sub, when)
     local crt    = data.crtname
     local domain = data.domain
     local record = data.dns_record
+    local identifier = data.wildcard and ("*." .. domain) or domain
+    if not deployed[crt] then deployed[crt] = {} end
+    local rec = deployed[crt][domain]
+    if not rec then
+        rec = { values = {}, lock = core.queue() }
+        rec.lock:push(true)
+        deployed[crt][domain] = rec
+    end
+    rec.values[#rec.values + 1] = record
 
     core.register_task(function()
-        local zone, name = dns_set_txt(domain, record)
-        if not zone then
+        rec.lock:pop_wait()
+        local ok, zone, name = pcall(dns_set_txt, domain, rec.values)
+        rec.lock:push(true)
+        if not ok or not zone then
             core.log(core.alert, string.format(
-                "acme: aborting challenge for crt=%s domain=%s", crt, domain))
+                "acme: aborting challenge for crt=%s domain=%s: %s", crt, identifier, tostring(zone)))
             return
         end
 
         -- Remember this record for cleanup on ACME_NEWCERT.
-        if not deployed[crt] then deployed[crt] = {} end
-        deployed[crt][domain] = { zone = zone, name = name }
+        rec.zone, rec.name = zone, name
 
         -- Signal HAProxy that the dns-01 challenge for this domain is ready.
-        local ok, ret = pcall(ACME.challenge_ready, crt, domain)
+        local ok, ret = pcall(ACME.challenge_ready, crt, identifier)
         if not ok then
             core.log(core.alert, string.format(
-                "acme: challenge_ready error for crt=%s domain=%s: %s", crt, domain, ret))
+                "acme: challenge_ready error for crt=%s domain=%s: %s", crt, identifier, ret))
         elseif ret == 0 then
             core.log(core.notice, string.format(
                 "acme: all challenges ready for crt=%s, validation starting", crt))
         else
             core.log(core.info, string.format(
                 "acme: crt=%s domain=%s ready, %d challenge(s) still pending",
-                crt, domain, ret))
+                crt, identifier, ret))
         end
     end)
 end)
@@ -155,7 +158,7 @@ core.event_sub({"ACME_NEWCERT"}, function(event, data, sub, when)
 
     core.register_task(function()
         for _, rec in pairs(deployed[crt]) do
-            dns_del_txt(rec.zone, rec.name)
+            if rec.zone then dns_del_txt(rec.zone, rec.name) end
         end
         deployed[crt] = nil
     end)
