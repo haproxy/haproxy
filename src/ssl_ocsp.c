@@ -707,7 +707,7 @@ static int ssl_ocsp_response_print_base64(struct buffer *ocsp_response, struct b
 	out->data = b64len;
 
 	/* Add empty line */
-	chunk_appendf(ocsp_response, "\n");
+	chunk_appendf(out, "\n");
 
 	return 0;
 }
