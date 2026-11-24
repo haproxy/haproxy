@@ -125,12 +125,12 @@ syslog S1 -level info {
 
     # C22
     recv
-    expect ~ "^.* uri: GET http://hostname/c22 HTTP/1.1; host: {hostname:80}$"
+    expect ~ "^.* uri: GET http://hostname/c22 HTTP/1.1; host: {hostname}$"
     barrier b1 sync
 
     # C23
     recv
-    expect ~ "^.* uri: GET https://hostname/c23 HTTP/1.1; host: {hostname:443}$"
+    expect ~ "^.* uri: GET https://hostname/c23 HTTP/1.1; host: {hostname}$"
     barrier b1 sync
 
     # C24
@@ -145,12 +145,12 @@ syslog S1 -level info {
 
     # C26
     recv
-    expect ~ "^.* uri: GET http://hostname/c26 HTTP/1.1; host: {hostname:}$"
+    expect ~ "^.* uri: GET http://hostname/c26 HTTP/1.1; host: {hostname}$"
     barrier b1 sync
 
     # C27
     recv
-    expect ~ "^.* uri: GET https://hostname/c27 HTTP/1.1; host: {hostname:}$"
+    expect ~ "^.* uri: GET https://hostname/c27 HTTP/1.1; host: {hostname}$"
     barrier b1 sync
 
     # C28
@@ -620,7 +620,7 @@ client c21 -connect ${h1_fe_sock} {
 barrier b1 sync
 
 
-# http scheme, no port for the authority but default port for host value => no normalization
+# http scheme, no port for the authority but default port for host value => should be normalized
 client c22 -connect ${h1_fe_sock} {
     txreq \
       -req "GET" \
@@ -634,7 +634,7 @@ client c22 -connect ${h1_fe_sock} {
 # Wait matching on log message
 barrier b1 sync
 
-# https scheme, no port for the authority but default port for host value => no normalization
+# https scheme, no port for the authority but default port for host value => should be normalized
 client c23 -connect ${h1_fe_sock} {
     txreq \
       -req "GET" \
@@ -677,7 +677,7 @@ client c25 -connect ${h1_fe_sock} {
 # Wait matching on log message
 barrier b1 sync
 
-# http scheme, no port for the authority and empty port for host value => no normalization
+# http scheme, no port for the authority and empty port for host value => should be normalized
 client c26 -connect ${h1_fe_sock} {
     txreq \
       -req "GET" \
@@ -691,7 +691,7 @@ client c26 -connect ${h1_fe_sock} {
 # Wait matching on log message
 barrier b1 sync
 
-# https scheme, no port for the authority and empty port for host value => no normalization
+# https scheme, no port for the authority and empty port for host value => should be normalized
 client c27 -connect ${h1_fe_sock} {
     txreq \
       -req "GET" \

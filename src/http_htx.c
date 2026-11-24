@@ -1872,9 +1872,12 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
  *
  * The normalization is processed on the target-uri at the condition that it is
  * in absolute-form. In the case where the target-uri was normalized, every
- * host headers values found are also replaced by the normalized hostname. This
- * assumes that the target-uri and host headers were properly identify as
- * similar before calling this function.
+ * host headers values found are also replaced by the normalized hostname. In
+ * addition, a host header value carrying the scheme's default port (or an
+ * empty one) is normalized as well even when the authority does not carry any
+ * port, so that the analyser, the ACLs, the cache and the forwarded request
+ * all see the same host value. This assumes that the target-uri and host
+ * headers were properly identify as similar before calling this function.
  */
 int http_scheme_based_normalize(struct htx *htx)
 {
@@ -1911,6 +1914,23 @@ int http_scheme_based_normalize(struct htx *htx)
 	if (!isttest(path) && sl->info.req.meth != HTTP_METH_OPTIONS) {
 		path = ist("/");
 		normalize = 1;
+	}
+
+	/* Check for host header normalization if not performe on the authority */
+	if (!normalize) {
+		ctx.blk = NULL;
+		while (http_find_header(htx, ist("host"), &ctx, 1)) {
+			struct ist hval = ctx.value;
+			struct ist hport = http_get_host_port(hval);
+
+			if (!isttest(hport) || !http_is_default_port(scheme, hport))
+				continue;
+			hval = isttrim(hval, istlen(hval) - istlen(hport) - 1);
+			if (!isteqi(hval, host))
+				continue;
+			normalize = 1;
+			break;
+		}
 	}
 
 	if (normalize) {
