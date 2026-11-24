@@ -7714,7 +7714,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 						/*
 						 * Just ignore new session tickets
 						 */
-						b_del(buf, ret);
+						b_sub(buf, ret);
 						continue;
 
 					} else if (record_type != SSL3_RT_APPLICATION_DATA) {
@@ -7724,7 +7724,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 						 */
 						if (record_type == SSL3_RT_ALERT && ret == 2 &&
 						    tmpbuf[0] == SSL_TLSEXT_ERR_ALERT_WARNING && tmpbuf[1] == SSL_AD_CLOSE_NOTIFY) {
-							b_del(buf, ret);
+							b_sub(buf, ret);
 							goto read0;
 						} else {
 							conn->err_code = CO_ER_SSL_FATAL;
