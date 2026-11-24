@@ -500,6 +500,13 @@ static int h3_check_frame_valid(struct h3c *h3c, struct qcs *qcs, uint64_t ftype
 	return ret;
 }
 
+/* Returns true if <type> is in the HTTP/3 frame type registry. */
+static int h3_frame_is_known(const uint64_t type)
+{
+	/* Reserved extension frame types of the format 0x1f * N + 0x21 are considered as unknown as well. */
+	return type <= H3_FT_RESERVED_4 || type == H3_FT_MAX_PUSH_ID;
+}
+
 /* Check from stream <qcs> that length of all DATA frames does not exceed with
  * a previously parsed content-length header. <fin> must be set for the last
  * data of the stream so that length of DATA frames must be equal to the
@@ -2182,11 +2189,11 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 		flen = h3s->demux_frame_len;
 		ftype = h3s->demux_frame_type;
 
-		/* Current HTTP/3 parser can currently only parse fully
-		 * received frames. The only exception is for DATA frames as
-		 * they can frequently be larger than bufsize.
+		/* Most HTTP/3 registered frames can only be parsed once fully
+		 * received. Only DATA and extension frames can be parsed in a
+		 * streaming manner.
 		 */
-		if (ftype != H3_FT_DATA) {
+		if (ftype != H3_FT_DATA && h3_frame_is_known(ftype)) {
 			/* Reject frames bigger than bufsize.
 			 *
 			 * TODO HEADERS should in complement be limited with H3
@@ -2409,8 +2416,7 @@ static ssize_t h3_rcv_buf(struct qcs *qcs, struct buffer *b, int fin)
 				}
 			}
 
-			if (ret >= 0)
-				ret = flen;
+			ret = MIN(flen, b_data(b));
 			break;
 		}
 
