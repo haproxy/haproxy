@@ -4017,6 +4017,13 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 	struct cafile_entry *new_cafile_entry = ctx->new_entry;
 
+	/* the transaction is over, e.g. if the client left before the end of the commit */
+	if (ctx->state != CACRL_ST_FIN) {
+		cafile_transaction.new_cafile_entry = NULL;
+		cafile_transaction.old_cafile_entry = NULL;
+		cafile_transaction.path = NULL;
+	}
+
 	/* Remove the uncommitted cafile_entry from the tree. */
 	if (new_cafile_entry) {
 		ebmb_delete(&new_cafile_entry->node);
@@ -4515,6 +4522,13 @@ static void cli_release_commit_crlfile(struct appctx *appctx)
 {
 	struct commit_cacrlfile_ctx *ctx = appctx->svcctx;
 	struct cafile_entry *new_crlfile_entry = ctx->new_entry;
+
+	/* the transaction is over, e.g. if the client left before the end of the commit */
+	if (ctx->state != CACRL_ST_FIN) {
+		crlfile_transaction.new_crlfile_entry = NULL;
+		crlfile_transaction.old_crlfile_entry = NULL;
+		crlfile_transaction.path = NULL;
+	}
 
 	/* Remove the uncommitted cafile_entry from the tree. */
 	if (new_crlfile_entry) {
