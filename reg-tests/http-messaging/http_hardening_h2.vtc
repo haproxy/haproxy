@@ -260,6 +260,9 @@ haproxy h1 -conf {
     http-hardening cl0
 	reject-content-length-leading-zero on
 
+    http-hardening adv-meth
+	reject-advanced-methods on
+
     defaults
 	mode http
 	http-reuse never
@@ -278,6 +281,7 @@ haproxy h1 -conf {
 	bind "fd@${req_unreg}" proto h2 http-hardening unreg
 	bind "fd@${req_ctl}" proto h2 http-hardening ctl
 	bind "fd@${req_cl0}" proto h2 http-hardening cl0
+	bind "fd@${req_adv_meth}" proto h2 http-hardening adv-meth
 	http-request return status 200 hdr x-meth "%[method]" hdr x-hdrs "%[req.hdr_names]" hdr x-foo "%[req.hdr(foo),hex]"
 
     # response side: one listener per server
@@ -392,6 +396,18 @@ client c_req_off -connect ${h1_req_off_sock} {
 		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "content-length" "00"
 		rxresp
 		expect resp.status == 200
+	} -run
+	stream 13 {
+		txreq -req TRACE -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "TRACE"
+	} -run
+	stream 15 {
+		txreq -req MY-METH -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "MY-METH"
 	} -run
 } -run
 
@@ -596,6 +612,81 @@ client c_req_cl0 -connect ${h1_req_cl0_sock} {
 	} -run
 	stream 3 {
 		txreq -req POST -url / -scheme http -hdr ":authority" "a" -hdr "content-length" "00"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
+
+# only the most common methods are accepted
+client c_req_adv_meth -connect ${h1_req_adv_meth_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req GET -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "GET"
+	} -run
+	stream 3 {
+		txreq -req POST -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "POST"
+	} -run
+	stream 5 {
+		txreq -req PUT -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "PUT"
+	} -run
+	stream 7 {
+		txreq -req DELETE -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "DELETE"
+	} -run
+	stream 9 {
+		txreq -req OPTIONS -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "OPTIONS"
+	} -run
+	stream 11 {
+		txreq -req PATCH -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "PATCH"
+	} -run
+	stream 13 {
+		txreq -req QUERY -url / -scheme http -hdr ":authority" "a"
+		rxresp
+		expect resp.status == 200
+		expect resp.http.x-meth == "QUERY"
+	} -run
+	stream 15 {
+		txreq -req TRACE -url / -scheme http -hdr ":authority" "a"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+	stream 17 {
+		txreq -req MY-METH -url / -scheme http -hdr ":authority" "a"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+	stream 19 {
+		txreq -req PATCHX -url / -scheme http -hdr ":authority" "a"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+	stream 21 {
+		txreq -req QUER -url / -scheme http -hdr ":authority" "a"
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run

@@ -150,6 +150,9 @@ haproxy h1 -conf {
     http-hardening cl0
 	reject-content-length-leading-zero on
 
+    http-hardening adv-meth
+	reject-advanced-methods on
+
     defaults
 	mode http
 	http-reuse never
@@ -170,6 +173,7 @@ haproxy h1 -conf {
 	bind "fd@${req_ctl}"      http-hardening ctl
 	bind "fd@${req_clte}"     http-hardening clte
 	bind "fd@${req_cl0}"      http-hardening cl0
+	bind "fd@${req_adv_meth}" http-hardening adv-meth
 	http-request return status 200 hdr x-meth "%[method]" hdr x-hdrs "%[req.hdr_names]" hdr x-foo "%[req.hdr(foo),hex]"
 
     # response side: one listener per server profile
@@ -249,6 +253,16 @@ client c_req_off -connect ${h1_req_off_sock} {
 	txreq -nouseragent -req POST -nolen -hdr "content-length: 02" -body "ok"
 	rxresp
 	expect resp.status == 200
+
+	txreq -nouseragent -req TRACE
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-meth == "TRACE"
+
+	txreq -nouseragent -req MY-METH
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-meth == "MY-METH"
 
 	# T-E + C-L forces a close
 	txreq -nouseragent -req POST -nolen -hdr "content-length: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
@@ -432,6 +446,78 @@ client c_req_cl02 -connect ${h1_req_cl0_sock} {
 	txreq -nouseragent -req POST -nolen -hdr "content-length: 00"
 	rxresp
 	expect resp.status == 400
+	expect_close
+} -run
+
+# only the most common methods are accepted. CONNECT is always rejected since
+# there is no extended CONNECT in HTTP/1.
+client c_req_adv_meth -connect ${h1_req_adv_meth_sock} {
+	txreq -nouseragent -req GET
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req HEAD
+	rxresp -no_obj
+	expect resp.status == 200
+
+	txreq -nouseragent -req POST
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req PUT
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req DELETE
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req OPTIONS
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req PATCH
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-meth == "PATCH"
+
+	txreq -nouseragent -req QUERY
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-meth == "QUERY"
+
+	txreq -nouseragent -req TRACE
+	rxresp
+	expect resp.status == 405
+	expect_close
+} -run
+
+client c_req_adv_meth2 -connect ${h1_req_adv_meth_sock} {
+	txreq -nouseragent -req CONNECT -url "a:443" -nohost -hdr "host: a:443"
+	rxresp
+	expect resp.status == 405
+	expect_close
+} -run
+
+client c_req_adv_meth3 -connect ${h1_req_adv_meth_sock} {
+	txreq -nouseragent -req MY-METH
+	rxresp
+	expect resp.status == 405
+	expect_close
+} -run
+
+# methods which may only differ from the accepted ones by their length
+client c_req_adv_meth4 -connect ${h1_req_adv_meth_sock} {
+	txreq -nouseragent -req PATCHX
+	rxresp
+	expect resp.status == 405
+	expect_close
+} -run
+
+client c_req_adv_meth5 -connect ${h1_req_adv_meth_sock} {
+	txreq -nouseragent -req QUER
+	rxresp
+	expect resp.status == 405
 	expect_close
 } -run
 
