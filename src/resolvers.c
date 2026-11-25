@@ -299,8 +299,9 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 	hostname_dn_len = resolv_str_to_dn_label(fqdn, fqdn_len, trash.area,
 					      trash.size);
 	if (hostname_dn_len == -1) {
-		ha_alert("%s '%s', server '%s': failed to parse FQDN '%s'\n",
-			 proxy_type_str(px), px->id, srv->id, fqdn);
+		ha_alert("%s '%s', server %s'%s': failed to parse FQDN '%s'.\n",
+			 proxy_type_str(px), px->id, srv->id ? "" : "template ",
+			 srv->id ? srv->id : srv->tmpl_info.prefix, fqdn);
 		goto err;
 	}
 
