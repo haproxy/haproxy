@@ -214,6 +214,18 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		}
 	}
 
+	/* reject-advanced-methods allows to reject methods that are not among:
+	 * HEAD/GET/POST/PUT/OPTIONS/DELETE/PATCH/QUERY.
+	 */
+	if (unlikely(h1sl->rq.meth == HTTP_METH_CONNECT ||
+	             h1sl->rq.meth == HTTP_METH_TRACE ||
+	             (h1sl->rq.meth == HTTP_METH_OTHER &&
+	              (h1sl->rq.m.len != 5 || (memcmp(h1sl->rq.m.ptr, "PATCH", 5) != 0 && memcmp(h1sl->rq.m.ptr, "QUERY", 5) != 0)))) &&
+	    http_harden(HTTP_HRD_REJ_ADV_METH)) {
+		h1m->err_code = 405; // method not allowed
+		goto error;
+	}
+
 	/* Remove Upgrade header if no 'connection: upgrade' found */
 	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_HDR)) == H1_MF_UPG_HDR) {
 		int i;

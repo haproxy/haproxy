@@ -282,6 +282,17 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		flags |= HTX_SL_F_BODYLESS_RESP;
 	}
 
+	/* reject-advanced-methods allows to reject methods that are not among:
+	 * HEAD/GET/POST/PUT/OPTIONS/DELETE/PATCH/QUERY. CONNECT is only
+	 * accepted as extended CONNECT (e.g. WebSocket).
+	 */
+	if (unlikely((meth == HTTP_METH_CONNECT && !(*msgf & H2_MSGF_EXT_CONNECT)) ||
+	             meth == HTTP_METH_TRACE ||
+	             (meth == HTTP_METH_OTHER &&
+	              (meth_sl.len != 5 || (memcmp(meth_sl.ptr, "PATCH", 5) != 0 && memcmp(meth_sl.ptr, "QUERY", 5) != 0)))) &&
+	    http_harden(HTTP_HRD_REJ_ADV_METH))
+		goto fail;
+
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth_sl, uri, ist("HTTP/2.0"));
 	if (!sl)
 		goto fail;

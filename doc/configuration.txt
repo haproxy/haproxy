@@ -35059,7 +35059,7 @@ http-hardening <name> [from <source>]
         reject-content-length-leading-zero on
         reject-duplicate-content-length on
         reject-forbidden-payload on
-        reject-out-of-range-status on
+        reject-advanced-methods off
 
   It is possible to change their settings from the defaults, by declaring the
   profiles once, along with the settings to change, in which case they will
@@ -35209,6 +35209,18 @@ http-hardening <name> [from <source>]
         safe and even recommended to delete such trailers from inbound internet
         requests.
 
+  - reject-advanced-methods (inbound, request)
+        Rejects requests whose method is not one of: HEAD, GET, POST, PUT,
+        DELETE, OPTIONS, PATCH, QUERY, or extended CONNECT (RFC8441). This
+        is amply sufficient for the vast majority of regular web sites and
+        applications accessed by browsers, but may not always be compatible
+        with API aimed at being joined directly by other applications. This can
+        block by default a significant number of backend vulnerabilities that
+        are not yet discovered and that are only triggered by less common
+        methods. Use only after verifying applications compatibility, though
+        this is safe for static web serving and simple internet-facing
+        applications. It is disabled by default.
+
   - reject-content-length-leading-zero (inbound request and response)
         Rejects requests and responses having a Content-Length header field
         whose value contains a leading zero before a digit. Some client and
@@ -35318,6 +35330,7 @@ http-hardening <name> [from <source>]
         result in the same variable name. No standard HTTP trailer uses this,
         so it is safe to enable on untrusted listeners. See also the
         "delete-underscore-in-trailer-name" variant.
+
 
 /*
  * Local variables:

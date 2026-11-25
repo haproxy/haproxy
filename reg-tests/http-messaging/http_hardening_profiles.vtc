@@ -35,10 +35,12 @@ haproxy h1 -conf {
     http-hardening untrusted
 	reject-duplicate-host-header on
 
-    # everything but one check
+    # everything but one check (and the methods check, which would also
+    # reject "get")
     http-hardening base
 	all on
 	reject-lowercase-method off
+	reject-advanced-methods off
 
     # inherits everything from "base", and turns the underscore rejection
     # into a deletion since the latter is still enabled.

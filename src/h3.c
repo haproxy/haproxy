@@ -1057,6 +1057,21 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
 
+	/* reject-advanced-methods allows to reject methods that are not among:
+	 * HEAD/GET/POST/PUT/OPTIONS/DELETE/PATCH/QUERY.
+	 */
+	if (unlikely(sl->info.req.meth == HTTP_METH_CONNECT ||
+	             sl->info.req.meth == HTTP_METH_TRACE ||
+	             (sl->info.req.meth == HTTP_METH_OTHER &&
+	              (meth.len != 5 || (memcmp(meth.ptr, "PATCH", 5) != 0 && memcmp(meth.ptr, "QUERY", 5) != 0)))) &&
+	    http_harden(HTTP_HRD_REJ_ADV_METH)) {
+		TRACE_ERROR("hardening rejected advanced method", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_REQUEST_REJECTED;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
+	}
+
 	if (isttest(authority)) {
 		if (!htx_add_header(htx, ist("host"), authority)) {
 			len = -1;
