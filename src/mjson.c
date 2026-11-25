@@ -27,7 +27,7 @@
 static double mystrtod(const char *str, int len, char **end);
 
 static int mjson_esc(int c, int esc) {
-  const char *p, *esc1 = "\b\f\n\r\t\\\"", *esc2 = "bfnrt\\\"";
+  const char *p, *esc1 = "\b\f\n\r\t\\\"/", *esc2 = "bfnrt\\\"/";
   for (p = esc ? esc1 : esc2; *p != '\0'; p++) {
     if (*p == c) return esc ? esc2[p - esc1] : esc1[p - esc2];
   }
