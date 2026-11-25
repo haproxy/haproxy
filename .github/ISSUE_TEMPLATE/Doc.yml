@@ -1,0 +1,29 @@
+name: Doc suggestions
+description: Suggest an improvement to the HAProxy documentation.
+labels:
+- 'type: doc'
+body:
+- type: markdown
+  attributes:
+    value: |
+      ## Welcome!
+
+      You are about to *request a feature* you are missing in HAProxy.
+
+      This issue tracker is used to track feature requests and bug reports. Please use [the forum](https://discourse.haproxy.org/) or mailing list if you have a question, e.g. to get help with building a configuration to achieve your desired behavior.
+
+      The forum is at: https://discourse.haproxy.org/
+
+      The mailing list (no need to subscribe) is: haproxy@formilux.org
+      Subscribe to the list: haproxy+subscribe@formilux.org
+      Unsubscribe from the list: haproxy+unsubscribe@formilux.org
+
+      Forum and mailing list are correct places for questions about HAProxy or general suggestions and topics, e.g. usage or documentation questions! This issue tracker is for tracking bugs and feature requests directly relating to the development of the software itself.
+
+      Thanks for understanding, and for contributing to the project!
+- type: textarea
+  id: doc-suggestion
+  attributes:
+    label: Your doc suggestion
+  validations:
+    required: true
