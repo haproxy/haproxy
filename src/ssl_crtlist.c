@@ -1426,6 +1426,8 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 
 		old_cc = store->conf;
 		store->conf = cc;
+		/* still in the JWT tree */
+		store->conf.jwt |= old_cc.jwt;
 		adopted = 1;
 		/* fresh new, run more init (for example init ocsp-update tasks) */
 		cfgerr |= ckch_store_load_files(&cc, store, 1, "CLI", 1, &err);
