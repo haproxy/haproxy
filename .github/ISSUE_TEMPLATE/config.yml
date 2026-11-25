@@ -1,4 +1,4 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: HAProxy Mailing List
     url: https://www.mail-archive.com/haproxy@formilux.org/
