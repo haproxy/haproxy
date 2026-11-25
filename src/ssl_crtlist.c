@@ -1419,10 +1419,10 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	}
 
 	/* We can use a crt-store keyword when:
-	 * - no ckch_inst are linked OR
+	 * - no ckch_inst are linked and the store is not from a crt-store OR
 	 * - ckch_inst are linked but exact same ckch_conf is used.
 	 */
-	if (LIST_ISEMPTY(&store->ckch_inst)) {
+	if (LIST_ISEMPTY(&store->ckch_inst) && store->conf.used != CKCH_CONF_SET_CRTSTORE) {
 
 		old_cc = store->conf;
 		store->conf = cc;
