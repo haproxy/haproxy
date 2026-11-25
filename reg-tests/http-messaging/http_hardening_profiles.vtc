@@ -181,9 +181,10 @@ client c_srv_auto -connect ${h1_srv_auto_sock} {
 #
 
 haproxy h1 -cli {
-	# both implicit profiles were declared, none is reported as implicit
+	# "untrusted" and "trusted" were declared, only "basic-web" is reported
+	# as implicit
 	send "show http-hardening"
-	expect ~ "^base\nchild\ncli\nnodel\nnorej\nsrvp\ntrusted\nuntrusted\n"
+	expect ~ "^basic-web \\(implicit\\)\nbase\nchild\ncli\nnodel\nnorej\nsrvp\ntrusted\nuntrusted\n"
 
 	send "show http-hardening child"
 	expect ~ " 1 reject-duplicate-host-header +req +on\n 2 reject-lowercase-method +req +off\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +on\n 5 delete-underscore-in-header-name +- +on\n"
@@ -257,7 +258,7 @@ client c_srv_inherit2 -connect ${h1_srv_inherit_sock} {
 	expect resp.http.x_a == "1"
 } -run
 
-# without declaration, the two implicit profiles are reported as such, with
+# without declaration, the three implicit profiles are reported as such, with
 # their default settings, which are inherited by "from".
 haproxy h2 -conf {
     global
@@ -281,7 +282,7 @@ haproxy h2 -conf {
 
 haproxy h2 -cli {
 	send "show http-hardening"
-	expect ~ "^untrusted \\(implicit\\)\ntrusted \\(implicit\\)\nother\n"
+	expect ~ "^untrusted \\(implicit\\)\ntrusted \\(implicit\\)\nbasic-web \\(implicit\\)\nother\n"
 
 	send "show http-hardening trusted"
 	expect !~ " on\n"

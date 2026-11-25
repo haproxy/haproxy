@@ -35034,34 +35034,56 @@ http-hardening <name> [from <source>]
   defaults. A profile must be declared before being referenced by a "bind" or
   "server" line or by "from", like for "defaults" sections.
 
-  The profiles "untrusted" and "trusted" always exist and are preset to their
-  respective default values so that they don't need to be declared for most
-  common use cases. Their default settings (the list of on/off controls) may be
-  displayed at boot time by passing "-dHharden" on the command line, and should
-  reflect the following values:
+  The profiles "basic-web", "untrusted" and "trusted" always exist and are
+  preset to their respective default values so that they don't need to be
+  declared for most common use cases. Their default settings (the list of
+  on/off controls) may be displayed at boot time by passing "-dHharden" on the
+  command line, and should reflect the following values:
 
     http-hardening trusted
         all off
 
     http-hardening untrusted
-        reject-duplicate-host-header off
-        reject-lowercase-method on
-        reject-underscore-in-header-name off
-        reject-underscore-in-trailer-name off
-        delete-underscore-in-header-name on
-        delete-underscore-in-trailer-name on
-        delete-unregistered-header-fields off
-        delete-unregistered-trailer-fields off
-        delete-all-trailer-fields off
-        reject-header-trailer-folding on
-        reject-ctl-in-header-trailer on
-        reject-content-length-with-te on
-        reject-content-length-leading-zero on
-        reject-duplicate-content-length on
-        reject-forbidden-payload on
-        reject-advanced-methods off
-        reject-unexpected-request-payload off
-        reject-unexpected-request-upgrade off
+        reject-duplicate-host-header         off
+        reject-lowercase-method              on
+        reject-underscore-in-header-name     off
+        reject-underscore-in-trailer-name    off
+        delete-underscore-in-header-name     on
+        delete-underscore-in-trailer-name    on
+        delete-unregistered-header-fields    off
+        delete-unregistered-trailer-fields   off
+        delete-all-trailer-fields            off
+        reject-header-trailer-folding        on
+        reject-ctl-in-header-trailer         on
+        reject-content-length-with-te        on
+        reject-content-length-leading-zero   on
+        reject-duplicate-content-length      on
+        reject-forbidden-payload             on
+        reject-out-of-range-status           on
+        reject-advanced-methods              off
+        reject-unexpected-request-payload    off
+        reject-unexpected-request-upgrade    off
+
+    http-hardening basic-web
+        reject-duplicate-host-header         off
+        reject-lowercase-method              on
+        reject-underscore-in-header-name     off
+        reject-underscore-in-trailer-name    off
+        delete-underscore-in-header-name     on
+        delete-underscore-in-trailer-name    on
+        delete-unregistered-header-fields    on
+        delete-unregistered-trailer-fields   on
+        delete-all-trailer-fields            on
+        reject-header-trailer-folding        on
+        reject-ctl-in-header-trailer         on
+        reject-content-length-with-te        on
+        reject-content-length-leading-zero   on
+        reject-duplicate-content-length      on
+        reject-forbidden-payload             on
+        reject-out-of-range-status           on
+        reject-advanced-methods              on
+        reject-unexpected-request-payload    on
+        reject-unexpected-request-upgrade    on
 
   It is possible to change their settings from the defaults, by declaring the
   profiles once, along with the settings to change, in which case they will
@@ -35071,6 +35093,12 @@ http-hardening <name> [from <source>]
   settings to the "trusted" profile, just do this:
 
     http-hardening trusted from untrusted
+
+  The following will simply configure all untrusted connections to follow the
+  "basic-web" profile, and apply a high protection level by default that is
+  suitable for most applications :
+
+    http-hardening untrusted from basic-web
 
   Like other profiles, they are supported as sources in "from" to create new
   profiles. All enabled hardening profiles' settings may be consulted at run
@@ -35167,7 +35195,8 @@ http-hardening <name> [from <source>]
         attack attempts. It is generally safe to drop them by default on public
         facing listeners, and even on servers meant to deliver public contents,
         in order to avoid any information leakage. Note that gRPC services use
-        them, in responses only.
+        them, in responses only. It is enabled by default in the "basic-web"
+        profile.
 
   - delete-underscore-in-header-name (inbound, request and response)
         Deletes from requests and responses any header field whose name
@@ -35178,7 +35207,8 @@ http-hardening <name> [from <source>]
         the same variable name. This could be abused to bypass some
         access-control policy for example. No standard HTTP header uses this,
         so it is recommended to enable on untrusted listeners. Note that this
-        applies only after "reject-underscore-in-header-name" was accepted.
+        applies only after "reject-underscore-in-header-name" was accepted. It
+        is enabled by default in the "basic-web" profile.
 
   - delete-underscore-in-trailer-name (inbound, request and response)
         Deletes from requests and responses any trailer field whose name
@@ -35188,7 +35218,8 @@ http-hardening <name> [from <source>]
         names, leading to an ambiguity with the underscore which can result in
         the same variable name. No standard HTTP trailer uses this, so it is
         recommended to enable on untrusted listeners. Note that this applies
-        only after "reject-underscore-in-trailer-name" was accepted.
+        only after "reject-underscore-in-trailer-name" was accepted. It is
+        enabled by default in the "basic-web" profile.
 
   - delete-unregistered-header-fields (inbound, request and response)
         Deletes from requests and responses any header field whose name starts
@@ -35200,7 +35231,8 @@ http-hardening <name> [from <source>]
         would be risky to block such requests, it is safe and even recommended
         to delete such headers from inbound internet requests. It is preferable
         not to do it on responses however when applications uses such header
-        fields to report information to HAProxy.
+        fields to report information to HAProxy. It is enabled by default in the
+        "basic-web" profile.
 
   - delete-unregistered-trailer-fields (inbound, request and response)
         Deletes from requests and responses any trailer field whose name starts
@@ -35209,7 +35241,7 @@ http-hardening <name> [from <source>]
         components. They may appear in untrusted requests in attacks trying to
         exploit some backend framework weaknesses however, so it is generally
         safe and even recommended to delete such trailers from inbound internet
-        requests.
+        requests. It is enabled by default in the "basic-web" profile.
 
   - reject-advanced-methods (inbound, request)
         Rejects requests whose method is not one of: HEAD, GET, POST, PUT,
@@ -35232,7 +35264,8 @@ http-hardening <name> [from <source>]
         communication, and for example for cache poisionning attacks. These may
         seldom be seen on legacy applications but not on standard components
         found on the internet, so it is generally safe to reject them on public
-        facing listeners. It is enabled by default on untrusted connections.
+        facing listeners. It is enabled by default on untrusted connections and
+        in the "basic-web" profile.
 
   - reject-content-length-with-te (inbound request and response)
         Rejects requests and responses having both a Content-Length header
@@ -35244,7 +35277,7 @@ http-hardening <name> [from <source>]
         client or server applications, sometimes in relation with compression
         and/or caching. While HAProxy properly normalizes them, it is generally
         safe to reject them on public facing listeners. It is enabled by
-        default on untrusted connections.
+        default on untrusted connections and in the "basic-web" profile.
 
   - reject-ctl-in-header-trailer (inbound request and response)
         Rejects requests and responses which contain control characters in
@@ -35257,7 +35290,8 @@ http-hardening <name> [from <source>]
         which can make certain backend applications trigger connection errors.
         As such, it is both safe and recommended to block them on public facing
         listeners. See also the has_ctl() converter used for detecting them.
-        It is enabled by default on untrusted connections.
+        It is enabled by default on untrusted connections and in the
+        "basic-web" profile.
 
   - reject-duplicate-content-length (inbound request and response)
         Rejects requests and responses having a duplicate Content-Length header
@@ -35268,7 +35302,7 @@ http-hardening <name> [from <source>]
         server applications, sometimes in relation with compression and/or
         caching. While HAProxy properly normalizes them, it is generally safe
         to reject them on public facing listeners. It is enabled by default on
-        untrusted connections.
+        untrusted connections and in the "basic-web" profile.
 
   - reject-duplicate-host-header (inbound request)
         Rejects requests containing more than one "Host" header field, even if
@@ -35282,7 +35316,7 @@ http-hardening <name> [from <source>]
         a value greater than zero or if a "transfer-encoding" header field is
         present. These may only be caused by bugs or by attempts by servers to
         inject contents (e.g. cache poisonning attacks). It is enabled by
-        default on untrusted connections.
+        default on untrusted connections and in the "basic-web" profile.
 
   - reject-header-trailer-folding (inbound request and response)
         Rejects requests and responses which contain folded header fields or
@@ -35294,7 +35328,8 @@ http-hardening <name> [from <source>]
         to inject headers into non-compliant components, and should be rejected
         as a sign of break-in attempt. Note that HAProxy does not have problems
         with them and systematically unfolds these messages before forwarding
-        them. It is enabled by default on untrusted connections.
+        them. It is enabled by default on untrusted connections and in the
+        "basic-web" profile.
 
   - reject-lowercase-method (inbound request)
         Rejects requests whose method contains a lower-case character. No
@@ -35302,7 +35337,7 @@ http-hardening <name> [from <source>]
         essentially used in desynchronization attack scenarios, by trying to
         exploit different case matching schemes along the chain. This is
         recommended on untrusted listeners. It is enabled by default on
-        untrusted connections.
+        untrusted connections and in the "basic-web" profile.
 
   - reject-out-of-range-status (inbound, response)
         Rejects responses containing a status code lower than 100 or higher
@@ -35310,7 +35345,7 @@ http-hardening <name> [from <source>]
         differently by multiple implementations. They are never used over the
         internet and usually only exist in local deployments. This is
         recommended on public-facing backends. It is enabled by default on
-        untrusted connections.
+        untrusted connections and in the "basic-web" profile.
 
   - reject-underscore-in-header-name (inbound, request and response)
         Rejects requests and responses in which one header field name contains

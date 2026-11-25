@@ -1833,6 +1833,7 @@ void dump_http_hardening_kws()
  * is parsed, in which case they are reset to their default values beforehand.
  */
 static struct ceb_root *http_hardening_by_name;
+struct http_hdng_prf http_hardening_basic_web  = { .name = "basic-web",  .mask = HTTP_HRD_BASIC_WEB_DEFAULT  };
 struct http_hdng_prf http_hardening_untrusted  = { .name = "untrusted",  .mask = HTTP_HRD_UNTRUSTED_DEFAULT  };
 struct http_hdng_prf http_hardening_trusted    = { .name = "trusted",    .mask = HTTP_HRD_TRUSTED_DEFAULT    };
 
@@ -1852,6 +1853,8 @@ struct http_hdng_prf *http_hardening_lookup(const char *name)
 			prf = &http_hardening_untrusted;
 		else if (strcmp(name, http_hardening_trusted.name) == 0)
 			prf = &http_hardening_trusted;
+		else if (strcmp(name, http_hardening_basic_web.name) == 0)
+			prf = &http_hardening_basic_web;
 	}
 	return prf;
 }
@@ -2005,6 +2008,8 @@ int cfg_parse_http_hardening(const char *file, int linenum, char **args, int kwm
 			prf->mask = HTTP_HRD_TRUSTED_DEFAULT;
 		else if (prf == &http_hardening_untrusted)
 			prf->mask = HTTP_HRD_UNTRUSTED_DEFAULT;
+		else if (prf == &http_hardening_basic_web)
+			prf->mask = HTTP_HRD_BASIC_WEB_DEFAULT;
 
 		curr_http_hdng_prf = prf;
 	}
@@ -2139,6 +2144,8 @@ static int cli_io_handler_show_http_hardening(struct appctx *appctx)
 			chunk_appendf(&trash, "%s (implicit)\n", http_hardening_untrusted.name);
 		if (!cebuis_item_lookup(&http_hardening_by_name, name_node, name, http_hardening_trusted.name, struct http_hdng_prf))
 			chunk_appendf(&trash, "%s (implicit)\n", http_hardening_trusted.name);
+		if (!cebuis_item_lookup(&http_hardening_by_name, name_node, name, http_hardening_basic_web.name, struct http_hdng_prf))
+			chunk_appendf(&trash, "%s (implicit)\n", http_hardening_basic_web.name);
 		if (b_data(&trash) && applet_putchk(appctx, &trash) == -1)
 			return 0;
 		ctx->stage = 1;
@@ -2391,6 +2398,15 @@ void http_dump_settings(const char *what)
 				// only report single bit flags
 				if (!(kw->mask & (kw->mask - 1)))
 					printf("\t%-*s %s\n", max, kw->name, (kw->mask & HTTP_HRD_UNTRUSTED_DEFAULT) ? "on" : "off");
+			}
+
+			printf("\nhttp-hardening basic-web\n");
+			if (!HTTP_HRD_BASIC_WEB_DEFAULT)
+				printf("\tall off\n");
+			else for (kw = http_hardening_kws; kw->name; kw++) {
+				// only report single bit flags
+				if (!(kw->mask & (kw->mask - 1)))
+					printf("\t%-*s %s\n", max, kw->name, (kw->mask & HTTP_HRD_BASIC_WEB_DEFAULT) ? "on" : "off");
 			}
 		}
 	}

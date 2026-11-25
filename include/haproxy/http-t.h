@@ -291,7 +291,24 @@ struct http_violation {
 /* default policy for a new profile: permissive */
 #define HTTP_HRD_DEFAULT  HTTP_HRD_NONE
 
-/* default contents of the implicit "untrusted" and "trusted" profiles */
+/* default contents of the implicit "basic-web", "untrusted" and "trusted" profiles */
+#define HTTP_HRD_BASIC_WEB_DEFAULT             (HTTP_HRD_REJ_LCASE_METHOD    | \
+                                                HTTP_HRD_REJ_HDR_FOLD        | \
+                                                HTTP_HRD_REJ_CTL_IN_HDR      | \
+                                                HTTP_HRD_DEL_USCORE_HDR_NAM  | \
+                                                HTTP_HRD_DEL_USCORE_TLR_NAM  | \
+                                                HTTP_HRD_DEL_UNREG_HDR       | \
+                                                HTTP_HRD_DEL_UNREG_TLR       | \
+                                                HTTP_HRD_DEL_ALL_TLR         | \
+                                                HTTP_HRD_REJ_CL_TE           | \
+                                                HTTP_HRD_REJ_CL_LEAD_ZERO    | \
+                                                HTTP_HRD_REJ_CL_DUP          | \
+                                                HTTP_HRD_REJ_FORB_PAYLOAD    | \
+                                                HTTP_HRD_REJ_OOR_STATUS      | \
+                                                HTTP_HRD_REJ_ADV_METH        | \
+                                                HTTP_HRD_REJ_UNEXP_REQ_PLD   | \
+                                                HTTP_HRD_REJ_UNEXP_REQ_UPG)
+
 #define HTTP_HRD_UNTRUSTED_DEFAULT             (HTTP_HRD_REJ_LCASE_METHOD    | \
                                                 HTTP_HRD_REJ_HDR_FOLD        | \
                                                 HTTP_HRD_REJ_CTL_IN_HDR      | \
