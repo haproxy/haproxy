@@ -1,6 +1,169 @@
 ChangeLog :
 ===========
 
+2026/11/25 : 3.5-dev14
+    - BUG/MINOR: mux-quic: fix QMux Rx buffer leak on MUX init failure
+    - BUG/MEDIUM: quic: never advertise more streams than configured
+    - BUG/MEDIUM: mux-quic: cap elastic MAX_STREAMS to stream.max-total
+    - MINOR: reg-tests: add --extra to run tests needing optional tools
+    - REGTESTS: quic: add a Python QUIC client
+    - REGTESTS: quic: backend must drop packets with an unsupported version
+    - REGTESTS: quic: NEW_CONNECTION_ID must not reference a retired CID
+    - REGTESTS: quic: undecryptable 0-RTT packets must not exhaust the Rx buffer
+    - BUG/MEDIUM: payload: reject out-of-range payload and payload_lv arguments
+    - BUG/MINOR: payload: also encode an absolute payload_lv offset2
+    - BUG/MINOR: sample: do not parse compressed gRPC messages in ungrpc
+    - REGTESTS: protobuf: cover the gRPC message compression flag
+    - DOC: config: ungrpc does not support compressed messages
+    - BUG/MEDIUM: http-ana: restore the purge of backend analyzers on applets
+    - BUG/MINOR: quic: do not reject CRYPTO data exactly fitting in buffer
+    - CLEANUP/MINOR: ncbuf: avoid noop memcpy when data ends on wrapping
+    - CLEANUP/MINOR: ncbmbuf: avoid noop memcpy when data ends on wrapping
+    - BUG/MINOR: ncbuf/test: remove list dependency for standalone tests
+    - BUG/MINOR: ncbuf/test: remove unnecessary delay in random insert
+    - MINOR: ncbuf/test: extract random insert test in a dedicated function
+    - MINOR: ncbuf/test: define max iteration to random insert test
+    - MINOR: ncbuf/test: define seed for random insert test
+    - BUG/MEDIUM: hlua: make coroutine.create() safe under haproxy (new attempt)
+    - MINOR: hlua: add our own safe coroutine.wrap() wrapper
+    - BUG/MINOR: hlua: wait for the request in HTTP applets
+    - BUG/MINOR: hlua: reject interim responses in HTTP applets
+    - BUG/MINOR: h3: reject interim responses ending the stream
+    - BUG/MEDIUM: quic: refuse handshakes completed after the listener unbind
+    - BUG/MEDIUM: quic: do not spin on the accept tasklet of a blocked listener
+    - BUG/MEDIUM: xprt_qmux: apply the configured bidi streams limit on FE
+    - BUG/MEDIUM: log/tools: fix cbor binary integer encoding regression with x86_64 systems
+    - MINOR: jwt: Add rwlock to jwt_cert_tree
+    - BUG/MEDIUM: jwt: Use only JWT cert tree for jwt_verify
+    - BUG/MEDIUM: jwt: Use JWT cert tree for jwt_decrypt
+    - BUG/MINOR: ech: keep CLI success messages alive until printed
+    - BUG/MINOR: ssl/cli: use the right list member in "add ssl crt-list" release
+    - MINOR: ssl: allow prefix lookup for alpn_remove_token()
+    - MINOR: ssl/quic: mark hq-interop QUIC ALPN as experimental
+    - BUG/MINOR: httpclient/cli: fix NULL dereference when the response has no header
+    - BUG/MINOR: ocsp: fix NULL dereference when the OCSP responder sends no header
+    - BUG/MINOR: net_helper: check the TCP option length before reading its value
+    - BUG/MINOR: net_helper: accept an Ethernet header ending with the protocol
+    - BUG/MINOR: resolvers: reject DNS messages without the QR bit
+    - BUG/MINOR: intops: reject varints that do not fit in 64 bits in decode_varint()
+    - BUG/MINOR: mux-spop: match the AGENT-HELLO and AGENT-DISCONNECT keys exactly
+    - BUG/MINOR: mqtt: reject invalid CONNECT flags and MQTT 3.1.1 CONNACK return codes
+    - BUG/MINOR: mux-h2: reject non-numeric values in the tune.h2 keywords
+    - MINOR: tools: add some of the missing null-terminated integer parsers
+    - REORG: tools/intops: move the integer-specific functions from tools to intops
+    - REORG: tools/intops: move the int-to-str conversion functions to intops as well
+    - CLEANUP: tree-wide: remove unneeded dependencies on tools.h
+    - BUG/MEDIUM: stick-tables: update the bucket's next_exp before releasing its lock
+    - REGTEST: spoe: fix the SPOP varint encoding in the mock agent
+    - REGTEST: spoe: add large-frame tests for the applet and the mux
+    - BUG/MINOR: tcpcheck: fix out-of-bounds reads on truncated LDAP bind responses
+    - BUG/MINOR: tcpcheck: fix out-of-bounds reads on truncated SPOP hello frames
+    - MINOR: jwt: New jwt_verify_secret converter
+    - MINOR: jwt: Deprecate jwt_verify converter
+    - CLEANUP: mux-h2: get rid of the redundant h2_parse_int() function
+    - MINOR: init: automatically turn "set-dumpable" on when using "-d"
+    - MINOR: http: use fuzzy-match for the "return" action keywords
+    - BUG/MEDIUM: mux-h2: don't stall on a failed rxbuf alloc without stream
+    - BUG/MEDIUM: mux-fcgi: let the buffer callback allocate despite the queue
+    - BUG/MEDIUM: mux-spop: let the buffer callback allocate despite the queue
+    - BUG/MINOR: tcpcheck: fix out-of-bounds read on the MySQL server version
+    - BUG/MINOR: vars: fix missing string termination in get var on too long values
+    - BUG/MINOR: lua: channel: append() must insert data at the end, not at the start
+    - BUG/MINOR: quic: fix uninitialized read of pkt->rs.delivered in ACK processing (BBR)
+    - BUG/MINOR: payload: distcc_body must not sample unreceived buffer bytes
+    - MEDIUM: config: emit warnings when changing bufsize after other sections
+    - BUG/MEDIUM: pattern: check for non-empty string before matching regexes
+    - CLEANUP: pattern: don't even run string-based matches on empty strings
+    - REGTESTS: mysql: Close server s6 declaration
+    - BUG/MEDIUM: acme: take the resolvers lock when linking/unlinking DNS requesters
+    - BUG/MEDIUM: mux-fcgi: avoid out-of-bounds path decoding
+    - MINOR: filters: Register a dedicated trace source for the filters
+    - MINOR: htx: Add a noop block to carry the EOM flag on an empty message
+    - DOC: htx: add the NOOP block to the HTX API documentation
+    - BUG/MEDIUM: stconn: Do not install an applet on a busy stream connector
+    - BUG/MEDIUM: applets: do not wake up applets before the end of the request analysis
+    - BUG/MEDIUM: stconn: Only forward kip hint on streams committed to forward data
+    - BUG/MEDIUM: mux-h1: never forward more data than announced in a chunk
+    - MEDIUM: stconn: Forward kip hint right before the endpoint callback
+    - MINOR: tcpcheck: add TCPCHK_EXPT_FL_ALLOW_EMPTY flag on expect rules
+    - MINOR: tcpcheck: evaluate custom expect rules on empty response when allowed
+    - MEDIUM: tcpcheck: handle MySQL AuthSwitchRequest in mysql-check post-80 modes
+    - DOC: config: update mysql-check doc for the auth switch support
+    - REGTESTS: mysql-check: refresh the regtest for the auth switch support
+    - CLEANUP: tcpcheck: Stop to export most of custom expect functions
+    - BUG/MINOR: qmux: prevent pacing BUG_ON() on send syscall zero return
+    - MINOR: server: report incorrect usage of "from" keyword
+    - MINOR: server: lookup defaults section on "from srv:"
+    - MINOR: server: lookup defaults section on "from be:"
+    - BUG/MEDIUM: mux-h2: reject non-101 2xx responses to Extended CONNECT
+    - MINOR: mux-quic: remove error trace on transport failure
+    - DEV: phash: improve the output to permit an easier copy-paste
+    - MINOR: http: Add support for HTTP 411 status code
+    - MEDIUM: http_ana: control acceptance of 1xx status on HTTP/1.0
+    - MINOR: http_ana: always drop the Expect header in HTTP/1.0
+    - MEDIUM: http/hardening: delete untrusted headers/trailers with underscore
+    - MEDIUM: http/hardening: default to rejecting untrusted duplicate C-L
+    - MEDIUM: http/hardening: reject forbidden payload on 1xx/204 responses
+    - MEDIUM: http/hardening: filter out-of-range status codes from untrusted servers
+    - MINOR: http: add a new violation rule "trace-with-content" for TRACE methods
+    - BUG/MEDIUM: acme: match DNS challenges against all TXT records
+    - IMPORT: slz: update slz to v1.4.0 (commit 197db002f1)
+    - BUG/MINOR: h1: restrict a bit more the syntax of chunk extensions
+    - REGTESTS: http-messaging: test the strict parsing of HTTP/1 chunk extensions
+    - REORG: h1: move chunk extensions parsing to a dedicated inline function
+    - MEDIUM: h1: make h1_parse_chunk_size() rely on h1_parse_chunk_ext()
+    - REGTESTS: http-messaging: also test chunk extensions on chunks larger than the buffer
+    - MINOR: tools: add memcpy_opt_small() for ultra-small copies
+    - OPTIM: h1: use memcpy_opt_small() to copy chunks in the contiguous parser
+    - BUG/MINOR: h3: reject reserved HTTP/2 frame types
+    - BUG/MINOR: h3: support unknown frames of any length
+    - MINOR: http: add -dH at boot to dump HTTP specific settings
+    - BUILD: http: fix missing include in haproxy.c
+    - BUG/MEDIUM: startup: revisit the default chroot behavior
+    - BUG/MINOR: startup: also disable strict limits with -d
+    - MINOR: stream: use regular TRACE_* macros for stream traces
+    - BUG/MEDIUM: mux-h1: Don't shortcut h1_process() while a stream is attached
+    - DOC: config: Properly align table at begining of 7.5
+    - REGTESTS: tcp-check-ssl: tolerate an errno info in the SSL handshake failure
+    - REGTESTS: tcp-check-ssl: also support errno reporting on second test
+    - BUG/MINOR: h3: extend coverage for duplicate SETTINGS ids
+    - BUG/MEDIUM: acme: distinguish wildcard CLI and Lua acknowledgements
+    - BUG/MEDIUM: lua: handle apex and wildcard challenges in Gandi example
+    - DOC: lua: document wildcard ACME authorization readiness
+    - DOC: management: document ACME challenge readiness acknowledgements
+    - EXAMPLES: acme: add a Lua Gandi DNS-01 configuration
+    - BUG/MINOR: ssl: append OCSP base64 newline to the output buffer
+    - BUG/MINOR: mux-h1: properly handle NOOP blocks and track EOM emission
+    - MINOR: tools: add read_line_to_mem() to read a line into a growing buffer
+    - BUG/MINOR: pattern: don't rely on the trash size to read pattern files
+    - BUG/MINOR: pattern: do not index too large strings using the tree
+    - BUG/MEDIUM: ssl: trim dropped kTLS records from the end of the buffer
+    - BUG/MEDIUM: rawsock: don't take a short kTLS read for the end of data
+    - BUG/MINOR: resolvers: display the template name instead of "server '(null)'"
+    - MEDIUM: server: add a global setting "unresolvable-server-fqdn"
+    - BUG/MEDIUM: mjson: stop the lookup when the matched element ends
+    - BUG/MEDIUM: mjson: decode the escaped slash in strings
+    - DOC: config: mention the nesting limit of the json_query() converter
+    - BUG/MEDIUM: ssl/cli: reset the transaction on interrupted CA/CRL commits
+    - CI: github: enable slow regression tests for OpenSSL master
+    - BUG/MEDIUM: ssl/cli: restore the store conf on "add ssl crt-list" error
+    - BUG/MINOR: ssl/ckch: copy the origin of the conf in ckchs_dup()
+    - BUG/MEDIUM: ssl/cli: keep the crt-store conf on "add ssl crt-list"
+    - BUG/MINOR: ssl/cli: don't clear the jwt flag on "add ssl crt-list"
+    - BUG/MINOR: ssl/cli: fix ckch_conf leaks in "add ssl crt-list"
+    - BUG/MINOR: cache: free the blocks of aborted stores at once
+    - BUG/MEDIUM: cache: build the secondary key on an unusable first entry
+    - MINOR: github: disable blank issues
+    - MINOR: github: add documentation suggestion template
+    - MINOR: http/hardening: implement "reject-advanced-methods"
+    - REGTESTS: http-messaging: test reject-advanced-methods
+    - MINOR: http/hardening: implement "reject-unexpected-request-payload"
+    - REGTESTS: http-messaging: test reject-unexpected-request-payload
+    - MINOR: http/hardening: implement "reject-unexpected-request-upgrade"
+    - REGTESTS: http-messaging: test reject-unexpected-request-upgrade
+    - MINOR: http/hardening: add a new more protective "basic-web" profile
+    - REGTESTS: http-messaging: test the "basic-web" profile in http_hardening_profiles
+
 2026/11/18 : 3.5-dev13
     - BUG/MINOR: tcpcheck: fix out-of-bounds reads on short MySQL error packets
     - BUG/MEDIUM: mux-h2: put BE conn back in idle list after deferred shut
