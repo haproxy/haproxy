@@ -233,7 +233,9 @@ static int mjson_get_cb(int tok, const char *s, int off, int len, void *ud) {
     if (!data->path[data->pos] && data->d1 == data->d2) data->obj = off;
     data->d1++;
   } else if (tok == ',') {
-    if (data->d1 == data->d2 + 1) {
+    // the matched element ended without the rest of the path
+    if (data->d1 == data->d2 && data->d2 > 0) return 1;
+    if (data->d1 == data->d2 + 1 && data->path[data->pos] == '[') {
       data->i1++;
       if (data->i1 == data->i2 && skip_idx(data->path, &data->pos))
         data->d2++;
@@ -256,9 +258,13 @@ static int mjson_get_cb(int tok, const char *s, int off, int len, void *ud) {
       if (data->toklen) *data->toklen = off - data->obj + 1;
       return 1;
     }
+    // leaving the container holding the matched element
+    if (data->d1 < data->d2) return 1;
   } else if (MJSON_TOK_IS_VALUE(tok)) {
     // printf("TOK --> %d\n", tok);
-    if (data->d1 == data->d2 && !data->path[data->pos]) {
+    if (data->d1 == data->d2) {
+      // a scalar cannot hold the rest of the path
+      if (data->path[data->pos]) return 1;
       data->tok = tok;
       if (data->tokptr) *data->tokptr = s + off;
       if (data->toklen) *data->toklen = len;
