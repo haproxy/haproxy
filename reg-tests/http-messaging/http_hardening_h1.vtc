@@ -6,9 +6,9 @@ varnishtest "HTTP hardening checks on HTTP/1 headers"
 # reference showing that each offending message is accepted by default.
 #
 # On the request side there is no server: the frontend replies itself and
-# reports the method, the header names it saw and the hex-encoded value of
-# header "foo", which reflect what remains after the checks ran in the H1
-# parser.
+# reports the method, the header names it saw, the hex-encoded value of
+# header "foo" and the full value of header "upgrade", which reflect what
+# remains after the checks ran in the H1 parser.
 #
 # On the response side, each profile's server first sends a valid response,
 # then the offending ones, which must turn into 502 when the check is enabled.
@@ -156,6 +156,9 @@ haproxy h1 -conf {
     http-hardening req-pld
 	reject-unexpected-request-payload on
 
+    http-hardening req-upg
+	reject-unexpected-request-upgrade on
+
     defaults
 	mode http
 	http-reuse never
@@ -178,7 +181,8 @@ haproxy h1 -conf {
 	bind "fd@${req_cl0}"      http-hardening cl0
 	bind "fd@${req_adv_meth}" http-hardening adv-meth
 	bind "fd@${req_pld}"      http-hardening req-pld
-	http-request return status 200 hdr x-meth "%[method]" hdr x-hdrs "%[req.hdr_names]" hdr x-foo "%[req.hdr(foo),hex]"
+	bind "fd@${req_upg}"      http-hardening req-upg
+	http-request return status 200 hdr x-meth "%[method]" hdr x-hdrs "%[req.hdr_names]" hdr x-foo "%[req.hdr(foo),hex]" hdr x-upg "%[req.fhdr(upgrade)]"
 
     # response side: one listener per server profile
     listen res_off
@@ -275,6 +279,11 @@ client c_req_off -connect ${h1_req_off_sock} {
 	txreq -nouseragent -req POST -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
 	rxresp
 	expect resp.status == 200
+
+	txreq -nouseragent -hdr "connection: upgrade" -hdr "upgrade: foo, websocket" -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-upg == "foo, websocket"
 
 	# T-E + C-L forces a close
 	txreq -nouseragent -req POST -nolen -hdr "content-length: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
@@ -603,6 +612,32 @@ client c_req_pld7 -connect ${h1_req_pld_sock} {
 	rxresp
 	expect resp.status == 400
 	expect_close
+} -run
+
+# only websocket and webtransport remain in the Upgrade header, which is
+# removed once empty, without rejecting the request.
+client c_req_upg -connect ${h1_req_upg_sock} {
+	txreq -nouseragent -nohost -hdr "connection: upgrade" -hdr "upgrade: websocket" -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-upg == "websocket"
+
+	txreq -nouseragent -nohost -hdr "connection: upgrade" -hdr "upgrade: WebTransport"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-upg == "WebTransport"
+
+	txreq -nouseragent -nohost -hdr "connection: upgrade" -hdr "upgrade: foo, websocket, bar/1" -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-upg == "websocket"
+
+	txreq -nouseragent -nohost -hdr "connection: upgrade" -hdr "upgrade: foo, bar/1"
+	rxresp
+	expect resp.status == 200
+	# "connection: upgrade" goes away with the Upgrade header
+	expect resp.http.x-upg == <undef>
+	expect resp.http.x-hdrs == <undef>
 } -run
 
 #

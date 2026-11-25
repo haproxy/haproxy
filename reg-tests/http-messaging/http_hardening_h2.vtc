@@ -11,7 +11,11 @@ varnishtest "HTTP hardening checks on HTTP/2 headers"
 # and a rejected response causes a 502.
 #
 # On the request side the frontend replies itself and reports the method, the
-# header names it saw and the hex-encoded value of header "foo".
+# header names it saw and the hex-encoded value of header "foo". Extended
+# CONNECT requests (RFC8441) are passed to an HTTP/1 server instead, which
+# accepts the upgrade. For websocket, this server is a frontend of the same
+# instance which computes the Sec-WebSocket-Accept header that haproxy
+# verifies, as in websocket.vtc.
 
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(3.5-dev10)'"
 feature ignore_unknown_macro
@@ -226,6 +230,19 @@ server s_cl0 {
 	} -run
 } -start
 
+# extended CONNECT turned into an HTTP/1 upgrade, for the accepted protocols
+server s_upg_off {
+	rxreq
+	expect req.http.upgrade == "foo"
+	txresp -status 101 -hdr "connection: upgrade" -hdr "upgrade: foo"
+} -start
+
+server s_upg_ok {
+	rxreq
+	expect req.http.upgrade == "webtransport"
+	txresp -status 101 -hdr "connection: upgrade" -hdr "upgrade: webtransport"
+} -start
+
 haproxy h1 -conf {
     global
     .if feature(THREAD)
@@ -266,6 +283,9 @@ haproxy h1 -conf {
     http-hardening req-pld
 	reject-unexpected-request-payload on
 
+    http-hardening req-upg
+	reject-unexpected-request-upgrade on
+
     defaults
 	mode http
 	http-reuse never
@@ -287,6 +307,31 @@ haproxy h1 -conf {
 	bind "fd@${req_adv_meth}" proto h2 http-hardening adv-meth
 	bind "fd@${req_pld}" proto h2 http-hardening req-pld
 	http-request return status 200 hdr x-meth "%[method]" hdr x-hdrs "%[req.hdr_names]" hdr x-foo "%[req.hdr(foo),hex]"
+
+    # extended CONNECT: one listener per server
+    listen req_upg_off
+	bind "fd@${req_upg_off}" proto h2 http-hardening off
+	server s ${s_upg_off_addr}:${s_upg_off_port} http-hardening off
+
+    listen req_upg_ok
+	bind "fd@${req_upg_ok}" proto h2 http-hardening req-upg
+	server s ${s_upg_ok_addr}:${s_upg_ok_port} http-hardening off
+
+    listen req_upg_ws
+	bind "fd@${req_upg_ws}" proto h2 http-hardening req-upg
+	server s ${h1_ws_srv_addr}:${h1_ws_srv_port} http-hardening off
+
+    # websocket server: returns a valid handshake response
+    frontend ws_srv
+	bind "fd@${ws_srv}" http-hardening off
+	capture request header sec-websocket-key len 128
+	http-request return status 200 hdr connection upgrade hdr upgrade websocket hdr sec-websocket-accept "%[capture.req.hdr(0),concat(258EAFA5-E914-47DA-95CA-C5AB0DC85B11,,),sha1,base64]"
+	http-after-response set-status 101 if { status eq 200 }
+
+    # the server is never reached
+    listen req_upg
+	bind "fd@${req_upg}" proto h2 http-hardening req-upg
+	server s 127.0.0.1:1 http-hardening off
 
     # response side: one listener per server
     listen s_off_us
@@ -416,6 +461,24 @@ client c_req_off -connect ${h1_req_off_sock} {
 	stream 17 {
 		txreq -req GET -url / -scheme http -hdr ":authority" "a" -body "ok"
 		rxresp
+		expect resp.status == 200
+	} -run
+} -run
+
+client c_req_upg_off -connect ${h1_req_upg_off_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req CONNECT -scheme http -url / -hdr ":authority" "a" -hdr ":protocol" "foo" -nostrend
+		rxwinup
+		rxhdrs
 		expect resp.status == 200
 	} -run
 } -run
@@ -754,6 +817,60 @@ client c_req_pld -connect ${h1_req_pld_sock} {
 	} -run
 	stream 17 {
 		txreq -req TRACE -url / -scheme http -hdr ":authority" "a" -body "ok"
+		rxrst
+		expect rst.err == PROTOCOL_ERROR
+	} -run
+} -run
+
+# extended CONNECT is only accepted for websocket and webtransport
+client c_req_upg_ok -connect ${h1_req_upg_ok_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req CONNECT -scheme http -url / -hdr ":authority" "a" -hdr ":protocol" "webtransport" -nostrend
+		rxwinup
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+client c_req_upg_ws -connect ${h1_req_upg_ws_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req CONNECT -scheme http -url / -hdr ":authority" "a" -hdr ":protocol" "websocket" -nostrend
+		rxwinup
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+client c_req_upg -connect ${h1_req_upg_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq -req CONNECT -scheme http -url / -hdr ":authority" "a" -hdr ":protocol" "foo" -nostrend
 		rxrst
 		expect rst.err == PROTOCOL_ERROR
 	} -run
