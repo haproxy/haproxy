@@ -153,6 +153,9 @@ haproxy h1 -conf {
     http-hardening adv-meth
 	reject-advanced-methods on
 
+    http-hardening req-pld
+	reject-unexpected-request-payload on
+
     defaults
 	mode http
 	http-reuse never
@@ -174,6 +177,7 @@ haproxy h1 -conf {
 	bind "fd@${req_clte}"     http-hardening clte
 	bind "fd@${req_cl0}"      http-hardening cl0
 	bind "fd@${req_adv_meth}" http-hardening adv-meth
+	bind "fd@${req_pld}"      http-hardening req-pld
 	http-request return status 200 hdr x-meth "%[method]" hdr x-hdrs "%[req.hdr_names]" hdr x-foo "%[req.hdr(foo),hex]"
 
     # response side: one listener per server profile
@@ -263,6 +267,14 @@ client c_req_off -connect ${h1_req_off_sock} {
 	rxresp
 	expect resp.status == 200
 	expect resp.http.x-meth == "MY-METH"
+
+	txreq -nouseragent -req GET -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req POST -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+	rxresp
+	expect resp.status == 200
 
 	# T-E + C-L forces a close
 	txreq -nouseragent -req POST -nolen -hdr "content-length: 2" -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
@@ -518,6 +530,78 @@ client c_req_adv_meth5 -connect ${h1_req_adv_meth_sock} {
 	txreq -nouseragent -req QUER
 	rxresp
 	expect resp.status == 405
+	expect_close
+} -run
+
+# payloads are accepted on methods which define their semantics, and an
+# empty one is accepted everywhere. Chunking is always rejected.
+client c_req_pld -connect ${h1_req_pld_sock} {
+	txreq -nouseragent -req GET
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req GET -nolen -hdr "content-length: 0"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req POST -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req PUT -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req PATCH -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 200
+
+	txreq -nouseragent -req GET -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+# the error response to HEAD carries a body that vtest doesn't read, so there
+# is no expect_close here.
+client c_req_pld2 -connect ${h1_req_pld_sock} {
+	txreq -nouseragent -req HEAD -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c_req_pld3 -connect ${h1_req_pld_sock} {
+	txreq -nouseragent -req DELETE -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_pld4 -connect ${h1_req_pld_sock} {
+	txreq -nouseragent -req OPTIONS -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_pld5 -connect ${h1_req_pld_sock} {
+	txreq -nouseragent -req TRACE -nolen -hdr "content-length: 2" -body "ok"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_pld6 -connect ${h1_req_pld_sock} {
+	txreq -nouseragent -req POST -nolen -hdr "transfer-encoding: chunked" -body "2\r\nok\r\n0\r\n\r\n"
+	rxresp
+	expect resp.status == 400
+	expect_close
+} -run
+
+client c_req_pld7 -connect ${h1_req_pld_sock} {
+	txreq -nouseragent -req GET -nolen -hdr "transfer-encoding: chunked" -body "0\r\n\r\n"
+	rxresp
+	expect resp.status == 400
 	expect_close
 } -run
 
