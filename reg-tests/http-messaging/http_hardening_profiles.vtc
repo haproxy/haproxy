@@ -6,6 +6,8 @@ varnishtest "HTTP hardening profiles: declaration, inheritance, selection and CL
 #   - a duplicate Host header     (reject-duplicate-host-header)
 #   - a header named "x_a"        (reject/delete-underscore-in-header-name)
 #   - a header named "X-Foo"      (delete-unregistered-header-fields)
+#   - "TRACE" as a method         (reject-advanced-methods)
+#   - a GET request with a body   (reject-unexpected-request-payload)
 # The frontend replies itself and reports the header names it saw. Then the
 # "show http-hardening" and "set http-hardening" CLI commands are tested, as
 # well as the configuration errors.
@@ -79,6 +81,7 @@ haproxy h1 -conf {
 	bind "fd@${norej}"     http-hardening norej
 	bind "fd@${nodel}"     http-hardening nodel
 	bind "fd@${clip}"      http-hardening cli
+	bind "fd@${basicweb}"  http-hardening basic-web
 	http-request return status 200 hdr x-hdrs "%[req.hdr_names]"
 
     # the server profile is inherited from default-server, and may be reset
@@ -159,6 +162,24 @@ client c_nodel -connect ${h1_nodel_sock} {
 	expect resp.http.x-hdrs == "x-foo"
 
 	txreq -nouseragent -hdr "x_a: 1"
+	rxresp
+	expect resp.status == 400
+} -run
+
+# the implicit "basic-web" profile may be used without being declared
+client c_basicweb -connect ${h1_basicweb_sock} {
+	txreq -nouseragent -nohost -hdr "x_a: 1" -hdr "X-Foo: 2" -hdr "b: 3"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-hdrs == "b"
+
+	txreq -req TRACE
+	rxresp
+	expect resp.status == 405
+} -run
+
+client c_basicweb2 -connect ${h1_basicweb_sock} {
+	txreq -req GET -nolen -hdr "content-length: 2" -body "ok"
 	rxresp
 	expect resp.status == 400
 } -run
@@ -269,6 +290,9 @@ haproxy h2 -conf {
     http-hardening other from untrusted
 	reject-lowercase-method off
 
+    http-hardening web from basic-web
+	reject-advanced-methods off
+
     defaults
 	mode http
 	timeout connect "${HAPROXY_TEST_TIMEOUT-5s}"
@@ -282,16 +306,22 @@ haproxy h2 -conf {
 
 haproxy h2 -cli {
 	send "show http-hardening"
-	expect ~ "^untrusted \\(implicit\\)\ntrusted \\(implicit\\)\nbasic-web \\(implicit\\)\nother\n"
+	expect ~ "^untrusted \\(implicit\\)\ntrusted \\(implicit\\)\nbasic-web \\(implicit\\)\nother\nweb\n"
 
 	send "show http-hardening trusted"
 	expect !~ " on\n"
 
 	send "show http-hardening untrusted"
-	expect ~ " 1 reject-duplicate-host-header +req +off\n 2 reject-lowercase-method +req +on\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +off\n 5 delete-underscore-in-header-name +- +on\n 6 delete-underscore-in-trailer-name +- +on\n 7 delete-unregistered-header-fields +- +off\n 8 delete-unregistered-trailer-fields +- +off\n 9 delete-all-trailer-fields +- +off\n10 reject-header-trailer-folding +- +on\n11 reject-ctl-in-header-trailer +- +on\n12 reject-content-length-with-te +- +on\n13 reject-content-length-leading-zero +- +on\n14 reject-duplicate-content-length +- +on\n15 reject-forbidden-payload +res +on\n16 reject-out-of-range-status +res +on\n"
+	expect ~ " 1 reject-duplicate-host-header +req +off\n 2 reject-lowercase-method +req +on\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +off\n 5 delete-underscore-in-header-name +- +on\n 6 delete-underscore-in-trailer-name +- +on\n 7 delete-unregistered-header-fields +- +off\n 8 delete-unregistered-trailer-fields +- +off\n 9 delete-all-trailer-fields +- +off\n10 reject-header-trailer-folding +- +on\n11 reject-ctl-in-header-trailer +- +on\n12 reject-content-length-with-te +- +on\n13 reject-content-length-leading-zero +- +on\n14 reject-duplicate-content-length +- +on\n15 reject-forbidden-payload +res +on\n16 reject-out-of-range-status +res +on\n17 reject-advanced-methods +req +off\n18 reject-unexpected-request-payload +req +off\n19 reject-unexpected-request-upgrade +req +off\n"
 
 	send "show http-hardening other"
 	expect ~ " 2 reject-lowercase-method +req +off\n(.*\n)*10 reject-header-trailer-folding +- +on\n"
+
+	send "show http-hardening basic-web"
+	expect ~ " 1 reject-duplicate-host-header +req +off\n 2 reject-lowercase-method +req +on\n 3 reject-underscore-in-header-name +- +off\n 4 reject-underscore-in-trailer-name +- +off\n 5 delete-underscore-in-header-name +- +on\n 6 delete-underscore-in-trailer-name +- +on\n 7 delete-unregistered-header-fields +- +on\n 8 delete-unregistered-trailer-fields +- +on\n 9 delete-all-trailer-fields +- +on\n10 reject-header-trailer-folding +- +on\n11 reject-ctl-in-header-trailer +- +on\n12 reject-content-length-with-te +- +on\n13 reject-content-length-leading-zero +- +on\n14 reject-duplicate-content-length +- +on\n15 reject-forbidden-payload +res +on\n16 reject-out-of-range-status +res +on\n17 reject-advanced-methods +req +on\n18 reject-unexpected-request-payload +req +on\n19 reject-unexpected-request-upgrade +req +on\n"
+
+	send "show http-hardening web"
+	expect ~ "16 reject-out-of-range-status +res +on\n17 reject-advanced-methods +req +off\n18 reject-unexpected-request-payload +req +on\n19 reject-unexpected-request-upgrade +req +on\n"
 }
 
 #
