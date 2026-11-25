@@ -1419,15 +1419,17 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 		return 0;
 	}
 
-	/* If the flag PAT_F_IGNORE_CASE is set, we cannot use trees */
-	if (expr->mflags & PAT_MF_IGNORE_CASE)
+	/* the len was already filled by pat_parse_str() */
+	len = pat->len;
+
+	/* If the flag PAT_F_IGNORE_CASE is set, or if the string is longer
+	 * than what ebtrees may index (32767 bits) we cannot use trees.
+	 */
+	if (expr->mflags & PAT_MF_IGNORE_CASE || len >= 4095)
 		return pat_idx_list_str(expr, pat, err);
 
-	/* Process the key len */
-	len = strlen(pat->ptr.str) + 1;
-
 	/* node memory allocation */
-	node = calloc(1, sizeof(*node) + len);
+	node = calloc(1, sizeof(*node) + len + 1);
 	if (!node) {
 		memprintf(err, "out of memory while loading pattern");
 		return 0;
@@ -1438,7 +1440,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	node->ref = pat->ref;
 
 	/* copy the string */
-	memcpy(node->node.key, pat->ptr.str, len);
+	memcpy(node->node.key, pat->ptr.str, len + 1);
 
 	/* index the new node */
 	ebst_insert(&expr->pattern_tree, &node->node);
