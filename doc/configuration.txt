@@ -35061,6 +35061,7 @@ http-hardening <name> [from <source>]
         reject-forbidden-payload on
         reject-advanced-methods off
         reject-unexpected-request-payload off
+        reject-unexpected-request-upgrade off
 
   It is possible to change their settings from the defaults, by declaring the
   profiles once, along with the settings to change, in which case they will
@@ -35349,6 +35350,18 @@ http-hardening <name> [from <source>]
         static web serving and simple internet-facing applications. It is
         disabled by default.
 
+  - reject-unexpected-request-upgrade (inbound, request)
+        Rejects Upgrade and RFC8441 Extended CONNECT for protocols other than
+        "websocket" and "webtransport". For Upgrade, all offending tokens are
+        removed and the header will be removed if empty, so that it remains
+        harmless to clients sending tentative upgrades. Upgrade and CONNECT are
+        commonly abused to try to establish a tunnel with an application and
+        bypass the reverse-proxy layer, and most applications and browsers do
+        not implement other protocols, so there is no reason for letting them
+        pass through with common web applications. It is generally safe for
+        static web serving and simple internet-facing applications. This is
+        disabled by default. Note that tunnels established via standard CONNECT
+        are NOT blocked with this rule, see 'reject-advanced-methods' for this.
 
 /*
  * Local variables:

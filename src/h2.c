@@ -537,6 +537,15 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			goto fail;
 		}
 
+		if (!isteqi(phdr_val[H2_PHDR_IDX_PROT], ist("websocket")) &&
+		    !isteqi(phdr_val[H2_PHDR_IDX_PROT], ist("webtransport")) &&
+		    http_harden(HTTP_HRD_REJ_UNEXP_REQ_UPG)) {
+			/* neither websocket nor h2c nor n2 nor webtransport,
+			 * and hardening enabled => reject.
+			 */
+			goto fail;
+		}
+
 		if (!htx_add_header(htx, ist("upgrade"), phdr_val[H2_PHDR_IDX_PROT]))
 			goto fail;
 		if (!htx_add_header(htx, ist("connection"), ist("upgrade")))

@@ -1806,6 +1806,7 @@ const struct http_hardening_kw http_hardening_kws[] = {
 	{ "reject-out-of-range-status",        HTTP_HRD_REJ_OOR_STATUS, HTTP_DIR_RES },
 	{ "reject-advanced-methods",           HTTP_HRD_REJ_ADV_METH, HTTP_DIR_REQ },
 	{ "reject-unexpected-request-payload", HTTP_HRD_REJ_UNEXP_REQ_PLD, HTTP_DIR_REQ },
+	{ "reject-unexpected-request-upgrade", HTTP_HRD_REJ_UNEXP_REQ_UPG, HTTP_DIR_REQ },
 	/* insert new hardening options above this line */
 	{ "all-reject",                     HTTP_HRD_ALL_REJECT,       HTTP_DIR_BOTH },
 	{ "all-delete",                     HTTP_HRD_ALL_DELETE,       HTTP_DIR_BOTH },

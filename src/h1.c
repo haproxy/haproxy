@@ -319,6 +319,13 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist *value)
 		else if ((h1m->flags & H1_MF_CLEAN_CONN_HDR) &&
 			 (isteqi(word, ist("h2c")) || isteqi(word, ist("h2"))))
 			goto skip_val;
+		else if (!isteqi(word, ist("webtransport"))) {
+			/* neither websocket nor h2c nor n2 nor webtransport,
+			 * maybe we have to delete other values.
+			 */
+			if (http_harden(HTTP_HRD_REJ_UNEXP_REQ_UPG))
+				goto skip_val;
+		}
 
 		if (value->ptr + value->len == p) {
 			/* no rewrite done till now */
