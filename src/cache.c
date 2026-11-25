@@ -658,6 +658,18 @@ static inline void cache_row_reattach(struct cache *cache, struct shared_block *
 	shctx_row_reattach(shctx_ptr(cache), first);
 }
 
+/* Reattach the row of an aborted store and free its blocks, as it is in no
+ * LRU. Must be called under shctx wrlock.
+ */
+static inline void cache_row_abort(struct cache *cache, struct shared_block *first)
+{
+	struct cache_entry *entry = (struct cache_entry *)first->data;
+
+	cache_row_reattach(cache, first);
+	if (!first->refcount && !entry->eb.key)
+		shctx_row_truncate(shctx_ptr(cache), first, 0);
+}
+
 static int
 cache_store_init(struct proxy *px, struct flt_conf *fconf)
 {
@@ -803,7 +815,9 @@ cache_store_strm_deinit(struct stream *s, struct filter *filter)
 	 * there too, in case of errors */
 	if (st && st->first_block) {
 		struct cache_entry *object = (struct cache_entry *)st->first_block->data;
-		if (!(object->flags & CACHE_EF_COMPLETE)) {
+		int aborted = !(object->flags & CACHE_EF_COMPLETE);
+
+		if (aborted) {
 			/* The stream was closed but the 'complete' flag was not
 			 * set which means that cache_store_http_end was not
 			 * called. The stream must have been closed before we
@@ -812,7 +826,10 @@ cache_store_strm_deinit(struct stream *s, struct filter *filter)
 			release_entry_unlocked(&cache->trees[object->eb.key % CACHE_TREE_NUM], object);
 		}
 		shctx_wrlock(shctx);
-		cache_row_reattach(cache, st->first_block);
+		if (aborted)
+			cache_row_abort(cache, st->first_block);
+		else
+			cache_row_reattach(cache, st->first_block);
 		shctx_wrunlock(shctx);
 	}
 	if (st) {
@@ -870,7 +887,7 @@ static inline void disable_cache_entry(struct cache_st *st,
 	filter->ctx = NULL; /* disable cache  */
 	release_entry_unlocked(&cache->trees[object->eb.key % CACHE_TREE_NUM], object);
 	shctx_wrlock(shctx);
-	cache_row_reattach(cache, st->first_block);
+	cache_row_abort(cache, st->first_block);
 	shctx_wrunlock(shctx);
 	pool_free(pool_head_cache_st, st);
 }
