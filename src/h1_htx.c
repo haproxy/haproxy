@@ -226,6 +226,19 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		goto error;
 	}
 
+	/* reject-unexpected-request-payload: reject payload on methods which
+	 * don't have defined semantics for this, as well as chunked encoding
+	 * in requests for any method.
+	 */
+	if (((h1m->flags & H1_MF_CHNK) ||
+	     ((h1sl->rq.meth == HTTP_METH_GET || h1sl->rq.meth == HTTP_METH_HEAD || h1sl->rq.meth == HTTP_METH_DELETE ||
+	       h1sl->rq.meth == HTTP_METH_OPTIONS || h1sl->rq.meth == HTTP_METH_CONNECT || h1sl->rq.meth == HTTP_METH_TRACE) &&
+	      (h1m->flags & H1_MF_CLEN) && h1m->body_len != 0)) &&
+	    http_harden(HTTP_HRD_REJ_UNEXP_REQ_PLD)) {
+		h1m->err_code = 400;
+		goto error;
+	}
+
 	/* Remove Upgrade header if no 'connection: upgrade' found */
 	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_HDR)) == H1_MF_UPG_HDR) {
 		int i;

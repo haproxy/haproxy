@@ -1072,6 +1072,21 @@ static ssize_t h3_req_headers_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
+	/* reject-unexpected-request-payload: reject payload on methods which
+	 * don't have defined semantics for this.
+	 */
+	if (!fin &&
+	    (sl->info.req.meth == HTTP_METH_GET     || sl->info.req.meth == HTTP_METH_HEAD    ||
+	     sl->info.req.meth == HTTP_METH_DELETE  || sl->info.req.meth == HTTP_METH_OPTIONS ||
+	     sl->info.req.meth == HTTP_METH_CONNECT || sl->info.req.meth == HTTP_METH_TRACE)  &&
+	    http_harden(HTTP_HRD_REJ_UNEXP_REQ_PLD)) {
+		TRACE_ERROR("hardening rejected unexpected payload for method", H3_EV_RX_FRAME|H3_EV_RX_HDR, qcs->qcc->conn, qcs);
+		h3s->err = H3_ERR_REQUEST_REJECTED;
+		qcc_report_glitch(h3c->qcc, 1);
+		len = -1;
+		goto out;
+	}
+
 	if (isttest(authority)) {
 		if (!htx_add_header(htx, ist("host"), authority)) {
 			len = -1;

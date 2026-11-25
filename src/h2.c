@@ -293,6 +293,15 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 	    http_harden(HTTP_HRD_REJ_ADV_METH))
 		goto fail;
 
+	/* reject-unexpected-request-payload: reject payload on methods which
+	 * don't have defined semantics for this.
+	 */
+	if ((*msgf & H2_MSGF_BODY) &&
+	    (meth == HTTP_METH_GET     || meth == HTTP_METH_HEAD    || meth == HTTP_METH_DELETE ||
+	     meth == HTTP_METH_OPTIONS || meth == HTTP_METH_CONNECT || meth == HTTP_METH_TRACE) &&
+	    http_harden(HTTP_HRD_REJ_UNEXP_REQ_PLD))
+		goto fail;
+
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth_sl, uri, ist("HTTP/2.0"));
 	if (!sl)
 		goto fail;

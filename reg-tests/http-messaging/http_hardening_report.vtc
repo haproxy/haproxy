@@ -22,6 +22,7 @@ feature ignore_unknown_macro
 #   0x040 delete-unregistered-header-fields (only looked up when enabled)
 #   0x100 delete-all-trailer-fields         (any trailer)
 #   0x400 reject-ctl-in-header-trailer
+#   0x20000 reject-unexpected-request-payload (the chunked requests)
 # The masks are logged in hex after htonl. The H2 frontend has no
 # backend, so "bs" is not available there.
 
@@ -40,12 +41,12 @@ server s_strict {
 
 syslog Strusted -level info {
 	recv
-	expect ~ "fe_trusted .* fs=00000514/00000000/- bs=00000514/00000000/-$"
+	expect ~ "fe_trusted .* fs=00020514/00000000/- bs=00000514/00000000/-$"
 } -start
 
 syslog Sreq -level info {
 	recv
-	expect ~ "fe_req .* fs=00000454/00000450/reject-ctl-in-header-trailer bs=-/-/-$"
+	expect ~ "fe_req .* fs=00020454/00000450/reject-ctl-in-header-trailer bs=-/-/-$"
 } -start
 
 syslog Sres -level info {
