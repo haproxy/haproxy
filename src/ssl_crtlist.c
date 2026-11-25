@@ -1462,6 +1462,9 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	ctx->crtlist = crtlist;
 	ctx->entry = entry;
 
+	/* the store uses only one of them */
+	ckch_conf_clean(adopted ? &old_cc : &cc);
+
 	/* unlock is done in the release handler */
 	return 0;
 
