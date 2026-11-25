@@ -23293,8 +23293,10 @@ json_query(<json_path>[,<output_type>])
   Note: depending on the context and the underlying implementation, extraction
         of duplicate JSON keys is undefined and might return the first, last,
         or any other occurrence of the same key from the input content, and if
-        key names are passed encoded, they might not always be matched. In
-        short, this converter is not suitable for content sanitization.
+        key names are passed encoded, they might not always be matched. The
+        parser also stops at elements nested deeper than 20 levels, and nothing
+        located after such an element is found. In short, this converter is
+        not suitable for content sanitization.
 
   Example:
      # get a integer value from the request body
