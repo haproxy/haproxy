@@ -2934,6 +2934,10 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		 * can't use the cache's entry and must forward the request to
 		 * the server. */
 		if (!res) {
+			/* the secondary key is needed to store the response */
+			if ((cache->flags & CACHE_CF_VARY_PROCESSING) &&
+			    !(txn->flags & TX_CACHE_HAS_SEC_KEY))
+				http_request_prebuild_full_secondary_key(s);
 			return ACT_RET_CONT;
 		} else if (!(res->flags & CACHE_EF_COMPLETE) || (res->flags & CACHE_EF_STRIPPED)) {
 			release_entry(cache_tree, res, 1);
