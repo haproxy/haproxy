@@ -1820,6 +1820,7 @@ int connect_server(struct stream *s)
 	int reuse __maybe_unused = 0;
 	int may_use_early_data __maybe_unused = 1; // are we allowed to use early data ?
 	int may_start_mux_now = 1; // are we allowed to start the mux now ?
+	char cached_alpn[MAX_ALPN_SIZE];
 	int err;
 	struct sockaddr_storage *bind_addr = NULL;
 	int64_t hash = 0;
@@ -1828,6 +1829,8 @@ int connect_server(struct stream *s)
 	 * it can be NULL for dispatch mode or transparent backend */
 	srv = objt_server(s->target);
 	reuse_mode = be_reuse_mode(s->be, srv);
+
+	cached_alpn[0] = 0;
 
 	err = alloc_dst_address(&s->scb->dst, srv, s);
 	if (err != SRV_STATUS_OK)
@@ -2086,6 +2089,8 @@ int connect_server(struct stream *s)
 					HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 					if (srv->path_params.srv_hash != hash || srv->path_params.nego_alpn[0] == 0)
 						may_start_mux_now = 0;
+					else
+						strlcpy2(cached_alpn, srv->path_params.nego_alpn, sizeof(cached_alpn));
 					HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
 				}
 			}
@@ -2138,7 +2143,12 @@ int connect_server(struct stream *s)
 
 		if (may_start_mux_now) {
 			/* Delay MUX init if an XPRT handshake is required prior. */
-			mux_proto = conn_select_mux_be(srv_conn);
+			if (cached_alpn[0] && !srv->mux_proto)
+				mux_proto = conn_get_best_mux_entry(IST_NULL, ist(cached_alpn), PROTO_SIDE_BE,
+				                                    proto_is_quic(srv_conn->ctrl),
+				                                    conn_pr_mode_to_proto_mode(s->be->mode));
+			else
+				mux_proto = conn_select_mux_be(srv_conn);
 			if (mux_proto && mux_proto->init_xprt)
 				may_start_mux_now = 0;
 		}
@@ -2231,6 +2241,9 @@ int connect_server(struct stream *s)
 	if (may_start_mux_now) {
 		const struct mux_ops *alt_mux =
 		  likely(!(s->flags & SF_WEBSOCKET) || !srv) ? NULL : srv_get_ws_proto(srv);
+
+		if (!alt_mux && cached_alpn[0] && mux_proto)
+			alt_mux = mux_proto->mux;
 		if (conn_install_mux_be(srv_conn, s->scb, s->sess, alt_mux) < 0) {
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
