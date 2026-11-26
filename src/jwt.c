@@ -432,16 +432,32 @@ int jwt_tree_load_cert(char *path, int pathlen, const char *file, int line, char
 			goto end;
 		}
 
-		if (ebst_insert(&ckchs_tree, &store->node) != &store->node) {
+		store->conf.jwt = 1;
+		retval = jwt_tree_create_entry_from_store(store, err);
+		if (retval) {
+			/* Something went wrong during the JWT tree entry
+			 * creation, likely an OOM, no point in inserting the
+			 * ckch_store in the tree if we cannot use it for JWT
+			 * validation. */
 			ckch_store_free(store);
 			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 			goto end;
 		}
+
+		if (ebst_insert(&ckchs_tree, &store->node) != &store->node) {
+			/* The ckch_store was not inserted in the tree so the
+			 * corresponding jwt tree entry would not be removed in
+			 * ckch_store_free. */
+			jwt_tree_delete_entry(store->path);
+			ckch_store_free(store);
+			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+			goto end;
+		}
+	} else {
+		store->conf.jwt = 1;
+		retval = jwt_tree_create_entry_from_store(store, err);
 	}
 
-	store->conf.jwt = 1;
-
-	retval = jwt_tree_create_entry_from_store(store, err);
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 
