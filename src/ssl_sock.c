@@ -5385,7 +5385,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	__X509_NAME_CONST__ X509_NAME *cert_subject;
 	char *str;
 	int len;
-	int dnsname_present = 0;
+	int san_status = 0;
 
 	if (ok == 0)
 		return ok;
@@ -5429,12 +5429,11 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 	if (!cert)
 		return ok;
 
-	alt_names = X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);
+	alt_names = X509_get_ext_d2i(cert, NID_subject_alt_name, &san_status, NULL);
 	if (alt_names) {
 		for (i = 0; !ok && i < sk_GENERAL_NAME_num(alt_names); i++) {
 			GENERAL_NAME *name = sk_GENERAL_NAME_value(alt_names, i);
 			if (name->type == GEN_DNS) {
-				dnsname_present = 1;
 #if HA_OPENSSL_VERSION_NUMBER < 0x00907000L
 				if ((len = ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.ia5)) >= 0) {
 #else
@@ -5454,9 +5453,10 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 		sk_GENERAL_NAME_pop_free(alt_names, GENERAL_NAME_free);
 	}
 
+	/* Only an absent SAN extension (status -1) permits CN fallback. */
 	cert_subject = X509_get_subject_name(cert);
 	i = -1;
-	while (!dnsname_present && !ok && (i = X509_NAME_get_index_by_NID(cert_subject, NID_commonName, i)) != -1) {
+	while (san_status == -1 && !ok && (i = X509_NAME_get_index_by_NID(cert_subject, NID_commonName, i)) != -1) {
 		__X509_NAME_CONST__ X509_NAME_ENTRY *entry = X509_NAME_get_entry(cert_subject, i);
 		__X509_NAME_CONST__ ASN1_STRING *value;
 		value = X509_NAME_ENTRY_get_data(entry);
