@@ -1809,14 +1809,22 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 
 	TRACE_ENTER(H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 
-	if (!len && !fin) {
-		/* Ignore empty frame to prevent unnecessary appbuf alloc. Not
-		 * performed though if FIN is set as HTX EOM must be reported.
+	if (len > b_data(buf)) {
+		/* Either a truncated frame was received or content is split
+		 * across multiple buffers. Only handle the available content.
+		 * <len> may be set to zero if only the frame header is there.
 		 */
-		TRACE_STATE("skip parsing of empty DATA frame", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
+		len = b_data(buf);
+		fin = 0;
+	}
+
+	if (!len && !fin) {
+		/* No content to handle, nothing to consume. */
+		TRACE_STATE("no DATA content to consume", H3_EV_RX_FRAME, qcs->qcc->conn, qcs);
 		goto out;
 	}
 
+	/* Allocation is necessary even if <len> is 0 as FIN must be set in HTX output. */
 	if (!(appbuf = qcc_get_stream_rxbuf(qcs))) {
 		TRACE_ERROR("data buffer alloc failure", H3_EV_RX_FRAME|H3_EV_RX_DATA, qcs->qcc->conn, qcs);
 		goto err;
@@ -1835,11 +1843,6 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 		goto out;
 	}
 
-	if (len > b_data(buf)) {
-		len = b_data(buf);
-		fin = 0;
-	}
-
 	head = b_head(buf);
  retry:
 	htx_space = htx_free_data_space(htx);
@@ -1849,6 +1852,7 @@ static ssize_t h3_data_to_htx(struct qcs *qcs, const struct buffer *buf,
 	}
 
 	if (len > htx_space) {
+		/* Reduce content if not enough space in output buffer. */
 		len = htx_space;
 		fin = 0;
 	}
