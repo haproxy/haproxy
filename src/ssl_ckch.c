@@ -3490,6 +3490,14 @@ int ckch_store_create(char *path, char **err)
 		goto error;
 	}
 
+	/* Create empty entry into JWT-specific tree */
+	if (jwt_tree_create_entry_from_store(store, err)) {
+		memprintf(err,"%scould not create jwt tree entry for '%s'.", err && *err ? *err : "", store->path);
+		ckch_store_free(store);
+		store = NULL;
+		goto error;
+	}
+
 	/* insert into the ckchs tree */
 	ebst_insert(&ckchs_tree, &store->node);
 	memprintf(err, "New empty certificate store '%s'!\n", path);
