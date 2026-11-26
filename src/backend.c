@@ -2080,10 +2080,14 @@ int connect_server(struct stream *s)
 			 */
 			if (IS_HTX_STRM(s) && srv->use_ssl &&
 			    (srv->ssl_ctx.alpn_str || srv->ssl_ctx.npn_str)) {
-				HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
-				if (srv->path_params.srv_hash != hash || srv->path_params.nego_alpn[0] == 0)
+				if (!(srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA))
 					may_start_mux_now = 0;
-				HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+				else {
+					HA_RWLOCK_RDLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+					if (srv->path_params.srv_hash != hash || srv->path_params.nego_alpn[0] == 0)
+						may_start_mux_now = 0;
+					HA_RWLOCK_RDUNLOCK(SERVER_LOCK, &srv->path_params.param_lock);
+				}
 			}
 #endif /* TLSEXT_TYPE_application_layer_protocol_negotiation */
 
