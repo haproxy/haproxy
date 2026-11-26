@@ -11,6 +11,10 @@
 
     The generated keylog file can then be injected into wireshark to decipher a
     network capture.
+
+    WARNING: debugging tool only. Access to FS via Lua scripts running in
+    haproxy traffic handling context must be frowned upon, as it can
+    significantly hurt performances.
 ]]
 
 local function sslkeylog(txn, filename)
