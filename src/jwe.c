@@ -1572,7 +1572,8 @@ static inline int curve_param_to_pubkey(int nid, BIGNUM *x, BIGNUM *y, struct bu
 	if (!ec_point)
 		goto end;
 
-	if (EC_POINT_set_affine_coordinates(group, ec_point, x, y, bnctx) < 0)
+	/* returns 0, not a negative value, for a point which is not on the curve */
+	if (EC_POINT_set_affine_coordinates(group, ec_point, x, y, bnctx) != 1)
 		goto end;
 
 	out->data = EC_POINT_point2oct(group, ec_point, POINT_CONVERSION_UNCOMPRESSED,
@@ -1666,10 +1667,10 @@ end:
 	if (!ec_key)
 		goto end;
 
-	if (nums[EC_BIGNUM_D] && EC_KEY_set_private_key(ec_key, nums[EC_BIGNUM_D]) < 0)
+	if (nums[EC_BIGNUM_D] && EC_KEY_set_private_key(ec_key, nums[EC_BIGNUM_D]) != 1)
 		goto end;
 
-	if (EC_KEY_set_public_key_affine_coordinates(ec_key, nums[EC_BIGNUM_X], nums[EC_BIGNUM_Y]) < 0)
+	if (EC_KEY_set_public_key_affine_coordinates(ec_key, nums[EC_BIGNUM_X], nums[EC_BIGNUM_Y]) != 1)
 		goto end;
 
 	if (EC_KEY_check_key(ec_key) == 0)
