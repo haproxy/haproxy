@@ -670,7 +670,9 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 	if (!htx)
 		return 0;
 
-	if ((htx->flags & (HTX_FL_FRAGMENTED|HTX_FL_UNORDERED)) || htx_space_wraps(htx))
+	/* Only defrag if there is a payload */
+	if (htx_get_tail_type(htx) >= HTX_BLK_DATA &&
+	    ((htx->flags & (HTX_FL_FRAGMENTED|HTX_FL_UNORDERED)) || htx_space_wraps(htx)))
 		htx_defrag(htx, NULL, 0);
 
 	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
@@ -2133,7 +2135,9 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 		if (!htx)
 			return 0;
 
-		if ((htx->flags & (HTX_FL_FRAGMENTED|HTX_FL_UNORDERED)) || htx_space_wraps(htx))
+		/* Only defrag if there is a payload */
+		if (htx_get_tail_type(htx) >= HTX_BLK_DATA &&
+		    ((htx->flags & (HTX_FL_FRAGMENTED|HTX_FL_UNORDERED)) || htx_space_wraps(htx)))
 			htx_defrag(htx, NULL, 0);
 
 		for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
