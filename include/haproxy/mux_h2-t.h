@@ -129,6 +129,7 @@ static forceinline char *h2c_show_flags(char *buf, size_t len, const char *delim
 
 #define H2_SF_WANT_SHUTR        0x00008000  // a stream couldn't shutr() (mux full/busy)
 #define H2_SF_WANT_SHUTW        0x00010000  // a stream couldn't shutw() (mux full/busy)
+#define H2_SF_WAIT_TUNNEL       0x00020000  // data blocked until the tunnel is established or aborted (not in send list)
 
 #define H2_SF_EXT_CONNECT_SENT  0x00040000  // rfc 8441 an Extended CONNECT has been sent
 #define H2_SF_EXT_CONNECT_RCVD  0x00080000  // rfc 8441 an Extended CONNECT has been received and parsed
@@ -154,7 +155,8 @@ static forceinline char *h2s_show_flags(char *buf, size_t len, const char *delim
 	_(H2_SF_BODY_TUNNEL, _(H2_SF_NOTIFIED, _(H2_SF_HEADERS_SENT,
 	_(H2_SF_OUTGOING_DATA, _(H2_SF_HEADERS_RCVD, _(H2_SF_WANT_SHUTR,
 	_(H2_SF_WANT_SHUTW, _(H2_SF_EXT_CONNECT_SENT, _(H2_SF_EXT_CONNECT_RCVD,
-	_(H2_SF_TUNNEL_ABRT, _(H2_SF_MORE_HTX_DATA, _(H2_SF_EXPECT_RXDATA))))))))))))))))))))));
+	_(H2_SF_TUNNEL_ABRT, _(H2_SF_MORE_HTX_DATA, _(H2_SF_EXPECT_RXDATA,
+	_(H2_SF_WAIT_TUNNEL)))))))))))))))))))))));
 	/* epilogue */
 	_(~0U);
 	return buf;

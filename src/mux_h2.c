@@ -1831,6 +1831,24 @@ static void __maybe_unused h2s_notify_send(struct h2s *h2s)
 	}
 }
 
+/* Blocks <h2s> until its tunnel is established or aborted. It cannot write,
+ * so it leaves the send list, unless a shut is pending.
+ */
+static inline void h2s_wait_tunnel(struct h2s *h2s)
+{
+	h2s->flags |= H2_SF_WAIT_TUNNEL;
+	if (!(h2s->flags & (H2_SF_WANT_SHUTR | H2_SF_WANT_SHUTW)))
+		h2_remove_from_list(h2s);
+}
+
+/* Unblocks <h2s>, back to the send list if it was waiting to send */
+static inline void h2s_resume_tunnel(struct h2s *h2s)
+{
+	h2s->flags &= ~H2_SF_WAIT_TUNNEL;
+	if (!LIST_INLIST(&h2s->list) && h2s->subs && (h2s->subs->events & SUB_RETRY_SEND))
+		LIST_APPEND(&h2s->h2c->send_list, &h2s->list);
+}
+
 /* alerts the data layer by waking it up. TASK_WOKEN_MSG state is used by
  * default and if the data layer is also subscribed to recv or send,
  * TASK_WOKEN_IO is added. But first of all, we check if the shut tasklet must
@@ -4005,10 +4023,10 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	 * the tunnel establishment or the end of the response of an oborted
 	 * tunnel
 	 */
-	if ((h2s->flags & (H2_SF_BODY_TUNNEL|H2_SF_BLK_MBUSY)) == (H2_SF_BODY_TUNNEL|H2_SF_BLK_MBUSY) ||
-	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) {
+	if ((h2s->flags & (H2_SF_BODY_TUNNEL|H2_SF_WAIT_TUNNEL)) == (H2_SF_BODY_TUNNEL|H2_SF_WAIT_TUNNEL) ||
+	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_WAIT_TUNNEL)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_WAIT_TUNNEL)) {
 		TRACE_STATE("Unblock h2s blocked on tunnel establishment/abort", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
-		h2s->flags &= ~H2_SF_BLK_MBUSY;
+		h2s_resume_tunnel(h2s);
 	}
 
 	TRACE_USER("rcvd H2 response ", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, h2s_rxbuf_tail(h2s));
@@ -4144,9 +4162,9 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 	 * aborted tunnel
 	 */
 	if ((h2c->flags & H2_CF_IS_BACK) &&
-	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) {
+	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_WAIT_TUNNEL)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_WAIT_TUNNEL)) {
 		TRACE_STATE("Unblock h2s blocked on tunnel abort", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
-		h2s->flags &= ~H2_SF_BLK_MBUSY;
+		h2s_resume_tunnel(h2s);
 	}
 
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
@@ -7650,7 +7668,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 		 * is not fully established yet. In this situation, we block
 		 * data sending.
 		 */
-		h2s->flags |= H2_SF_BLK_MBUSY;
+		h2s_wait_tunnel(h2s);
 		TRACE_STATE("Request DATA frame blocked waiting for tunnel establishment", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
 		goto end;
 	}
@@ -7662,7 +7680,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 		 */
 		if (!(h2s->flags & H2_SF_ES_RCVD)) {
 			TRACE_STATE("Request DATA frame blocked waiting end of aborted tunnel", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
-			h2s->flags |= H2_SF_BLK_MBUSY;
+			h2s_wait_tunnel(h2s);
 		}
 		else {
 			TRACE_ERROR("Request DATA frame for aborted tunnel", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
@@ -8245,7 +8263,7 @@ static int h2_subscribe(struct stconn *sc, int event_type, struct wait_event *es
 		 * he could, this is obviously obsolete.
 		 */
 		h2s->flags &= ~H2_SF_NOTIFIED;
-		if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
+		if (!(h2s->flags & (H2_SF_BLK_SFCTL|H2_SF_WAIT_TUNNEL)) &&
 		    !LIST_INLIST(&h2s->list)) {
 			if (h2s->flags & H2_SF_BLK_MFCTL) {
 				TRACE_DEVEL("Adding to fctl list", H2_EV_STRM_SEND, h2c->conn, h2s);
@@ -8489,7 +8507,7 @@ static size_t h2_snd_buf(struct stconn *sc, struct buffer *buf, size_t count, in
 		eb32_insert(&h2s->h2c->streams_by_id, &h2s->by_id);
 	}
 
-	while (h2s->st < H2_SS_HLOC && !(h2s->flags & H2_SF_BLK_ANY) &&
+	while (h2s->st < H2_SS_HLOC && !(h2s->flags & (H2_SF_BLK_ANY|H2_SF_WAIT_TUNNEL)) &&
 	       count && !htx_is_empty(htx)) {
 		idx   = htx_get_head(htx);
 		blk   = htx_get_blk(htx, idx);
