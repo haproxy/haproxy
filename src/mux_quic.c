@@ -4531,18 +4531,18 @@ static size_t qcm_strm_rcv_buf(struct stconn *sc, struct buffer *buf,
 	ret = qcs_http_rcv_buf(qcs, buf, count, &fin);
 
 	if (b_data(&qcs->rx.app_buf)) {
-               if (b_data(buf))
-                       se_fl_set(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
-               else {
-                       /* we have pending data and the output buf is empty,
-                        * this is typical of too large a non-fragmentable
-                        * data (e.g headers, trailers) combined with a
-                        * reserve, so this will never unblock.
-                        */
-                       TRACE_STATE("report xfer error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
-                       se_fl_set(qcs->sd, SE_FL_ERROR);
-                       goto leave;
-               }
+		if (b_data(buf))
+			se_fl_set(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
+		else {
+			/* we have pending data and the output buf is empty,
+			 * this is typical of too large a non-fragmentable
+			 * data (e.g headers, trailers) combined with a
+			 * reserve, so this will never unblock.
+			 */
+			TRACE_STATE("report xfer error", QMUX_EV_STRM_RECV, qcc->conn, qcs);
+			se_fl_set(qcs->sd, SE_FL_ERROR);
+			goto leave;
+		}
 	}
 	else {
 		se_fl_clr(qcs->sd, SE_FL_RCV_MORE | SE_FL_WANT_ROOM);
@@ -4603,7 +4603,7 @@ static size_t qcm_strm_rcv_buf(struct stconn *sc, struct buffer *buf,
 			tasklet_wakeup(qcc->wait_event.tasklet);
 		}
 	}
-leave:
+ leave:
 	TRACE_LEAVE(QMUX_EV_STRM_RECV, qcc->conn, qcs);
 
 	return ret;
