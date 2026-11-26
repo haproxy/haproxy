@@ -24,6 +24,14 @@ findings) fall outside that boundary: they are ordinary bugs, and are best
 reported and fixed in public through the usual channels described in the
 "Contacts" section of doc/intro.txt.
 
+Based on this, think about how your finding fits in the threat model, and state
+it in your report: who the attacker is and what they control (e.g. a client
+sending requests, a server sending responses; note that access to the
+configuration or to the CLI is considered trusted), what they concretely gain
+from a successful attack, and what conditions are required for it to succeed
+(default configuration or specific settings, timing, build options, library
+versions, etc).
+
 If, after reading the threat model, you are confident you have found a genuine
 security issue that would put many users at risk if discussed in the open, the
 security team can be reached at security@haproxy.org, a private list read by a
@@ -32,13 +40,25 @@ include a reproducer, and ideally a proposed and tested patch, as well as a
 valid name under which the report can be credited.
 
 Always send one e-mail per report, so that reports can be easily dispatched to
-different maintainers. Do NOT attach binary files (tar.gz, zip, pdf, ...) as
-they are impossible to read inline and quote when replying. Just join any file
-as plain text (attached or inline depending on the intended use). Do NOT send
-reports to the haproxy.com address which is handled by a different team and is
-for different products. Always use a valid e-mail address when submitting your
-report. Submissions for which the reporter doesn't respond to questions in a
-timely manner will simply be dropped.
+different maintainers, and do not send another report before getting a response
+to the first one. If you have several findings, send the one you consider the
+most solid, and mention how many others you have. Experience shows that a large
+fraction of submitted reports are invalid or incomplete, and the security team
+prefers to evaluate the quality of a first report before spending time on more,
+rather than having to discard an entire series.
+
+Write the report in PLAIN TEXT only, with lines wrapped around 72-80 columns:
+no HTML, markdown, RST or other decorations, which make messages painful to
+read and even more painful to reply to. Paste configurations, logs, traces and
+reproducers inline, and do not use links to external sites. Do NOT attach
+binary files (tar.gz, zip, pdf, ...) as they are impossible to read inline and
+quote when replying. Small text files may be attached when they are better
+kept separate (e.g. a patch or a long reproducer).
+
+Do NOT send reports to the haproxy.com address which is handled by a different
+team and is for different products. Always use a valid e-mail address when
+submitting your report. Submissions for which the reporter doesn't respond to
+questions in a timely manner will simply be dropped.
 
 Auxiliary tools in dev/ and admin/ are not intended for production use and are
 by nature out of the security scope. Please report bugs affecting them via the
@@ -51,6 +71,27 @@ is avoided unless strictly necessary. As a result, reports that needlessly cause
 such extra burden get little consideration, and the most effective and best
 credited way to report an issue is to provide a working fix, which will appear
 in the changelogs.
+
+Issues that are independently reported by multiple people within a short time
+are considered trivial to find, and as such already public in practice: anyone
+can find them at any moment, and there is no point in keeping them private nor
+in delaying their fix, this would only extend users' exposure. The same applies
+to findings that merely result from running common tools (static analyzers,
+fuzzers, LLM-based scanners) without further analysis. Such issues lose their
+security status and are handled as regular bugs: they are fixed in public,
+without any security classification nor CVE.
+
+In all cases, credit is given to the reporter of the first COMPLETE report
+only, that is, one describing an issue that falls within the threat model,
+confirmed against the latest release, and accompanied by a working reproducer
+(and a tested patch for AI-assisted findings, see below). Many people run the
+same tools on the same code, and the same issue is frequently reported several
+times within a few days. An incomplete report does not reserve anything: the
+security team may ask for the missing information, but will often simply ignore
+the report, and if the missing elements are provided later, it can be too late.
+Rushing an incomplete report thus exposes its author to someone else's complete
+report being credited first. Taking the time to verify and complete a report
+remains the best way to be credited for it.
 
 Findings produced with the help of AI MUST be accompanied by a working, tested
 patch. Such tools routinely report issues that are out of scope (see the
