@@ -2556,7 +2556,6 @@ static inline int cli_set_ssl_jwt(char **args, struct appctx *appctx, int value)
 {
 	struct ckch_store *ckchs;
 	char *err = NULL;
-	int oldvalue;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return cli_err(appctx, "Can't allocate memory!\n");
@@ -2573,18 +2572,9 @@ static inline int cli_set_ssl_jwt(char **args, struct appctx *appctx, int value)
 	if ((ckchs = ckchs_lookup(args[3])) == NULL)
 		goto error;
 
-	oldvalue = ckchs->conf.jwt;
 	ckchs->conf.jwt = value;
 
-	if (value) {
-		if (jwt_tree_create_entry_from_store(ckchs, &err)) {
-			ckchs->conf.jwt = oldvalue;
-			HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
-			return cli_dynerr(appctx, memprintf(&err, "%sAdding certificate '%s' to JWT tree failed", err ? err : "\n", args[3]));
-		}
-	} else {
-		jwt_tree_clear_entry(args[3]);
-	}
+	jwt_tree_update_entry_from_store(ckchs, 0);
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 	return 0;
@@ -3102,11 +3092,14 @@ void ckch_store_replace(struct ckch_store *old_ckchs, struct ckch_store *new_ckc
 		__ckch_inst_free_locked(ckchi);
 	}
 
-	ckch_store_free(old_ckchs);
+	/*
+	 * We update the JWT entry before calling ckch_store_free so that we
+	 * don't end up with a short window during which the entry does not
+	 * exist.
+	 */
+	jwt_tree_update_entry_from_store(new_ckchs, 1);
 
-	/* The old entry should have been removed in chck_store_free, create a
-	 * new entry altogether. */
-	jwt_tree_create_entry_from_store(new_ckchs, NULL);
+	ckch_store_free(old_ckchs);
 
 	ebst_insert(&ckchs_tree, &new_ckchs->node);
 }

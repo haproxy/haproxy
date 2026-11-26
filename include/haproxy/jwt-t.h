@@ -72,6 +72,7 @@ enum jwt_elt {
 };
 
 struct jwt_cert_tree_entry {
+	int refcount;
 	EVP_PKEY *pubkey; /* Pubkey used in jwt_verify */
 	EVP_PKEY *privkey; /* Privkey used in jwt_decrypt */
 	struct ebmb_node node;

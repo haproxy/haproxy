@@ -139,16 +139,21 @@ int jwt_tokenize(const struct buffer *jwt, struct jwt_item *items, unsigned int 
 	return (ptr != jwt_end);
 }
 
+#define UPDATE_PKEY(dst, pkey) ({		\
+	EVP_PKEY_free(dst);			\
+	dst = pkey;				\
+	if (pkey) 				\
+		EVP_PKEY_up_ref(pkey);		\
+})
+
 /*
  * Allocate a new entry for <path> and insert it into the JWT certificate tree.
  * Both <pubkey> and <privkey> are optional and may be NULL, which is used to
  * mark a certificate as known to the JWT tree while making it unusable by the
  * jwt_verify/jwt_decrypt converters. The keys are not stolen: a reference is
  * taken on each of them, so that the caller keeps the ownership of its own
- * reference. If an entry already exists for this path (for instance because it
- * was kept around by jwt_tree_clear_entry() after a "del ssl jwt" command),
- * its keys are replaced in place instead of creating a duplicate entry, which
- * also makes it possible to re-enable the "jwt" option on a certificate.
+ * reference. If an entry already exists for this path, its keys are replaced in
+ * place instead of creating a duplicate entry.
  * Returns 0 on success, -1 on allocation failure (and fills <err> if provided).
  */
 static int jwt_tree_create_entry(char *path, int pathlen, EVP_PKEY *pubkey, EVP_PKEY *privkey, char **err)
@@ -175,18 +180,11 @@ static int jwt_tree_create_entry(char *path, int pathlen, EVP_PKEY *pubkey, EVP_
 		entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
 	}
 
-	EVP_PKEY_free(entry->pubkey);
-	entry->pubkey = NULL;
-	if (pubkey) {
-		entry->pubkey = pubkey;
-		EVP_PKEY_up_ref(pubkey);
-	}
-	EVP_PKEY_free(entry->privkey);
-	entry->privkey = NULL;
-	if (privkey) {
-		entry->privkey = privkey;
-		EVP_PKEY_up_ref(privkey);
-	}
+	++entry->refcount;
+
+	UPDATE_PKEY(entry->pubkey, pubkey);
+	UPDATE_PKEY(entry->privkey, privkey);
+
 	HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
 
 	return 0;
@@ -225,31 +223,49 @@ int jwt_tree_create_entry_from_store(struct ckch_store *store, char **err)
 }
 
 /*
- * Release the keys held by the JWT tree entry matching <path> but keep the
- * entry itself in the tree. This is used when the "jwt" option is disabled on
- * a certificate ("del ssl jwt"): keeping an empty entry makes it possible for
- * jwt_verify to return JWT_VRFY_UNAVAIL_CERT instead of
- * JWT_VRFY_UNKNOWN_CERT. The keys can later be restored by
- * jwt_tree_create_entry().
- * Returns 0 (the entry may legitimately not exist).
+ * Update the JWT tree entry matching <store>'s path and take a new owner
+ * reference on it if <take_ref> is set, so that it can survive the release of
+ * the previous store. The entry is expected to already exist.
+ * This function is only meant to be called either with the "add/del ssl jwt"
+ * cli command or during the ckch_store_replace process where we update the
+ * corresponding JWT tree entry before deleting the previous ckch_store and
+ * inserting the new one in the ckch_store tree.
  */
-int jwt_tree_clear_entry(char *path)
+void jwt_tree_update_entry_from_store(struct ckch_store *store, int take_ref)
 {
+	EVP_PKEY *pubkey = NULL;
+	EVP_PKEY *privkey = NULL;
 	struct jwt_cert_tree_entry *entry = NULL;
 	struct ebmb_node *eb = NULL;
 
-	HA_RWLOCK_WRLOCK(JWT_LOCK, &jwt_tree_lock);
-	eb = ebst_lookup(&jwt_cert_tree, path);
-	if (eb != NULL) {
-		entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
-		EVP_PKEY_free(entry->pubkey);
-		EVP_PKEY_free(entry->privkey);
-		entry->pubkey = NULL;
-		entry->privkey = NULL;
-	}
-	HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
+	if (!store)
+		return;
 
-	return 0;
+	if (store->conf.jwt) {
+		/* X509_get_pubkey() returns an owned reference which is released
+		 * below. Note that the entry creation takes its own reference on
+		 * the key. */
+		pubkey = X509_get_pubkey(store->data->cert);
+		privkey = store->data->key;
+	}
+
+	HA_RWLOCK_WRLOCK(JWT_LOCK, &jwt_tree_lock);
+	eb = ebst_lookup(&jwt_cert_tree, store->path);
+	if (unlikely(!eb))
+		/* Should never happen */
+		goto end;
+
+	entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
+
+	if (take_ref)
+		++entry->refcount;
+
+	UPDATE_PKEY(entry->pubkey, pubkey);
+	UPDATE_PKEY(entry->privkey, privkey);
+
+end:
+	EVP_PKEY_free(pubkey);
+	HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
 }
 
 /*
@@ -268,10 +284,15 @@ int jwt_tree_delete_entry(char *path)
 	eb = ebst_lookup(&jwt_cert_tree, path);
 	if (eb != NULL) {
 		entry = ebmb_entry(eb, struct jwt_cert_tree_entry, node);
-		EVP_PKEY_free(entry->pubkey);
-		EVP_PKEY_free(entry->privkey);
-		ebmb_delete(eb);
-		free(entry);
+
+		--entry->refcount;
+
+		if (entry->refcount <= 0) {
+			EVP_PKEY_free(entry->pubkey);
+			EVP_PKEY_free(entry->privkey);
+			ebmb_delete(eb);
+			free(entry);
+		}
 	}
 	HA_RWLOCK_WRUNLOCK(JWT_LOCK, &jwt_tree_lock);
 

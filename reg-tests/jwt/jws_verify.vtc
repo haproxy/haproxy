@@ -163,12 +163,14 @@ haproxy h1 -conf {
     backend dflt_be
         http-request set-var(txn.bearer) http_auth_bearer
         http-request set-var(txn.jwt_alg) var(txn.bearer),jwt_header_query('$.alg')
+        http-request set-var(txn.cert) req.hdr(x-jwt-cert) if { req.hdr(x-jwt-cert) -m found }
 
         http-request set-var(txn.jwt_verify) var(txn.bearer),jwt_verify(txn.jwt_alg,"unknown_cert.pem")
 
         http-response set-header x-jwt-token %[var(txn.bearer)]
         http-response set-header x-jwt-alg %[var(txn.jwt_alg)]
         http-response set-header x-jwt-verify %[var(txn.jwt_verify)]
+        http-response set-header x-jwt-cert-verify %[var(txn.bearer),jwt_verify_cert(txn.jwt_alg,txn.cert)] if { var(txn.cert) -m found }
 
         server s1 ${s1_addr}:${s1_port}
 
@@ -635,4 +637,44 @@ client c30 -connect ${h1_binhmacfe_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-int == "1"
+} -run
+
+# The JWT entry of a certificate created through "new ssl cert" must survive
+# the "commit ssl cert" call even when the certificate does not use JWT. It is
+# kept as a keyless entry so that jwt_verify_cert() reports
+# JWT_VRFY_UNAVAIL_CERT (-7) instead of JWT_VRFY_UNKNOWN_CERT (-5).
+shell {
+    echo "new ssl cert ${tmpdir}/keyless.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${tmpdir}/keyless.pem <<\n$(cat ${testdir}/cert.rsa.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${tmpdir}/keyless.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+client c31 -connect ${h1_mainfe_sock} {
+    txreq -url "/errors" \
+          -hdr "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.AA" \
+          -hdr "x-jwt-cert: ${tmpdir}/keyless.pem"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-cert-verify == "-7"
+} -run
+
+# Repeated "add/del ssl jwt" on a certificate must not leak references on its
+# JWT entry. Once the certificate is deleted, the entry must be removed and
+# jwt_verify_cert() must return JWT_VRFY_UNKNOWN_CERT (-5).
+shell {
+    echo "add ssl jwt ${tmpdir}/keyless.pem" | socat "${tmpdir}/h1/stats" -
+    echo "del ssl jwt ${tmpdir}/keyless.pem" | socat "${tmpdir}/h1/stats" -
+    echo "add ssl jwt ${tmpdir}/keyless.pem" | socat "${tmpdir}/h1/stats" -
+    echo "del ssl jwt ${tmpdir}/keyless.pem" | socat "${tmpdir}/h1/stats" -
+
+    echo "del ssl cert ${tmpdir}/keyless.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+client c32 -connect ${h1_mainfe_sock} {
+    txreq -url "/errors" \
+          -hdr "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.AA" \
+          -hdr "x-jwt-cert: ${tmpdir}/keyless.pem"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-jwt-cert-verify == "-5"
 } -run
