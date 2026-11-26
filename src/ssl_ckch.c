@@ -936,6 +936,22 @@ struct ckch_data *ssl_sock_copy_cert_key_and_chain(struct ckch_data *src,
 		dst->ocsp_issuer = src->ocsp_issuer;
 	}
 	dst->ocsp_cid = OCSP_CERTID_dup(src->ocsp_cid);
+	if (dst->ocsp_cid) {
+		/* Increment the corresponding certificate_ocsp reference
+		 * counter to mirror the decrement happening in
+		 * ssl_sock_free_cert_key_and_chain_contents */
+		struct certificate_ocsp *ocsp = NULL;
+		unsigned char certid[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
+		unsigned int certid_length = 0;
+
+		if (ssl_ocsp_build_response_key(dst->ocsp_cid, (unsigned char*)certid, &certid_length) >= 0) {
+			HA_SPIN_LOCK(OCSP_LOCK, &ocsp_tree_lock);
+			ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, certid, OCSP_MAX_CERTID_ASN1_LENGTH);
+			if (ocsp)
+				ocsp->refcount_store++;
+			HA_SPIN_UNLOCK(OCSP_LOCK, &ocsp_tree_lock);
+		}
+	}
 #endif
 	return dst;
 
