@@ -36,6 +36,7 @@
 #include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/listener.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/quic_ssl-t.h>
@@ -2730,6 +2731,23 @@ end:
 
 REGISTER_CONFIG_POST_SECTION("listen",   post_section_frontend_crt_init);
 REGISTER_CONFIG_POST_SECTION("frontend", post_section_frontend_crt_init);
+
+static int cfgparse_ssl_pre_check(void)
+{
+	const char *keylogfile = getenv("SSLKEYLOGFILE");
+
+	if (master || !keylogfile || !*keylogfile)
+		return ERR_NONE;
+
+	ha_warning("The SSLKEYLOGFILE environment variable is not supported by HAProxy. "
+	           "It causes filesystem access and degrades performance. Use 'tune.ssl.keylog on' instead.\n");
+	if (global.mode & MODE_MWORKER)
+		ha_warning("Using SSLKEYLOGFILE in master-worker mode leaks file descriptors on each reload.\n");
+
+	return ERR_WARN;
+}
+
+REGISTER_PRE_CHECK(cfgparse_ssl_pre_check);
 
 static int cfgparse_ssl_post_check(void)
 {
