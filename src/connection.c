@@ -124,17 +124,23 @@ int conn_create_mux(struct connection *conn, int *closed_connection)
 		struct server *srv;
 		struct stconn *sc = conn->ctx;
 		struct session *sess = conn->owner;
+		const struct mux_ops *alt_mux = NULL;
 
 		if (conn->flags & CO_FL_ERROR)
 			goto fail;
 
+		srv = objt_server(conn->target);
 		if (sess && obj_type(sess->origin) == OBJ_TYPE_CHECK) {
 			if (conn_install_mux_chk(conn, conn->ctx, sess) < 0)
 				goto fail;
 		}
-		else if (conn_install_mux_be(conn, conn->ctx, sess, NULL) < 0)
-			goto fail;
-		srv = objt_server(conn->target);
+		else {
+			if (srv && sc && sc_strm(sc) && (__sc_strm(sc)->flags & SF_WEBSOCKET) &&
+			    !proto_is_quic(conn->ctrl) && !(srv->mux_proto && srv->mux_proto->init_xprt))
+				alt_mux = srv_get_ws_proto(srv);
+			if (conn_install_mux_be(conn, conn->ctx, sess, alt_mux) < 0)
+				goto fail;
+		}
 
 		/* If we're doing http-reuse always, and the connection is not
 		 * private with available streams (an http2 connection), add it
