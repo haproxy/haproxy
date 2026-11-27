@@ -331,7 +331,7 @@ static int comp_identity_end(struct comp_ctx **comp_ctx)
 
 
 /* "tune.comp.res.ring": rings may be allocated for responses (default) */
-static int comp_res_ring __read_mostly = 1;
+static int comp_res_ring __read_mostly __maybe_unused = 1;
 
 #ifdef USE_SLZ
 
