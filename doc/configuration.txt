@@ -6022,6 +6022,11 @@ tune.ssl.keylog { on | off }
   care as it will consume more memory per SSL session and could decrease
   performances. This is disabled by default.
 
+  The SSLKEYLOGFILE environment variable is not supported by HAProxy. It
+  causes filesystem access and degrades performance. In master-worker mode,
+  it also leaks file descriptors on each reload. Use "tune.ssl.keylog on"
+  and the sample fetches below instead.
+
   These sample fetches should be used to generate the SSLKEYLOGFILE that is
   required to decipher traffic with wireshark.
 
